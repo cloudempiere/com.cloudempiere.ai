@@ -1,11 +1,40 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
-  <artifactId>com.cloudempiere.searchindex</artifactId>
+  <artifactId>com.cloudempiere.ai</artifactId>
   <packaging>eclipse-plugin</packaging>
   <parent>
-		<groupId>org.idempiere</groupId>
-		<artifactId>org.idempiere.parent</artifactId>
-		<version>${revision}</version>
-		<relativePath>../iDempiereCLDE/org.idempiere.parent/pom.xml</relativePath>
+	<groupId>org.idempiere</groupId>
+	<artifactId>org.idempiere.parent</artifactId>
+	<version>${revision}</version>
+	<relativePath>../iDempiereCLDE/org.idempiere.parent/pom.xml</relativePath>
   </parent>
+  <build>
+		<plugins>
+		    <plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-dependency-plugin</artifactId>
+				<executions>
+					<execution>
+						<phase>validate</phase>
+						<goals>
+							<goal>copy</goal>
+						</goals>
+						<configuration>
+							<artifactItems>
+								<artifactItem>
+									<groupId>com.anthropic</groupId>
+								    <artifactId>anthropic-java</artifactId>
+								    <version>2.10.1</version>
+								</artifactItem>
+							</artifactItems>
+							<outputDirectory>lib</outputDirectory>
+							<stripVersion>true</stripVersion>
+							<overWriteReleases>true</overWriteReleases>
+							<overWriteSnapshots>true</overWriteSnapshots>
+						</configuration>
+					</execution>
+				</executions>
+			</plugin>
+		</plugins>
+	</build>
 </project>

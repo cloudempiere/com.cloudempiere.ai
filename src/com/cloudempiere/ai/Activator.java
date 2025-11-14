@@ -8,7 +8,7 @@ public class Activator extends Incremental2PackActivator {
 
 	@Override
 	public void start(BundleContext context) throws Exception {
-		Core.getMappedModelFactory().scan(context, "com.cloudempiere.searchindex.model");
+		Core.getMappedModelFactory().scan(context, "com.cloudempiere.ai.model");
 
 		super.start(context);
 	}
