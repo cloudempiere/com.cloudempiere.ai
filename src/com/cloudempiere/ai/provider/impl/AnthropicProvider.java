@@ -6,11 +6,19 @@ import java.util.stream.Collectors;
 
 import org.compiere.util.CLogger;
 
-import com.anthropic.Anthropic;
-import com.anthropic.models.MessageCreateParams;
-import com.anthropic.models.MessageStreamEvent;
-import com.anthropic.models.TextBlock;
-import com.anthropic.models.Usage;
+import com.anthropic.client.AnthropicClient;
+import com.anthropic.client.okhttp.AnthropicOkHttpClient;
+import com.anthropic.models.messages.Message;
+import com.anthropic.models.messages.MessageCreateParams;
+import com.anthropic.models.messages.MessageParam;
+import com.anthropic.models.messages.TextBlock;
+import com.anthropic.models.messages.Usage;
+import com.anthropic.models.messages.RawMessageStreamEvent;
+import com.anthropic.models.messages.RawContentBlockDeltaEvent;
+import com.anthropic.models.messages.TextDelta;
+import com.anthropic.models.messages.Tool;
+import com.anthropic.models.messages.ToolUnion;
+import com.anthropic.core.http.StreamResponse;
 import com.cloudempiere.ai.model.MAIProvider;
 import com.cloudempiere.ai.provider.AIProviderException;
 import com.cloudempiere.ai.provider.IAIProvider;
@@ -23,8 +31,6 @@ import com.cloudempiere.ai.provider.dto.AIRequest;
 import com.cloudempiere.ai.provider.dto.AIResponse;
 import com.cloudempiere.ai.provider.dto.AIStreamCallback;
 import com.cloudempiere.ai.provider.dto.AITokenUsage;
-
-import software.amazon.awssdk.services.sqs.model.Message;
 
 /**
  * Anthropic Claude AI Provider Implementation
@@ -49,7 +55,7 @@ public class AnthropicProvider implements IAIProvider {
 	private MAIProvider providerConfig;
 
 	/** Anthropic SDK client */
-	private Anthropic client;
+	private AnthropicClient client;
 
 	/** Provider ready flag */
 	private boolean ready = false;
@@ -96,7 +102,7 @@ public class AnthropicProvider implements IAIProvider {
 
 		try {
 			// Initialize Anthropic SDK client
-			this.client = Anthropic.builder()
+			this.client = AnthropicOkHttpClient.builder()
 				.apiKey(apiKey)
 				.build();
 
@@ -127,7 +133,7 @@ public class AnthropicProvider implements IAIProvider {
 	}
 
 	@Override
-	public String getProviderVersion() {
+	public String getAPIVersion() {
 		return "2023-06-01"; // Anthropic API version
 	}
 
@@ -161,7 +167,7 @@ public class AnthropicProvider implements IAIProvider {
 
 			// Convert messages
 			if (request.getMessages() != null && !request.getMessages().isEmpty()) {
-				List<MessageCreateParams.Message> messages = request.getMessages().stream()
+				List<MessageParam> messages = request.getMessages().stream()
 					.map(this::convertMessage)
 					.collect(Collectors.toList());
 				paramsBuilder.messages(messages);
@@ -208,7 +214,7 @@ public class AnthropicProvider implements IAIProvider {
 			}
 
 			if (request.getMessages() != null && !request.getMessages().isEmpty()) {
-				List<MessageCreateParams.Message> messages = request.getMessages().stream()
+				List<MessageParam> messages = request.getMessages().stream()
 					.map(this::convertMessage)
 					.collect(Collectors.toList());
 				paramsBuilder.messages(messages);
@@ -217,20 +223,19 @@ public class AnthropicProvider implements IAIProvider {
 			// Stream message
 			StringBuilder fullContent = new StringBuilder();
 
-			client.messages().stream(paramsBuilder.build())
-				.forEach(event -> {
-					if (event instanceof MessageStreamEvent.ContentBlockDelta) {
-						MessageStreamEvent.ContentBlockDelta delta =
-							(MessageStreamEvent.ContentBlockDelta) event;
-						String text = extractDeltaText(delta);
-						if (text != null && !text.isEmpty()) {
-							fullContent.append(text);
-							callback.onChunk(text);
-						}
+			StreamResponse<RawMessageStreamEvent> streamResponse = client.messages().createStreaming(paramsBuilder.build());
+			streamResponse.stream().forEach(event -> {
+				if (event.isContentBlockDelta()) {
+					RawContentBlockDeltaEvent delta = event.asContentBlockDelta();
+					String text = extractDeltaText(delta);
+					if (text != null && !text.isEmpty()) {
+						fullContent.append(text);
+						callback.onChunk(text);
 					}
-				});
+				}
+			});
 
-			callback.onComplete(fullContent.toString());
+			callback.onComplete();
 			log.fine("Streaming text generation completed");
 
 		} catch (Exception e) {
@@ -262,7 +267,7 @@ public class AnthropicProvider implements IAIProvider {
 			}
 
 			if (request.getMessages() != null && !request.getMessages().isEmpty()) {
-				List<MessageCreateParams.Message> messages = request.getMessages().stream()
+				List<MessageParam> messages = request.getMessages().stream()
 					.map(this::convertMessage)
 					.collect(Collectors.toList());
 				paramsBuilder.messages(messages);
@@ -270,8 +275,9 @@ public class AnthropicProvider implements IAIProvider {
 
 			// Add tools if provided
 			if (functions != null && !functions.isEmpty()) {
-				List<MessageCreateParams.Tool> tools = functions.stream()
+				List<ToolUnion> tools = functions.stream()
 					.map(this::convertFunction)
+					.map(ToolUnion::ofTool)
 					.collect(Collectors.toList());
 				paramsBuilder.tools(tools);
 			}
@@ -332,8 +338,6 @@ public class AnthropicProvider implements IAIProvider {
 	@Override
 	public AIModelCapabilities getModelCapabilities(String modelName) {
 		AIModelCapabilities capabilities = new AIModelCapabilities();
-		capabilities.setModelName(modelName != null ? modelName : DEFAULT_MODEL);
-		capabilities.setProviderType(getProviderType());
 
 		// Claude 3 family capabilities
 		if (modelName == null || modelName.startsWith("claude-3")) {
@@ -341,8 +345,6 @@ public class AnthropicProvider implements IAIProvider {
 			capabilities.setSupportsStreaming(true);
 			capabilities.setSupportsFunctions(true); // Claude supports tools
 			capabilities.setSupportsVision(true); // Claude 3 supports vision
-			capabilities.setSupportsAudio(false);
-			capabilities.setSupportsEmbeddings(false);
 		}
 
 		return capabilities;
@@ -366,13 +368,15 @@ public class AnthropicProvider implements IAIProvider {
 			long startTime = System.currentTimeMillis();
 
 			// Simple health check using minimal request
+			MessageParam testMessage = MessageParam.builder()
+				.role(MessageParam.Role.USER)
+				.content("test")
+				.build();
+
 			MessageCreateParams params = MessageCreateParams.builder()
 				.model("claude-3-haiku-20240307")
 				.maxTokens(10)
-				.addMessage(MessageCreateParams.Message.builder()
-					.role(MessageCreateParams.Message.Role.USER)
-					.content("test")
-					.build())
+				.addMessage(testMessage)
 				.build();
 
 			client.messages().create(params);
@@ -462,16 +466,16 @@ public class AnthropicProvider implements IAIProvider {
 	}
 
 	/**
-	 * Convert AIMessage to Anthropic SDK Message
+	 * Convert AIMessage to Anthropic SDK MessageParam
 	 */
-	private MessageCreateParams.Message convertMessage(AIMessage msg) {
-		MessageCreateParams.Message.Builder builder = MessageCreateParams.Message.builder();
+	private MessageParam convertMessage(AIMessage msg) {
+		MessageParam.Builder builder = MessageParam.builder();
 
 		// Map role
 		if ("user".equalsIgnoreCase(msg.getRole())) {
-			builder.role(MessageCreateParams.Message.Role.USER);
+			builder.role(MessageParam.Role.USER);
 		} else if ("assistant".equalsIgnoreCase(msg.getRole())) {
-			builder.role(MessageCreateParams.Message.Role.ASSISTANT);
+			builder.role(MessageParam.Role.ASSISTANT);
 		}
 
 		// Set content
@@ -483,21 +487,30 @@ public class AnthropicProvider implements IAIProvider {
 	/**
 	 * Convert AIFunction to Anthropic SDK Tool
 	 */
-	private MessageCreateParams.Tool convertFunction(AIFunction function) {
-		return MessageCreateParams.Tool.builder()
+	private Tool convertFunction(AIFunction function) {
+		Tool.Builder builder = Tool.builder()
 			.name(function.getName())
-			.description(function.getDescription())
-			.inputSchema(function.getParameters())
-			.build();
+			.inputSchema(Tool.InputSchema.builder()
+				.putAdditionalProperty("type", com.anthropic.core.JsonValue.from("object"))
+				.build());
+
+		if (function.getDescription() != null) {
+			builder.description(function.getDescription());
+		}
+
+		return builder.build();
 	}
 
 	/**
 	 * Extract text from delta event
 	 */
-	private String extractDeltaText(MessageStreamEvent.ContentBlockDelta delta) {
+	private String extractDeltaText(RawContentBlockDeltaEvent delta) {
 		try {
-			// Access delta content - actual implementation depends on SDK API
-			return delta.toString(); // Placeholder - needs actual SDK API
+			if (delta.delta().isText()) {
+				TextDelta textDelta = delta.delta().asText();
+				return textDelta.text();
+			}
+			return "";
 		} catch (Exception e) {
 			log.warning("Failed to extract delta text: " + e.getMessage());
 			return "";
@@ -513,16 +526,16 @@ public class AnthropicProvider implements IAIProvider {
 		try {
 			// Extract content from text blocks
 			StringBuilder content = new StringBuilder();
-			for (Object block : response.content()) {
-				if (block instanceof TextBlock) {
-					TextBlock textBlock = (TextBlock) block;
+			for (com.anthropic.models.messages.ContentBlock block : response.content()) {
+				if (block.isText()) {
+					TextBlock textBlock = block.asText();
 					content.append(textBlock.text());
 				}
 			}
 			aiResponse.setContent(content.toString());
 
 			// Model
-			aiResponse.setModel(response.model());
+			aiResponse.setModel(response.model().asString());
 
 			// Token usage
 			Usage usage = response.usage();
@@ -560,5 +573,67 @@ public class AnthropicProvider implements IAIProvider {
 		}
 
 		return aiResponse;
+	}
+
+	// Additional interface methods
+
+	@Override
+	public boolean supportsTextGeneration() {
+		return true;
+	}
+
+	@Override
+	public boolean supportsStreaming() {
+		return true;
+	}
+
+	@Override
+	public boolean supportsFunctionCalling() {
+		return true; // Claude supports tools
+	}
+
+	@Override
+	public boolean supportsVision() {
+		return true; // Claude 3 supports vision
+	}
+
+	@Override
+	public boolean supportsAudio() {
+		return false;
+	}
+
+	@Override
+	public boolean supportsEmbeddings() {
+		return false;
+	}
+
+	@Override
+	public AIResponse analyzeImageURL(String imageURL, String prompt, String modelName)
+			throws AIProviderException {
+		throw new AIProviderException(
+			"Image URL analysis not yet implemented. " +
+			"Use analyzeImage() with byte[] data instead."
+		);
+	}
+
+	@Override
+	public List<float[]> generateEmbeddingsBatch(List<String> texts, String modelName)
+			throws AIProviderException {
+		throw new AIProviderException(
+			"Anthropic does not support embedding generation. " +
+			"Please use a different provider (e.g., OpenAI) for embeddings."
+		);
+	}
+
+	@Override
+	public int estimateTokenCount(String text, String modelName) {
+		// Rough approximation: 4 characters per token
+		return text != null ? text.length() / 4 : 0;
+	}
+
+	@Override
+	public String getLastError() {
+		// Could be enhanced to track last error
+		return null;
 	}
 }

@@ -172,7 +172,7 @@ System.out.println("Cost: $" + response.getCostUSD());
 
 ## Notes for Review
 
-- All files use "Cloudempiere" as author (not "CloudEmpiere")
+- All files use "Cloudempiere" as author (not "Cloudempiere")
 - OSGi annotations follow cache provider pattern
 - Interface methods match implementation plan
 - Builder pattern for fluent API
