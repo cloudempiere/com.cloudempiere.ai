@@ -2,7 +2,7 @@ Manifest-Version: 1.0
 Bundle-ManifestVersion: 2
 Bundle-Name: AI
 Bundle-SymbolicName: com.cloudempiere.ai
-Bundle-Version: 1.0.0.qualifier
+Bundle-Version: 10.0.0.qualifier
 Bundle-Vendor: CLOUDEMPIERE
 Automatic-Module-Name: com.cloudempiere.ai
 Bundle-RequiredExecutionEnvironment: JavaSE-11
@@ -10,4 +10,33 @@ Require-Bundle: org.adempiere.base;bundle-version="10.0.0",
  org.adempiere.plugin.utils;bundle-version="10.0.0",
  org.eclipse.osgi.services;bundle-version="3.10.200"
 Bundle-Activator: com.cloudempiere.ai.Activator
-Import-Package: org.osgi.framework
+Import-Package: org.osgi.framework,
+ org.slf4j
+Service-Component: OSGI-INF/com.cloudempiere.ai.provider.factory.AIProviderFactory.xml
+Bundle-ActivationPolicy: lazy
+Export-Package: com.cloudempiere.ai.provider.factory
+Bundle-ClassPath: .,
+ lib/anthropic-java-client-okhttp.jar,
+ lib/anthropic-java-core.jar,
+ lib/bedrockruntime.jar,
+ lib/jackson-annotations.jar,
+ lib/jackson-core.jar,
+ lib/jackson-databind.jar,
+ lib/jackson-datatype-jdk8.jar,
+ lib/jackson-datatype-jsr310.jar,
+ lib/jackson-module-kotlin.jar,
+ lib/kotlin-reflect.jar,
+ lib/kotlin-stdlib.jar,
+ lib/netty-buffer.jar,
+ lib/netty-codec.jar,
+ lib/netty-codec-http.jar,
+ lib/netty-codec-http2.jar,
+ lib/netty-common.jar,
+ lib/netty-handler.jar,
+ lib/netty-nio-client.jar,
+ lib/netty-resolver.jar,
+ lib/netty-transport.jar,
+ lib/netty-transport-native-unix-common.jar,
+ lib/okhttp.jar,
+ lib/okio.jar,
+ lib/okio-jvm.jar
