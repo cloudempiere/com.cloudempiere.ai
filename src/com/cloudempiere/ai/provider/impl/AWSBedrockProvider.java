@@ -23,6 +23,10 @@ import com.cloudempiere.ai.provider.dto.AITokenUsage;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.http.SdkHttpClient;
+import software.amazon.awssdk.http.async.SdkAsyncHttpClient;
+import software.amazon.awssdk.http.nio.netty.NettyNioAsyncHttpClient;
+import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.bedrockruntime.BedrockRuntimeAsyncClient;
 import software.amazon.awssdk.services.bedrockruntime.BedrockRuntimeClient;
@@ -62,7 +66,7 @@ public class AWSBedrockProvider implements IAIProvider {
 	private static final String DEFAULT_MODEL = "anthropic.claude-3-5-sonnet-20240620-v1:0";
 
 	/** Default AWS region if not specified in provider config */
-	private static final String DEFAULT_REGION = "us-east-1";
+	private static final String DEFAULT_REGION = "eu-west-1";
 
 	/** Provider configuration from database */
 	private MAIProvider providerConfig;
@@ -157,15 +161,22 @@ public class AWSBedrockProvider implements IAIProvider {
 			StaticCredentialsProvider credentialsProvider = StaticCredentialsProvider.create(awsCredentials);
 			Region awsRegion = Region.of(region);
 
+			// Create HTTP clients explicitly for OSGi environment
+			// AWS SDK cannot auto-discover HTTP implementations via SPI in OSGi
+			SdkHttpClient syncHttpClient = UrlConnectionHttpClient.builder().build();
+			SdkAsyncHttpClient asyncHttpClient = NettyNioAsyncHttpClient.builder().build();
+
 			// Initialize Bedrock Runtime clients (sync and async)
 			this.bedrockClient = BedrockRuntimeClient.builder()
 				.region(awsRegion)
 				.credentialsProvider(credentialsProvider)
+				.httpClient(syncHttpClient)
 				.build();
 
 			this.bedrockAsyncClient = BedrockRuntimeAsyncClient.builder()
 				.region(awsRegion)
 				.credentialsProvider(credentialsProvider)
+				.httpClient(asyncHttpClient)
 				.build();
 
 			// Test connection
