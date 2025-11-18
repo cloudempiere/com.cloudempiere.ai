@@ -15,6 +15,7 @@
 				<artifactId>maven-dependency-plugin</artifactId>
 				<executions>
 					<execution>
+						<id>copy-dependencies</id>
 						<phase>validate</phase>
 						<goals>
 							<goal>copy</goal>
@@ -85,6 +86,64 @@
 									<groupId>com.squareup.okio</groupId>
 									<artifactId>okio-jvm</artifactId>
 									<version>3.6.0</version>
+								</artifactItem>
+								<!-- AWS Bedrock Runtime (requires SDK 2.26.0+ for Converse API) -->
+								<artifactItem>
+									<groupId>software.amazon.awssdk</groupId>
+									<artifactId>bedrockruntime</artifactId>
+									<version>2.29.0</version>
+								</artifactItem>
+								<!-- Netty NIO HTTP client for AWS SDK async operations -->
+								<artifactItem>
+									<groupId>software.amazon.awssdk</groupId>
+									<artifactId>netty-nio-client</artifactId>
+									<version>2.29.0</version>
+								</artifactItem>
+								<!-- Netty dependencies required by netty-nio-client -->
+								<artifactItem>
+									<groupId>io.netty</groupId>
+									<artifactId>netty-codec-http</artifactId>
+									<version>4.1.100.Final</version>
+								</artifactItem>
+								<artifactItem>
+									<groupId>io.netty</groupId>
+									<artifactId>netty-codec-http2</artifactId>
+									<version>4.1.100.Final</version>
+								</artifactItem>
+								<artifactItem>
+									<groupId>io.netty</groupId>
+									<artifactId>netty-codec</artifactId>
+									<version>4.1.100.Final</version>
+								</artifactItem>
+								<artifactItem>
+									<groupId>io.netty</groupId>
+									<artifactId>netty-transport</artifactId>
+									<version>4.1.100.Final</version>
+								</artifactItem>
+								<artifactItem>
+									<groupId>io.netty</groupId>
+									<artifactId>netty-common</artifactId>
+									<version>4.1.100.Final</version>
+								</artifactItem>
+								<artifactItem>
+									<groupId>io.netty</groupId>
+									<artifactId>netty-buffer</artifactId>
+									<version>4.1.100.Final</version>
+								</artifactItem>
+								<artifactItem>
+									<groupId>io.netty</groupId>
+									<artifactId>netty-handler</artifactId>
+									<version>4.1.100.Final</version>
+								</artifactItem>
+								<artifactItem>
+									<groupId>io.netty</groupId>
+									<artifactId>netty-transport-native-unix-common</artifactId>
+									<version>4.1.100.Final</version>
+								</artifactItem>
+								<artifactItem>
+									<groupId>io.netty</groupId>
+									<artifactId>netty-resolver</artifactId>
+									<version>4.1.100.Final</version>
 								</artifactItem>
 							</artifactItems>
 							<outputDirectory>lib</outputDirectory>
