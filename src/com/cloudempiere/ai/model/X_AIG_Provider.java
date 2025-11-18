@@ -31,7 +31,7 @@ public class X_AIG_Provider extends PO implements I_AIG_Provider, I_Persistent
 	/**
 	 *
 	 */
-	private static final long serialVersionUID = 20251114L;
+	private static final long serialVersionUID = 20251117L;
 
     /** Standard Constructor */
     public X_AIG_Provider (Properties ctx, int AIG_Provider_ID, String trxName)
@@ -124,6 +124,8 @@ public class X_AIG_Provider extends PO implements I_AIG_Provider, I_Persistent
 
 	/** AIGProviderType AD_Reference_ID=800124 */
 	public static final int AIGPROVIDERTYPE_AD_Reference_ID=800124;
+	/** AWS Bedrock = ABE */
+	public static final String AIGPROVIDERTYPE_AWSBedrock = "ABE";
 	/** Anthropic Claude = ANT */
 	public static final String AIGPROVIDERTYPE_AnthropicClaude = "ANT";
 	/** Set Provider Type.

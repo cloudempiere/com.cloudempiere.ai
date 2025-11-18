@@ -13,17 +13,19 @@ Bundle-Activator: com.cloudempiere.ai.Activator
 Import-Package: org.osgi.framework
 Service-Component: OSGI-INF/com.cloudempiere.ai.provider.factory.AIProviderFactory.xml
 Bundle-ActivationPolicy: lazy
-Bundle-ClassPath: .,
- lib/okhttp.jar,
- lib/okio.jar,
- lib/okio-jvm.jar,
+Bundle-ClassPath: lib/anthropic-java-client-okhttp.jar,
+ lib/anthropic-java-core.jar,
+ lib/aws-json-protocol.jar,
+ lib/bedrockruntime.jar,
+ lib/jackson-annotations.jar,
  lib/jackson-core.jar,
  lib/jackson-databind.jar,
- lib/jackson-annotations.jar,
- lib/jackson-module-kotlin.jar,
  lib/jackson-datatype-jdk8.jar,
  lib/jackson-datatype-jsr310.jar,
- lib/kotlin-stdlib.jar,
+ lib/jackson-module-kotlin.jar,
  lib/kotlin-reflect.jar,
- lib/anthropic-java-core.jar,
- lib/anthropic-java-client-okhttp.jar
+ lib/kotlin-stdlib.jar,
+ lib/okhttp.jar,
+ lib/okio.jar,
+ lib/okio-jvm.jar
+Export-Package: com.cloudempiere.ai.provider.factory

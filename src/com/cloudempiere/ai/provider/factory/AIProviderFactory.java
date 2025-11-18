@@ -73,6 +73,12 @@ public class AIProviderFactory implements IAIProviderFactory {
 			com.cloudempiere.ai.provider.impl.AnthropicProvider.class
 		);
 
+		// Register AWS Bedrock provider
+		registerProvider(
+			MAIProvider.AIGPROVIDERTYPE_AWSBedrock,
+			com.cloudempiere.ai.provider.impl.AWSBedrockProvider.class
+		);
+
 		// TODO: Register other provider implementations as they are created
 		// Example:
 		// registerProvider(MAIProvider.AIGPROVIDERTYPE_OpenAI, OpenAIProvider.class);

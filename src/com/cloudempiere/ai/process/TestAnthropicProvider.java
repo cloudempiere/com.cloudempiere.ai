@@ -22,22 +22,32 @@ import org.compiere.process.ProcessInfoParameter;
 import org.compiere.process.SvrProcess;
 
 import com.cloudempiere.ai.model.MAIProvider;
+import com.cloudempiere.ai.provider.AIProviderException;
+import com.cloudempiere.ai.provider.IAIProvider;
 import com.cloudempiere.ai.provider.dto.AIHealthStatus;
 import com.cloudempiere.ai.provider.dto.AIMessage;
+import com.cloudempiere.ai.provider.dto.AIModelCapabilities;
 import com.cloudempiere.ai.provider.dto.AIRequest;
 import com.cloudempiere.ai.provider.dto.AIResponse;
-import com.cloudempiere.ai.provider.impl.AnthropicProvider;
+import com.cloudempiere.ai.provider.factory.AIProviderFactory;
 
 /**
- * Test Process for Anthropic Claude AI Provider
+ * Test Process for AI Providers (Anthropic Claude & AWS Bedrock)
  *
- * This process tests the Anthropic provider integration by:
+ * This process tests AI provider integrations by:
  * 1. Running a health check
  * 2. Generating a simple text response
- * 3. Displaying results and metrics (tokens, cost, response time)
+ * 3. Testing streaming (optional)
+ * 4. Displaying results and metrics (tokens, cost, response time)
+ * 5. Showing feature support
+ *
+ * Works with any registered AI provider type:
+ * - Anthropic Claude (ANT)
+ * - AWS Bedrock (ABE)
+ * - Any future providers
  *
  * @author CloudEmpiere
- * @version 1.0
+ * @version 2.0
  */
 @org.adempiere.base.annotation.Process
 public class TestAnthropicProvider extends SvrProcess {
@@ -84,7 +94,7 @@ public class TestAnthropicProvider extends SvrProcess {
 	}
 
 	/**
-	 * Process - Test Anthropic Provider
+	 * Process - Test AI Provider (Any Type)
 	 *
 	 * @return Summary message
 	 */
@@ -100,21 +110,28 @@ public class TestAnthropicProvider extends SvrProcess {
 			throw new AdempiereException("AI Provider not found: " + p_AIG_Provider_ID);
 		}
 
-		addLog("Testing AI Provider: " + providerConfig.getName());
-		addLog("Provider Type: " + providerConfig.getAIGProviderType());
-
-		// Verify it's an Anthropic provider
-		if (!MAIProvider.AIGPROVIDERTYPE_AnthropicClaude.equals(providerConfig.getAIGProviderType())) {
-			throw new AdempiereException("This process only works with Anthropic Claude providers. Current type: "
-					+ providerConfig.getAIGProviderType());
+		if (!providerConfig.isActive()) {
+			throw new AdempiereException("AI Provider is not active: " + providerConfig.getName());
 		}
 
-		// Create and initialize provider
-		AnthropicProvider provider = new AnthropicProvider();
+		addLog("╔═══════════════════════════════════════════════════════╗");
+		addLog("║  Testing AI Provider: " + providerConfig.getName());
+		addLog("║  Provider Type: " + providerConfig.getAIGProviderType());
+		addLog("╚═══════════════════════════════════════════════════════╝");
+
+		// Get provider type name for display
+		String providerTypeName = getProviderTypeName(providerConfig.getAIGProviderType());
+		addLog("Provider Implementation: " + providerTypeName);
+
+		// Use factory to get provider instance
+		AIProviderFactory factory = new AIProviderFactory();
+		IAIProvider provider = null;
+
 		try {
-			provider.initialize(providerConfig);
-			addLog("Provider initialized successfully");
-		} catch (Exception e) {
+			provider = factory.get(providerConfig);
+			addLog("✓ Provider initialized successfully");
+			addLog("  API Version: " + provider.getAPIVersion());
+		} catch (AIProviderException e) {
 			log.log(Level.SEVERE, "Failed to initialize provider", e);
 			throw new AdempiereException("Failed to initialize provider: " + e.getMessage(), e);
 		}
@@ -192,13 +209,73 @@ public class TestAnthropicProvider extends SvrProcess {
 
 		// Test 3: Feature Support
 		addLog("=== Test 3: Feature Support ===");
-		addLog("Text Generation: " + (provider.supportsTextGeneration() ? "YES" : "NO"));
-		addLog("Streaming: " + (provider.supportsStreaming() ? "YES" : "NO"));
-		addLog("Function Calling: " + (provider.supportsFunctionCalling() ? "YES" : "NO"));
-		addLog("Vision: " + (provider.supportsVision() ? "YES" : "NO"));
-		addLog("Audio: " + (provider.supportsAudio() ? "YES" : "NO"));
-		addLog("Embeddings: " + (provider.supportsEmbeddings() ? "YES" : "NO"));
+		addLog("✓ Text Generation: " + (provider.supportsTextGeneration() ? "YES" : "NO"));
+		addLog("  Streaming: " + (provider.supportsStreaming() ? "YES" : "NO"));
+		addLog("  Function Calling: " + (provider.supportsFunctionCalling() ? "YES" : "NO"));
+		addLog("  Vision: " + (provider.supportsVision() ? "YES" : "NO"));
+		addLog("  Audio: " + (provider.supportsAudio() ? "YES" : "NO"));
+		addLog("  Embeddings: " + (provider.supportsEmbeddings() ? "YES" : "NO"));
 
-		return "All tests completed successfully!";
+		// Test 4: Supported Models
+		addLog("=== Test 4: Supported Models ===");
+		try {
+			List<String> supportedModels = provider.getSupportedModels();
+			if (supportedModels != null && !supportedModels.isEmpty()) {
+				addLog("Available Models (" + supportedModels.size() + "):");
+				int count = 0;
+				for (String model : supportedModels) {
+					addLog("  " + (++count) + ". " + model);
+					if (count >= 5) {
+						addLog("  ... and " + (supportedModels.size() - 5) + " more");
+						break;
+					}
+				}
+			} else {
+				addLog("No models listed");
+			}
+		} catch (Exception e) {
+			addLog("Error getting supported models: " + e.getMessage());
+		}
+
+		// Test 5: Model Capabilities (for the model being tested)
+		addLog("=== Test 5: Model Capabilities ===");
+		addLog("Model: " + p_Model);
+		try {
+			AIModelCapabilities caps = provider.getModelCapabilities(p_Model);
+			if (caps != null) {
+				addLog("  Max Context Length: " + caps.getMaxContextLength() + " tokens");
+				addLog("  Max Output Tokens: " + caps.getMaxOutputTokens() + " tokens");
+				addLog("  Supports Vision: " + (caps.isSupportsVision() ? "YES" : "NO"));
+				addLog("  Supports Functions: " + (caps.isSupportsFunctions() ? "YES" : "NO"));
+				addLog("  Supports Streaming: " + (caps.isSupportsStreaming() ? "YES" : "NO"));
+				addLog("  Supports JSON: " + (caps.isSupportsJSON() ? "YES" : "NO"));
+			}
+		} catch (Exception e) {
+			addLog("Error getting model capabilities: " + e.getMessage());
+		}
+
+		// Clean up
+		try {
+			provider.shutdown();
+			addLog("✓ Provider shutdown successfully");
+		} catch (Exception e) {
+			log.warning("Error shutting down provider: " + e.getMessage());
+		}
+
+		addLog("═══════════════════════════════════════════════════════");
+		addLog("✓ All tests completed successfully!");
+		return "All tests passed for " + providerTypeName;
+	}
+
+	/**
+	 * Get friendly provider type name
+	 */
+	private String getProviderTypeName(String providerType) {
+		if (MAIProvider.AIGPROVIDERTYPE_AnthropicClaude.equals(providerType)) {
+			return "Anthropic Claude";
+		} else if (MAIProvider.AIGPROVIDERTYPE_AWSBedrock.equals(providerType)) {
+			return "AWS Bedrock";
+		}
+		return "Unknown (" + providerType + ")";
 	}
 }

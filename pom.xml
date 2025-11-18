@@ -86,6 +86,12 @@
 									<artifactId>okio-jvm</artifactId>
 									<version>3.6.0</version>
 								</artifactItem>
+								<!-- AWS Bedrock Runtime (requires SDK 2.26.0+ for Converse API) -->
+								<artifactItem>
+									<groupId>software.amazon.awssdk</groupId>
+									<artifactId>bedrockruntime</artifactId>
+									<version>2.29.0</version>
+								</artifactItem>
 							</artifactItems>
 							<outputDirectory>lib</outputDirectory>
 							<stripVersion>true</stripVersion>
