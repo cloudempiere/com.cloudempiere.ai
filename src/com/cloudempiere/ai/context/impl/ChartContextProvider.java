@@ -21,7 +21,6 @@ import java.util.logging.Level;
 
 import org.adempiere.apps.graph.model.ChartDatasource;
 import org.compiere.model.MChart;
-import org.compiere.model.MChartDatasource;
 import org.compiere.model.MChartPara;
 import org.compiere.util.CLogger;
 import org.compiere.util.DB;
