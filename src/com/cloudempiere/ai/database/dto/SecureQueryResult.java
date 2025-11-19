@@ -17,6 +17,8 @@ import java.util.List;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import com.cloudempiere.ai.model.MAIQueryAudit;
+
 /**
  * Result of secure database query execution
  *
@@ -227,7 +229,7 @@ public class SecureQueryResult {
      * @return true if status is SUCCESS
      */
     public boolean isSuccess() {
-        return "SUCCESS".equals(status);
+        return MAIQueryAudit.AIGQUERYSTATUS_Success.equals(status);
     }
 
     /**
