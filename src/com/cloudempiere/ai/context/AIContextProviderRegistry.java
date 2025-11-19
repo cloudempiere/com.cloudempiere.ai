@@ -1,6 +1,6 @@
 /******************************************************************************
  * Product: iDempiere ERP & CRM Smart Business Solution                      *
- * Copyright (C) CloudEmpiere, Inc. All Rights Reserved.                     *
+ * Copyright (C) Cloudempiere, Inc. All Rights Reserved.                     *
  * This program is free software; you can redistribute it and/or modify it   *
  * under the terms version 2 of the GNU General Public License as published  *
  * by the Free Software Foundation. This program is distributed in the hope  *
@@ -49,7 +49,7 @@ import com.cloudempiere.ai.context.impl.WindowContextProvider;
  * }
  * </pre>
  *
- * @author CloudEmpiere
+ * @author Cloudempiere
  * @version 1.0
  */
 public class AIContextProviderRegistry {

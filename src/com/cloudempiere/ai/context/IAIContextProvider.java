@@ -1,6 +1,6 @@
 /******************************************************************************
  * Product: iDempiere ERP & CRM Smart Business Solution                      *
- * Copyright (C) CloudEmpiere, Inc. All Rights Reserved.                     *
+ * Copyright (C) Cloudempiere, Inc. All Rights Reserved.                     *
  * This program is free software; you can redistribute it and/or modify it   *
  * under the terms version 2 of the GNU General Public License as published  *
  * by the Free Software Foundation. This program is distributed in the hope  *
@@ -33,7 +33,7 @@ import org.json.JSONObject;
  * the user's current situation within iDempiere and provide relevant
  * assistance based on the component they're interacting with.
  *
- * @author CloudEmpiere
+ * @author Cloudempiere
  * @version 1.0
  */
 public interface IAIContextProvider {
