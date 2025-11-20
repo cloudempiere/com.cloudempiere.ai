@@ -62,8 +62,8 @@ public class AWSBedrockProvider implements IAIProvider {
 
 	private static final CLogger log = CLogger.getCLogger(AWSBedrockProvider.class);
 
-	/** Default model if none specified - using Claude 3.5 Sonnet via Bedrock */
-	private static final String DEFAULT_MODEL = "anthropic.claude-3-5-sonnet-20240620-v1:0";
+	/** Default model if none specified */
+	private static final String DEFAULT_MODEL = "anthropic.claude-3-haiku-20240307-v1:0";
 
 	/** Default AWS region if not specified in provider config */
 	private static final String DEFAULT_REGION = "eu-west-1";
@@ -650,6 +650,11 @@ public class AWSBedrockProvider implements IAIProvider {
 	 * Convert AIMessage to Bedrock Message
 	 */
 	private Message convertMessage(AIMessage aiMessage) {
+		// Validate content is not null or empty
+		if (aiMessage.getContent() == null || aiMessage.getContent().trim().isEmpty()) {
+			throw new IllegalArgumentException("Message content cannot be null or empty.");
+		}
+
 		ConversationRole role;
 
 		// Map role
