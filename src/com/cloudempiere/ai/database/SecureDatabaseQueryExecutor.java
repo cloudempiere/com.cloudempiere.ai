@@ -31,18 +31,30 @@ import org.json.JSONObject;
 
 import com.cloudempiere.ai.database.dto.SecureQueryRequest;
 import com.cloudempiere.ai.database.dto.SecureQueryResult;
+import com.cloudempiere.ai.model.MAIProvider;
 import com.cloudempiere.ai.model.MAIQueryAudit;
 
 /**
  * Secure database query executor for AI agents
  *
- * <p><b>SECURITY MODEL</b>: AI agents execute queries using the
- * <b>logged-in user's context and permissions</b>. The AI agent
- * is a tool/proxy that operates on behalf of the user, NOT a
- * separate user with its own permissions.
+ * <p><b>SECURITY MODEL</b>: AI agents execute queries using a designated
+ * AI user account (from AIG_Provider.AD_User_ID) with the logged-in user's
+ * role permissions. This provides:
+ * <ul>
+ *   <li>Clear AI agent identity for audit trails</li>
+ *   <li>Role-based permissions inherited from the logged-in user</li>
+ *   <li>Separation between AI agent and human user identities</li>
+ * </ul>
  *
- * <p><b>KEY PRINCIPLE</b>: If the logged-in user cannot access
+ * <p><b>KEY PRINCIPLE</b>: If the logged-in user's role cannot access
  * a table/column/record, the AI agent cannot access it either.
+ *
+ * <p><b>Execution Model</b>:
+ * <ul>
+ *   <li>Query executes with: AI User ID (from provider) + Logged-in User's Role ID</li>
+ *   <li>Permissions checked against logged-in user's role</li>
+ *   <li>Audit log records both AI user and initiating user</li>
+ * </ul>
  *
  * <p>Security Features:
  * <ul>
@@ -50,11 +62,11 @@ import com.cloudempiere.ai.model.MAIQueryAudit;
  *   <li>Automatic SQL injection via MRole.addAccessSQL()</li>
  *   <li>Read-only enforcement (SELECT only)</li>
  *   <li>Row limits and query timeout</li>
- *   <li>Comprehensive audit logging with user and AI provider tracking</li>
+ *   <li>Comprehensive audit logging with AI user and initiating user tracking</li>
  * </ul>
  *
  * @author Cloudempiere
- * @version 2.0
+ * @version 3.0
  */
 public class SecureDatabaseQueryExecutor {
 
@@ -74,82 +86,102 @@ public class SecureDatabaseQueryExecutor {
     };
 
     /**
-     * Execute a secure database query using logged-in user's permissions
+     * Execute a secure database query using AI user with logged-in user's permissions
      *
-     * <p><b>CRITICAL</b>: This method executes the query using the
-     * context (ctx) provided in the request, which contains the
-     * logged-in user's AD_User_ID and AD_Role_ID. It does NOT
-     * switch to a different user or role.
+     * <p><b>CRITICAL</b>: This method executes the query using:
+     * <ul>
+     *   <li>AI User ID from AIG_Provider.AD_User_ID (who executes the query)</li>
+     *   <li>Logged-in User's Role ID from context (what permissions apply)</li>
+     * </ul>
      *
      * <p>Security Flow:
      * <ol>
-     *   <li>Extract user/role from provided context (ctx)</li>
+     *   <li>Load AI Provider and get designated AI User ID</li>
+     *   <li>Validate AI user exists and is active</li>
+     *   <li>Extract logged-in user's role from provided context (ctx)</li>
      *   <li>Validate SQL structure (read-only only)</li>
-     *   <li>Get user's MRole (includes all inherited permissions)</li>
-     *   <li>Validate table access using user's role</li>
-     *   <li>Apply MRole.addAccessSQL() to inject security filters</li>
+     *   <li>Get logged-in user's MRole (includes all inherited permissions)</li>
+     *   <li>Validate table access using logged-in user's role</li>
+     *   <li>Apply MRole.addAccessSQL() with AI user + logged-in role</li>
      *   <li>Apply row limits</li>
      *   <li>Execute query with timeout</li>
      *   <li>Redact sensitive columns</li>
-     *   <li>Audit log: record user ID and AI provider ID</li>
+     *   <li>Audit log: record AI user ID, logged-in user ID, and provider ID</li>
      * </ol>
      *
      * @param request Query request with user's context and AI provider info
      * @return Query result with data and metadata
-     * @throws SecurityException if access is denied
+     * @throws SecurityException if access is denied or AI user not configured
      */
     public SecureQueryResult executeQuery(SecureQueryRequest request) {
 
         long startTime = System.currentTimeMillis();
         SecureQueryResult result = new SecureQueryResult();
 
-        try {
-            // 1. Get logged-in user's information from context
-            Properties ctx = request.getCtx();
-            int userId = Env.getAD_User_ID(ctx);
-            int roleId = Env.getAD_Role_ID(ctx);
+        // Variables for audit logging (need to be accessible in catch blocks)
+        Properties ctx = request.getCtx();
+        int loggedInUserId = Env.getAD_User_ID(ctx);
+        int aiUserId = -1;
 
-            if (userId < 0 || roleId < 0) {
+        try {
+            // 1. Load AI Provider and get designated AI User
+            MAIProvider provider = new MAIProvider(ctx, request.getProviderId(), null);
+            if (provider.get_ID() == 0) {
+                throw new SecurityException("AI Provider not found: " + request.getProviderId());
+            }
+
+            aiUserId = provider.getAD_User_ID();
+            if (aiUserId <= 0) {
+                throw new SecurityException("AI Provider does not have a designated AI User (AD_User_ID). " +
+                    "Please configure an AI user account for this provider.");
+            }
+
+            // 2. Get logged-in user's information from context
+            int loggedInRoleId = Env.getAD_Role_ID(ctx);
+
+            if (loggedInUserId < 0 || loggedInRoleId < 0) {
                 throw new SecurityException("Invalid user context - user not authenticated");
             }
 
-            // 2. Get user's role (includes all inherited/substituted permissions)
-            MRole role = MRole.get(ctx, roleId, userId, false);
-            result.setUserId(userId);
-            result.setRoleId(roleId);
+            // 3. Get logged-in user's role (permissions to apply)
+            // Use AI User ID but logged-in user's Role ID for permission checks
+            MRole role = MRole.get(ctx, loggedInRoleId, aiUserId, false);
+            result.setUserId(aiUserId);
+            result.setRoleId(loggedInRoleId);
             result.setRoleName(role.getName());
 
-            log.fine("AI Query - User: " + userId + ", Role: " + roleId +
-                    " (" + role.getName() + "), Provider: " + request.getProviderId());
+            log.fine("AI Query - AI User: " + aiUserId + ", Logged-in User: " + loggedInUserId +
+                    ", Role: " + loggedInRoleId + " (" + role.getName() + "), Provider: " + request.getProviderId());
 
-            // 3. Validate SQL is read-only (no DML/DDL)
+            // 4. Validate SQL is read-only (no DML/DDL)
             validateReadOnlySQL(request.getSql());
 
-            // 4. Extract table names from query
+            // 5. Extract table names from query
             List<String> tables = extractTableNames(request.getSql());
             result.setTablesAccessed(tables);
 
-            // 5. Validate user has access to all tables in query
+            // 6. Validate logged-in user's role has access to all tables in query
             for (String tableName : tables) {
                 int tableId = getTableId(tableName);
                 if (tableId <= 0) {
                     String error = "Table not found: " + tableName;
                     auditQuery(request, result, MAIQueryAudit.AIGQUERYSTATUS_Error, error,
-                              System.currentTimeMillis() - startTime);
+                              System.currentTimeMillis() - startTime, loggedInUserId);
                     throw new IllegalArgumentException(error);
                 }
 
-                // Check if USER's role allows table access (read-only)
+                // Check if logged-in user's role allows table access (read-only)
                 if (!role.isTableAccess(tableId, true)) { // true = read-only
-                    String error = "User does not have access to table: " + tableName;
+                    String error = "Logged-in user's role does not have access to table: " + tableName;
                     auditQuery(request, result, MAIQueryAudit.AIGQUERYSTATUS_PermissionDenied, error,
-                              System.currentTimeMillis() - startTime);
+                              System.currentTimeMillis() - startTime, loggedInUserId);
                     throw new SecurityException(error);
                 }
             }
 
-            // 6. Apply USER's role-based security SQL injection
+            // 7. Apply logged-in user's role-based security SQL injection
             // This adds WHERE clauses for client, org, table access, etc.
+            // Uses AI user + logged-in user's role for MRole.addAccessSQL()
             String securedSQL = role.addAccessSQL(
                 request.getSql(),
                 tables.get(0), // Primary table
@@ -158,25 +190,25 @@ public class SecureDatabaseQueryExecutor {
             );
             result.setSecuredSQL(securedSQL);
 
-            // 7. Apply row limit
+            // 8. Apply row limit
             int maxRows = request.getMaxRows() > 0 ?
                          request.getMaxRows() : DEFAULT_MAX_ROWS;
             securedSQL = applyRowLimit(securedSQL, maxRows);
 
-            // 8. Execute query with timeout
+            // 9. Execute query with timeout
             executeWithTimeout(ctx, securedSQL,
                              request.getTimeoutMs() > 0 ?
                              request.getTimeoutMs() : DEFAULT_TIMEOUT_MS,
                              result);
 
-            // 9. Redact sensitive columns based on USER's column access
+            // 10. Redact sensitive columns based on logged-in user's role column access
             redactSensitiveColumns(result, role);
 
-            // 10. Audit log success
+            // 11. Audit log success
             result.setStatus(MAIQueryAudit.AIGQUERYSTATUS_Success);
             result.setTotalExecutionTimeMs(System.currentTimeMillis() - startTime);
             auditQuery(request, result, MAIQueryAudit.AIGQUERYSTATUS_Success, null,
-                      result.getTotalExecutionTimeMs());
+                      result.getTotalExecutionTimeMs(), loggedInUserId);
 
         } catch (SecurityException e) {
             result.setStatus(MAIQueryAudit.AIGQUERYSTATUS_PermissionDenied);
@@ -184,7 +216,7 @@ public class SecureDatabaseQueryExecutor {
             result.setTotalExecutionTimeMs(System.currentTimeMillis() - startTime);
             log.log(Level.WARNING, "Security violation in AI query", e);
             auditQuery(request, result, MAIQueryAudit.AIGQUERYSTATUS_PermissionDenied, e.getMessage(),
-                    result.getTotalExecutionTimeMs());
+                    result.getTotalExecutionTimeMs(), loggedInUserId);
             throw e;
 
         } catch (Exception e) {
@@ -193,7 +225,7 @@ public class SecureDatabaseQueryExecutor {
             result.setTotalExecutionTimeMs(System.currentTimeMillis() - startTime);
             log.log(Level.SEVERE, "Error executing AI query", e);
             auditQuery(request, result, MAIQueryAudit.AIGQUERYSTATUS_Error, e.getMessage(),
-                      result.getTotalExecutionTimeMs());
+                      result.getTotalExecutionTimeMs(), loggedInUserId);
             throw new RuntimeException("Query execution failed", e);
         }
 
@@ -419,10 +451,12 @@ public class SecureDatabaseQueryExecutor {
     /**
      * Audit log the query execution
      *
-     * <p>Records BOTH:
+     * <p>Records:
      * <ul>
-     *   <li>The logged-in user who initiated the request (AD_User_ID)</li>
-     *   <li>The AI provider that executed the query (AIG_Provider_ID)</li>
+     *   <li>The AI user who executed the query (AD_User_ID from provider)</li>
+     *   <li>The logged-in user who initiated the request (CreatedBy)</li>
+     *   <li>The logged-in user's role used for permissions (AD_Role_ID)</li>
+     *   <li>The AI provider (AIG_Provider_ID)</li>
      * </ul>
      */
     private void auditQuery(
@@ -430,20 +464,22 @@ public class SecureDatabaseQueryExecutor {
         SecureQueryResult result,
         String status,
         String errorMessage,
-        long executionTimeMs
+        long executionTimeMs,
+        int loggedInUserId
     ) {
         try {
             Properties ctx = request.getCtx();
-            int userId = Env.getAD_User_ID(ctx);
-            int roleId = Env.getAD_Role_ID(ctx);
+            int aiUserId = result.getUserId() > 0 ? result.getUserId() : loggedInUserId; // AI user from result - fallback to logged in user
+            int roleId = result.getRoleId(); // Logged-in user's role from result
 
             // Create audit record using MAIQueryAudit model
+            // CreatedBy will be the logged-in user, AD_User_ID will be the AI user
             MAIQueryAudit audit = new MAIQueryAudit(ctx, 0, null);
 
             // Set required fields
             audit.setAIG_Provider_ID(request.getProviderId());
-            audit.setAD_User_ID(userId);
-            audit.setAD_Role_ID(roleId);
+            audit.setAD_User_ID(aiUserId); // AI user who executed the query
+            audit.setAD_Role_ID(roleId); // Logged-in user's role
             audit.setAIGQuerySQL(request.getSql());
             audit.setAIGQueryStatus(status);
 
@@ -467,11 +503,12 @@ public class SecureDatabaseQueryExecutor {
                 audit.setAIGTablesAccessed(String.join(", ", result.getTablesAccessed()));
             }
 
-            // Save the audit record
+            // Save the audit record (CreatedBy will be set automatically to logged-in user from ctx)
             audit.saveEx();
 
             log.fine("AI Query Audit: " + status +
-                    " | User: " + userId +
+                    " | AI User: " + aiUserId +
+                    " | Logged-in User: " + loggedInUserId +
                     " | Role: " + roleId +
                     " | Provider: " + request.getProviderId() +
                     " | Tables: " + result.getTablesAccessed() +
