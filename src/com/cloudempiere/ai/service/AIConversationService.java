@@ -21,6 +21,8 @@ import java.util.logging.Level;
 import org.compiere.model.MChatEntry;
 import org.compiere.util.CLogger;
 import org.compiere.util.Env;
+import org.json.JSONArray;
+import org.json.JSONObject;
 
 import com.cloudempiere.ai.model.MAIChat;
 import com.cloudempiere.ai.model.MAIChatEntry;
@@ -65,11 +67,11 @@ public class AIConversationService {
 	 * @return AI response
 	 */
 	public AIResponse sendMessage(Properties ctx, MAIChat chat, String userMessage, String trxName) {
-		return sendMessageWithHistory(ctx, chat, userMessage, DEFAULT_MAX_HISTORY, trxName);
+		return sendMessageWithContext(ctx, chat, userMessage, null, DEFAULT_MAX_HISTORY, trxName);
 	}
 
 	/**
-	 * Send message with full conversation history
+	 * Send message with full conversation history (backward compatibility)
 	 * @param ctx context
 	 * @param chat chat instance
 	 * @param userMessage user's message
@@ -79,7 +81,27 @@ public class AIConversationService {
 	 */
 	public AIResponse sendMessageWithHistory(Properties ctx, MAIChat chat,
 			String userMessage, int maxHistoryEntries, String trxName) {
+		return sendMessageWithContext(ctx, chat, userMessage, null, maxHistoryEntries, trxName);
+	}
 
+	/**
+	 * Send message with context and conversation history
+	 * @param ctx context
+	 * @param chat chat instance
+	 * @param userMessage user's message
+	 * @param contextData optional window/tab context (can be null)
+	 * @param maxHistoryEntries max entries to include (0 = no history)
+	 * @param trxName transaction
+	 * @return AI response
+	 */
+	public AIResponse sendMessageWithContext(
+		Properties ctx,
+		MAIChat chat,
+		String userMessage,
+		JSONObject contextData,
+		int maxHistoryEntries,
+		String trxName
+	) {
 		long startTime = System.currentTimeMillis();
 
 		try {
@@ -87,33 +109,36 @@ public class AIConversationService {
 			IAIProvider provider = getProvider(ctx, DEFAULT_PROVIDER_ID, trxName);
 			if (provider == null) {
 				log.severe("AI Provider not found with ID: " + DEFAULT_PROVIDER_ID);
-				AIResponse errorResponse = new AIResponse();
-				errorResponse.setErrorMessage("AI Provider not configured. Please contact system administrator.");
-				errorResponse.setErrorCode("PROVIDER_NOT_FOUND");
-				return errorResponse;
+				return createErrorResponse("PROVIDER_NOT_FOUND",
+					"AI Provider not configured. Please contact system administrator.",
+					startTime);
 			}
 
 			// Build AI request
 			AIRequest request = new AIRequest();
+			List<AIMessage> messages = new ArrayList<>();
+
+			// Add system message with context if provided
+			if (contextData != null && contextData.optBoolean("success", false)) {
+				String contextPrompt = buildContextPrompt(contextData);
+				messages.add(new AIMessage(MAIChatEntry.ROLE_SYSTEM, contextPrompt));
+				log.fine("Including context in AI request");
+			}
 
 			// Add conversation history if requested
 			if (maxHistoryEntries > 0) {
 				List<AIMessage> history = buildConversationHistory(chat, maxHistoryEntries);
-				request.setMessages(history);
+				messages.addAll(history);
 			}
 
 			// Add current user message
-			AIMessage userMsg = new AIMessage(MAIChatEntry.ROLE_USER, userMessage);
-			if (request.getMessages() == null) {
-				request.setMessages(new ArrayList<>());
-			}
-			request.getMessages().add(userMsg);
+			messages.add(new AIMessage(MAIChatEntry.ROLE_USER, userMessage));
 
-			// Set request parameters (use provider defaults)
-			// Temperature, max tokens, etc. can be configured per provider
+			request.setMessages(messages);
 
 			// Send request to AI provider
-			log.fine("Sending message to AI provider: " + provider.getProviderName());
+			log.fine("Sending message to AI provider: " + provider.getProviderName() +
+				(contextData != null ? " (with context)" : ""));
 			AIResponse response = provider.generateText(request);
 
 			// Add processing time
@@ -131,12 +156,9 @@ public class AIConversationService {
 
 		} catch (Exception e) {
 			log.log(Level.SEVERE, "Error calling AI provider", e);
-
-			AIResponse errorResponse = new AIResponse();
-			errorResponse.setErrorMessage("Error communicating with AI service: " + e.getMessage());
-			errorResponse.setErrorCode("PROVIDER_ERROR");
-			errorResponse.setProcessingTimeMs(System.currentTimeMillis() - startTime);
-			return errorResponse;
+			return createErrorResponse("PROVIDER_ERROR",
+				"Error communicating with AI service: " + e.getMessage(),
+				startTime);
 		}
 	}
 
@@ -202,6 +224,98 @@ public class AIConversationService {
 
 		log.fine("Built conversation history: " + history.size() + " messages");
 		return history;
+	}
+
+	/**
+	 * Build context prompt from JSON context data
+	 * @param contextData context JSON
+	 * @return formatted context prompt
+	 */
+	private String buildContextPrompt(JSONObject contextData) {
+		StringBuilder prompt = new StringBuilder();
+		prompt.append("You are an AI assistant helping a user in an iDempiere ERP system.\n\n");
+		prompt.append("Current Context:\n");
+
+		// User context
+		if (contextData.has("user_context")) {
+			JSONObject userCtx = contextData.getJSONObject("user_context");
+			prompt.append("- User: ").append(userCtx.optString("user_name", "Unknown")).append("\n");
+			prompt.append("- Role: ").append(userCtx.optString("role_name", "Unknown")).append("\n");
+			prompt.append("- Client: ").append(userCtx.optString("client_name", "Unknown")).append("\n");
+			prompt.append("- Organization: ").append(userCtx.optString("org_name", "Unknown")).append("\n\n");
+		}
+
+		// Window context
+		if (contextData.has("window_metadata")) {
+			JSONObject windowMeta = contextData.getJSONObject("window_metadata");
+			prompt.append("Window: ").append(windowMeta.optString("name", "Unknown")).append("\n");
+			if (windowMeta.has("description") && !windowMeta.isNull("description")) {
+				prompt.append("Description: ").append(windowMeta.getString("description")).append("\n");
+			}
+			prompt.append("\n");
+		}
+
+		// Tab context
+		if (contextData.has("tab_context")) {
+			JSONObject tabCtx = contextData.getJSONObject("tab_context");
+			prompt.append("Current Tab: ").append(tabCtx.optString("tab_name", "Unknown")).append("\n");
+			prompt.append("Table: ").append(tabCtx.optString("table_name", "Unknown")).append("\n");
+			int recordId = tabCtx.optInt("record_id", -1);
+			if (recordId > 0) {
+				prompt.append("Record ID: ").append(recordId).append("\n");
+			}
+			prompt.append("\n");
+		}
+
+		// Record data (current record fields and values)
+		if (contextData.has("record_data")) {
+			JSONObject recordData = contextData.getJSONObject("record_data");
+			if (recordData.length() > 0) {
+				prompt.append("Current Record Data:\n");
+				for (String key : recordData.keySet()) {
+					Object value = recordData.get(key);
+					if (value != null && !value.toString().trim().isEmpty()) {
+						prompt.append("  ").append(key).append(": ").append(value).append("\n");
+					}
+				}
+				prompt.append("\n");
+			}
+		}
+
+		// Child tabs
+		if (contextData.has("child_tabs")) {
+			JSONArray childTabs = contextData.getJSONArray("child_tabs");
+			if (childTabs.length() > 0) {
+				prompt.append("Related Tabs Available:\n");
+				for (int i = 0; i < childTabs.length(); i++) {
+					JSONObject tab = childTabs.getJSONObject(i);
+					prompt.append("  - ").append(tab.optString("tab_name", "Unknown"))
+						.append(" (").append(tab.optString("table_name", "")).append(")\n");
+				}
+				prompt.append("\n");
+			}
+		}
+
+		prompt.append("Please provide helpful, context-aware assistance based on the above information. ");
+		prompt.append("When relevant, reference the specific window, tab, or record data shown above. ");
+		prompt.append("Keep responses concise and actionable.\n");
+
+		return prompt.toString();
+	}
+
+	/**
+	 * Create error response
+	 * @param errorCode error code
+	 * @param errorMessage error message
+	 * @param startTime start time for processing time calculation
+	 * @return error response
+	 */
+	private AIResponse createErrorResponse(String errorCode, String errorMessage, long startTime) {
+		AIResponse response = new AIResponse();
+		response.setErrorCode(errorCode);
+		response.setErrorMessage(errorMessage);
+		response.setProcessingTimeMs(System.currentTimeMillis() - startTime);
+		return response;
 	}
 
 	/**

@@ -27,6 +27,7 @@ import org.compiere.util.DisplayType;
 import org.compiere.util.Env;
 import org.compiere.util.Msg;
 import org.compiere.util.Util;
+import org.json.JSONObject;
 import org.zkoss.zk.ui.Desktop;
 import org.zkoss.zk.ui.Executions;
 import org.zkoss.zk.ui.event.Event;
@@ -40,6 +41,9 @@ import org.zkoss.zul.Html;
 import org.zkoss.zul.Textbox;
 import org.zkoss.zul.Vlayout;
 
+import com.cloudempiere.ai.context.AIContextProviderRegistry;
+import com.cloudempiere.ai.context.ContextParameters;
+import com.cloudempiere.ai.context.IAIContextProvider;
 import com.cloudempiere.ai.model.MAIChat;
 import com.cloudempiere.ai.model.MAIChatEntry;
 import com.cloudempiere.ai.provider.dto.AIResponse;
@@ -84,11 +88,35 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 	/** Maximum messages to display (for performance) */
 	private static final int MAX_MESSAGES_DISPLAY = 100;
 
+	/** Context support enabled */
+	private boolean contextEnabled = false;
+
+	/** Current window context */
+	private JSONObject currentContext;
+
+	/** Current window number */
+	private int currentWindowNo = -1;
+
+	/** Current tab number */
+	private int currentTabNo = -1;
+
+	/** Context indicator (if context enabled) */
+	private Html contextIndicator;
+
 	/**
 	 * Default Constructor
 	 */
 	public AIChatWidget() {
+		this(false);
+	}
+
+	/**
+	 * Constructor with context support option
+	 * @param enableContext if true, widget will use window/tab context
+	 */
+	public AIChatWidget(boolean enableContext) {
 		super();
+		this.contextEnabled = enableContext;
 		init();
 	}
 
@@ -105,6 +133,19 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 
 		// Initialize AI service
 		aiService = new AIConversationService();
+
+		// Context indicator (if enabled)
+		if (contextEnabled) {
+			contextIndicator = new Html();
+			contextIndicator.setId("aiContextIndicator_" + getUuid());
+			contextIndicator.setContent(
+				"<div style='padding: 6px 12px; background: #E8F5E9; border-radius: 4px; " +
+				"margin-bottom: 8px; font-size: 11px; color: #2E7D32; display: none;'>" +
+				"<i class='z-icon-InfoCircle'></i> Context: <span id='contextInfo_" + getUuid() + "'>No window open</span>" +
+				"</div>"
+			);
+			appendChild(contextIndicator);
+		}
 
 		// Messages area (scrollable)
 		messagesContainer = new Vlayout();
@@ -255,7 +296,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 			// AI message header with logo and assistant name
 			sb.append("<div style='display: flex; flex-direction: row; align-items: center; padding: 0; gap: 8px; margin-bottom: 12px;'>");
 			sb.append("<img src='");
-			sb.append(ThemeManager.getThemeResource("images/clde-logo-icon-vector.svg"));
+			sb.append(ThemeManager.THEME_PATH_PREFIX+ThemeManager.getTheme()+"/images/clde-logo-icon-vector.svg");
 			sb.append("' style='width: 18px; height: 18px;'/>");
 			sb.append("<span style='font-family: Helvetica Neue; font-weight: 500; font-size: 12px; line-height: 15px; color: #181D27;'>");
 			sb.append(Util.maskHTML(getUserName(entry), true));
@@ -286,8 +327,23 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 
 		// Add copy button for user messages (based on screenshot, scaled to 12px base)
 		if (!isAI) {
+			// Escape message text for JavaScript
+			String jsEscapedText = messageText != null ?
+				messageText.replace("\\", "\\\\")
+					.replace("'", "\\'")
+					.replace("\"", "\\\"")
+					.replace("\n", "\\n")
+					.replace("\r", "\\r") : "";
+
 			sb.append("<div style='display: flex; flex-direction: row; align-items: flex-start; padding: 0; gap: 18px; margin-top: 12px;'>");
-			sb.append("<div style='display: flex; flex-direction: row; justify-content: center; align-items: center; padding: 0; gap: 6px; cursor: pointer;'>");
+			sb.append("<div onclick=\"(function(btn){");
+			sb.append("var orig=btn.innerHTML;");
+			sb.append("navigator.clipboard.writeText('").append(jsEscapedText).append("').then(function(){");
+			sb.append("btn.innerHTML='<span style=\\'font-family: Helvetica Neue; font-weight: 500; font-size: 10.5px; line-height: 13.5px; color: #4CAF50;\\'>Copied!</span>';");
+			sb.append("setTimeout(function(){btn.innerHTML=orig;},2000);");
+			sb.append("}).catch(function(err){console.error('Copy failed:',err);});");
+			sb.append("})(this);\" ");
+			sb.append("style='display: flex; flex-direction: row; justify-content: center; align-items: center; padding: 0; gap: 6px; cursor: pointer;'>");
 			if (ThemeManager.isUseFontIconForImage()) {
 				sb.append("<i class='z-icon-Copy' style='font-size: 12px; color: #717680;'></i>");
 			} else {
@@ -332,18 +388,6 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 		}
 
 		return user != null ? user.getName() : "User";
-	}
-
-	/**
-	 * Format timestamp for display
-	 * @param timestamp timestamp
-	 * @return formatted string
-	 */
-	private String formatTimestamp(java.sql.Timestamp timestamp) {
-		if (timestamp == null) {
-			return "";
-		}
-		return dateFormat.format(timestamp);
 	}
 
 	/**
@@ -400,6 +444,11 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 		inputBox.setDisabled(true);
 		sendButton.setDisabled(true);
 
+		// Refresh context before sending (in case window/tab changed)
+		if (contextEnabled) {
+			refreshContext();
+		}
+
 		// Save user message
 		MAIChatEntry userEntry = new MAIChatEntry(chat, message);
 		userEntry.saveEx();
@@ -412,6 +461,9 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 		showLoading();
 		scrollToBottom();
 
+		// Capture context snapshot for async operation
+		final JSONObject contextSnapshot = currentContext;
+
 		// Call AI service asynchronously
 		Desktop desktop = Executions.getCurrent().getDesktop();
 		CompletableFuture.runAsync(() -> {
@@ -421,20 +473,15 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 					(MAIChat) chat :
 					new MAIChat(Env.getCtx(), chat.getCM_Chat_ID(), null);
 
-				// TODO: Call AI service with conversation history
-//				AIResponse aiResponse = aiService.sendMessageWithHistory(
-//					Env.getCtx(),
-//					aiChat,
-//					message,
-//					10,  // FIXME hardcoded: Include last 10 messages for context
-//					null
-//				);
-				AIResponse aiResponse = aiService.sendMessage(
-						Env.getCtx(),
-						aiChat,
-						message,
-						null
-					);
+				// Call AI service with context and conversation history
+				AIResponse aiResponse = aiService.sendMessageWithContext(
+					Env.getCtx(),
+					aiChat,
+					message,
+					contextSnapshot,  // Pass context here
+					10,  // Include last 10 messages for conversation history
+					null
+				);
 
 				if (!aiResponse.isSuccess()) {
 					throw new Exception(aiResponse.getErrorMessage() != null ?
@@ -525,5 +572,141 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 	 */
 	public MChat getChat() {
 		return chat;
+	}
+
+	/**
+	 * Set window context for context-aware assistance
+	 * @param windowNo window number
+	 * @param tabNo tab number
+	 */
+	public void setWindowContext(int windowNo, int tabNo) {
+		this.currentWindowNo = windowNo;
+		this.currentTabNo = tabNo;
+		refreshContext();
+	}
+
+	/**
+	 * Refresh window context from current window/tab
+	 */
+	public void refreshWindowContext() {
+		refreshContext();
+	}
+
+	/**
+	 * Refresh context from current window/tab settings
+	 */
+	private void refreshContext() {
+		if (!contextEnabled || currentWindowNo < 0) {
+			currentContext = null;
+			updateContextIndicator(false);
+			return;
+		}
+
+		try {
+			AIContextProviderRegistry registry = AIContextProviderRegistry.getInstance();
+			IAIContextProvider provider = registry.getProvider("WINDOW");
+
+			if (provider != null) {
+				ContextParameters params = ContextParameters.forWindow(currentWindowNo, currentTabNo)
+					.put("includeChildTabs", true);
+
+				currentContext = provider.extractContext(Env.getCtx(), currentWindowNo, params);
+
+				// Redact sensitive fields
+				if (currentContext != null && currentContext.optBoolean("success", false)) {
+					redactSensitiveData(currentContext, provider.getSensitiveFields());
+					updateContextIndicator(true);
+					log.fine("Context refreshed for window " + currentWindowNo + ", tab " + currentTabNo);
+				} else {
+					currentContext = null;
+					updateContextIndicator(false);
+					log.warning("Context extraction failed or returned unsuccessful result");
+				}
+			} else {
+				log.warning("Window context provider not found");
+				currentContext = null;
+				updateContextIndicator(false);
+			}
+		} catch (Exception e) {
+			log.log(Level.WARNING, "Failed to extract window context", e);
+			currentContext = null;
+			updateContextIndicator(false);
+		}
+	}
+
+	/**
+	 * Redact sensitive data from context
+	 * @param context context object
+	 * @param sensitiveFields array of sensitive field names
+	 */
+	private void redactSensitiveData(JSONObject context, String[] sensitiveFields) {
+		if (context == null || !context.has("record_data")) {
+			return;
+		}
+
+		JSONObject recordData = context.getJSONObject("record_data");
+		for (String field : sensitiveFields) {
+			// Case-sensitive check
+			if (recordData.has(field)) {
+				recordData.put(field, "[REDACTED]");
+			}
+			// Case-insensitive check
+			for (String key : recordData.keySet()) {
+				if (key.equalsIgnoreCase(field)) {
+					recordData.put(key, "[REDACTED]");
+				}
+			}
+		}
+	}
+
+	/**
+	 * Update context indicator display
+	 * @param hasContext true if context is available
+	 */
+	private void updateContextIndicator(boolean hasContext) {
+		if (!contextEnabled || contextIndicator == null) {
+			return;
+		}
+
+		String windowName = "No window";
+		String tabName = "";
+
+		if (hasContext && currentContext != null) {
+			if (currentContext.has("window_metadata")) {
+				JSONObject windowMeta = currentContext.getJSONObject("window_metadata");
+				windowName = windowMeta.optString("name", "Unknown");
+			}
+			if (currentContext.has("tab_context")) {
+				JSONObject tabCtx = currentContext.getJSONObject("tab_context");
+				tabName = tabCtx.optString("tab_name", "Unknown");
+			}
+		}
+
+		String display = hasContext ? "block" : "none";
+		String contextInfo = hasContext ? windowName + " > " + tabName : "No window open";
+		String escapedInfo = Util.maskHTML(contextInfo, true);
+
+		Clients.evalJavaScript(
+			"var el = document.getElementById('aiContextIndicator_" + getUuid() + "');" +
+			"if(el) { var div = el.querySelector('div'); if(div) div.style.display='" + display + "'; }" +
+			"var info = document.getElementById('contextInfo_" + getUuid() + "');" +
+			"if(info) info.textContent='" + escapedInfo + "';"
+		);
+	}
+
+	/**
+	 * Get current context
+	 * @return current context JSON or null
+	 */
+	public JSONObject getCurrentContext() {
+		return currentContext;
+	}
+
+	/**
+	 * Check if context is enabled
+	 * @return true if context support is enabled
+	 */
+	public boolean isContextEnabled() {
+		return contextEnabled;
 	}
 }

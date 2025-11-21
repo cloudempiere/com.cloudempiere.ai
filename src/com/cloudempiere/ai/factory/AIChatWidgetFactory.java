@@ -39,7 +39,12 @@ public class AIChatWidgetFactory implements IAIChatWidgetFactory {
 
 	@Override
 	public Div createChatWidget() {
-		return new AIChatWidget();
+		return createChatWidget(true);
+	}
+
+	@Override
+	public Div createChatWidget(boolean enableContext) {
+		return new AIChatWidget(enableContext);
 	}
 
 	@Override
