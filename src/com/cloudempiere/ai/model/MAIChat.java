@@ -30,15 +30,6 @@ public class MAIChat extends MChat {
 
 	private static final long serialVersionUID = 1L;
 
-	/** Column name for AI Model */
-	public static final String COLUMNNAME_AI_Model = "AI_Model";
-
-	/** Column name for AI Provider */
-	public static final String COLUMNNAME_AI_Provider = "AI_Provider";
-
-	/** Column name for Total Tokens */
-	public static final String COLUMNNAME_TotalTokens = "TotalTokens";
-
 	/**
 	 * AD_Table_ID for global AI chats (linked to AD_User table)
 	 * Global AI chats are stored with AD_Table_ID = AD_User and Record_ID = user's AD_User_ID
@@ -90,24 +81,57 @@ public class MAIChat extends MChat {
 
 	/**
 	 * Get or Create Global AI Chat for current user
+	 * <p>
+	 * IMPORTANT: This method ensures proper tenant isolation for system users.
+	 * System users (AD_Client_ID=0) will have separate chats for each tenant
+	 * they log into, preventing data leakage across tenants.
+	 *
 	 * @param ctx context
 	 * @param trxName transaction
 	 * @return AI Chat instance
 	 */
 	public static MAIChat getOrCreateGlobalChat(Properties ctx, String trxName) {
 		int userId = Env.getAD_User_ID(ctx);
+		int contextClientId = Env.getAD_Client_ID(ctx); // Current login tenant
 
-		// Try to find existing global AI chat for this user
-		int chatId = MChat.getID(AI_GLOBAL_TABLE_ID, userId);
+		// Try to find existing global AI chat for this user in this tenant
+		// CRITICAL: Filter by both userId and contextClientId to ensure tenant isolation
+		int chatId = getGlobalChatID(ctx, AI_GLOBAL_TABLE_ID, userId, contextClientId);
 
 		if (chatId > 0) {
 			return new MAIChat(ctx, chatId, trxName);
 		}
 
-		// Create new global AI chat
+		// Create new global AI chat for this user in this tenant
 		MAIChat chat = new MAIChat(ctx, "AI Assistant - " + Env.getContext(ctx, "#AD_User_Name"), trxName);
+		// Explicitly set AD_Client_ID to current context (important for system users)
+		chat.setAD_Client_ID(contextClientId);
 		chat.saveEx();
 		return chat;
+	}
+
+	/**
+	 * Get Global Chat ID for user in specific tenant
+	 * <p>
+	 * This method replaces MChat.getID() to add tenant filtering.
+	 * System users (AD_Client_ID=0) need separate chats per tenant.
+	 *
+	 * @param ctx context
+	 * @param AD_Table_ID table ID (should be AD_User table)
+	 * @param Record_ID record ID (user ID)
+	 * @param AD_Client_ID client ID (tenant)
+	 * @return CM_Chat_ID or 0 if not found
+	 */
+	private static int getGlobalChatID(Properties ctx, int AD_Table_ID,
+			int Record_ID, int AD_Client_ID) {
+		// Use Query to filter by AD_Table_ID, Record_ID, and AD_Client_ID
+		String whereClause = "AD_Table_ID=? AND Record_ID=? AND AD_Client_ID=?";
+		MChat chat = new org.compiere.model.Query(ctx, MChat.Table_Name, whereClause, null)
+			.setParameters(AD_Table_ID, Record_ID, AD_Client_ID)
+			.setOrderBy("Created DESC") // Get most recent if multiple exist
+			.first();
+
+		return chat != null ? chat.get_ID() : 0;
 	}
 
 	/**
@@ -131,65 +155,6 @@ public class MAIChat extends MChat {
 		MAIChat chat = new MAIChat(ctx, AD_Table_ID, Record_ID, description, trxName);
 		chat.saveEx();
 		return chat;
-	}
-
-	// ========== AI-Specific Getters/Setters ==========
-
-	/**
-	 * Set AI Model name
-	 * @param model model name (e.g., "claude-sonnet-4", "gpt-4")
-	 */
-	public void setAIModel(String model) {
-		set_Value(COLUMNNAME_AI_Model, model);
-	}
-
-	/**
-	 * Get AI Model name
-	 * @return model name
-	 */
-	public String getAIModel() {
-		return (String) get_Value(COLUMNNAME_AI_Model);
-	}
-
-	/**
-	 * Set AI Provider
-	 * @param provider provider name (e.g., "anthropic", "openai", "aws-bedrock")
-	 */
-	public void setAIProvider(String provider) {
-		set_Value(COLUMNNAME_AI_Provider, provider);
-	}
-
-	/**
-	 * Get AI Provider
-	 * @return provider name
-	 */
-	public String getAIProvider() {
-		return (String) get_Value(COLUMNNAME_AI_Provider);
-	}
-
-	/**
-	 * Set Total Tokens used in this chat
-	 * @param tokens total tokens
-	 */
-	public void setTotalTokens(int tokens) {
-		set_Value(COLUMNNAME_TotalTokens, tokens);
-	}
-
-	/**
-	 * Get Total Tokens used
-	 * @return total tokens
-	 */
-	public int getTotalTokens() {
-		Integer tokens = (Integer) get_Value(COLUMNNAME_TotalTokens);
-		return tokens != null ? tokens : 0;
-	}
-
-	/**
-	 * Add tokens to the total count
-	 * @param additionalTokens tokens to add
-	 */
-	public void addTokens(int additionalTokens) {
-		setTotalTokens(getTotalTokens() + additionalTokens);
 	}
 
 	/**
@@ -218,17 +183,5 @@ public class MAIChat extends MChat {
 		}
 
 		return getDescription();
-	}
-
-	@Override
-	public String toString() {
-		StringBuilder sb = new StringBuilder("MAIChat[")
-			.append(get_ID())
-			.append(", Model=").append(getAIModel())
-			.append(", Provider=").append(getAIProvider())
-			.append(", Tokens=").append(getTotalTokens())
-			.append(", Global=").append(isGlobalChat())
-			.append("]");
-		return sb.toString();
 	}
 }

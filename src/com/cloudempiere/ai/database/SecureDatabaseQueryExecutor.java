@@ -179,20 +179,39 @@ public class SecureDatabaseQueryExecutor {
                 }
             }
 
-            // 7. Apply logged-in user's role-based security SQL injection
+            // 7. Strip LIMIT clause from AI-generated SQL (if present)
+            // This prevents malformed SQL when addAccessSQL() appends WHERE conditions
+            String sqlWithoutLimit = request.getSql();
+            LimitClause extractedLimit = extractAndStripLimit(sqlWithoutLimit);
+            if (extractedLimit != null) {
+                sqlWithoutLimit = extractedLimit.sqlWithoutLimit;
+                log.fine("Stripped LIMIT clause from SQL: " + extractedLimit.limitClause);
+            }
+
+            // 8. Apply logged-in user's role-based security SQL injection
             // This adds WHERE clauses for client, org, table access, etc.
             // Uses AI user + logged-in user's role for MRole.addAccessSQL()
             String securedSQL = role.addAccessSQL(
-                request.getSql(),
+                sqlWithoutLimit,
                 tables.get(0), // Primary table
                 true,          // Fully qualified
-                true           // Read-write mode (more restrictive)
+                false          // Read-only mode (less restrictive for SELECT)
             );
             result.setSecuredSQL(securedSQL);
 
-            // 8. Apply row limit
-            int maxRows = request.getMaxRows() > 0 ?
-                         request.getMaxRows() : DEFAULT_MAX_ROWS;
+            // 9. Apply row limit (use AI-specified limit if present, otherwise default)
+            int maxRows;
+            if (extractedLimit != null && extractedLimit.limitValue > 0) {
+                // Use the limit from AI-generated SQL
+                maxRows = extractedLimit.limitValue;
+                log.fine("Using AI-specified limit: " + maxRows);
+            } else if (request.getMaxRows() > 0) {
+                // Use request-specified limit
+                maxRows = request.getMaxRows();
+            } else {
+                // Use default limit
+                maxRows = DEFAULT_MAX_ROWS;
+            }
             securedSQL = applyRowLimit(securedSQL, maxRows);
 
             // 9. Execute query with timeout
@@ -262,9 +281,13 @@ public class SecureDatabaseQueryExecutor {
             }
         }
 
-        // No semicolons (prevent multiple statements)
-        if (sql.contains(";")) {
-            throw new SecurityException("Multiple SQL statements not allowed");
+        // No multiple statements (check if there's anything after semicolon besides whitespace)
+        int semicolonIndex = sql.indexOf(";");
+        if (semicolonIndex >= 0) {
+            String afterSemicolon = sql.substring(semicolonIndex + 1).trim();
+            if (!afterSemicolon.isEmpty()) {
+                throw new SecurityException("Multiple SQL statements not allowed");
+            }
         }
 
         // No comments that could hide malicious code
@@ -275,6 +298,9 @@ public class SecureDatabaseQueryExecutor {
 
     /**
      * Extract table names from SQL query using iDempiere's parser
+     * <p>
+     * Filters out aliases, column names, and other non-table identifiers.
+     * Only returns actual iDempiere table names that exist in AD_Table.
      */
     private List<String> extractTableNames(String sql) {
         List<String> tables = new ArrayList<>();
@@ -300,7 +326,12 @@ public class SecureDatabaseQueryExecutor {
                             if (tableName.endsWith(")")) {
                                 tableName = tableName.substring(0, tableName.length() - 1);
                             }
-                            tables.add(tableName.trim());
+                            tableName = tableName.trim();
+
+                            // FILTER: Only add if it looks like a valid table name and exists in AD_Table
+                            if (isValidTableName(tableName)) {
+                                tables.add(tableName);
+                            }
                         }
                     }
                 }
@@ -316,6 +347,68 @@ public class SecureDatabaseQueryExecutor {
         }
 
         return tables;
+    }
+
+    /**
+     * Validate if a string is a valid iDempiere table name
+     * <p>
+     * Filters out:
+     * - Single letter identifiers (likely aliases like 'o', 'b')
+     * - Column names (contain '_ID' suffix or lowercase)
+     * - Invalid characters
+     * - Names that don't exist in AD_Table
+     *
+     * @param tableName potential table name to validate
+     * @return true if valid table name
+     */
+    private boolean isValidTableName(String tableName) {
+        if (tableName == null || tableName.isEmpty()) {
+            return false;
+        }
+
+        // Filter out single-letter aliases (o, b, t, etc.)
+        if (tableName.length() == 1) {
+            log.fine("Filtered out single-letter identifier: " + tableName);
+            return false;
+        }
+
+        // Filter out lowercase identifiers (likely aliases)
+        if (tableName.equals(tableName.toLowerCase())) {
+            log.fine("Filtered out lowercase identifier (likely alias): " + tableName);
+            return false;
+        }
+
+        // iDempiere tables typically start with a capital letter followed by underscore
+        // Examples: C_Order, AD_User, M_Product
+        if (!tableName.matches("^[A-Z][A-Z]?_[A-Za-z0-9_]+$")) {
+            // If it doesn't match the pattern, check if it exists anyway (for edge cases)
+            boolean exists = tableExistsInDatabase(tableName);
+            if (!exists) {
+                log.fine("Filtered out non-standard table name: " + tableName);
+            }
+            return exists;
+        }
+
+        // Verify the table actually exists in AD_Table
+        return tableExistsInDatabase(tableName);
+    }
+
+    /**
+     * Check if table exists in iDempiere's AD_Table
+     *
+     * @param tableName table name to check
+     * @return true if table exists
+     */
+    private boolean tableExistsInDatabase(String tableName) {
+        try {
+            int tableId = DB.getSQLValue(null,
+                "SELECT AD_Table_ID FROM AD_Table WHERE UPPER(TableName)=?",
+                tableName.toUpperCase());
+            return tableId > 0;
+        } catch (Exception e) {
+            log.fine("Error checking table existence: " + tableName + " - " + e.getMessage());
+            return false;
+        }
     }
 
     /**
@@ -346,6 +439,90 @@ public class SecureDatabaseQueryExecutor {
         }
 
         return sql;
+    }
+
+    /**
+     * Extract and strip LIMIT/FETCH FIRST clause from SQL
+     * <p>
+     * Handles both space-separated and newline-separated LIMIT clauses.
+     *
+     * @param sql Original SQL query
+     * @return LimitClause object containing stripped SQL and limit info, or null if no limit found
+     */
+    private LimitClause extractAndStripLimit(String sql) {
+        if (sql == null || sql.trim().isEmpty()) {
+            return null;
+        }
+
+        String trimmedSQL = sql.trim();
+
+        // Remove trailing semicolon if present
+        boolean hadSemicolon = trimmedSQL.endsWith(";");
+        if (hadSemicolon) {
+            trimmedSQL = trimmedSQL.substring(0, trimmedSQL.length() - 1).trim();
+        }
+
+        // PostgreSQL: LIMIT N [OFFSET M]
+        // Use regex to match LIMIT with any whitespace (including newlines) before it
+        // Pattern: \s+LIMIT\s+(\d+)(\s+OFFSET\s+\d+)?
+        java.util.regex.Pattern limitPattern = java.util.regex.Pattern.compile(
+            "\\s+LIMIT\\s+(\\d+)(\\s+OFFSET\\s+\\d+)?\\s*$",
+            java.util.regex.Pattern.CASE_INSENSITIVE
+        );
+        java.util.regex.Matcher limitMatcher = limitPattern.matcher(trimmedSQL);
+
+        if (limitMatcher.find()) {
+            // Extract the limit value
+            int limitValue = Integer.parseInt(limitMatcher.group(1));
+
+            // Get SQL without the LIMIT clause
+            String sqlWithoutLimit = trimmedSQL.substring(0, limitMatcher.start()).trim();
+
+            // Get the full LIMIT clause (for logging/debugging)
+            String limitClause = limitMatcher.group(0).trim();
+
+            log.fine("Extracted LIMIT clause: " + limitClause);
+            return new LimitClause(sqlWithoutLimit, limitClause, limitValue);
+        }
+
+        // Oracle: FETCH FIRST N ROWS ONLY
+        // Pattern: \s+FETCH\s+FIRST\s+(\d+)\s+ROWS?\s+ONLY
+        java.util.regex.Pattern fetchPattern = java.util.regex.Pattern.compile(
+            "\\s+FETCH\\s+FIRST\\s+(\\d+)\\s+ROWS?\\s+ONLY\\s*$",
+            java.util.regex.Pattern.CASE_INSENSITIVE
+        );
+        java.util.regex.Matcher fetchMatcher = fetchPattern.matcher(trimmedSQL);
+
+        if (fetchMatcher.find()) {
+            // Extract the limit value
+            int limitValue = Integer.parseInt(fetchMatcher.group(1));
+
+            // Get SQL without the FETCH FIRST clause
+            String sqlWithoutLimit = trimmedSQL.substring(0, fetchMatcher.start()).trim();
+
+            // Get the full FETCH FIRST clause (for logging/debugging)
+            String limitClause = fetchMatcher.group(0).trim();
+
+            log.fine("Extracted FETCH FIRST clause: " + limitClause);
+            return new LimitClause(sqlWithoutLimit, limitClause, limitValue);
+        }
+
+        return null;
+    }
+
+    /**
+     * Helper class to hold extracted LIMIT clause information
+     */
+    private static class LimitClause {
+        public final String sqlWithoutLimit;
+        public final String limitClause;
+        public final int limitValue;
+
+        public LimitClause(String sqlWithoutLimit, String limitClause, int limitValue) {
+            this.sqlWithoutLimit = sqlWithoutLimit;
+            this.limitClause = limitClause;
+            this.limitValue = limitValue;
+        }
     }
 
     /**

@@ -1,5 +1,7 @@
 package com.cloudempiere.ai.provider.dto;
 
+import java.util.List;
+
 /**
  * Represents a single message in a conversation
  *
@@ -14,11 +16,17 @@ public class AIMessage {
     // Message content
     private String content;
 
-    // Optional: function name (if role=function)
+    // Optional: function name (if role=function) - for function result messages
     private String name;
 
-    // Optional: function call details
+    // Optional: single function call (for backward compatibility)
     private AIFunctionCall functionCall;
+
+    // Optional: multiple function calls (AI can call multiple tools)
+    private List<AIFunctionCall> functionCalls;
+
+    // Optional: function name for function result messages
+    private String functionName;
 
     public AIMessage(String role, String content) {
         this.role = role;
@@ -38,5 +46,37 @@ public class AIMessage {
     public AIFunctionCall getFunctionCall() { return functionCall; }
     public void setFunctionCall(AIFunctionCall functionCall) {
         this.functionCall = functionCall;
+    }
+
+    /**
+     * Get multiple function calls (for multi-tool calling)
+     * @return List of function calls or null
+     */
+    public List<AIFunctionCall> getFunctionCalls() {
+        return functionCalls;
+    }
+
+    /**
+     * Set multiple function calls
+     * @param functionCalls List of function calls
+     */
+    public void setFunctionCalls(List<AIFunctionCall> functionCalls) {
+        this.functionCalls = functionCalls;
+    }
+
+    /**
+     * Get function name for function result messages
+     * @return Function name
+     */
+    public String getFunctionName() {
+        return functionName;
+    }
+
+    /**
+     * Set function name for function result messages
+     * @param functionName Function name
+     */
+    public void setFunctionName(String functionName) {
+        this.functionName = functionName;
     }
 }

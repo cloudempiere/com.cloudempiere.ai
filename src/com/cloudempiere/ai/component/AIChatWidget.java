@@ -17,6 +17,7 @@ import java.text.SimpleDateFormat;
 import java.util.concurrent.CompletableFuture;
 import java.util.logging.Level;
 
+import org.adempiere.webui.component.Combobox;
 import org.adempiere.webui.theme.ThemeManager;
 import org.adempiere.webui.util.ZKUpdateUtil;
 import org.compiere.model.MChat;
@@ -35,6 +36,7 @@ import org.zkoss.zk.ui.event.EventListener;
 import org.zkoss.zk.ui.event.Events;
 import org.zkoss.zk.ui.util.Clients;
 import org.zkoss.zul.Button;
+import org.zkoss.zul.Comboitem;
 import org.zkoss.zul.Div;
 import org.zkoss.zul.Hlayout;
 import org.zkoss.zul.Html;
@@ -73,8 +75,17 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 	/** Clear chat button */
 	private Button clearButton;
 
+	/** New thread button */
+	private Button newThreadButton;
+
+	/** Thread selector dropdown (for switching between conversation threads) */
+	private Combobox threadSelector;
+
 	/** Loading indicator */
 	private Html loadingIndicator;
+
+	/** Current thread root ID (first message ID in current thread) */
+	private int currentThreadRootId = 0;
 
 	/** Current chat instance */
 	private MChat chat;
@@ -127,7 +138,9 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 		setSclass("ai-chat-widget");
 		ZKUpdateUtil.setVflex(this, "1");
 		ZKUpdateUtil.setHflex(this, "1");
-		setStyle("display: flex; flex-direction: column; padding: 12px; background: #FDFDFD; border-radius: 12px;");
+		// Use flexbox for responsive full-height layout
+		setStyle("display: flex; flex-direction: column; padding: 12px; background: #FDFDFD; " +
+				"border-radius: 12px; height: 100%; min-height: 300px; max-height: 100%;");
 
 		dateFormat = DisplayType.getDateFormat(DisplayType.DateTime);
 
@@ -147,11 +160,40 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 			appendChild(contextIndicator);
 		}
 
-		// Messages area (scrollable)
+		// Thread control bar (thread selector + new thread button)
+		Hlayout threadControlBar = new Hlayout();
+		threadControlBar.setStyle("width: 100%; gap: 8px; align-items: center; margin-bottom: 8px; flex-shrink: 0;");
+
+		// Thread selector dropdown
+		threadSelector = new Combobox();
+		threadSelector.setPlaceholder("Select conversation...");
+		threadSelector.setReadonly(true); // Dropdown only, no text entry
+		ZKUpdateUtil.setHflex(threadSelector, "1");
+		threadSelector.setStyle("border: 1px solid #E0E0E0; border-radius: 6px; font-size: 12px; background: #FFFFFF;");
+		threadSelector.addEventListener(Events.ON_SELECT, this);
+
+		// New Thread button
+		newThreadButton = new Button();
+		newThreadButton.addEventListener(Events.ON_CLICK, this);
+		newThreadButton.setSclass("ai-newthread-btn");
+		if (ThemeManager.isUseFontIconForImage())
+			newThreadButton.setIconSclass("z-icon-New-White");
+		else
+			newThreadButton.setImage(ThemeManager.getThemeResource("images/New-White.png"));
+		newThreadButton.setTooltiptext("Start a new conversation thread");
+		newThreadButton.setStyle("padding: 8px 12px; background: #181D27; color: #FFFFFF; border: none; " +
+			"border-radius: 6px; font-size: 11px; cursor: pointer; white-space: nowrap; min-width: 36px;");
+
+		threadControlBar.appendChild(threadSelector);
+		threadControlBar.appendChild(newThreadButton);
+		appendChild(threadControlBar);
+
+		// Messages area (scrollable) - flex-grow to fill available space
 		messagesContainer = new Vlayout();
 		messagesContainer.setSclass("ai-messages");
 		ZKUpdateUtil.setVflex(messagesContainer, "1");
-		messagesContainer.setStyle("overflow-y: auto; overflow-x: hidden; margin-bottom: 12px; padding: 6px; gap: 8px;");
+		messagesContainer.setStyle("overflow-y: auto; overflow-x: hidden; margin-bottom: 12px; " +
+				"padding: 6px; gap: 8px; flex: 1 1 auto; min-height: 0;");
 		appendChild(messagesContainer);
 
 		// Loading indicator (hidden by default)
@@ -163,9 +205,9 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 			"<i>" + Msg.getMsg(Env.getCtx(), "AIThinking") + "</i></span></div></div>");
 		messagesContainer.appendChild(loadingIndicator);
 
-		// Input area
+		// Input area - stays at bottom (flex-shrink: 0)
 		Hlayout inputArea = new Hlayout();
-		inputArea.setStyle("width: 100%; gap: 8px; align-items: center;");
+		inputArea.setStyle("width: 100%; gap: 8px; align-items: center; flex-shrink: 0;");
 
 		inputBox = new Textbox();
 		inputBox.setPlaceholder(Msg.getMsg(Env.getCtx(), "AIChatPlaceholder"));
@@ -207,6 +249,11 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 		try {
 			// Use MAIChat for AI-specific functionality
 			chat = MAIChat.getOrCreateGlobalChat(Env.getCtx(), null);
+
+			// Load thread list and select most recent thread
+			loadThreadList();
+
+			// Render messages for current thread
 			renderMessages();
 		} catch (Exception e) {
 			log.log(Level.SEVERE, "Failed to load/create chat", e);
@@ -214,7 +261,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 	}
 
 	/**
-	 * Render all messages from chat
+	 * Render all messages from chat (filtered by current thread)
 	 */
 	private void renderMessages() {
 		// Clear existing messages (but keep loading indicator)
@@ -228,11 +275,14 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 
 		MChatEntry[] entries = chat.getEntries(true);
 
-		// Limit number of messages displayed for performance
-		int startIndex = Math.max(0, entries.length - MAX_MESSAGES_DISPLAY);
+		// Filter messages by current thread
+		java.util.List<MChatEntry> threadEntries = getThreadEntries(entries, currentThreadRootId);
 
-		for (int i = startIndex; i < entries.length; i++) {
-			MChatEntry entry = entries[i];
+		// Limit number of messages displayed for performance
+		int startIndex = Math.max(0, threadEntries.size() - MAX_MESSAGES_DISPLAY);
+
+		for (int i = startIndex; i < threadEntries.size(); i++) {
+			MChatEntry entry = threadEntries.get(i);
 			if (entry.isActive()) {
 				renderMessage(entry);
 			}
@@ -243,8 +293,48 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 			"setTimeout(function(){" +
 			"var el=document.querySelector('.ai-messages');" +
 			"if(el)el.scrollTop=el.scrollHeight;" +
-			"}, 300);"
+			"}, 400);"
 		);
+	}
+
+	/**
+	 * Get all entries for a specific thread (root message and all its children)
+	 * @param allEntries all chat entries
+	 * @param threadRootId root message ID (0 for new thread - shows nothing)
+	 * @return list of entries in this thread
+	 */
+	private java.util.List<MChatEntry> getThreadEntries(MChatEntry[] allEntries, int threadRootId) {
+		java.util.List<MChatEntry> threadEntries = new java.util.ArrayList<>();
+
+		if (threadRootId == 0) {
+			// New thread - show nothing
+			return threadEntries;
+		}
+
+		// Add root message
+		MChatEntry rootEntry = null;
+		for (MChatEntry entry : allEntries) {
+			if (entry.getCM_ChatEntry_ID() == threadRootId) {
+				rootEntry = entry;
+				threadEntries.add(entry);
+				break;
+			}
+		}
+
+		if (rootEntry == null) {
+			return threadEntries;
+		}
+
+		// Add all child messages (messages with this root as parent or grandparent)
+		for (MChatEntry entry : allEntries) {
+			if (entry.getCM_ChatEntry_ID() != threadRootId &&
+				(entry.getCM_ChatEntryParent_ID() == threadRootId ||
+				 entry.getCM_ChatEntryGrandParent_ID() == threadRootId)) {
+				threadEntries.add(entry);
+			}
+		}
+
+		return threadEntries;
 	}
 
 	/**
@@ -428,6 +518,10 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 			sendMessage();
 		} else if (event.getTarget() == clearButton) {
 			clearChat();
+		} else if (event.getTarget() == newThreadButton) {
+			createNewThread();
+		} else if (event.getTarget() == threadSelector && event.getName().equals(Events.ON_SELECT)) {
+			switchThread();
 		}
 	}
 
@@ -449,9 +543,23 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 			refreshContext();
 		}
 
-		// Save user message
+		// Save user message with proper thread parent
 		MAIChatEntry userEntry = new MAIChatEntry(chat, message);
+
+		// Set thread parent if we're in an existing thread
+		if (currentThreadRootId > 0) {
+			userEntry.setCM_ChatEntryParent_ID(currentThreadRootId);
+			userEntry.setCM_ChatEntryGrandParent_ID(currentThreadRootId);
+		}
+
 		userEntry.saveEx();
+
+		// If this is a new thread, it becomes the root
+		if (currentThreadRootId == 0) {
+			currentThreadRootId = userEntry.getCM_ChatEntry_ID();
+			// Reload thread list to show new thread
+			loadThreadList();
+		}
 
 		// Clear input
 		inputBox.setText("");
@@ -488,20 +596,16 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 						aiResponse.getErrorMessage() : "AI service returned error");
 				}
 
-				// Create AI chat entry
+				// Create AI chat entry with proper thread parent
 				MAIChatEntry aiEntry = MAIChatEntry.createAIResponse(aiChat, aiResponse.getContent());
-				aiEntry.saveEx();
 
-				// Update chat metadata
-				if (aiResponse.getModel() != null) {
-					aiChat.setAIModel(aiResponse.getModel());
+				// Set thread parent (AI response is child of the thread root)
+				if (currentThreadRootId > 0) {
+					aiEntry.setCM_ChatEntryParent_ID(currentThreadRootId);
+					aiEntry.setCM_ChatEntryGrandParent_ID(currentThreadRootId);
 				}
-				if (aiService.getProviderName(aiService.getDefaultProviderId()) != null) {
-					aiChat.setAIProvider(aiService.getProviderName(aiService.getDefaultProviderId()));
-				}
-				if (aiResponse.getTokenUsage() != null) {
-					aiChat.addTokens(aiResponse.getTokenUsage().getTotalTokens());
-				}
+
+				aiEntry.saveEx();
 				aiChat.saveEx();
 
 				// Update UI (must happen in ZK thread)
@@ -527,6 +631,13 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 						"<strong>Error:</strong> " + Util.maskHTML(e.getMessage(), true) + "</div>";
 
 					MChatEntry errorEntry = MAIChatEntry.createAIResponse(chat, errorMsg);
+
+					// Set thread parent for error entry
+					if (currentThreadRootId > 0) {
+						errorEntry.setCM_ChatEntryParent_ID(currentThreadRootId);
+						errorEntry.setCM_ChatEntryGrandParent_ID(currentThreadRootId);
+					}
+
 					errorEntry.saveEx();
 					renderMessage(errorEntry);
 					inputBox.setDisabled(false);
@@ -553,6 +664,113 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 
 		// Refresh display
 		renderMessages();
+	}
+
+	/**
+	 * Create a new conversation thread
+	 */
+	private void createNewThread() {
+		// Reset current thread (next message will start a new root thread)
+		currentThreadRootId = 0;
+
+		// Clear the display
+		messagesContainer.getChildren().stream()
+			.filter(c -> c != loadingIndicator)
+			.forEach(c -> c.detach());
+
+		// Reload thread list to refresh UI
+		loadThreadList();
+
+		// Focus input for new message
+		inputBox.focus();
+
+		log.fine("New thread created (currentThreadRootId reset to 0)");
+	}
+
+	/**
+	 * Switch to selected thread from dropdown
+	 */
+	private void switchThread() {
+		if (threadSelector.getSelectedItem() == null) {
+			return;
+		}
+
+		Object value = threadSelector.getSelectedItem().getValue();
+		if (value instanceof Integer) {
+			currentThreadRootId = (Integer) value;
+			log.fine("Switched to thread: " + currentThreadRootId);
+
+			// Re-render messages for this thread
+			renderMessages();
+		}
+	}
+
+	/**
+	 * Load thread list into dropdown
+	 * Threads are identified by their root message (first message with no parent)
+	 */
+	private void loadThreadList() {
+		if (chat == null) {
+			return;
+		}
+
+		threadSelector.getItems().clear();
+
+		// Add "New Thread" option
+		Comboitem newItem = new Comboitem("+ New Thread");
+		newItem.setValue(0);
+		threadSelector.appendChild(newItem);
+
+		// Get all root-level entries (messages with no parent)
+		MChatEntry[] entries = chat.getEntries(true);
+		java.util.List<MChatEntry> rootEntries = new java.util.ArrayList<>();
+
+		for (MChatEntry entry : entries) {
+			if (entry.isActive() && entry.getCM_ChatEntryParent_ID() == 0) {
+				rootEntries.add(entry);
+			}
+		}
+
+		// Add threads to dropdown (most recent first)
+		for (int i = rootEntries.size() - 1; i >= 0; i--) {
+			MChatEntry rootEntry = rootEntries.get(i);
+
+			// Create thread label (first 50 chars of first message)
+			String label = rootEntry.getCharacterData();
+			if (label == null || label.trim().isEmpty()) {
+				label = "Thread " + (rootEntries.size() - i);
+			} else {
+				label = label.trim();
+				if (label.length() > 50) {
+					label = label.substring(0, 47) + "...";
+				}
+			}
+
+			// Add formatted date
+			if (rootEntry.getCreated() != null) {
+				String date = dateFormat.format(rootEntry.getCreated());
+				label = label + " (" + date + ")";
+			}
+
+			Comboitem item = new Comboitem(label);
+			item.setValue(rootEntry.getCM_ChatEntry_ID());
+			threadSelector.appendChild(item);
+
+			// Select current thread
+			if (currentThreadRootId == rootEntry.getCM_ChatEntry_ID()) {
+				threadSelector.setSelectedItem(item);
+			}
+		}
+
+		// If no thread selected and we have threads, select the most recent
+		if (threadSelector.getSelectedItem() == null && rootEntries.size() > 0) {
+			currentThreadRootId = rootEntries.get(rootEntries.size() - 1).getCM_ChatEntry_ID();
+			threadSelector.setSelectedIndex(1); // Index 1 (first real thread, after "New Thread")
+		} else if (rootEntries.size() == 0) {
+			// No threads yet, select "New Thread"
+			currentThreadRootId = 0;
+			threadSelector.setSelectedIndex(0);
+		}
 	}
 
 	/**

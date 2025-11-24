@@ -11,6 +11,7 @@ import com.cloudempiere.ai.model.MAIProvider;
 import com.cloudempiere.ai.provider.AIProviderException;
 import com.cloudempiere.ai.provider.IAIProvider;
 import com.cloudempiere.ai.provider.dto.AIFunction;
+import com.cloudempiere.ai.provider.dto.AIFunctionCall;
 import com.cloudempiere.ai.provider.dto.AIHealthStatus;
 import com.cloudempiere.ai.provider.dto.AIMessage;
 import com.cloudempiere.ai.provider.dto.AIModelCapabilities;
@@ -23,6 +24,7 @@ import com.cloudempiere.ai.provider.dto.AITokenUsage;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.core.document.Document;
 import software.amazon.awssdk.http.SdkHttpClient;
 import software.amazon.awssdk.http.async.SdkAsyncHttpClient;
 import software.amazon.awssdk.http.nio.netty.NettyNioAsyncHttpClient;
@@ -40,6 +42,13 @@ import software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamRespon
 import software.amazon.awssdk.services.bedrockruntime.model.InferenceConfiguration;
 import software.amazon.awssdk.services.bedrockruntime.model.Message;
 import software.amazon.awssdk.services.bedrockruntime.model.SystemContentBlock;
+import software.amazon.awssdk.services.bedrockruntime.model.Tool;
+import software.amazon.awssdk.services.bedrockruntime.model.ToolConfiguration;
+import software.amazon.awssdk.services.bedrockruntime.model.ToolInputSchema;
+import software.amazon.awssdk.services.bedrockruntime.model.ToolResultBlock;
+import software.amazon.awssdk.services.bedrockruntime.model.ToolResultContentBlock;
+import software.amazon.awssdk.services.bedrockruntime.model.ToolSpecification;
+import software.amazon.awssdk.services.bedrockruntime.model.ToolUseBlock;
 
 /**
  * AWS Bedrock AI Provider Implementation
@@ -365,12 +374,78 @@ public class AWSBedrockProvider implements IAIProvider {
 	@Override
 	public AIResponse generateTextWithFunctions(AIRequest request, List<AIFunction> functions)
 			throws AIProviderException {
-		// AWS Bedrock supports tool use, but implementation varies by model
-		// For now, fall back to standard text generation
-		// TODO: Implement tool/function calling for compatible models
-		log.warning("Function calling not yet implemented for AWS Bedrock provider. " +
-				   "Falling back to standard text generation.");
-		return generateText(request);
+		if (!ready) {
+			throw new AIProviderException("Provider not initialized");
+		}
+
+		if (request == null) {
+			throw new AIProviderException("Request cannot be null");
+		}
+
+		long startTime = System.currentTimeMillis();
+
+		try {
+			// Build Converse request with tools
+			ConverseRequest.Builder requestBuilder = ConverseRequest.builder()
+				.modelId(request.getModel() != null ? request.getModel() : DEFAULT_MODEL);
+
+			// Add messages
+			List<Message> messages = convertMessages(request.getMessages());
+			requestBuilder.messages(messages);
+
+			// Add system prompt if provided
+			if (request.getSystemPrompt() != null && !request.getSystemPrompt().trim().isEmpty()) {
+				requestBuilder.system(SystemContentBlock.builder()
+					.text(request.getSystemPrompt())
+					.build());
+			}
+
+			// Add tools if provided
+			if (functions != null && !functions.isEmpty()) {
+				List<Tool> tools = new ArrayList<>();
+				for (AIFunction function : functions) {
+					tools.add(convertFunctionToTool(function));
+				}
+
+				ToolConfiguration toolConfig = ToolConfiguration.builder()
+					.tools(tools)
+					.build();
+				requestBuilder.toolConfig(toolConfig);
+
+				log.fine("Added " + tools.size() + " tool(s) to AWS Bedrock request");
+			}
+
+			// Add inference configuration
+			InferenceConfiguration.Builder inferenceBuilder = InferenceConfiguration.builder();
+			if (request.getMaxTokens() != null && request.getMaxTokens() > 0) {
+				inferenceBuilder.maxTokens(request.getMaxTokens());
+			} else {
+				inferenceBuilder.maxTokens(4096); // Default
+			}
+
+			if (request.getTemperature() != null && request.getTemperature() > 0) {
+				inferenceBuilder.temperature(request.getTemperature().floatValue());
+			}
+
+			requestBuilder.inferenceConfig(inferenceBuilder.build());
+
+			// Make API call
+			ConverseResponse response = bedrockClient.converse(requestBuilder.build());
+
+			// Parse response
+			AIResponse aiResponse = parseConverseResponse(response, startTime);
+
+			log.fine("AWS Bedrock response received" +
+				(aiResponse.getFunctionCalls() != null && !aiResponse.getFunctionCalls().isEmpty() ?
+					" with " + aiResponse.getFunctionCalls().size() + " function call(s)" : ""));
+
+			return aiResponse;
+
+		} catch (Exception e) {
+			lastError = e.getMessage();
+			log.severe("Failed to generate text with functions via AWS Bedrock: " + e.getMessage());
+			throw new AIProviderException("AWS Bedrock API call failed: " + e.getMessage(), e);
+		}
 	}
 
 	@Override
@@ -448,8 +523,8 @@ public class AWSBedrockProvider implements IAIProvider {
 
 	@Override
 	public boolean supportsFunctionCalling() {
-		// Some Bedrock models support tool use, but not implemented yet
-		return false;
+		// AWS Bedrock Converse API supports tool use for Claude models
+		return true;
 	}
 
 	@Override
@@ -732,6 +807,378 @@ public class AWSBedrockProvider implements IAIProvider {
 
 		} catch (Exception e) {
 			log.warning("Error parsing response: " + e.getMessage());
+			aiResponse.setErrorMessage("Failed to parse response: " + e.getMessage());
+		}
+
+		return aiResponse;
+	}
+
+	/**
+	 * Convert AIFunction to AWS Bedrock Tool
+	 */
+	private Tool convertFunctionToTool(AIFunction function) {
+		// Build tool specification
+		ToolSpecification.Builder specBuilder = ToolSpecification.builder()
+			.name(function.getName());
+
+		if (function.getDescription() != null) {
+			specBuilder.description(function.getDescription());
+		}
+
+		// Convert function parameters to AWS Document format
+		if (function.getParameters() != null) {
+			try {
+				// Convert parameters Map to AWS Document
+				Document inputSchema = convertMapToDocument(function.getParameters());
+				ToolInputSchema toolInputSchema = ToolInputSchema.builder()
+					.json(inputSchema)
+					.build();
+				specBuilder.inputSchema(toolInputSchema);
+			} catch (Exception e) {
+				log.warning("Failed to convert function parameters: " + e.getMessage());
+			}
+		}
+
+		return Tool.builder()
+			.toolSpec(specBuilder.build())
+			.build();
+	}
+
+	/**
+	 * Convert Map to AWS Document
+	 */
+	@SuppressWarnings("unchecked")
+	private Document convertMapToDocument(Map<String, Object> map) {
+		if (map == null) {
+			return Document.fromMap(new HashMap<>());
+		}
+
+		// AWS SDK Document.fromMap expects Map<String, Document>
+		// We need to convert each value to a Document
+		Map<String, Document> documentMap = new HashMap<>();
+		for (Map.Entry<String, Object> entry : map.entrySet()) {
+			Object value = entry.getValue();
+
+			if (value == null) {
+				documentMap.put(entry.getKey(), Document.fromNull());
+			} else if (value instanceof Map) {
+				documentMap.put(entry.getKey(), convertMapToDocument((Map<String, Object>) value));
+			} else if (value instanceof List) {
+				documentMap.put(entry.getKey(), convertListToDocument((List<?>) value));
+			} else if (value instanceof String) {
+				documentMap.put(entry.getKey(), Document.fromString((String) value));
+			} else if (value instanceof Number) {
+				// Convert Number to string representation for Document
+				documentMap.put(entry.getKey(), Document.fromNumber(value.toString()));
+			} else if (value instanceof Boolean) {
+				documentMap.put(entry.getKey(), Document.fromBoolean((Boolean) value));
+			} else {
+				// Fallback - convert to string
+				documentMap.put(entry.getKey(), Document.fromString(value.toString()));
+			}
+		}
+
+		return Document.fromMap(documentMap);
+	}
+
+	/**
+	 * Convert List to AWS Document
+	 */
+	@SuppressWarnings("unchecked")
+	private Document convertListToDocument(List<?> list) {
+		if (list == null) {
+			return Document.fromList(new ArrayList<>());
+		}
+
+		List<Document> documentList = new ArrayList<>();
+		for (Object item : list) {
+			if (item == null) {
+				documentList.add(Document.fromNull());
+			} else if (item instanceof Map) {
+				documentList.add(convertMapToDocument((Map<String, Object>) item));
+			} else if (item instanceof List) {
+				documentList.add(convertListToDocument((List<?>) item));
+			} else if (item instanceof String) {
+				documentList.add(Document.fromString((String) item));
+			} else if (item instanceof Number) {
+				// Convert Number to string representation for Document
+				documentList.add(Document.fromNumber(item.toString()));
+			} else if (item instanceof Boolean) {
+				documentList.add(Document.fromBoolean((Boolean) item));
+			} else {
+				documentList.add(Document.fromString(item.toString()));
+			}
+		}
+
+		return Document.fromList(documentList);
+	}
+
+	/**
+	 * Parse JSON string to AWS Document
+	 */
+	@SuppressWarnings("unchecked")
+	private Document parseJsonToDocument(String jsonString) throws Exception {
+		if (jsonString == null || jsonString.trim().isEmpty()) {
+			return Document.fromMap(new HashMap<>());
+		}
+
+		// Parse JSON string using org.json
+		org.json.JSONObject json = new org.json.JSONObject(jsonString);
+
+		// Convert to Map
+		Map<String, Object> map = new HashMap<>();
+		for (String key : json.keySet()) {
+			map.put(key, json.get(key));
+		}
+
+		// Convert map to Document
+		return convertMapToDocument(map);
+	}
+
+	/**
+	 * Convert AWS Document to JSON string
+	 */
+	private String documentToJson(Document document) {
+		if (document == null) {
+			return "{}";
+		}
+
+		// Convert Document back to JSON using its internal representation
+		// AWS Document stores data as Map, List, or primitives
+		try {
+			if (document.isMap()) {
+				Map<String, Document> map = document.asMap();
+				org.json.JSONObject json = new org.json.JSONObject();
+				for (Map.Entry<String, Document> entry : map.entrySet()) {
+					json.put(entry.getKey(), documentToJsonValue(entry.getValue()));
+				}
+				return json.toString();
+			} else if (document.isList()) {
+				List<Document> list = document.asList();
+				org.json.JSONArray jsonArray = new org.json.JSONArray();
+				for (Document doc : list) {
+					jsonArray.put(documentToJsonValue(doc));
+				}
+				return jsonArray.toString();
+			} else {
+				// Primitive value
+				return String.valueOf(documentToJsonValue(document));
+			}
+		} catch (Exception e) {
+			log.warning("Failed to convert Document to JSON: " + e.getMessage());
+			return "{}";
+		}
+	}
+
+	/**
+	 * Convert Document to Java object for JSON serialization
+	 */
+	private Object documentToJsonValue(Document document) {
+		if (document == null || document.isNull()) {
+			return null;
+		} else if (document.isString()) {
+			return document.asString();
+		} else if (document.isNumber()) {
+			// asNumber() returns SdkNumber, convert to string first
+			String numStr = document.asNumber().toString();
+			try {
+				if (numStr.contains(".")) {
+					return Double.parseDouble(numStr);
+				} else {
+					return Long.parseLong(numStr);
+				}
+			} catch (NumberFormatException e) {
+				return numStr;
+			}
+		} else if (document.isBoolean()) {
+			return document.asBoolean();
+		} else if (document.isMap()) {
+			Map<String, Document> map = document.asMap();
+			org.json.JSONObject json = new org.json.JSONObject();
+			for (Map.Entry<String, Document> entry : map.entrySet()) {
+				json.put(entry.getKey(), documentToJsonValue(entry.getValue()));
+			}
+			return json;
+		} else if (document.isList()) {
+			List<Document> list = document.asList();
+			org.json.JSONArray jsonArray = new org.json.JSONArray();
+			for (Document doc : list) {
+				jsonArray.put(documentToJsonValue(doc));
+			}
+			return jsonArray;
+		}
+		return null;
+	}
+
+	/**
+	 * Convert list of AIMessages to Bedrock Messages (for function calling)
+	 */
+	private List<Message> convertMessages(List<AIMessage> aiMessages) {
+		List<Message> messages = new ArrayList<>();
+
+		for (AIMessage aiMessage : aiMessages) {
+			// Skip null or invalid messages
+			if (aiMessage == null) {
+				continue;
+			}
+
+			// Handle function result messages
+			if ("function".equals(aiMessage.getRole())) {
+				// Function result - convert to tool result content block
+				// Parse the JSON content into a Document
+				Document resultDoc;
+				try {
+					resultDoc = parseJsonToDocument(aiMessage.getContent());
+				} catch (Exception e) {
+					log.warning("Failed to parse function result as JSON: " + e.getMessage());
+					// Fallback to text result
+					resultDoc = Document.fromString(aiMessage.getContent());
+				}
+
+				ToolResultContentBlock resultContent = ToolResultContentBlock.builder()
+					.json(resultDoc)
+					.build();
+
+				// Use the stored tool use ID from the function call
+				String toolUseId = aiMessage.getFunctionName(); // This should contain the tool use ID
+				ToolResultBlock toolResult = ToolResultBlock.builder()
+					.toolUseId(toolUseId)
+					.content(resultContent)
+					.build();
+
+				ContentBlock contentBlock = ContentBlock.fromToolResult(toolResult);
+
+				messages.add(Message.builder()
+					.role(ConversationRole.USER) // Tool results come from user
+					.content(contentBlock)
+					.build());
+
+			} else if (aiMessage.getFunctionCalls() != null && !aiMessage.getFunctionCalls().isEmpty()) {
+				// Assistant message with tool calls
+				List<ContentBlock> contentBlocks = new ArrayList<>();
+
+				// Add text content if present
+				if (aiMessage.getContent() != null && !aiMessage.getContent().trim().isEmpty()) {
+					contentBlocks.add(ContentBlock.fromText(aiMessage.getContent()));
+				}
+
+				// Add tool use blocks
+				for (AIFunctionCall functionCall : aiMessage.getFunctionCalls()) {
+					try {
+						// Parse the arguments JSON into a Document
+						Document inputDoc = parseJsonToDocument(functionCall.getArguments());
+
+						// Use the stored ID if available, otherwise generate new one
+						String toolUseId = functionCall.getId();
+						if (toolUseId == null || toolUseId.isEmpty()) {
+							toolUseId = "tool_" + System.currentTimeMillis();
+						}
+
+						ToolUseBlock toolUse = ToolUseBlock.builder()
+							.toolUseId(toolUseId)
+							.name(functionCall.getName())
+							.input(inputDoc)
+							.build();
+
+						contentBlocks.add(ContentBlock.fromToolUse(toolUse));
+					} catch (Exception e) {
+						log.warning("Failed to convert function call: " + e.getMessage());
+						e.printStackTrace();
+					}
+				}
+
+				messages.add(Message.builder()
+					.role(ConversationRole.ASSISTANT)
+					.content(contentBlocks)
+					.build());
+
+			} else {
+				// Regular text message
+				messages.add(convertMessage(aiMessage));
+			}
+		}
+
+		return messages;
+	}
+
+	/**
+	 * Parse ConverseResponse with tool/function call support
+	 */
+	private AIResponse parseConverseResponse(ConverseResponse response, long startTime) {
+		AIResponse aiResponse = new AIResponse();
+		aiResponse.setSuccess(true);
+
+		try {
+			// Extract content from response
+			StringBuilder textContent = new StringBuilder();
+			List<AIFunctionCall> functionCalls = new ArrayList<>();
+
+			if (response.output() != null && response.output().message() != null) {
+				Message message = response.output().message();
+
+				// Process content blocks
+				for (ContentBlock block : message.content()) {
+					if (block.text() != null && !block.text().isEmpty()) {
+						textContent.append(block.text());
+					} else if (block.toolUse() != null) {
+						// Extract tool/function call
+						ToolUseBlock toolUse = block.toolUse();
+						AIFunctionCall functionCall = new AIFunctionCall();
+						functionCall.setName(toolUse.name());
+
+						// Store the tool use ID for later reference (needed when sending results back)
+						functionCall.setId(toolUse.toolUseId());
+
+						// Convert Document input to JSON string
+						if (toolUse.input() != null) {
+							// AWS Document needs proper JSON serialization
+							functionCall.setArguments(documentToJson(toolUse.input()));
+						} else {
+							functionCall.setArguments("{}");
+						}
+
+						functionCalls.add(functionCall);
+						log.fine("Extracted tool call: " + toolUse.name() + " (ID: " + toolUse.toolUseId() + ")");
+					}
+				}
+			}
+
+			aiResponse.setContent(textContent.toString());
+
+			// Add function calls if any
+			if (!functionCalls.isEmpty()) {
+				aiResponse.setFunctionCalls(functionCalls);
+				log.fine("Response contains " + functionCalls.size() + " function call(s)");
+			}
+
+			// Set model
+			aiResponse.setModel(response.sdkHttpResponse().headers().get("x-amzn-requestid").get(0));
+
+			// Extract token usage
+			if (response.usage() != null) {
+				AITokenUsage tokenUsage = new AITokenUsage();
+				tokenUsage.setPromptTokens(response.usage().inputTokens());
+				tokenUsage.setCompletionTokens(response.usage().outputTokens());
+				tokenUsage.setTotalTokens(response.usage().totalTokens());
+				aiResponse.setTokenUsage(tokenUsage);
+
+				// Calculate cost if pricing available
+				String modelId = response.sdkHttpResponse().headers().getOrDefault("x-amzn-bedrock-model-id",
+					java.util.Collections.singletonList(DEFAULT_MODEL)).get(0);
+				ModelPricing pricing = MODEL_PRICING.get(modelId);
+				if (pricing != null) {
+					double cost = (response.usage().inputTokens() / 1_000_000.0) * pricing.inputPer1M +
+								  (response.usage().outputTokens() / 1_000_000.0) * pricing.outputPer1M;
+					aiResponse.setCostUSD(cost);
+				}
+			}
+
+			// Set processing time
+			aiResponse.setProcessingTimeMs(System.currentTimeMillis() - startTime);
+
+		} catch (Exception e) {
+			log.warning("Error parsing response: " + e.getMessage());
+			aiResponse.setSuccess(false);
 			aiResponse.setErrorMessage("Failed to parse response: " + e.getMessage());
 		}
 

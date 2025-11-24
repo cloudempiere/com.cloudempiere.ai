@@ -24,9 +24,13 @@ import org.compiere.util.Env;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import com.cloudempiere.ai.function.AIDatabaseFunctionHandler;
 import com.cloudempiere.ai.model.MAIChat;
 import com.cloudempiere.ai.model.MAIChatEntry;
+import com.cloudempiere.ai.model.MAIPromptConfig;
 import com.cloudempiere.ai.provider.IAIProvider;
+import com.cloudempiere.ai.provider.dto.AIFunction;
+import com.cloudempiere.ai.provider.dto.AIFunctionCall;
 import com.cloudempiere.ai.provider.dto.AIMessage;
 import com.cloudempiere.ai.provider.dto.AIRequest;
 import com.cloudempiere.ai.provider.dto.AIResponse;
@@ -48,14 +52,21 @@ public class AIConversationService {
 	/** Default maximum history entries to include */
 	private static final int DEFAULT_MAX_HISTORY = 10;
 
+	/** Maximum function call depth to prevent infinite loops */
+	private static final int MAX_FUNCTION_CALL_DEPTH = 5;
+
 	/** Provider factory instance */
 	private AIProviderFactory providerFactory;
+
+	/** Database function handler */
+	private AIDatabaseFunctionHandler functionHandler;
 
 	/**
 	 * Default constructor
 	 */
 	public AIConversationService() {
 		this.providerFactory = new AIProviderFactory();
+		this.functionHandler = new AIDatabaseFunctionHandler();
 	}
 
 	/**
@@ -86,6 +97,8 @@ public class AIConversationService {
 
 	/**
 	 * Send message with context and conversation history
+	 * Now with database function calling support!
+	 *
 	 * @param ctx context
 	 * @param chat chat instance
 	 * @param userMessage user's message
@@ -118,12 +131,10 @@ public class AIConversationService {
 			AIRequest request = new AIRequest();
 			List<AIMessage> messages = new ArrayList<>();
 
-			// Add system message with context if provided
-			if (contextData != null && contextData.optBoolean("success", false)) {
-				String contextPrompt = buildContextPrompt(contextData);
-				messages.add(new AIMessage(MAIChatEntry.ROLE_SYSTEM, contextPrompt));
-				log.fine("Including context in AI request");
-			}
+			// Add system message with context and database schema info
+			String systemPrompt = buildSystemPrompt(contextData);
+			request.setSystemPrompt(systemPrompt);
+			log.fine("Including system prompt with database access instructions");
 
 			// Add conversation history if requested
 			if (maxHistoryEntries > 0) {
@@ -136,23 +147,41 @@ public class AIConversationService {
 
 			request.setMessages(messages);
 
-			// Send request to AI provider
-			log.fine("Sending message to AI provider: " + provider.getProviderName() +
-				(contextData != null ? " (with context)" : ""));
-			AIResponse response = provider.generateText(request);
+			// Check if provider supports function calling
+			if (provider.supportsFunctionCalling()) {
+				log.fine("Provider supports function calling - enabling database access");
 
-			// Add processing time
-			long responseTime = System.currentTimeMillis() - startTime;
-			response.setProcessingTimeMs(responseTime);
+				// Add database query function
+				List<AIFunction> functions = new ArrayList<>();
+				functions.add(AIDatabaseFunctionHandler.getDatabaseQueryFunction());
 
-			if (response.isSuccess()) {
-				log.fine("AI response received: " + response.getContent().length() + " chars, " +
-					(response.getTokenUsage() != null ? response.getTokenUsage().getTotalTokens() : 0) + " tokens");
+				// Call with functions
+				AIResponse response = provider.generateTextWithFunctions(request, functions);
+
+				// Check if AI wants to call database function
+				if (response.getFunctionCalls() != null && !response.getFunctionCalls().isEmpty()) {
+					log.fine("AI requested " + response.getFunctionCalls().size() + " function call(s)");
+					// Process function calls recursively
+					response = processFunctionCalls(ctx, response, request, provider, DEFAULT_PROVIDER_ID, 0);
+				}
+
+				// Add processing time
+				long responseTime = System.currentTimeMillis() - startTime;
+				response.setProcessingTimeMs(responseTime);
+
+				return response;
+
 			} else {
-				log.warning("AI response failed: " + response.getErrorMessage());
-			}
+				// Fallback to regular text generation
+				log.fine("Provider does not support function calling - using regular text generation");
+				AIResponse response = provider.generateText(request);
 
-			return response;
+				// Add processing time
+				long responseTime = System.currentTimeMillis() - startTime;
+				response.setProcessingTimeMs(responseTime);
+
+				return response;
+			}
 
 		} catch (Exception e) {
 			log.log(Level.SEVERE, "Error calling AI provider", e);
@@ -160,6 +189,207 @@ public class AIConversationService {
 				"Error communicating with AI service: " + e.getMessage(),
 				startTime);
 		}
+	}
+
+	/**
+	 * Process function calls from AI and get final response
+	 *
+	 * @param ctx context
+	 * @param initialResponse Initial response with function calls
+	 * @param originalRequest Original AI request
+	 * @param provider AI provider
+	 * @param providerId Provider ID for audit
+	 * @param depth Current recursion depth
+	 * @return Final AI response incorporating function results
+	 */
+	private AIResponse processFunctionCalls(
+		Properties ctx,
+		AIResponse initialResponse,
+		AIRequest originalRequest,
+		IAIProvider provider,
+		int providerId,
+		int depth
+	) throws Exception {
+
+		// Prevent infinite loops
+		if (depth >= MAX_FUNCTION_CALL_DEPTH) {
+			log.warning("Max function call depth reached (" + MAX_FUNCTION_CALL_DEPTH + ") - stopping");
+			return initialResponse;
+		}
+
+		List<AIMessage> messages = new ArrayList<>(originalRequest.getMessages());
+
+		// Add AI's initial response with function call
+		AIMessage assistantMsg = new AIMessage(MAIChatEntry.ROLE_ASSISTANT, initialResponse.getContent());
+		assistantMsg.setFunctionCalls(initialResponse.getFunctionCalls());
+		messages.add(assistantMsg);
+
+		// Process each function call
+		for (AIFunctionCall functionCall : initialResponse.getFunctionCalls()) {
+			String functionName = functionCall.getName();
+			String arguments = functionCall.getArguments();
+			String toolUseId = functionCall.getId(); // Get the tool use ID from the function call
+
+			log.fine("Processing function call: " + functionName + " (ID: " + toolUseId + ") with args: " + arguments);
+
+			if ("query_database".equals(functionName)) {
+				// Execute database query
+				String functionResult = functionHandler.executeQueryFunction(ctx, providerId, arguments);
+
+				log.fine("Function result: " + functionResult.substring(0, Math.min(200, functionResult.length())) + "...");
+
+				// Add function result to conversation
+				AIMessage functionMsg = new AIMessage("function", functionResult);
+				// Store the tool use ID in functionName field (AWS Bedrock needs this to match results)
+				functionMsg.setFunctionName(toolUseId != null ? toolUseId : functionName);
+				messages.add(functionMsg);
+
+			} else {
+				log.warning("Unknown function call: " + functionName);
+				// Add error message
+				AIMessage errorMsg = new AIMessage("function",
+					"{\"status\":\"ERROR\",\"error\":\"Unknown function: " + functionName + "\"}");
+				// Store tool use ID for AWS Bedrock compatibility
+				errorMsg.setFunctionName(toolUseId != null ? toolUseId : functionName);
+				messages.add(errorMsg);
+			}
+		}
+
+		// Build follow-up request with function results
+		AIRequest followUpRequest = new AIRequest();
+		followUpRequest.setMessages(messages);
+		followUpRequest.setSystemPrompt(originalRequest.getSystemPrompt());
+		followUpRequest.setTemperature(originalRequest.getTemperature());
+		followUpRequest.setMaxTokens(originalRequest.getMaxTokens());
+
+		// Get final response from AI (incorporating query results)
+		List<AIFunction> functions = new ArrayList<>();
+		functions.add(AIDatabaseFunctionHandler.getDatabaseQueryFunction());
+
+		AIResponse finalResponse = provider.generateTextWithFunctions(followUpRequest, functions);
+
+		// Check if AI wants to make another function call (iterative queries)
+		if (finalResponse.getFunctionCalls() != null && !finalResponse.getFunctionCalls().isEmpty()) {
+			log.fine("AI requested another function call (depth: " + (depth + 1) + ")");
+			// Recursively process
+			return processFunctionCalls(ctx, finalResponse, followUpRequest, provider, providerId, depth + 1);
+		}
+
+		return finalResponse;
+	}
+
+	/**
+	 * Build system prompt with context and database access instructions
+	 *
+	 * @param contextData Optional context data
+	 * @return System prompt string
+	 */
+	private String buildSystemPrompt(JSONObject contextData) {
+		// Try to load prompt from database first
+		String dbPrompt = loadSystemPromptFromDatabase();
+
+		// If database prompt exists, use it; otherwise fall back to hardcoded version
+		if (dbPrompt != null && !dbPrompt.trim().isEmpty()) {
+			log.fine("Using system prompt from database (AIG_Prompt_Config)");
+			return buildPromptWithContext(dbPrompt, contextData);
+		}
+
+		log.fine("Using hardcoded system prompt (database configuration not found)");
+		return buildHardcodedSystemPrompt(contextData);
+	}
+
+	/**
+	 * Load system prompt from database
+	 * @return prompt text or null if not found
+	 */
+	private String loadSystemPromptFromDatabase() {
+		try {
+			return MAIPromptConfig.getPromptText(Env.getCtx(), "SYSTEM", null);
+		} catch (Exception e) {
+			log.log(Level.WARNING, "Failed to load system prompt from database", e);
+			return null;
+		}
+	}
+
+	/**
+	 * Build prompt with context appended
+	 * @param basePrompt base prompt text
+	 * @param contextData optional context data
+	 * @return complete prompt with context
+	 */
+	private String buildPromptWithContext(String basePrompt, JSONObject contextData) {
+		StringBuilder sb = new StringBuilder();
+		sb.append(basePrompt);
+
+		// Add context if available
+		if (contextData != null && contextData.optBoolean("success", false)) {
+			sb.append("\n\n## Current Context\n");
+			sb.append(buildContextPrompt(contextData));
+		}
+
+		return sb.toString();
+	}
+
+	/**
+	 * Build hardcoded system prompt (fallback when database config not available)
+	 * @param contextData optional context data
+	 * @return hardcoded system prompt
+	 */
+	private String buildHardcodedSystemPrompt(JSONObject contextData) {
+		StringBuilder sb = new StringBuilder();
+
+		sb.append("You are a helpful AI assistant for iDempiere ERP system. ");
+		sb.append("You have access to query the database to answer user questions.\n\n");
+
+		// Add database access instructions
+		sb.append("## Database Access\n");
+		sb.append("When users ask questions that require data from the system, ");
+		sb.append("use the query_database function to retrieve the information.\n\n");
+
+		sb.append("**When to use database queries:**\n");
+		sb.append("- User asks about specific records (orders, products, customers, etc.)\n");
+		sb.append("- User wants to see lists or summaries of data\n");
+		sb.append("- User asks 'how many', 'show me', 'list', 'find', etc.\n");
+		sb.append("- Questions about current state of business data\n\n");
+
+		sb.append("**When NOT to use database queries:**\n");
+		sb.append("- General questions about iDempiere features or concepts\n");
+		sb.append("- How-to questions that don't need current data\n");
+		sb.append("- Questions already answered by provided context\n\n");
+
+		// Add common table information
+		sb.append("## Common iDempiere Tables\n\n");
+		sb.append("**Business Partners:**\n");
+		sb.append("- C_BPartner: Business partners (customers, vendors)\n");
+		sb.append("- AD_User: Users and contacts\n\n");
+
+		sb.append("**Sales & Orders:**\n");
+		sb.append("- C_Order: Sales and purchase orders\n");
+		sb.append("- C_OrderLine: Order lines/items\n");
+		sb.append("- C_Invoice: Invoices\n\n");
+
+		sb.append("**Products:**\n");
+		sb.append("- M_Product: Products and services\n");
+		sb.append("- M_Product_Category: Product categories\n\n");
+
+		sb.append("**Common Columns:**\n");
+		sb.append("- Most tables have: IsActive, Created, Updated\n");
+		sb.append("- Name, Value, Description are common descriptive fields\n");
+		sb.append("- DocumentNo is used for document numbers\n\n");
+
+		// Add context if available
+		if (contextData != null && contextData.optBoolean("success", false)) {
+			sb.append("## Current Context\n");
+			sb.append(buildContextPrompt(contextData));
+		}
+
+		sb.append("## Guidelines\n");
+		sb.append("- Be conversational and helpful\n");
+		sb.append("- When showing query results, format them clearly (use tables or lists)\n");
+		sb.append("- If a query returns no results, suggest alternatives\n");
+		sb.append("- Keep responses concise but informative\n");
+
+		return sb.toString();
 	}
 
 	/**
@@ -260,18 +490,34 @@ public class AIConversationService {
 			JSONObject tabCtx = contextData.getJSONObject("tab_context");
 			prompt.append("Current Tab: ").append(tabCtx.optString("tab_name", "Unknown")).append("\n");
 			prompt.append("Table: ").append(tabCtx.optString("table_name", "Unknown")).append("\n");
-			int recordId = tabCtx.optInt("record_id", -1);
-			if (recordId > 0) {
-				prompt.append("Record ID: ").append(recordId).append("\n");
+
+			// Show selected record information
+			int selectedRecordId = tabCtx.optInt("selected_record_id", -1);
+			if (selectedRecordId > 0) {
+				String keyColumn = tabCtx.optString("selected_record_key", "Record_ID");
+				prompt.append("Selected Record: ").append(keyColumn).append(" = ").append(selectedRecordId).append("\n");
 			}
+
+			// Show current row position
+			int currentRow = tabCtx.optInt("current_row", -1);
+			if (currentRow >= 0) {
+				prompt.append("Current Row Position: ").append(currentRow).append("\n");
+			}
+
+			// Generic Record_ID (for backwards compatibility)
+			int recordId = tabCtx.optInt("record_id", -1);
+			if (recordId > 0 && recordId != selectedRecordId) {
+				prompt.append("Window Record ID: ").append(recordId).append("\n");
+			}
+
 			prompt.append("\n");
 		}
 
-		// Record data (current record fields and values)
+		// Business record data (most important - current record business fields and values)
 		if (contextData.has("record_data")) {
 			JSONObject recordData = contextData.getJSONObject("record_data");
 			if (recordData.length() > 0) {
-				prompt.append("Current Record Data:\n");
+				prompt.append("Current Record Data (Business Fields):\n");
 				for (String key : recordData.keySet()) {
 					Object value = recordData.get(key);
 					if (value != null && !value.toString().trim().isEmpty()) {
@@ -282,15 +528,64 @@ public class AIConversationService {
 			}
 		}
 
-		// Child tabs
+		// Technical data (less important - available if needed but not primary focus)
+		if (contextData.has("technical_data")) {
+			JSONObject technicalData = contextData.getJSONObject("technical_data");
+			if (technicalData.length() > 0) {
+				prompt.append("Technical/System Fields (available for reference):\n");
+				for (String key : technicalData.keySet()) {
+					Object value = technicalData.get(key);
+					if (value != null && !value.toString().trim().isEmpty()) {
+						prompt.append("  ").append(key).append(": ").append(value).append("\n");
+					}
+				}
+				prompt.append("\n");
+			}
+		}
+
+		// Child tabs with data
 		if (contextData.has("child_tabs")) {
 			JSONArray childTabs = contextData.getJSONArray("child_tabs");
 			if (childTabs.length() > 0) {
-				prompt.append("Related Tabs Available:\n");
+				prompt.append("Related Tabs (Sub-tabs):\n");
 				for (int i = 0; i < childTabs.length(); i++) {
 					JSONObject tab = childTabs.getJSONObject(i);
-					prompt.append("  - ").append(tab.optString("tab_name", "Unknown"))
-						.append(" (").append(tab.optString("table_name", "")).append(")\n");
+					String tabName = tab.optString("tab_name", "Unknown");
+					String tableName = tab.optString("table_name", "");
+
+					prompt.append("  ").append(i + 1).append(". ").append(tabName)
+						.append(" (").append(tableName).append(")");
+
+					// Add row count if available
+					int rowCount = tab.optInt("row_count", -1);
+					if (rowCount >= 0) {
+						prompt.append(" - ").append(rowCount).append(" record(s)");
+					}
+
+					prompt.append("\n");
+
+					// Add description if available
+					if (tab.has("description") && !tab.isNull("description")) {
+						String desc = tab.getString("description");
+						if (desc != null && !desc.trim().isEmpty()) {
+							prompt.append("     Description: ").append(desc).append("\n");
+						}
+					}
+
+					// Add current record data if available
+					if (tab.has("current_record_data")) {
+						JSONObject recordData = tab.getJSONObject("current_record_data");
+						if (recordData.length() > 0) {
+							prompt.append("     Current record preview:\n");
+							for (String key : recordData.keySet()) {
+								Object value = recordData.get(key);
+								if (value != null && !value.toString().trim().isEmpty()) {
+									prompt.append("       - ").append(key).append(": ")
+										.append(value).append("\n");
+								}
+							}
+						}
+					}
 				}
 				prompt.append("\n");
 			}
