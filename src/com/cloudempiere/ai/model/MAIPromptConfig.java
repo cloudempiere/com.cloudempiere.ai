@@ -40,7 +40,7 @@ public class MAIPromptConfig extends X_AIG_Prompt_Config {
 		int clientId = Env.getAD_Client_ID(ctx);
 
 		String whereClause = COLUMNNAME_AIGPromptKey + "=? AND " +
-							COLUMNNAME_AD_Client_ID + "=?";
+							COLUMNNAME_AD_Client_ID + " IN (?,0)";
 
 		return new Query(ctx, Table_Name, whereClause, trxName)
 			.setParameters(promptKey, clientId)

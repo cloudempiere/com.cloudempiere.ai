@@ -391,6 +391,20 @@ public class AWSBedrockProvider implements IAIProvider {
 
 			// Add messages
 			List<Message> messages = convertMessages(request.getMessages());
+
+			// AWS Bedrock requires conversation to start with USER role
+			// Validate and log if messages is empty or doesn't start with USER
+			if (messages.isEmpty()) {
+				throw new AIProviderException("AWS Bedrock requires at least one user message in the conversation");
+			}
+
+			if (messages.get(0).role() != ConversationRole.USER) {
+				log.warning("First message is not USER role: " + messages.get(0).role() +
+					". AWS Bedrock requires conversations to start with a user message.");
+				throw new AIProviderException(
+					"AWS Bedrock requires conversation to start with a user message, but got: " + messages.get(0).role());
+			}
+
 			requestBuilder.messages(messages);
 
 			// Add system prompt if provided

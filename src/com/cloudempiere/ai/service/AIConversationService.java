@@ -21,6 +21,7 @@ import java.util.logging.Level;
 import org.compiere.model.MChatEntry;
 import org.compiere.util.CLogger;
 import org.compiere.util.Env;
+import org.compiere.util.Language;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -132,7 +133,7 @@ public class AIConversationService {
 			List<AIMessage> messages = new ArrayList<>();
 
 			// Add system message with context and database schema info
-			String systemPrompt = buildSystemPrompt(contextData);
+			String systemPrompt = buildSystemPrompt(ctx, contextData);
 			request.setSystemPrompt(systemPrompt);
 			log.fine("Including system prompt with database access instructions");
 
@@ -262,6 +263,12 @@ public class AIConversationService {
 		followUpRequest.setTemperature(originalRequest.getTemperature());
 		followUpRequest.setMaxTokens(originalRequest.getMaxTokens());
 
+		// Log message sequence for debugging
+		log.fine("Follow-up request has " + messages.size() + " messages");
+		if (!messages.isEmpty()) {
+			log.fine("First message role: " + messages.get(0).getRole());
+		}
+
 		// Get final response from AI (incorporating query results)
 		List<AIFunction> functions = new ArrayList<>();
 		functions.add(AIDatabaseFunctionHandler.getDatabaseQueryFunction());
@@ -281,21 +288,22 @@ public class AIConversationService {
 	/**
 	 * Build system prompt with context and database access instructions
 	 *
+	 * @param ctx context
 	 * @param contextData Optional context data
 	 * @return System prompt string
 	 */
-	private String buildSystemPrompt(JSONObject contextData) {
+	private String buildSystemPrompt(Properties ctx, JSONObject contextData) {
 		// Try to load prompt from database first
 		String dbPrompt = loadSystemPromptFromDatabase();
 
 		// If database prompt exists, use it; otherwise fall back to hardcoded version
 		if (dbPrompt != null && !dbPrompt.trim().isEmpty()) {
 			log.fine("Using system prompt from database (AIG_Prompt_Config)");
-			return buildPromptWithContext(dbPrompt, contextData);
+			return buildPromptWithContext(ctx, dbPrompt, contextData);
 		}
 
 		log.fine("Using hardcoded system prompt (database configuration not found)");
-		return buildHardcodedSystemPrompt(contextData);
+		return buildHardcodedSystemPrompt(ctx, contextData);
 	}
 
 	/**
@@ -313,13 +321,17 @@ public class AIConversationService {
 
 	/**
 	 * Build prompt with context appended
+	 * @param ctx context
 	 * @param basePrompt base prompt text
 	 * @param contextData optional context data
 	 * @return complete prompt with context
 	 */
-	private String buildPromptWithContext(String basePrompt, JSONObject contextData) {
+	private String buildPromptWithContext(Properties ctx, String basePrompt, JSONObject contextData) {
 		StringBuilder sb = new StringBuilder();
 		sb.append(basePrompt);
+
+		// Add language instruction based on session language
+		sb.append(buildLanguageInstruction(ctx));
 
 		// Add context if available
 		if (contextData != null && contextData.optBoolean("success", false)) {
@@ -331,11 +343,50 @@ public class AIConversationService {
 	}
 
 	/**
+	 * Build language instruction for AI based on user's session language
+	 * @param ctx context
+	 * @return language instruction text
+	 */
+	private String buildLanguageInstruction(Properties ctx) {
+		try {
+			String langCode = Env.getAD_Language(ctx);
+			Language language = Language.getLanguage(langCode);
+
+			if (language == null) {
+				return ""; // No language instruction if language not found
+			}
+
+			String languageName = language.getName();
+			String languageISO = language.getLanguageCode();
+
+			// Build instruction
+			StringBuilder sb = new StringBuilder();
+			sb.append("\n\n## Language Requirement\n");
+			sb.append("**IMPORTANT**: The user's session language is **").append(languageName);
+			sb.append("** (ISO: ").append(languageISO).append(").\n\n");
+			sb.append("You MUST respond in **").append(languageName).append("** language. ");
+			sb.append("This includes:\n");
+			sb.append("- All explanatory text\n");
+			sb.append("- Error messages\n");
+			sb.append("- Descriptions and summaries\n");
+			sb.append("- Table headers and labels\n\n");
+			sb.append("Note: Technical terms (SQL keywords, table names, column names) should remain in English, ");
+			sb.append("but all descriptive text must be in ").append(languageName).append(".");
+
+			return sb.toString();
+		} catch (Exception e) {
+			log.log(Level.WARNING, "Failed to build language instruction", e);
+			return ""; // Return empty string on error
+		}
+	}
+
+	/**
 	 * Build hardcoded system prompt (fallback when database config not available)
+	 * @param ctx context
 	 * @param contextData optional context data
 	 * @return hardcoded system prompt
 	 */
-	private String buildHardcodedSystemPrompt(JSONObject contextData) {
+	private String buildHardcodedSystemPrompt(Properties ctx, JSONObject contextData) {
 		StringBuilder sb = new StringBuilder();
 
 		sb.append("You are a helpful AI assistant for iDempiere ERP system. ");
@@ -377,17 +428,44 @@ public class AIConversationService {
 		sb.append("- Name, Value, Description are common descriptive fields\n");
 		sb.append("- DocumentNo is used for document numbers\n\n");
 
+		// Add language instruction
+		sb.append(buildLanguageInstruction(ctx));
+
 		// Add context if available
 		if (contextData != null && contextData.optBoolean("success", false)) {
-			sb.append("## Current Context\n");
+			sb.append("\n\n## Current Context\n");
 			sb.append(buildContextPrompt(contextData));
 		}
 
-		sb.append("## Guidelines\n");
+		// Add zoom link instructions
+		sb.append("\n\n## Creating Record Links\n\n");
+		sb.append("When mentioning specific database records in your responses, ");
+		sb.append("create clickable links using this syntax:\n\n");
+		sb.append("```\n");
+		sb.append("[[TableName:RecordID|Display Text]]\n");
+		sb.append("```\n\n");
+		sb.append("**Examples:**\n");
+		sb.append("- `[[C_BPartner:1000001|Acme Corporation]]` - Links to Business Partner record\n");
+		sb.append("- `[[C_Order:1000523|Sales Order SO-1000523]]` - Links to Sales Order\n");
+		sb.append("- `[[M_Product:1000100|Widget A]]` - Links to Product record\n");
+		sb.append("- `[[R_Request:1041912|Request #1000014]]` - Links to Request record\n\n");
+		sb.append("**When to create links:**\n");
+		sb.append("- When you retrieve records from database queries\n");
+		sb.append("- When mentioning specific business partners, orders, products, invoices, etc.\n");
+		sb.append("- When the user asks about a specific record\n");
+		sb.append("- Use the primary table name (e.g., C_Order, not C_OrderLine)\n");
+		sb.append("- Use the primary key ID from the database query results\n\n");
+		sb.append("**Display Text Guidelines:**\n");
+		sb.append("- Use human-readable text (e.g., business partner name, document number)\n");
+		sb.append("- Keep it concise but descriptive\n");
+		sb.append("- Example: \"Sales Order SO-1000523\" instead of just \"1000523\"\n\n");
+
+		sb.append("\n## Guidelines\n");
 		sb.append("- Be conversational and helpful\n");
 		sb.append("- When showing query results, format them clearly (use tables or lists)\n");
 		sb.append("- If a query returns no results, suggest alternatives\n");
 		sb.append("- Keep responses concise but informative\n");
+		sb.append("- Always create clickable links for specific records you mention\n");
 
 		return sb.toString();
 	}
@@ -452,7 +530,34 @@ public class AIConversationService {
 			history.add(message);
 		}
 
-		log.fine("Built conversation history: " + history.size() + " messages");
+		// AWS Bedrock requires conversation to start with USER message
+		// If first message is not USER role, find the first USER message and start from there
+		if (!history.isEmpty() && !MAIChatEntry.ROLE_USER.equals(history.get(0).getRole())) {
+			log.warning("Conversation history starts with " + history.get(0).getRole() +
+				" role. AWS Bedrock requires USER role first. Adjusting history...");
+
+			// Find first USER message
+			int firstUserIndex = -1;
+			for (int i = 0; i < history.size(); i++) {
+				if (MAIChatEntry.ROLE_USER.equals(history.get(i).getRole())) {
+					firstUserIndex = i;
+					break;
+				}
+			}
+
+			if (firstUserIndex > 0) {
+				// Remove messages before first USER message
+				history = new ArrayList<>(history.subList(firstUserIndex, history.size()));
+				log.fine("Removed " + firstUserIndex + " message(s) to ensure USER message is first");
+			} else if (firstUserIndex == -1) {
+				// No USER message found at all - this shouldn't happen but handle gracefully
+				log.warning("No USER message found in history. Clearing history.");
+				history.clear();
+			}
+		}
+
+		log.fine("Built conversation history: " + history.size() + " messages" +
+			(!history.isEmpty() ? " (first role: " + history.get(0).getRole() + ")" : ""));
 		return history;
 	}
 

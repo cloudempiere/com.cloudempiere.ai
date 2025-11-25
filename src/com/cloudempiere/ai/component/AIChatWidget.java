@@ -14,8 +14,12 @@
 package com.cloudempiere.ai.component;
 
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Properties;
 import java.util.concurrent.CompletableFuture;
 import java.util.logging.Level;
+import java.util.stream.Collectors;
 
 import org.adempiere.webui.component.Combobox;
 import org.adempiere.webui.theme.ThemeManager;
@@ -29,6 +33,7 @@ import org.compiere.util.Env;
 import org.compiere.util.Msg;
 import org.compiere.util.Util;
 import org.json.JSONObject;
+import org.zkoss.zk.ui.Component;
 import org.zkoss.zk.ui.Desktop;
 import org.zkoss.zk.ui.Executions;
 import org.zkoss.zk.ui.event.Event;
@@ -50,6 +55,9 @@ import com.cloudempiere.ai.model.MAIChat;
 import com.cloudempiere.ai.model.MAIChatEntry;
 import com.cloudempiere.ai.provider.dto.AIResponse;
 import com.cloudempiere.ai.service.AIConversationService;
+import com.cloudempiere.ai.util.ZoomLinkProcessor;
+
+import org.adempiere.webui.apps.AEnv;
 
 /**
  * AI Chat Widget Component
@@ -62,6 +70,9 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 
 	private static final long serialVersionUID = 1L;
 	private static final CLogger log = CLogger.getCLogger(AIChatWidget.class);
+
+	/** Custom event name for zoom requests */
+	public static final String ON_ZOOM = "onZoom";
 
 	/** Messages container (scrollable) */
 	private Vlayout messagesContainer;
@@ -114,6 +125,9 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 	/** Context indicator (if context enabled) */
 	private Html contextIndicator;
 
+	/** Session context (captured at initialization to preserve user's session info) */
+	private Properties sessionCtx;
+
 	/**
 	 * Default Constructor
 	 */
@@ -138,11 +152,22 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 		setSclass("ai-chat-widget");
 		ZKUpdateUtil.setVflex(this, "1");
 		ZKUpdateUtil.setHflex(this, "1");
-		// Use flexbox for responsive full-height layout
+		// Use flexbox to fill available space with minimum 600px height
+		// The vflex="1" setting makes this widget respect parent container constraints
 		setStyle("display: flex; flex-direction: column; padding: 12px; background: #FDFDFD; " +
-				"border-radius: 12px; height: 100%; min-height: 300px; max-height: 100%;");
+				"border-radius: 12px; height: 700px;");
+
+		// Capture session context at initialization (important for language, client, etc.)
+		// Use Env.getCtx() which should have the session context when called from UI thread
+		sessionCtx = Env.getCtx();
+
+		// Register zoom event listener for clickable record links
+		addEventListener(ON_ZOOM, this);
 
 		dateFormat = DisplayType.getDateFormat(DisplayType.DateTime);
+
+		// Load Markdown rendering libraries (marked.js + Prism.js for syntax highlighting)
+		loadMarkdownLibraries();
 
 		// Initialize AI service
 		aiService = new AIConversationService();
@@ -167,8 +192,6 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 		// Thread selector dropdown
 		threadSelector = new Combobox();
 		threadSelector.setPlaceholder("Select conversation...");
-		threadSelector.setReadonly(true); // Dropdown only, no text entry
-		ZKUpdateUtil.setHflex(threadSelector, "1");
 		threadSelector.setStyle("border: 1px solid #E0E0E0; border-radius: 6px; font-size: 12px; background: #FFFFFF;");
 		threadSelector.addEventListener(Events.ON_SELECT, this);
 
@@ -176,13 +199,12 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 		newThreadButton = new Button();
 		newThreadButton.addEventListener(Events.ON_CLICK, this);
 		newThreadButton.setSclass("ai-newthread-btn");
+		newThreadButton.setLabel(Msg.getMsg(Env.getCtx(), "New"));
 		if (ThemeManager.isUseFontIconForImage())
-			newThreadButton.setIconSclass("z-icon-New-White");
+			newThreadButton.setIconSclass("z-icon-New");
 		else
 			newThreadButton.setImage(ThemeManager.getThemeResource("images/New-White.png"));
 		newThreadButton.setTooltiptext("Start a new conversation thread");
-		newThreadButton.setStyle("padding: 8px 12px; background: #181D27; color: #FFFFFF; border: none; " +
-			"border-radius: 6px; font-size: 11px; cursor: pointer; white-space: nowrap; min-width: 36px;");
 
 		threadControlBar.appendChild(threadSelector);
 		threadControlBar.appendChild(newThreadButton);
@@ -248,7 +270,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 	private void loadOrCreateChat() {
 		try {
 			// Use MAIChat for AI-specific functionality
-			chat = MAIChat.getOrCreateGlobalChat(Env.getCtx(), null);
+			chat = MAIChat.getOrCreateGlobalChat(sessionCtx, null);
 
 			// Load thread list and select most recent thread
 			loadThreadList();
@@ -265,9 +287,11 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 	 */
 	private void renderMessages() {
 		// Clear existing messages (but keep loading indicator)
-		messagesContainer.getChildren().stream()
+		// Collect children first to avoid ConcurrentModificationException
+		List<Component> toRemove = messagesContainer.getChildren().stream()
 			.filter(c -> c != loadingIndicator)
-			.forEach(c -> c.detach());
+			.collect(Collectors.toList());
+		toRemove.forEach(c -> c.detach());
 
 		if (chat == null) {
 			return;
@@ -276,7 +300,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 		MChatEntry[] entries = chat.getEntries(true);
 
 		// Filter messages by current thread
-		java.util.List<MChatEntry> threadEntries = getThreadEntries(entries, currentThreadRootId);
+		List<MChatEntry> threadEntries = getThreadEntries(entries, currentThreadRootId);
 
 		// Limit number of messages displayed for performance
 		int startIndex = Math.max(0, threadEntries.size() - MAX_MESSAGES_DISPLAY);
@@ -303,8 +327,8 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 	 * @param threadRootId root message ID (0 for new thread - shows nothing)
 	 * @return list of entries in this thread
 	 */
-	private java.util.List<MChatEntry> getThreadEntries(MChatEntry[] allEntries, int threadRootId) {
-		java.util.List<MChatEntry> threadEntries = new java.util.ArrayList<>();
+	private List<MChatEntry> getThreadEntries(MChatEntry[] allEntries, int threadRootId) {
+		List<MChatEntry> threadEntries = new ArrayList<>();
 
 		if (threadRootId == 0) {
 			// New thread - show nothing
@@ -325,11 +349,11 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 			return threadEntries;
 		}
 
-		// Add all child messages (messages with this root as parent or grandparent)
+		// Add all child messages (messages with this root as parent)
+		// We only support one level: root + children (no grandchildren)
 		for (MChatEntry entry : allEntries) {
 			if (entry.getCM_ChatEntry_ID() != threadRootId &&
-				(entry.getCM_ChatEntryParent_ID() == threadRootId ||
-				 entry.getCM_ChatEntryGrandParent_ID() == threadRootId)) {
+				entry.getCM_ChatEntryParent_ID() == threadRootId) {
 				threadEntries.add(entry);
 			}
 		}
@@ -361,7 +385,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 		} else {
 			// User message: gray bubble, more compact
 			msgDiv.setStyle(baseStyle + "padding: 12px 15px; background: #E9EAEB; border-radius: 15px; " +
-				"margin: 0 18px; max-width: 85%; align-self: flex-start;");
+				"max-width: 85%; align-self: flex-start;");
 		}
 
 		Html content = new Html();
@@ -400,12 +424,12 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 
 		String messageText = entry.getCharacterData();
 		if (messageText != null) {
-			// Check if message contains HTML (AI responses may include formatting)
-			if (isAI && (messageText.contains("<") || messageText.contains(">"))) {
-				// Allow HTML for AI responses (already sanitized by AI provider)
-				sb.append(messageText);
+			if (isAI) {
+				// AI messages: Process zoom links first, then render as Markdown
+				String processedText = ZoomLinkProcessor.processZoomLinks(messageText, sessionCtx, getUuid());
+				sb.append(renderMarkdown(processedText));
 			} else {
-				// Escape HTML for user messages, but preserve line breaks
+				// User messages: Escape HTML for security, but preserve line breaks
 				String escaped = Util.maskHTML(messageText, true);
 				// Convert newlines to <br> tags
 				escaped = escaped.replace("\n", "<br/>");
@@ -460,7 +484,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 		}
 
 		// Fallback: check if AD_User_ID of chat entry is different from current user
-		int currentUser = Env.getAD_User_ID(Env.getCtx());
+		int currentUser = Env.getAD_User_ID(sessionCtx);
 		return entry.getAD_User_ID() != currentUser;
 	}
 
@@ -470,7 +494,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 	 * @return user name
 	 */
 	private String getUserName(MChatEntry entry) {
-		MUser user = MUser.get(Env.getCtx(), entry.getAD_User_ID());
+		MUser user = MUser.get(sessionCtx, entry.getAD_User_ID());
 
 		if (isAIMessage(entry)) {
 			// Return the actual AI user's name from the provider
@@ -522,6 +546,38 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 			createNewThread();
 		} else if (event.getTarget() == threadSelector && event.getName().equals(Events.ON_SELECT)) {
 			switchThread();
+		} else if (event.getName().equals(ON_ZOOM)) {
+			handleZoomEvent(event);
+		}
+	}
+
+	/**
+	 * Handle zoom event from clickable record links
+	 * @param event zoom event containing tableId and recordId
+	 */
+	private void handleZoomEvent(Event event) {
+		try {
+			// Extract table ID and record ID from event data
+			Object data = event.getData();
+			if (data instanceof JSONObject) {
+				JSONObject jsonData = (JSONObject) data;
+				Integer tableId = (Integer) jsonData.get("tableId");
+				Integer recordId = (Integer) jsonData.get("recordId");
+
+				if (tableId != null && recordId != null && tableId > 0 && recordId > 0) {
+					log.fine("Zoom request: tableId=" + tableId + ", recordId=" + recordId);
+					// Call AEnv.zoom to open the record window
+					AEnv.zoom(tableId, recordId);
+				} else {
+					log.warning("Invalid zoom event data: tableId=" + tableId + ", recordId=" + recordId);
+				}
+			} else {
+				log.warning("Zoom event data is not a JSON object: " + (data != null ? data.getClass().getName() : "null"));
+			}
+		} catch (Exception e) {
+			log.log(Level.SEVERE, "Failed to handle zoom event", e);
+			Clients.showNotification(Msg.getMsg(Env.getCtx(), "Error") + ": " + e.getMessage(),
+				"error", this, null, -1);
 		}
 	}
 
@@ -547,9 +603,9 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 		MAIChatEntry userEntry = new MAIChatEntry(chat, message);
 
 		// Set thread parent if we're in an existing thread
+		// We only support one level: root message + children (no grandchildren)
 		if (currentThreadRootId > 0) {
 			userEntry.setCM_ChatEntryParent_ID(currentThreadRootId);
-			userEntry.setCM_ChatEntryGrandParent_ID(currentThreadRootId);
 		}
 
 		userEntry.saveEx();
@@ -576,14 +632,14 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 		Desktop desktop = Executions.getCurrent().getDesktop();
 		CompletableFuture.runAsync(() -> {
 			try {
-				// Get MAIChat instance
+				// Get MAIChat instance (use sessionCtx to preserve language, client, etc.)
 				MAIChat aiChat = (chat instanceof MAIChat) ?
 					(MAIChat) chat :
-					new MAIChat(Env.getCtx(), chat.getCM_Chat_ID(), null);
+					new MAIChat(sessionCtx, chat.getCM_Chat_ID(), null);
 
-				// Call AI service with context and conversation history
+				// Call AI service with session context (CRITICAL: use sessionCtx not Env.getCtx()!)
 				AIResponse aiResponse = aiService.sendMessageWithContext(
-					Env.getCtx(),
+					sessionCtx,  // Use session context here to get correct language/client
 					aiChat,
 					message,
 					contextSnapshot,  // Pass context here
@@ -600,9 +656,9 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 				MAIChatEntry aiEntry = MAIChatEntry.createAIResponse(aiChat, aiResponse.getContent());
 
 				// Set thread parent (AI response is child of the thread root)
+				// We only support one level: root message + children
 				if (currentThreadRootId > 0) {
 					aiEntry.setCM_ChatEntryParent_ID(currentThreadRootId);
-					aiEntry.setCM_ChatEntryGrandParent_ID(currentThreadRootId);
 				}
 
 				aiEntry.saveEx();
@@ -633,9 +689,9 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 					MChatEntry errorEntry = MAIChatEntry.createAIResponse(chat, errorMsg);
 
 					// Set thread parent for error entry
+					// We only support one level: root message + children
 					if (currentThreadRootId > 0) {
 						errorEntry.setCM_ChatEntryParent_ID(currentThreadRootId);
-						errorEntry.setCM_ChatEntryGrandParent_ID(currentThreadRootId);
 					}
 
 					errorEntry.saveEx();
@@ -673,10 +729,11 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 		// Reset current thread (next message will start a new root thread)
 		currentThreadRootId = 0;
 
-		// Clear the display
-		messagesContainer.getChildren().stream()
+		// Clear the display - collect children first to avoid ConcurrentModificationException
+		List<Component> toRemove = messagesContainer.getChildren().stream()
 			.filter(c -> c != loadingIndicator)
-			.forEach(c -> c.detach());
+			.collect(Collectors.toList());
+		toRemove.forEach(c -> c.detach());
 
 		// Reload thread list to refresh UI
 		loadThreadList();
@@ -723,7 +780,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 
 		// Get all root-level entries (messages with no parent)
 		MChatEntry[] entries = chat.getEntries(true);
-		java.util.List<MChatEntry> rootEntries = new java.util.ArrayList<>();
+		List<MChatEntry> rootEntries = new ArrayList<>();
 
 		for (MChatEntry entry : entries) {
 			if (entry.isActive() && entry.getCM_ChatEntryParent_ID() == 0) {
@@ -828,7 +885,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 				ContextParameters params = ContextParameters.forWindow(currentWindowNo, currentTabNo)
 					.put("includeChildTabs", true);
 
-				currentContext = provider.extractContext(Env.getCtx(), currentWindowNo, params);
+				currentContext = provider.extractContext(sessionCtx, currentWindowNo, params);
 
 				// Redact sensitive fields
 				if (currentContext != null && currentContext.optBoolean("success", false)) {
@@ -926,5 +983,177 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 	 */
 	public boolean isContextEnabled() {
 		return contextEnabled;
+	}
+
+	/**
+	 * Load Markdown rendering libraries (marked.js for Markdown, Prism.js for syntax highlighting)
+	 */
+	private void loadMarkdownLibraries() {
+		// Load libraries via CDN using Clients.evalJavaScript
+		// This runs once when the widget is initialized
+		String script =
+			"(function() {" +
+			"  if (window.markedLoaded && window.prismLoaded) return;" +
+
+			// Load marked.js (Markdown parser)
+			"  if (!window.markedLoaded) {" +
+			"    var markedScript = document.createElement('script');" +
+			"    markedScript.src = 'https://cdn.jsdelivr.net/npm/marked@11.1.1/marked.min.js';" +
+			"    markedScript.onload = function() { window.markedLoaded = true; };" +
+			"    document.head.appendChild(markedScript);" +
+			"  }" +
+
+			// Load Prism.js CSS (syntax highlighting styles)
+			"  if (!window.prismLoaded) {" +
+			"    var prismCSS = document.createElement('link');" +
+			"    prismCSS.rel = 'stylesheet';" +
+			"    prismCSS.href = 'https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism.min.css';" +
+			"    document.head.appendChild(prismCSS);" +
+
+			// Add custom CSS for markdown content
+			"    var customCSS = document.createElement('style');" +
+			"    customCSS.textContent = '" +
+			"      .ai-markdown-content { line-height: 1.6; }" +
+			"      .ai-markdown-content p { margin: 0.5em 0; }" +
+			"      .ai-markdown-content h1 { font-size: 1.5em; font-weight: 600; margin: 1em 0 0.5em 0; }" +
+			"      .ai-markdown-content h2 { font-size: 1.3em; font-weight: 600; margin: 0.9em 0 0.4em 0; }" +
+			"      .ai-markdown-content h3 { font-size: 1.1em; font-weight: 600; margin: 0.8em 0 0.3em 0; }" +
+			"      .ai-markdown-content code { " +
+			"        background: #f5f5f5; " +
+			"        padding: 2px 6px; " +
+			"        border-radius: 3px; " +
+			"        font-family: Consolas, Monaco, \"Courier New\", monospace; " +
+			"        font-size: 0.9em; " +
+			"      }" +
+			"      .ai-markdown-content pre { " +
+			"        background: #f5f5f5; " +
+			"        border: 1px solid #e0e0e0; " +
+			"        border-radius: 6px; " +
+			"        padding: 12px; " +
+			"        overflow-x: auto; " +
+			"        margin: 0.8em 0; " +
+			"      }" +
+			"      .ai-markdown-content pre code { " +
+			"        background: transparent; " +
+			"        padding: 0; " +
+			"        font-size: 0.85em; " +
+			"      }" +
+			"      .ai-markdown-content ul, .ai-markdown-content ol { " +
+			"        margin: 0.5em 0; " +
+			"        padding-left: 1.5em; " +
+			"      }" +
+			"      .ai-markdown-content li { margin: 0.3em 0; }" +
+			"      .ai-markdown-content blockquote { " +
+			"        border-left: 3px solid #e0e0e0; " +
+			"        padding-left: 1em; " +
+			"        margin: 0.8em 0; " +
+			"        color: #666; " +
+			"      }" +
+			"      .ai-markdown-content a { color: #1976D2; text-decoration: none; }" +
+			"      .ai-markdown-content a:hover { text-decoration: underline; }" +
+			"      .ai-markdown-content table { " +
+			"        border-collapse: collapse; " +
+			"        margin: 0.8em 0; " +
+			"        width: 100%; " +
+			"      }" +
+			"      .ai-markdown-content table th, .ai-markdown-content table td { " +
+			"        border: 1px solid #e0e0e0; " +
+			"        padding: 8px; " +
+			"        text-align: left; " +
+			"      }" +
+			"      .ai-markdown-content table th { " +
+			"        background: #f5f5f5; " +
+			"        font-weight: 600; " +
+			"      }" +
+			"    ';" +
+			"    document.head.appendChild(customCSS);" +
+
+			// Load Prism.js core
+			"    var prismScript = document.createElement('script');" +
+			"    prismScript.src = 'https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js';" +
+			"    prismScript.setAttribute('data-manual', '');" +
+
+			// Load common language components
+			"    prismScript.onload = function() {" +
+			"      var languages = ['java', 'javascript', 'python', 'sql', 'json', 'xml', 'bash'];" +
+			"      var loaded = 0;" +
+			"      languages.forEach(function(lang) {" +
+			"        var langScript = document.createElement('script');" +
+			"        langScript.src = 'https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-' + lang + '.min.js';" +
+			"        langScript.onload = function() {" +
+			"          loaded++;" +
+			"          if (loaded === languages.length) window.prismLoaded = true;" +
+			"        };" +
+			"        document.head.appendChild(langScript);" +
+			"      });" +
+			"    };" +
+			"    document.head.appendChild(prismScript);" +
+			"  }" +
+			"})();";
+
+		Clients.evalJavaScript(script);
+	}
+
+	/**
+	 * Render Markdown to HTML using marked.js (client-side)
+	 * Returns a unique ID for the container so we can process it after rendering
+	 * @param markdownText the markdown text to render
+	 * @return HTML string with markdown container and script to render it
+	 */
+	private String renderMarkdown(String markdownText) {
+		// Generate unique ID for this markdown block
+		String containerId = "md_" + System.currentTimeMillis() + "_" + (int)(Math.random() * 10000);
+
+		// Escape the markdown text for JavaScript (critical for security)
+		String escapedMarkdown = markdownText
+			.replace("\\", "\\\\")
+			.replace("'", "\\'")
+			.replace("\r", "")
+			.replace("\n", "\\n")
+			.replace("</script>", "<\\/script>");
+
+		StringBuilder sb = new StringBuilder();
+
+		// Container for rendered markdown
+		sb.append("<div id='").append(containerId).append("' class='ai-markdown-content'></div>");
+
+		// Script to render markdown when libraries are loaded
+		sb.append("<script>");
+		sb.append("(function() {");
+		sb.append("  var renderMD = function() {");
+		sb.append("    if (!window.marked || !window.Prism) {");
+		sb.append("      setTimeout(renderMD, 100);");
+		sb.append("      return;");
+		sb.append("    }");
+		sb.append("    var container = document.getElementById('").append(containerId).append("');");
+		sb.append("    if (!container) return;");
+
+		// Configure marked to use Prism for code highlighting
+		sb.append("    marked.setOptions({");
+		sb.append("      highlight: function(code, lang) {");
+		sb.append("        if (lang && Prism.languages[lang]) {");
+		sb.append("          return Prism.highlight(code, Prism.languages[lang], lang);");
+		sb.append("        }");
+		sb.append("        return code;");
+		sb.append("      },");
+		sb.append("      breaks: true,");
+		sb.append("      gfm: true");
+		sb.append("    });");
+
+		sb.append("    var html = marked.parse('").append(escapedMarkdown).append("');");
+		sb.append("    container.innerHTML = html;");
+
+		// Apply Prism to any code blocks that weren't caught by marked's highlight
+		sb.append("    container.querySelectorAll('pre code').forEach(function(block) {");
+		sb.append("      if (!block.classList.contains('language-')) {");
+		sb.append("        Prism.highlightElement(block);");
+		sb.append("      }");
+		sb.append("    });");
+		sb.append("  };");
+		sb.append("  renderMD();");
+		sb.append("})();");
+		sb.append("</script>");
+
+		return sb.toString();
 	}
 }
