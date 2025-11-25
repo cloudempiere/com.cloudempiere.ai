@@ -13,8 +13,10 @@
  *****************************************************************************/
 package com.cloudempiere.ai.service;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 import java.util.logging.Level;
 
@@ -36,6 +38,12 @@ import com.cloudempiere.ai.provider.dto.AIMessage;
 import com.cloudempiere.ai.provider.dto.AIRequest;
 import com.cloudempiere.ai.provider.dto.AIResponse;
 import com.cloudempiere.ai.provider.factory.AIProviderFactory;
+import com.cloudempiere.ai.routing.ConversationContextManager;
+import com.cloudempiere.ai.routing.EntityExtractor;
+import com.cloudempiere.ai.routing.PromptAnalyzer;
+import com.cloudempiere.ai.routing.RoutingMetrics;
+import com.cloudempiere.ai.routing.SourceDecision;
+import com.cloudempiere.ai.routing.TTLConfig;
 
 /**
  * AI Conversation Service
@@ -62,12 +70,31 @@ public class AIConversationService {
 	/** Database function handler */
 	private AIDatabaseFunctionHandler functionHandler;
 
+	/** Conversation context manager for intelligent routing */
+	private ConversationContextManager conversationContext;
+
+	/** Prompt analyzer for routing decisions */
+	private PromptAnalyzer promptAnalyzer;
+
+	/** Routing performance metrics */
+	private RoutingMetrics routingMetrics;
+
 	/**
 	 * Default constructor
 	 */
 	public AIConversationService() {
 		this.providerFactory = new AIProviderFactory();
 		this.functionHandler = new AIDatabaseFunctionHandler();
+
+		// Initialize intelligent routing components
+		this.conversationContext = new ConversationContextManager(
+			Duration.ofMinutes(30), // Default TTL: 30 minutes
+			50  // Max cache entries: 50
+		);
+		this.promptAnalyzer = new PromptAnalyzer(new EntityExtractor());
+		this.routingMetrics = new RoutingMetrics();
+
+		log.fine("AI Conversation Service initialized with intelligent routing");
 	}
 
 	/**
@@ -119,6 +146,26 @@ public class AIConversationService {
 		long startTime = System.currentTimeMillis();
 
 		try {
+			// NEW: Analyze prompt to determine optimal routing strategy
+			SourceDecision decision = promptAnalyzer.analyzePrompt(userMessage, conversationContext);
+
+			log.fine("Routing decision: " + decision.getSource() + " - " + decision.getReasoning());
+
+			// NEW: Handle CONTEXT_ONLY case (no AI provider call needed - fastest path!)
+			if (decision.getSource() == SourceDecision.DataSource.CONTEXT_ONLY) {
+				routingMetrics.recordContextOnlyResponse();
+				routingMetrics.recordContextHit();
+				log.fine("Serving response from context without AI provider call");
+				return buildContextOnlyResponse(decision, startTime);
+			}
+
+			// Continue with AI provider for DATABASE_ONLY or HYBRID
+			if (decision.getSource() == SourceDecision.DataSource.HYBRID) {
+				routingMetrics.recordHybridQuery();
+			} else {
+				routingMetrics.recordDatabaseQuery();
+			}
+
 			// Get AI provider
 			IAIProvider provider = getProvider(ctx, DEFAULT_PROVIDER_ID, trxName);
 			if (provider == null) {
@@ -132,10 +179,9 @@ public class AIConversationService {
 			AIRequest request = new AIRequest();
 			List<AIMessage> messages = new ArrayList<>();
 
-			// Add system message with context and database schema info
-			String systemPrompt = buildSystemPrompt(ctx, contextData);
+			// NEW: Enhanced system prompt with conversation context awareness
+			String systemPrompt = buildSystemPromptWithRouting(ctx, contextData, decision);
 			request.setSystemPrompt(systemPrompt);
-			log.fine("Including system prompt with database access instructions");
 
 			// Add conversation history if requested
 			if (maxHistoryEntries > 0) {
@@ -150,7 +196,7 @@ public class AIConversationService {
 
 			// Check if provider supports function calling
 			if (provider.supportsFunctionCalling()) {
-				log.fine("Provider supports function calling - enabling database access");
+				log.fine("Provider supports function calling - enabling database access with caching");
 
 				// Add database query function
 				List<AIFunction> functions = new ArrayList<>();
@@ -162,13 +208,18 @@ public class AIConversationService {
 				// Check if AI wants to call database function
 				if (response.getFunctionCalls() != null && !response.getFunctionCalls().isEmpty()) {
 					log.fine("AI requested " + response.getFunctionCalls().size() + " function call(s)");
-					// Process function calls recursively
-					response = processFunctionCalls(ctx, response, request, provider, DEFAULT_PROVIDER_ID, 0);
+					// NEW: Process function calls with caching
+					response = processFunctionCallsWithCache(ctx, response, request, provider, DEFAULT_PROVIDER_ID, 0);
 				}
 
 				// Add processing time
 				long responseTime = System.currentTimeMillis() - startTime;
 				response.setProcessingTimeMs(responseTime);
+
+				// Log routing metrics periodically
+				if (routingMetrics.getContextHits() + routingMetrics.getContextMisses() > 0) {
+					log.fine("Routing metrics: " + routingMetrics.toString());
+				}
 
 				return response;
 
@@ -283,6 +334,207 @@ public class AIConversationService {
 		}
 
 		return finalResponse;
+	}
+
+	/**
+	 * Process function calls with caching support
+	 * NEW: Caches query results to reduce redundant database calls
+	 *
+	 * @param ctx context
+	 * @param initialResponse Initial response with function calls
+	 * @param originalRequest Original AI request
+	 * @param provider AI provider
+	 * @param providerId Provider ID for audit
+	 * @param depth Current recursion depth
+	 * @return Final AI response incorporating function results
+	 */
+	private AIResponse processFunctionCallsWithCache(
+		Properties ctx,
+		AIResponse initialResponse,
+		AIRequest originalRequest,
+		IAIProvider provider,
+		int providerId,
+		int depth
+	) throws Exception {
+
+		// Prevent infinite loops (same as before)
+		if (depth >= MAX_FUNCTION_CALL_DEPTH) {
+			log.warning("Max function call depth reached (" + MAX_FUNCTION_CALL_DEPTH + ") - stopping");
+			return initialResponse;
+		}
+
+		List<AIMessage> messages = new ArrayList<>(originalRequest.getMessages());
+
+		// Add AI's initial response with function call
+		AIMessage assistantMsg = new AIMessage(MAIChatEntry.ROLE_ASSISTANT, initialResponse.getContent());
+		assistantMsg.setFunctionCalls(initialResponse.getFunctionCalls());
+		messages.add(assistantMsg);
+
+		// Process each function call
+		for (AIFunctionCall functionCall : initialResponse.getFunctionCalls()) {
+			String functionName = functionCall.getName();
+			String arguments = functionCall.getArguments();
+			String toolUseId = functionCall.getId();
+
+			log.fine("Processing function call: " + functionName + " (ID: " + toolUseId + ")");
+
+			if ("query_database".equals(functionName)) {
+				// NEW: Check cache first
+				String cacheKey = generateQuerySignature(arguments);
+				String functionResult = conversationContext.get(cacheKey);
+
+				if (functionResult != null) {
+					log.fine("Cache hit for query: " + cacheKey);
+					routingMetrics.recordContextHit();
+				} else {
+					log.fine("Cache miss - executing database query");
+					routingMetrics.recordContextMiss();
+					routingMetrics.recordDatabaseQuery();
+
+					// Execute database query
+					functionResult = functionHandler.executeQueryFunction(ctx, providerId, arguments);
+
+					// NEW: Cache the result with appropriate TTL
+					String tableName = extractTableName(arguments);
+					Duration ttl = TTLConfig.getTTLByTable(tableName);
+					conversationContext.put(cacheKey, functionResult, ttl.toMillis());
+
+					log.fine("Cached query result with key: " + cacheKey + " (TTL: " + ttl.toMinutes() + " min)");
+				}
+
+				log.fine("Function result: " + functionResult.substring(0, Math.min(200, functionResult.length())) + "...");
+
+				// Add function result to conversation
+				AIMessage functionMsg = new AIMessage("function", functionResult);
+				functionMsg.setFunctionName(toolUseId != null ? toolUseId : functionName);
+				messages.add(functionMsg);
+
+			} else {
+				log.warning("Unknown function call: " + functionName);
+				AIMessage errorMsg = new AIMessage("function",
+					"{\"status\":\"ERROR\",\"error\":\"Unknown function: " + functionName + "\"}");
+				errorMsg.setFunctionName(toolUseId != null ? toolUseId : functionName);
+				messages.add(errorMsg);
+			}
+		}
+
+		// Build follow-up request (same as before)
+		AIRequest followUpRequest = new AIRequest();
+		followUpRequest.setMessages(messages);
+		followUpRequest.setSystemPrompt(originalRequest.getSystemPrompt());
+		followUpRequest.setTemperature(originalRequest.getTemperature());
+		followUpRequest.setMaxTokens(originalRequest.getMaxTokens());
+
+		// Get final response from AI
+		List<AIFunction> functions = new ArrayList<>();
+		functions.add(AIDatabaseFunctionHandler.getDatabaseQueryFunction());
+
+		AIResponse finalResponse = provider.generateTextWithFunctions(followUpRequest, functions);
+
+		// Check if AI wants to make another function call (recursive)
+		if (finalResponse.getFunctionCalls() != null && !finalResponse.getFunctionCalls().isEmpty()) {
+			log.fine("AI requested another function call (depth: " + (depth + 1) + ")");
+			return processFunctionCallsWithCache(ctx, finalResponse, followUpRequest, provider, providerId, depth + 1);
+		}
+
+		return finalResponse;
+	}
+
+	/**
+	 * Build response from context without calling AI provider
+	 * Used for CONTEXT_ONLY routing decisions
+	 *
+	 * @param decision routing decision
+	 * @param startTime start timestamp
+	 * @return AI response from context
+	 */
+	private AIResponse buildContextOnlyResponse(SourceDecision decision, long startTime) {
+		Map<String, Object> contextData = conversationContext.getMultiple(decision.getContextKeys());
+
+		// Format context data as response
+		StringBuilder response = new StringBuilder();
+		response.append("Based on our recent conversation:\n\n");
+
+		for (Map.Entry<String, Object> entry : contextData.entrySet()) {
+			response.append("**").append(entry.getKey()).append("**: ");
+			response.append(entry.getValue().toString()).append("\n");
+		}
+
+		AIResponse aiResponse = new AIResponse();
+		aiResponse.setContent(response.toString());
+		aiResponse.setSuccess(true);
+		aiResponse.setProcessingTimeMs(System.currentTimeMillis() - startTime);
+
+		log.fine("Built response from context in " + aiResponse.getProcessingTimeMs() + "ms");
+		return aiResponse;
+	}
+
+	/**
+	 * Build system prompt with routing awareness
+	 * Enhanced version that includes conversation context
+	 *
+	 * @param ctx context
+	 * @param contextData window context
+	 * @param decision routing decision
+	 * @return enhanced system prompt
+	 */
+	private String buildSystemPromptWithRouting(Properties ctx, JSONObject contextData,
+	                                           SourceDecision decision) {
+		StringBuilder sb = new StringBuilder();
+		sb.append(buildSystemPrompt(ctx, contextData));
+
+		// Add conversation context if available
+		if (conversationContext.hasData()) {
+			sb.append("\n\n## Recent Conversation Context\n");
+			sb.append(conversationContext.describeContents());
+			sb.append("\n**Important**: When answering questions, check if the information ");
+			sb.append("is available in the recent context above before querying the database.\n");
+		}
+
+		// Add routing hint based on decision
+		if (decision.getSource() == SourceDecision.DataSource.HYBRID) {
+			sb.append("\n\n## Routing Hint\n");
+			sb.append("This query has reference data in context but needs fresh transactional data. ");
+			sb.append("Context provides: ").append(String.join(", ", decision.getContextKeys()));
+			sb.append("\nQuery database for fresh transactional data.\n");
+		}
+
+		return sb.toString();
+	}
+
+	/**
+	 * Generate cache key from query arguments
+	 * @param arguments JSON query arguments
+	 * @return unique cache key
+	 */
+	private String generateQuerySignature(String arguments) {
+		// Simple hash-based signature
+		// In production, consider normalizing the query for better cache hits
+		return "query_" + Integer.toHexString(arguments.hashCode());
+	}
+
+	/**
+	 * Extract table name from query arguments
+	 * @param arguments JSON query arguments
+	 * @return table name or null
+	 */
+	private String extractTableName(String arguments) {
+		try {
+			// Parse JSON and extract table name
+			// Simplified pattern matching for now
+			if (arguments.contains("C_Order")) return "C_Order";
+			if (arguments.contains("C_Invoice")) return "C_Invoice";
+			if (arguments.contains("C_BPartner")) return "C_BPartner";
+			if (arguments.contains("M_Product")) return "M_Product";
+			if (arguments.contains("M_Storage")) return "M_Storage";
+			if (arguments.contains("C_Payment")) return "C_Payment";
+			if (arguments.contains("R_Request")) return "R_Request";
+			if (arguments.contains("M_InOut")) return "M_InOut";
+			// Add more patterns as needed
+		} catch (Exception e) {
+			log.warning("Failed to extract table name from arguments: " + e.getMessage());
+		}
+		return null; // Will default to TRANSACTIONAL_TTL
 	}
 
 	/**
@@ -759,5 +1011,34 @@ public class AIConversationService {
 	 */
 	public int getDefaultProviderId() {
 		return DEFAULT_PROVIDER_ID;
+	}
+
+	/**
+	 * Get routing metrics for monitoring
+	 * Provides cache hit rate and other performance metrics
+	 *
+	 * @return metrics map with performance stats
+	 */
+	public Map<String, Object> getRoutingMetrics() {
+		return routingMetrics.getMetrics();
+	}
+
+	/**
+	 * Reset routing metrics
+	 * Useful for testing or starting fresh monitoring period
+	 */
+	public void resetRoutingMetrics() {
+		routingMetrics.reset();
+		log.fine("Routing metrics reset");
+	}
+
+	/**
+	 * Get conversation context manager
+	 * Useful for testing and debugging
+	 *
+	 * @return context manager instance
+	 */
+	public ConversationContextManager getConversationContext() {
+		return conversationContext;
 	}
 }

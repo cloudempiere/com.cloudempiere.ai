@@ -179,31 +179,47 @@ public class SecureDatabaseQueryExecutor {
                 }
             }
 
-            // 7. Strip LIMIT clause from AI-generated SQL (if present)
+            // 7. Extract trailing clauses (ORDER BY, GROUP BY, HAVING, LIMIT) from AI-generated SQL
             // This prevents malformed SQL when addAccessSQL() appends WHERE conditions
-            String sqlWithoutLimit = request.getSql();
-            LimitClause extractedLimit = extractAndStripLimit(sqlWithoutLimit);
-            if (extractedLimit != null) {
-                sqlWithoutLimit = extractedLimit.sqlWithoutLimit;
-                log.fine("Stripped LIMIT clause from SQL: " + extractedLimit.limitClause);
+            String sqlWithoutTrailingClauses = request.getSql();
+            TrailingClauses extractedClauses = extractAndStripTrailingClauses(sqlWithoutTrailingClauses);
+            if (extractedClauses != null) {
+                sqlWithoutTrailingClauses = extractedClauses.sqlWithoutTrailingClauses;
+                log.fine("Stripped trailing clauses from SQL: " + extractedClauses.getAllClauses());
             }
 
             // 8. Apply logged-in user's role-based security SQL injection
             // This adds WHERE clauses for client, org, table access, etc.
             // Uses AI user + logged-in user's role for MRole.addAccessSQL()
             String securedSQL = role.addAccessSQL(
-                sqlWithoutLimit,
+                sqlWithoutTrailingClauses,
                 tables.get(0), // Primary table
                 true,          // Fully qualified
                 false          // Read-only mode (less restrictive for SELECT)
             );
             result.setSecuredSQL(securedSQL);
 
-            // 9. Apply row limit (use AI-specified limit if present, otherwise default)
+            // 9. Re-apply trailing clauses in correct order: GROUP BY, HAVING, ORDER BY, LIMIT
+            if (extractedClauses != null) {
+                if (extractedClauses.groupByClause != null) {
+                    securedSQL += " " + extractedClauses.groupByClause;
+                    log.fine("Re-applied GROUP BY clause");
+                }
+                if (extractedClauses.havingClause != null) {
+                    securedSQL += " " + extractedClauses.havingClause;
+                    log.fine("Re-applied HAVING clause");
+                }
+                if (extractedClauses.orderByClause != null) {
+                    securedSQL += " " + extractedClauses.orderByClause;
+                    log.fine("Re-applied ORDER BY clause");
+                }
+            }
+
+            // 10. Apply row limit (use AI-specified limit if present, otherwise default)
             int maxRows;
-            if (extractedLimit != null && extractedLimit.limitValue > 0) {
+            if (extractedClauses != null && extractedClauses.limitValue > 0) {
                 // Use the limit from AI-generated SQL
-                maxRows = extractedLimit.limitValue;
+                maxRows = extractedClauses.limitValue;
                 log.fine("Using AI-specified limit: " + maxRows);
             } else if (request.getMaxRows() > 0) {
                 // Use request-specified limit
@@ -442,14 +458,20 @@ public class SecureDatabaseQueryExecutor {
     }
 
     /**
-     * Extract and strip LIMIT/FETCH FIRST clause from SQL
+     * Extract and strip trailing clauses (ORDER BY, GROUP BY, HAVING, LIMIT) from SQL
      * <p>
-     * Handles both space-separated and newline-separated LIMIT clauses.
+     * This is critical for proper security injection. MRole.addAccessSQL() appends WHERE/AND
+     * conditions, which must come BEFORE ORDER BY, GROUP BY, HAVING, and LIMIT clauses.
+     * <p>
+     * Process:
+     * 1. Strip all trailing clauses
+     * 2. Apply MRole.addAccessSQL() to base query
+     * 3. Re-apply trailing clauses in correct order: GROUP BY, HAVING, ORDER BY, LIMIT
      *
      * @param sql Original SQL query
-     * @return LimitClause object containing stripped SQL and limit info, or null if no limit found
+     * @return TrailingClauses object containing stripped SQL and clause info, or null if no clauses found
      */
-    private LimitClause extractAndStripLimit(String sql) {
+    private TrailingClauses extractAndStripTrailingClauses(String sql) {
         if (sql == null || sql.trim().isEmpty()) {
             return null;
         }
@@ -462,9 +484,14 @@ public class SecureDatabaseQueryExecutor {
             trimmedSQL = trimmedSQL.substring(0, trimmedSQL.length() - 1).trim();
         }
 
+        String groupByClause = null;
+        String havingClause = null;
+        String orderByClause = null;
+        String limitClause = null;
+        int limitValue = -1;
+
+        // Extract LIMIT/FETCH FIRST (must come last)
         // PostgreSQL: LIMIT N [OFFSET M]
-        // Use regex to match LIMIT with any whitespace (including newlines) before it
-        // Pattern: \s+LIMIT\s+(\d+)(\s+OFFSET\s+\d+)?
         java.util.regex.Pattern limitPattern = java.util.regex.Pattern.compile(
             "\\s+LIMIT\\s+(\\d+)(\\s+OFFSET\\s+\\d+)?\\s*$",
             java.util.regex.Pattern.CASE_INSENSITIVE
@@ -472,56 +499,119 @@ public class SecureDatabaseQueryExecutor {
         java.util.regex.Matcher limitMatcher = limitPattern.matcher(trimmedSQL);
 
         if (limitMatcher.find()) {
-            // Extract the limit value
-            int limitValue = Integer.parseInt(limitMatcher.group(1));
-
-            // Get SQL without the LIMIT clause
-            String sqlWithoutLimit = trimmedSQL.substring(0, limitMatcher.start()).trim();
-
-            // Get the full LIMIT clause (for logging/debugging)
-            String limitClause = limitMatcher.group(0).trim();
-
+            limitValue = Integer.parseInt(limitMatcher.group(1));
+            limitClause = limitMatcher.group(0).trim();
+            trimmedSQL = trimmedSQL.substring(0, limitMatcher.start()).trim();
             log.fine("Extracted LIMIT clause: " + limitClause);
-            return new LimitClause(sqlWithoutLimit, limitClause, limitValue);
+        } else {
+            // Oracle: FETCH FIRST N ROWS ONLY
+            java.util.regex.Pattern fetchPattern = java.util.regex.Pattern.compile(
+                "\\s+FETCH\\s+FIRST\\s+(\\d+)\\s+ROWS?\\s+ONLY\\s*$",
+                java.util.regex.Pattern.CASE_INSENSITIVE
+            );
+            java.util.regex.Matcher fetchMatcher = fetchPattern.matcher(trimmedSQL);
+
+            if (fetchMatcher.find()) {
+                limitValue = Integer.parseInt(fetchMatcher.group(1));
+                limitClause = fetchMatcher.group(0).trim();
+                trimmedSQL = trimmedSQL.substring(0, fetchMatcher.start()).trim();
+                log.fine("Extracted FETCH FIRST clause: " + limitClause);
+            }
         }
 
-        // Oracle: FETCH FIRST N ROWS ONLY
-        // Pattern: \s+FETCH\s+FIRST\s+(\d+)\s+ROWS?\s+ONLY
-        java.util.regex.Pattern fetchPattern = java.util.regex.Pattern.compile(
-            "\\s+FETCH\\s+FIRST\\s+(\\d+)\\s+ROWS?\\s+ONLY\\s*$",
+        // Extract ORDER BY clause
+        // Pattern: ORDER BY ... (everything until end or until GROUP BY/HAVING)
+        // Must handle: ORDER BY col1, col2 DESC, col3 ASC
+        java.util.regex.Pattern orderByPattern = java.util.regex.Pattern.compile(
+            "\\s+ORDER\\s+BY\\s+[^;]+$",
             java.util.regex.Pattern.CASE_INSENSITIVE
         );
-        java.util.regex.Matcher fetchMatcher = fetchPattern.matcher(trimmedSQL);
+        java.util.regex.Matcher orderByMatcher = orderByPattern.matcher(trimmedSQL);
 
-        if (fetchMatcher.find()) {
-            // Extract the limit value
-            int limitValue = Integer.parseInt(fetchMatcher.group(1));
+        if (orderByMatcher.find()) {
+            orderByClause = orderByMatcher.group(0).trim();
+            trimmedSQL = trimmedSQL.substring(0, orderByMatcher.start()).trim();
+            log.fine("Extracted ORDER BY clause: " + orderByClause);
+        }
 
-            // Get SQL without the FETCH FIRST clause
-            String sqlWithoutLimit = trimmedSQL.substring(0, fetchMatcher.start()).trim();
+        // Extract HAVING clause (must come after GROUP BY, before ORDER BY)
+        java.util.regex.Pattern havingPattern = java.util.regex.Pattern.compile(
+            "\\s+HAVING\\s+[^;]+$",
+            java.util.regex.Pattern.CASE_INSENSITIVE
+        );
+        java.util.regex.Matcher havingMatcher = havingPattern.matcher(trimmedSQL);
 
-            // Get the full FETCH FIRST clause (for logging/debugging)
-            String limitClause = fetchMatcher.group(0).trim();
+        if (havingMatcher.find()) {
+            havingClause = havingMatcher.group(0).trim();
+            trimmedSQL = trimmedSQL.substring(0, havingMatcher.start()).trim();
+            log.fine("Extracted HAVING clause: " + havingClause);
+        }
 
-            log.fine("Extracted FETCH FIRST clause: " + limitClause);
-            return new LimitClause(sqlWithoutLimit, limitClause, limitValue);
+        // Extract GROUP BY clause (must come before HAVING and ORDER BY)
+        java.util.regex.Pattern groupByPattern = java.util.regex.Pattern.compile(
+            "\\s+GROUP\\s+BY\\s+[^;]+$",
+            java.util.regex.Pattern.CASE_INSENSITIVE
+        );
+        java.util.regex.Matcher groupByMatcher = groupByPattern.matcher(trimmedSQL);
+
+        if (groupByMatcher.find()) {
+            groupByClause = groupByMatcher.group(0).trim();
+            trimmedSQL = trimmedSQL.substring(0, groupByMatcher.start()).trim();
+            log.fine("Extracted GROUP BY clause: " + groupByClause);
+        }
+
+        // If we extracted any clause, return the result
+        if (groupByClause != null || havingClause != null || orderByClause != null || limitClause != null) {
+            return new TrailingClauses(
+                trimmedSQL,
+                groupByClause,
+                havingClause,
+                orderByClause,
+                limitClause,
+                limitValue
+            );
         }
 
         return null;
     }
 
     /**
-     * Helper class to hold extracted LIMIT clause information
+     * Helper class to hold extracted trailing clause information
      */
-    private static class LimitClause {
-        public final String sqlWithoutLimit;
+    private static class TrailingClauses {
+        public final String sqlWithoutTrailingClauses;
+        public final String groupByClause;
+        public final String havingClause;
+        public final String orderByClause;
         public final String limitClause;
         public final int limitValue;
 
-        public LimitClause(String sqlWithoutLimit, String limitClause, int limitValue) {
-            this.sqlWithoutLimit = sqlWithoutLimit;
+        public TrailingClauses(
+            String sqlWithoutTrailingClauses,
+            String groupByClause,
+            String havingClause,
+            String orderByClause,
+            String limitClause,
+            int limitValue
+        ) {
+            this.sqlWithoutTrailingClauses = sqlWithoutTrailingClauses;
+            this.groupByClause = groupByClause;
+            this.havingClause = havingClause;
+            this.orderByClause = orderByClause;
             this.limitClause = limitClause;
             this.limitValue = limitValue;
+        }
+
+        /**
+         * Get all clauses concatenated (for logging)
+         */
+        public String getAllClauses() {
+            StringBuilder sb = new StringBuilder();
+            if (groupByClause != null) sb.append(groupByClause).append(" ");
+            if (havingClause != null) sb.append(havingClause).append(" ");
+            if (orderByClause != null) sb.append(orderByClause).append(" ");
+            if (limitClause != null) sb.append(limitClause);
+            return sb.toString().trim();
         }
     }
 
