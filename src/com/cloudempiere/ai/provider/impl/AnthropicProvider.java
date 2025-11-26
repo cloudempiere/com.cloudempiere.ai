@@ -8,21 +8,23 @@ import org.compiere.util.CLogger;
 
 import com.anthropic.client.AnthropicClient;
 import com.anthropic.client.okhttp.AnthropicOkHttpClient;
+import com.anthropic.core.http.StreamResponse;
 import com.anthropic.models.messages.Message;
 import com.anthropic.models.messages.MessageCreateParams;
 import com.anthropic.models.messages.MessageParam;
-import com.anthropic.models.messages.TextBlock;
-import com.anthropic.models.messages.Usage;
-import com.anthropic.models.messages.RawMessageStreamEvent;
 import com.anthropic.models.messages.RawContentBlockDeltaEvent;
+import com.anthropic.models.messages.RawMessageStreamEvent;
+import com.anthropic.models.messages.TextBlock;
 import com.anthropic.models.messages.TextDelta;
 import com.anthropic.models.messages.Tool;
 import com.anthropic.models.messages.ToolUnion;
-import com.anthropic.core.http.StreamResponse;
+import com.anthropic.models.messages.ToolUseBlock;
+import com.anthropic.models.messages.Usage;
 import com.cloudempiere.ai.model.MAIProvider;
 import com.cloudempiere.ai.provider.AIProviderException;
 import com.cloudempiere.ai.provider.IAIProvider;
 import com.cloudempiere.ai.provider.dto.AIFunction;
+import com.cloudempiere.ai.provider.dto.AIFunctionCall;
 import com.cloudempiere.ai.provider.dto.AIHealthStatus;
 import com.cloudempiere.ai.provider.dto.AIMessage;
 import com.cloudempiere.ai.provider.dto.AIModelCapabilities;
@@ -488,11 +490,25 @@ public class AnthropicProvider implements IAIProvider {
 	 * Convert AIFunction to Anthropic SDK Tool
 	 */
 	private Tool convertFunction(AIFunction function) {
+		Tool.InputSchema.Builder schemaBuilder = Tool.InputSchema.builder();
+
+		// Convert function parameters to Anthropic JSON schema format
+		if (function.getParameters() != null) {
+			java.util.Map<String, Object> params = function.getParameters();
+			for (java.util.Map.Entry<String, Object> entry : params.entrySet()) {
+				schemaBuilder.putAdditionalProperty(
+					entry.getKey(),
+					com.anthropic.core.JsonValue.from(entry.getValue())
+				);
+			}
+		} else {
+			// Default empty object schema
+			schemaBuilder.putAdditionalProperty("type", com.anthropic.core.JsonValue.from("object"));
+		}
+
 		Tool.Builder builder = Tool.builder()
 			.name(function.getName())
-			.inputSchema(Tool.InputSchema.builder()
-				.putAdditionalProperty("type", com.anthropic.core.JsonValue.from("object"))
-				.build());
+			.inputSchema(schemaBuilder.build());
 
 		if (function.getDescription() != null) {
 			builder.description(function.getDescription());
@@ -524,15 +540,49 @@ public class AnthropicProvider implements IAIProvider {
 		AIResponse aiResponse = new AIResponse();
 
 		try {
-			// Extract content from text blocks
+			// Extract content from text blocks and tool use blocks
 			StringBuilder content = new StringBuilder();
+			List<AIFunctionCall> functionCalls = new ArrayList<>();
+
 			for (com.anthropic.models.messages.ContentBlock block : response.content()) {
 				if (block.isText()) {
 					TextBlock textBlock = block.asText();
 					content.append(textBlock.text());
+				} else if (block.isToolUse()) {
+					// Extract tool/function call
+					ToolUseBlock toolBlock = block.asToolUse();
+					AIFunctionCall functionCall = new AIFunctionCall();
+					functionCall.setName(toolBlock.name());
+
+					// Convert input JsonValue to JSON string
+					// The SDK provides input as a JsonValue in additional properties
+					try {
+						java.util.Map<String, com.anthropic.core.JsonValue> additionalProps = toolBlock._additionalProperties();
+						if (additionalProps != null && additionalProps.containsKey("input")) {
+							com.anthropic.core.JsonValue inputValue = additionalProps.get("input");
+							// JsonValue.toString() provides the JSON representation
+							functionCall.setArguments(inputValue.toString());
+						} else {
+							functionCall.setArguments("{}");
+						}
+					} catch (Exception e) {
+						log.warning("Failed to parse tool input: " + e.getMessage());
+						functionCall.setArguments("{}");
+					}
+
+					functionCalls.add(functionCall);
+
+					log.fine("Extracted tool call: " + toolBlock.name());
 				}
 			}
+
 			aiResponse.setContent(content.toString());
+
+			// Add function calls if any
+			if (!functionCalls.isEmpty()) {
+				aiResponse.setFunctionCalls(functionCalls);
+				log.fine("Response contains " + functionCalls.size() + " function call(s)");
+			}
 
 			// Model
 			aiResponse.setModel(response.model().asString());

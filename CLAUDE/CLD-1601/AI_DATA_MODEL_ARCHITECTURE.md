@@ -4,6 +4,8 @@
 
 This document describes the comprehensive database architecture for integrating AI capabilities into iDempiere ERP. The model supports multiple AI providers, task management, request processing, learning/analytics, and workflow integration.
 
+**Implementation Status**: This is a comprehensive architecture design. Currently, only **AIG_Prompt_Config** has been implemented as a minimal solution for configurable AI chat prompts (CLD-1606). The full architecture with 10 additional tables (AIG_Provider, AIG_Task_Type, etc.) is planned for future implementation.
+
 ---
 
 ## Entity Relationship Diagram
@@ -22,6 +24,22 @@ erDiagram
     AIG_Task_Type ||--o{ AIG_Business_Rule : "implements"
     AIG_Provider ||--o{ AIG_Usage_Stats : "tracked_by"
     AIG_Task_Type ||--o{ AIG_Usage_Stats : "measured_by"
+
+    AIG_Prompt_Config {
+        int AIG_Prompt_Config_ID PK
+        varchar AIG_Prompt_Config_UU UK
+        int AD_Client_ID
+        int AD_Org_ID
+        varchar Name
+        varchar Description
+        varchar PromptKey UK
+        text PromptText
+        timestamp Created
+        int CreatedBy
+        timestamp Updated
+        int UpdatedBy
+        char IsActive
+    }
 
     AIG_Provider {
         int AIG_Provider_ID PK
@@ -217,6 +235,64 @@ erDiagram
 ---
 
 ## Architecture Layers
+
+### 0. Configuration & Setup Layer
+
+#### AIG_Prompt_Config
+**Purpose**: Configurable AI prompt templates for the chat interface (minimal implementation)
+
+**Key Features**:
+- Simple key-value storage for AI prompts
+- Tenant-aware configuration (AD_Client_ID isolation)
+- Currently used for chat system prompts
+- Can be migrated to full AIG_Task_Type architecture later
+
+**Schema**:
+```sql
+CREATE TABLE AIG_Prompt_Config (
+    AIG_Prompt_Config_ID    NUMERIC(10) PRIMARY KEY,
+    AIG_Prompt_Config_UU    VARCHAR(36) UNIQUE,
+    AD_Client_ID            NUMERIC(10) NOT NULL,
+    AD_Org_ID               NUMERIC(10) NOT NULL,
+    Name                    VARCHAR(60) NOT NULL,
+    Description             VARCHAR(255),
+    PromptKey               VARCHAR(40) NOT NULL, -- Unique identifier (e.g., 'SYSTEM')
+    PromptText              TEXT NOT NULL,        -- Actual prompt content
+    Created                 TIMESTAMP NOT NULL,
+    CreatedBy               NUMERIC(10) NOT NULL,
+    Updated                 TIMESTAMP NOT NULL,
+    UpdatedBy               NUMERIC(10) NOT NULL,
+    IsActive                CHAR(1) DEFAULT 'Y' CHECK (IsActive IN ('Y','N')),
+    CONSTRAINT AIG_Prompt_Config_PromptKey_idx UNIQUE (PromptKey, AD_Client_ID)
+);
+```
+
+**Current Usage**:
+- **PromptKey='SYSTEM'**: Main system instructions for AI chat assistant
+- Loaded by `AIConversationService.buildSystemPrompt()`
+- Replaces hardcoded prompt strings
+
+**Use Cases**:
+- Configure AI assistant behavior without code changes
+- A/B test different prompt variations
+- Tenant-specific prompt customization
+- Quick iteration on prompt engineering
+
+**Migration Path**:
+When implementing the full AIG architecture:
+1. AIG_Prompt_Config prompts can be imported into AIG_Task_Type.DefaultPrompt
+2. PromptKey can map to AIG_Task_Type.TaskCode
+3. Table can be deprecated or kept for simple key-value configs
+
+**Example Data**:
+```sql
+INSERT INTO AIG_Prompt_Config (PromptKey, Name, PromptText)
+VALUES ('SYSTEM', 'Chat System Prompt',
+'You are a helpful AI assistant for iDempiere ERP system.
+You have access to query the database to answer user questions...');
+```
+
+---
 
 ### 1. Core Configuration Layer
 
@@ -2208,7 +2284,7 @@ This creates a fully automated invoice processing pipeline that reduces manual d
 
 The complete PostgreSQL schema is provided in the original SQL file, including:
 
-- **10 core tables** with full iDempiere compliance
+- **11 core tables** with full iDempiere compliance (including AIG_Prompt_Config)
 - **Sequences** for auto-increment IDs
 - **Triggers** for automatic timestamp updates
 - **Indexes** for optimal query performance
@@ -2219,13 +2295,33 @@ The complete PostgreSQL schema is provided in the original SQL file, including:
 - **Comprehensive comments** for documentation
 
 ### Schema Statistics
-- **Tables**: 10
-- **Sequences**: 10
+- **Tables**: 11 (10 planned + 1 implemented: AIG_Prompt_Config)
+- **Sequences**: 11
 - **Indexes**: 40+
 - **Triggers**: 9
 - **Materialized Views**: 2
-- **Foreign Keys**: 14
+- **Foreign Keys**: 14+
 - **Check Constraints**: 20+
+
+### Implementation Status
+
+**Implemented Tables**:
+1. ✅ **AIG_Prompt_Config** - Minimal prompt configuration (CLD-1606)
+   - Migration scripts: PostgreSQL & Oracle
+   - Used by: AIConversationService for chat system prompts
+   - Status: Production ready
+
+**Planned Tables** (from full architecture):
+2. ⏳ AIG_Provider - AI service provider registry
+3. ⏳ AIG_Task_Type - Reusable AI task templates
+4. ⏳ AIG_Provider_Task - Provider-task mappings
+5. ⏳ AIG_Request - Request lifecycle tracking
+6. ⏳ AIG_Request_Attachment - File attachments
+7. ⏳ AIG_Feedback - User feedback collection
+8. ⏳ AIG_Model_Training - Training tracking
+9. ⏳ AIG_Workflow_Step - Workflow integration
+10. ⏳ AIG_Business_Rule - Event-driven automation
+11. ⏳ AIG_Usage_Stats - Analytics and monitoring
 
 ---
 

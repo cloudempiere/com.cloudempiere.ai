@@ -20,6 +20,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
 import java.util.logging.Level;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.compiere.model.AccessSqlParser;
 import org.compiere.model.MRole;
@@ -156,12 +158,19 @@ public class SecureDatabaseQueryExecutor {
             // 4. Validate SQL is read-only (no DML/DDL)
             validateReadOnlySQL(request.getSql());
 
-            // 5. Extract table names from query
-            List<String> tables = extractTableNames(request.getSql());
-            result.setTablesAccessed(tables);
+            // 5. Extract table info (names and aliases) from query
+            List<TableInfoHolder> tableInfoList = extractTableInfo(request.getSql());
+
+            // Build table names list for audit logging
+            List<String> tableNames = new ArrayList<>();
+            for (TableInfoHolder info : tableInfoList) {
+                tableNames.add(info.getTableName());
+            }
+            result.setTablesAccessed(tableNames);
 
             // 6. Validate logged-in user's role has access to all tables in query
-            for (String tableName : tables) {
+            for (TableInfoHolder tableInfo : tableInfoList) {
+                String tableName = tableInfo.getTableName();
                 int tableId = getTableId(tableName);
                 if (tableId <= 0) {
                     String error = "Table not found: " + tableName;
@@ -179,20 +188,62 @@ public class SecureDatabaseQueryExecutor {
                 }
             }
 
-            // 7. Apply logged-in user's role-based security SQL injection
+            // 7. Extract trailing clauses (ORDER BY, GROUP BY, HAVING, LIMIT) from AI-generated SQL
+            // This prevents malformed SQL when addAccessSQL() appends WHERE conditions
+            String sqlWithoutTrailingClauses = request.getSql();
+            TrailingClauses extractedClauses = extractAndStripTrailingClauses(sqlWithoutTrailingClauses);
+            if (extractedClauses != null) {
+                sqlWithoutTrailingClauses = extractedClauses.sqlWithoutTrailingClauses;
+                log.fine("Stripped trailing clauses from SQL: " + extractedClauses.getAllClauses());
+            }
+
+            // 8. Apply logged-in user's role-based security SQL injection
             // This adds WHERE clauses for client, org, table access, etc.
             // Uses AI user + logged-in user's role for MRole.addAccessSQL()
+            // IMPORTANT: Pass alias (synonym) if present, otherwise table name
+            // This matches how AccessSqlParser.TableInfo works internally in MRole.addAccessSQL
+            TableInfoHolder primaryTable = tableInfoList.get(0);
+            String primaryTableForAccess = primaryTable.getSynonymOrTableName();
+            log.fine("Primary table for access SQL: " + primaryTableForAccess +
+                    " (table: " + primaryTable.getTableName() + ")");
+
             String securedSQL = role.addAccessSQL(
-                request.getSql(),
-                tables.get(0), // Primary table
+                sqlWithoutTrailingClauses,
+                primaryTableForAccess, // Pass alias if present, otherwise table name
                 true,          // Fully qualified
-                true           // Read-write mode (more restrictive)
+                false          // Read-only mode (less restrictive for SELECT)
             );
             result.setSecuredSQL(securedSQL);
 
-            // 8. Apply row limit
-            int maxRows = request.getMaxRows() > 0 ?
-                         request.getMaxRows() : DEFAULT_MAX_ROWS;
+            // 9. Re-apply trailing clauses in correct order: GROUP BY, HAVING, ORDER BY, LIMIT
+            if (extractedClauses != null) {
+                if (extractedClauses.groupByClause != null) {
+                    securedSQL += " " + extractedClauses.groupByClause;
+                    log.fine("Re-applied GROUP BY clause");
+                }
+                if (extractedClauses.havingClause != null) {
+                    securedSQL += " " + extractedClauses.havingClause;
+                    log.fine("Re-applied HAVING clause");
+                }
+                if (extractedClauses.orderByClause != null) {
+                    securedSQL += " " + extractedClauses.orderByClause;
+                    log.fine("Re-applied ORDER BY clause");
+                }
+            }
+
+            // 10. Apply row limit (use AI-specified limit if present, otherwise default)
+            int maxRows;
+            if (extractedClauses != null && extractedClauses.limitValue > 0) {
+                // Use the limit from AI-generated SQL
+                maxRows = extractedClauses.limitValue;
+                log.fine("Using AI-specified limit: " + maxRows);
+            } else if (request.getMaxRows() > 0) {
+                // Use request-specified limit
+                maxRows = request.getMaxRows();
+            } else {
+                // Use default limit
+                maxRows = DEFAULT_MAX_ROWS;
+            }
             securedSQL = applyRowLimit(securedSQL, maxRows);
 
             // 9. Execute query with timeout
@@ -262,9 +313,13 @@ public class SecureDatabaseQueryExecutor {
             }
         }
 
-        // No semicolons (prevent multiple statements)
-        if (sql.contains(";")) {
-            throw new SecurityException("Multiple SQL statements not allowed");
+        // No multiple statements (check if there's anything after semicolon besides whitespace)
+        int semicolonIndex = sql.indexOf(";");
+        if (semicolonIndex >= 0) {
+            String afterSemicolon = sql.substring(semicolonIndex + 1).trim();
+            if (!afterSemicolon.isEmpty()) {
+                throw new SecurityException("Multiple SQL statements not allowed");
+            }
         }
 
         // No comments that could hide malicious code
@@ -274,10 +329,56 @@ public class SecureDatabaseQueryExecutor {
     }
 
     /**
-     * Extract table names from SQL query using iDempiere's parser
+     * Table information holder with table name and optional alias
+     * <p>
+     * This mirrors the concept from {@link AccessSqlParser.TableInfo} to properly
+     * support table aliases when calling {@link MRole#addAccessSQL}.
      */
-    private List<String> extractTableNames(String sql) {
-        List<String> tables = new ArrayList<>();
+    private static class TableInfoHolder {
+        private final String tableName;
+        private final String alias;
+
+        public TableInfoHolder(String tableName, String alias) {
+            this.tableName = tableName;
+            this.alias = alias;
+        }
+
+        public String getTableName() {
+            return tableName;
+        }
+
+        /**
+         * Get the synonym/alias for use with MRole.addAccessSQL
+         * @return alias if present, otherwise table name
+         */
+        public String getSynonymOrTableName() {
+            if (alias != null && !alias.isEmpty()) {
+                return alias;
+            }
+            return tableName;
+        }
+
+        @Override
+        public String toString() {
+            if (alias != null && !alias.isEmpty()) {
+                return tableName + "=" + alias;
+            }
+            return tableName;
+        }
+    }
+
+    /**
+     * Extract table information from SQL query using iDempiere's parser
+     * <p>
+     * Returns table info with both table names and aliases.
+     * Filters out aliases, column names, and other non-table identifiers.
+     * Only returns actual iDempiere table names that exist in AD_Table.
+     *
+     * @param sql SQL query to parse
+     * @return list of TableInfoHolder with table names and aliases
+     */
+    private List<TableInfoHolder> extractTableInfo(String sql) {
+        List<TableInfoHolder> tables = new ArrayList<>();
 
         try {
             // Use iDempiere's AccessSqlParser
@@ -300,7 +401,16 @@ public class SecureDatabaseQueryExecutor {
                             if (tableName.endsWith(")")) {
                                 tableName = tableName.substring(0, tableName.length() - 1);
                             }
-                            tables.add(tableName.trim());
+                            tableName = tableName.trim();
+
+                            // FILTER: Only add if it looks like a valid table name and exists in AD_Table
+                            if (isValidTableName(tableName)) {
+                                // Get the alias/synonym from parser
+                                String alias = info.getSynonym();
+                                tables.add(new TableInfoHolder(tableName, alias));
+                                log.fine("Extracted table: " + tableName +
+                                        (alias != null && !alias.isEmpty() ? " (alias: " + alias + ")" : ""));
+                            }
                         }
                     }
                 }
@@ -316,6 +426,82 @@ public class SecureDatabaseQueryExecutor {
         }
 
         return tables;
+    }
+
+    /**
+     * Extract table names from SQL query (for backward compatibility and audit logging)
+     * @param sql SQL query to parse
+     * @return list of table names
+     */
+    private List<String> extractTableNames(String sql) {
+        List<TableInfoHolder> tableInfo = extractTableInfo(sql);
+        List<String> tableNames = new ArrayList<>();
+        for (TableInfoHolder info : tableInfo) {
+            tableNames.add(info.getTableName());
+        }
+        return tableNames;
+    }
+
+    /**
+     * Validate if a string is a valid iDempiere table name
+     * <p>
+     * Filters out:
+     * - Single letter identifiers (likely aliases like 'o', 'b')
+     * - Column names (contain '_ID' suffix or lowercase)
+     * - Invalid characters
+     * - Names that don't exist in AD_Table
+     *
+     * @param tableName potential table name to validate
+     * @return true if valid table name
+     */
+    private boolean isValidTableName(String tableName) {
+        if (tableName == null || tableName.isEmpty()) {
+            return false;
+        }
+
+        // Filter out single-letter aliases (o, b, t, etc.)
+        if (tableName.length() == 1) {
+            log.fine("Filtered out single-letter identifier: " + tableName);
+            return false;
+        }
+
+        // Filter out lowercase identifiers (likely aliases)
+        if (tableName.equals(tableName.toLowerCase())) {
+            log.fine("Filtered out lowercase identifier (likely alias): " + tableName);
+            return false;
+        }
+
+        // iDempiere tables typically start with a capital letter followed by underscore
+        // Examples: C_Order, AD_User, M_Product
+        if (!tableName.matches("^[A-Z][A-Z]?_[A-Za-z0-9_]+$")) {
+            // If it doesn't match the pattern, check if it exists anyway (for edge cases)
+            boolean exists = tableExistsInDatabase(tableName);
+            if (!exists) {
+                log.fine("Filtered out non-standard table name: " + tableName);
+            }
+            return exists;
+        }
+
+        // Verify the table actually exists in AD_Table
+        return tableExistsInDatabase(tableName);
+    }
+
+    /**
+     * Check if table exists in iDempiere's AD_Table
+     *
+     * @param tableName table name to check
+     * @return true if table exists
+     */
+    private boolean tableExistsInDatabase(String tableName) {
+        try {
+            int tableId = DB.getSQLValue(null,
+                "SELECT AD_Table_ID FROM AD_Table WHERE UPPER(TableName)=?",
+                tableName.toUpperCase());
+            return tableId > 0;
+        } catch (Exception e) {
+            log.fine("Error checking table existence: " + tableName + " - " + e.getMessage());
+            return false;
+        }
     }
 
     /**
@@ -346,6 +532,164 @@ public class SecureDatabaseQueryExecutor {
         }
 
         return sql;
+    }
+
+    /**
+     * Extract and strip trailing clauses (ORDER BY, GROUP BY, HAVING, LIMIT) from SQL
+     * <p>
+     * This is critical for proper security injection. MRole.addAccessSQL() appends WHERE/AND
+     * conditions, which must come BEFORE ORDER BY, GROUP BY, HAVING, and LIMIT clauses.
+     * <p>
+     * Process:
+     * 1. Strip all trailing clauses
+     * 2. Apply MRole.addAccessSQL() to base query
+     * 3. Re-apply trailing clauses in correct order: GROUP BY, HAVING, ORDER BY, LIMIT
+     *
+     * @param sql Original SQL query
+     * @return TrailingClauses object containing stripped SQL and clause info, or null if no clauses found
+     */
+    private TrailingClauses extractAndStripTrailingClauses(String sql) {
+        if (sql == null || sql.trim().isEmpty()) {
+            return null;
+        }
+
+        String trimmedSQL = sql.trim();
+
+        // Remove trailing semicolon if present
+        boolean hadSemicolon = trimmedSQL.endsWith(";");
+        if (hadSemicolon) {
+            trimmedSQL = trimmedSQL.substring(0, trimmedSQL.length() - 1).trim();
+        }
+
+        String groupByClause = null;
+        String havingClause = null;
+        String orderByClause = null;
+        String limitClause = null;
+        int limitValue = -1;
+
+        // Extract LIMIT/FETCH FIRST (must come last)
+        // PostgreSQL: LIMIT N [OFFSET M]
+        Pattern limitPattern = Pattern.compile(
+            "\\s+LIMIT\\s+(\\d+)(\\s+OFFSET\\s+\\d+)?\\s*$",
+            Pattern.CASE_INSENSITIVE
+        );
+        Matcher limitMatcher = limitPattern.matcher(trimmedSQL);
+
+        if (limitMatcher.find()) {
+            limitValue = Integer.parseInt(limitMatcher.group(1));
+            limitClause = limitMatcher.group(0).trim();
+            trimmedSQL = trimmedSQL.substring(0, limitMatcher.start()).trim();
+            log.fine("Extracted LIMIT clause: " + limitClause);
+        } else {
+            // Oracle: FETCH FIRST N ROWS ONLY
+            Pattern fetchPattern = Pattern.compile(
+                "\\s+FETCH\\s+FIRST\\s+(\\d+)\\s+ROWS?\\s+ONLY\\s*$",
+                Pattern.CASE_INSENSITIVE
+            );
+            Matcher fetchMatcher = fetchPattern.matcher(trimmedSQL);
+
+            if (fetchMatcher.find()) {
+                limitValue = Integer.parseInt(fetchMatcher.group(1));
+                limitClause = fetchMatcher.group(0).trim();
+                trimmedSQL = trimmedSQL.substring(0, fetchMatcher.start()).trim();
+                log.fine("Extracted FETCH FIRST clause: " + limitClause);
+            }
+        }
+
+        // Extract ORDER BY clause
+        // Pattern: ORDER BY ... (everything until end or until GROUP BY/HAVING)
+        // Must handle: ORDER BY col1, col2 DESC, col3 ASC
+        Pattern orderByPattern = Pattern.compile(
+            "\\s+ORDER\\s+BY\\s+[^;]+$",
+            Pattern.CASE_INSENSITIVE
+        );
+        Matcher orderByMatcher = orderByPattern.matcher(trimmedSQL);
+
+        if (orderByMatcher.find()) {
+            orderByClause = orderByMatcher.group(0).trim();
+            trimmedSQL = trimmedSQL.substring(0, orderByMatcher.start()).trim();
+            log.fine("Extracted ORDER BY clause: " + orderByClause);
+        }
+
+        // Extract HAVING clause (must come after GROUP BY, before ORDER BY)
+        Pattern havingPattern = Pattern.compile(
+            "\\s+HAVING\\s+[^;]+$",
+            Pattern.CASE_INSENSITIVE
+        );
+        Matcher havingMatcher = havingPattern.matcher(trimmedSQL);
+
+        if (havingMatcher.find()) {
+            havingClause = havingMatcher.group(0).trim();
+            trimmedSQL = trimmedSQL.substring(0, havingMatcher.start()).trim();
+            log.fine("Extracted HAVING clause: " + havingClause);
+        }
+
+        // Extract GROUP BY clause (must come before HAVING and ORDER BY)
+        Pattern groupByPattern = Pattern.compile(
+            "\\s+GROUP\\s+BY\\s+[^;]+$",
+            Pattern.CASE_INSENSITIVE
+        );
+        Matcher groupByMatcher = groupByPattern.matcher(trimmedSQL);
+
+        if (groupByMatcher.find()) {
+            groupByClause = groupByMatcher.group(0).trim();
+            trimmedSQL = trimmedSQL.substring(0, groupByMatcher.start()).trim();
+            log.fine("Extracted GROUP BY clause: " + groupByClause);
+        }
+
+        // If we extracted any clause, return the result
+        if (groupByClause != null || havingClause != null || orderByClause != null || limitClause != null) {
+            return new TrailingClauses(
+                trimmedSQL,
+                groupByClause,
+                havingClause,
+                orderByClause,
+                limitClause,
+                limitValue
+            );
+        }
+
+        return null;
+    }
+
+    /**
+     * Helper class to hold extracted trailing clause information
+     */
+    private static class TrailingClauses {
+        public final String sqlWithoutTrailingClauses;
+        public final String groupByClause;
+        public final String havingClause;
+        public final String orderByClause;
+        public final String limitClause;
+        public final int limitValue;
+
+        public TrailingClauses(
+            String sqlWithoutTrailingClauses,
+            String groupByClause,
+            String havingClause,
+            String orderByClause,
+            String limitClause,
+            int limitValue
+        ) {
+            this.sqlWithoutTrailingClauses = sqlWithoutTrailingClauses;
+            this.groupByClause = groupByClause;
+            this.havingClause = havingClause;
+            this.orderByClause = orderByClause;
+            this.limitClause = limitClause;
+            this.limitValue = limitValue;
+        }
+
+        /**
+         * Get all clauses concatenated (for logging)
+         */
+        public String getAllClauses() {
+            StringBuilder sb = new StringBuilder();
+            if (groupByClause != null) sb.append(groupByClause).append(" ");
+            if (havingClause != null) sb.append(havingClause).append(" ");
+            if (orderByClause != null) sb.append(orderByClause).append(" ");
+            if (limitClause != null) sb.append(limitClause);
+            return sb.toString().trim();
+        }
     }
 
     /**
