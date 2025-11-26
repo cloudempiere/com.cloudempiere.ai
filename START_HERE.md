@@ -9,19 +9,19 @@
 ## 📚 Quick Navigation
 
 ### For Decision Makers (5 minutes)
-→ Read: `/docs/EXECUTIVE_SUMMARY.md`
+→ Read: `/docs/analysis-to-langchain/EXECUTIVE_SUMMARY.md`
 
 ### For Product Architects (2-3 hours)
-→ Start: `/docs/DOMAIN_BOUNDARIES_AND_AGENT_SCOPE.md`
-→ Then: `/docs/ARCHITECTURE_AND_STRATEGY_ANALYSIS.md`
-→ Finally: `/docs/AGENT_SCOPES_BY_BUSINESS_AREA.md`
+→ Start: `/docs/analysis-to-langchain/DOMAIN_BOUNDARIES_AND_AGENT_SCOPE.md`
+→ Then: `/docs/analysis-to-langchain/ARCHITECTURE_AND_STRATEGY_ANALYSIS.md`
+→ Finally: `/docs/analysis-to-langchain/AGENT_SCOPES_BY_BUSINESS_AREA.md`
 
 ### For Developers (1-2 hours)
-→ Read: `/docs/README_STRATEGIC_ANALYSIS.md` (navigation hub)
+→ Read: `/docs/analysis-to-langchain/README_STRATEGIC_ANALYSIS.md` (navigation hub)
 → Follow: Your role path
 
 ### For Complete Reference
-→ Start: `/docs/STRATEGIC_ANALYSIS_INDEX.md` (complete index)
+→ Start: `/docs/analysis-to-langchain/STRATEGIC_ANALYSIS_INDEX.md` (complete index)
 
 ---
 
@@ -116,7 +116,7 @@ Without clear boundaries:
 
 ## 🚀 Ready to Start?
 
-1. **Read**: `/docs/README_STRATEGIC_ANALYSIS.md` (navigation)
+1. **Read**: `/docs/analysis-to-langchain/README_STRATEGIC_ANALYSIS.md` (navigation)
 2. **Choose**: Your role path
 3. **Read**: Recommended documents in order
 4. **Decide**: Approve approach + budget
@@ -126,7 +126,7 @@ Without clear boundaries:
 
 ## 📞 Questions?
 
-See `/docs/STRATEGIC_ANALYSIS_INDEX.md` for:
+See `/docs/analysis-to-langchain/STRATEGIC_ANALYSIS_INDEX.md` for:
 - Complete Q&A map
 - Document relationships
 - Reading recommendations by role
@@ -134,7 +134,7 @@ See `/docs/STRATEGIC_ANALYSIS_INDEX.md` for:
 
 ---
 
-**All documents are in**: `/docs/`
+**All documents are in**: `/docs/analysis-to-langchain/`
 
 **Status**: Production Ready ✅
 **Version**: 1.0
