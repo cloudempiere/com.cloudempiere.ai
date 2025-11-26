@@ -44,6 +44,9 @@ public class AIResponse {
     private String errorMessage;
     private String errorCode;
 
+    // Success flag
+    private boolean success = true;
+
     public AIResponse() {
         this.choices = new ArrayList<>();
         this.functionCalls = new ArrayList<>();
@@ -89,6 +92,22 @@ public class AIResponse {
     public void setErrorCode(String errorCode) { this.errorCode = errorCode; }
 
     public boolean isSuccess() {
-        return errorMessage == null;
+        return success && errorMessage == null;
+    }
+
+    public void setSuccess(boolean success) {
+        this.success = success;
+    }
+
+    /**
+     * Create an error response
+     * @param errorMessage Error message
+     * @return AIResponse with error
+     */
+    public static AIResponse error(String errorMessage) {
+        AIResponse response = new AIResponse();
+        response.setSuccess(false);
+        response.setErrorMessage(errorMessage);
+        return response;
     }
 }

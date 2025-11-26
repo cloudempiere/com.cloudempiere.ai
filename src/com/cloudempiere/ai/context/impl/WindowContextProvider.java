@@ -47,6 +47,37 @@ public class WindowContextProvider implements IAIContextProvider {
 
     private static final CLogger log = CLogger.getCLogger(WindowContextProvider.class);
 
+    /**
+     * Technical/system field patterns
+     * These fields are categorized separately as technical metadata
+     */
+    private static final String[] TECHNICAL_FIELD_PATTERNS = {
+        // Primary keys and UUIDs
+        "_ID", "_UU",
+        // Audit fields
+        "Created", "CreatedBy", "Updated", "UpdatedBy",
+        // Technical status fields
+        "IsActive", "Processed", "Processing",
+        // Multi-tenancy fields
+        "AD_Client_ID", "AD_Org_ID",
+        // Technical metadata
+        "EntityType", "IsSummary", "IsTranslated",
+        "Record_ID", "Record_UU",
+        // System references
+        "AD_Image_ID", "AD_PrintColor_ID", "AD_PrintFont_ID",
+        // Versioning and technical tracking
+        "Version", "ColumnSQL", "VFormat", "ValueFormat",
+        // Technical configuration
+        "ReadOnlyLogic", "DisplayLogic", "MandatoryLogic",
+        "DefaultValue", "VFormat", "FormatPattern",
+        // Workflow and process control
+        "AD_WF_", "WFState", "DocAction", "DocStatus",
+        // Import/Export technical fields
+        "I_IsImported", "I_ErrorMsg", "Imported",
+        // Replication
+        "EXP_", "IMP_"
+    };
+
     @Override
     public String getContextType() {
         return "WINDOW";
@@ -170,6 +201,21 @@ public class WindowContextProvider implements IAIContextProvider {
         tabCtx.put("record_id", recordId);
         tabCtx.put("tab_level", tabLevel);
 
+        // Track exact current row being viewed (not just Record_ID)
+        int currentRow = Env.getContextAsInt(ctx, windowNo, "CurrentRow");
+        if (currentRow >= 0) {
+            tabCtx.put("current_row", currentRow);
+        }
+
+        // Also track selected row ID (the actual primary key value of the selected record)
+        // This is the specific record ID for the current tab, not just the generic Record_ID
+        String tableKeyColumn = tableName + "_ID";
+        int selectedRecordId = Env.getContextAsInt(ctx, windowNo, tabNo, tableKeyColumn);
+        if (selectedRecordId > 0) {
+            tabCtx.put("selected_record_id", selectedRecordId);
+            tabCtx.put("selected_record_key", tableKeyColumn);
+        }
+
         // Get AD_Tab_ID if available
         int tabId = Env.getContextAsInt(ctx, windowNo, tabNo, "AD_Tab_ID");
         if (tabId > 0) {
@@ -191,6 +237,7 @@ public class WindowContextProvider implements IAIContextProvider {
 
     /**
      * Add record data from context
+     * Separates business fields from technical/system fields for better AI context
      */
     private void addRecordData(
         JSONObject context,
@@ -198,7 +245,8 @@ public class WindowContextProvider implements IAIContextProvider {
         int windowNo,
         int tabNo
     ) {
-        JSONObject recordData = new JSONObject();
+        JSONObject businessData = new JSONObject();
+        JSONObject technicalData = new JSONObject();
 
         // Extract all context variables for this tab
         // Format: WindowNo|TabNo|FieldName or WindowNo|FieldName
@@ -221,16 +269,51 @@ public class WindowContextProvider implements IAIContextProvider {
             if (fieldName != null && fieldName.length() > 0) {
                 String value = ctx.getProperty(keyStr);
                 if (value != null && value.length() > 0) {
-                    recordData.put(fieldName, value);
+                    // Categorize field as technical or business
+                    if (isTechnicalField(fieldName)) {
+                        technicalData.put(fieldName, value);
+                    } else {
+                        businessData.put(fieldName, value);
+                    }
                 }
             }
         }
 
-        context.put("record_data", recordData);
+        // Add business data first (more important)
+        context.put("record_data", businessData);
+
+        // Add technical data separately (less important, but still available)
+        if (technicalData.length() > 0) {
+            context.put("technical_data", technicalData);
+        }
     }
 
     /**
-     * Add child tabs data
+     * Check if a field name matches technical field patterns
+     * @param fieldName the field name to check
+     * @return true if field is technical/system field
+     */
+    private boolean isTechnicalField(String fieldName) {
+        if (fieldName == null || fieldName.isEmpty()) {
+            return false;
+        }
+
+        // Check against all patterns
+        for (String pattern : TECHNICAL_FIELD_PATTERNS) {
+            if (fieldName.equals(pattern) ||
+                fieldName.endsWith(pattern) ||
+                fieldName.startsWith(pattern) ||
+                fieldName.contains(pattern)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Add child tabs data with context information
+     * Extracts both metadata and actual data from sub-tabs
      */
     private void addChildTabsData(
         JSONObject context,
@@ -241,7 +324,7 @@ public class WindowContextProvider implements IAIContextProvider {
 
         try {
             // Get window ID
-            int windowId = Env.getContextAsInt(ctx, windowNo, "AD_Window_ID");
+            int windowId = Env.getContextAsInt(ctx, windowNo, "_WinInfo_AD_Window_ID");
             if (windowId > 0) {
                 MWindow window = MWindow.get(ctx, windowId);
                 if (window != null) {
@@ -257,6 +340,16 @@ public class WindowContextProvider implements IAIContextProvider {
                                 childTab.put("tab_level", tab.getTabLevel());
                                 childTab.put("sequence", tab.getSeqNo());
 
+                                // Add description if available
+                                if (tab.getDescription() != null && !tab.getDescription().trim().isEmpty()) {
+                                    childTab.put("description", tab.getDescription());
+                                }
+
+                                // Try to extract context data for this sub-tab
+                                // Sub-tabs are indexed starting from 1
+                                int subTabNo = i;
+                                extractSubTabData(childTab, ctx, windowNo, subTabNo, tab);
+
                                 childTabs.put(childTab);
                             }
                         }
@@ -269,6 +362,86 @@ public class WindowContextProvider implements IAIContextProvider {
 
         if (childTabs.length() > 0) {
             context.put("child_tabs", childTabs);
+        }
+    }
+
+    /**
+     * Extract data from a sub-tab
+     * Attempts to get record counts and sample data from context
+     *
+     * @param childTab JSON object to populate with sub-tab data
+     * @param ctx context
+     * @param windowNo window number
+     * @param tabNo tab number
+     * @param tab MTab instance
+     */
+    private void extractSubTabData(
+        JSONObject childTab,
+        Properties ctx,
+        int windowNo,
+        int tabNo,
+        MTab tab
+    ) {
+        try {
+            // Get current row for this sub-tab
+            int currentRow = Env.getContextAsInt(ctx, windowNo, tabNo, "CurrentRow");
+            if (currentRow >= 0) {
+                childTab.put("current_row", currentRow);
+            }
+
+            // Get row count if available
+            String rowCountKey = windowNo + "|" + tabNo + "|#rowcount";
+            String rowCountStr = ctx.getProperty(rowCountKey);
+            if (rowCountStr != null && !rowCountStr.trim().isEmpty()) {
+                try {
+                    int rowCount = Integer.parseInt(rowCountStr);
+                    childTab.put("row_count", rowCount);
+                } catch (NumberFormatException e) {
+                    // Ignore invalid row count
+                }
+            }
+
+            // Extract sub-tab record data (similar to addRecordData but for specific sub-tab)
+            JSONObject subTabRecordData = new JSONObject();
+            String tableName = tab.getAD_Table().getTableName();
+            String prefixWithTab = windowNo + "|" + tabNo + "|";
+
+            // Limit fields to avoid too much data
+            int fieldCount = 0;
+            int maxFields = 10; // Limit sub-tab data to avoid overwhelming context
+
+            for (Object key : ctx.keySet()) {
+                if (fieldCount >= maxFields) {
+                    break;
+                }
+
+                String keyStr = key.toString();
+                if (keyStr.startsWith(prefixWithTab)) {
+                    String fieldName = keyStr.substring(prefixWithTab.length());
+
+                    // Skip internal counters and technical fields
+                    if (fieldName.startsWith("#") || fieldName.equals("CurrentRow")) {
+                        continue;
+                    }
+
+                    String value = ctx.getProperty(keyStr);
+                    if (value != null && !value.trim().isEmpty()) {
+                        // Only include business fields for sub-tabs (to keep context concise)
+                        if (!isTechnicalField(fieldName)) {
+                            subTabRecordData.put(fieldName, value);
+                            fieldCount++;
+                        }
+                    }
+                }
+            }
+
+            if (subTabRecordData.length() > 0) {
+                childTab.put("current_record_data", subTabRecordData);
+            }
+
+        } catch (Exception e) {
+            log.log(Level.FINE, "Failed to extract sub-tab data for tab " + tabNo, e);
+            // Don't fail the whole operation if sub-tab data extraction fails
         }
     }
 

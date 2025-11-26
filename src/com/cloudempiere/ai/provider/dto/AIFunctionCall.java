@@ -9,6 +9,7 @@ package com.cloudempiere.ai.provider.dto;
 public class AIFunctionCall {
     private String name;
     private String arguments; // JSON string
+    private String id; // Tool use ID (for AWS Bedrock and other providers that need to match results)
 
     public AIFunctionCall() {
     }
@@ -23,4 +24,7 @@ public class AIFunctionCall {
 
     public String getArguments() { return arguments; }
     public void setArguments(String arguments) { this.arguments = arguments; }
+
+    public String getId() { return id; }
+    public void setId(String id) { this.id = id; }
 }
