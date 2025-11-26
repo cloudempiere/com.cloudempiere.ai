@@ -1,3 +1,9 @@
 /target/
 /bin/
 /lib/*.jar
+
+# Third-party analysis and reference implementations
+de.bxservice*/
+
+# macOS system files
+.DS_Store

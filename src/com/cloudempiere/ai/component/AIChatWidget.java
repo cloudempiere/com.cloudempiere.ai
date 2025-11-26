@@ -410,7 +410,9 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 			// AI message header with logo and assistant name
 			sb.append("<div style='display: flex; flex-direction: row; align-items: center; padding: 0; gap: 8px; margin-bottom: 12px;'>");
 			sb.append("<img src='");
-			sb.append(ThemeManager.THEME_PATH_PREFIX+ThemeManager.getTheme()+"/images/clde-logo-icon-vector.svg");
+			// Use Executions.encodeURL to convert ZK ~./ resource path to browser-accessible URL
+			String logoUrl = ThemeManager.THEME_PATH_PREFIX+ThemeManager.getTheme()+"/images/clde-logo-icon-vector.svg";
+			sb.append(Executions.encodeURL(logoUrl));
 			sb.append("' style='width: 18px; height: 18px;'/>");
 			sb.append("<span style='font-family: Helvetica Neue; font-weight: 500; font-size: 12px; line-height: 15px; color: #181D27;'>");
 			sb.append(Util.maskHTML(getUserName(entry), true));
