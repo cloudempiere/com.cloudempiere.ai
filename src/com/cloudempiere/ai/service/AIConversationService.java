@@ -106,7 +106,7 @@ public class AIConversationService {
 	 * @return AI response
 	 */
 	public AIResponse sendMessage(Properties ctx, MAIChat chat, String userMessage, String trxName) {
-		return sendMessageWithContext(ctx, chat, userMessage, null, DEFAULT_MAX_HISTORY, trxName);
+		return sendMessageWithContext(ctx, chat, userMessage, null, DEFAULT_MAX_HISTORY, 0, trxName);
 	}
 
 	/**
@@ -120,11 +120,11 @@ public class AIConversationService {
 	 */
 	public AIResponse sendMessageWithHistory(Properties ctx, MAIChat chat,
 			String userMessage, int maxHistoryEntries, String trxName) {
-		return sendMessageWithContext(ctx, chat, userMessage, null, maxHistoryEntries, trxName);
+		return sendMessageWithContext(ctx, chat, userMessage, null, maxHistoryEntries, 0, trxName);
 	}
 
 	/**
-	 * Send message with context and conversation history
+	 * Send message with context and conversation history (backward compatibility)
 	 * Now with database function calling support!
 	 *
 	 * @param ctx context
@@ -143,9 +143,37 @@ public class AIConversationService {
 		int maxHistoryEntries,
 		String trxName
 	) {
+		return sendMessageWithContext(ctx, chat, userMessage, contextData, maxHistoryEntries, 0, trxName);
+	}
+
+	/**
+	 * Send message with context and conversation history
+	 * Now with database function calling support!
+	 *
+	 * @param ctx context
+	 * @param chat chat instance
+	 * @param userMessage user's message
+	 * @param contextData optional window/tab context (can be null)
+	 * @param maxHistoryEntries max entries to include (0 = no history)
+	 * @param threadRootId thread root message ID (0 = all messages, >0 = only messages in this thread)
+	 * @param trxName transaction
+	 * @return AI response
+	 */
+	public AIResponse sendMessageWithContext(
+		Properties ctx,
+		MAIChat chat,
+		String userMessage,
+		JSONObject contextData,
+		int maxHistoryEntries,
+		int threadRootId,
+		String trxName
+	) {
 		long startTime = System.currentTimeMillis();
 
 		try {
+			// Set thread context for cache isolation
+			conversationContext.setCurrentThreadRootId(threadRootId);
+
 			// NEW: Analyze prompt to determine optimal routing strategy
 			SourceDecision decision = promptAnalyzer.analyzePrompt(userMessage, conversationContext);
 
@@ -185,7 +213,7 @@ public class AIConversationService {
 
 			// Add conversation history if requested
 			if (maxHistoryEntries > 0) {
-				List<AIMessage> history = buildConversationHistory(chat, maxHistoryEntries);
+				List<AIMessage> history = buildConversationHistory(chat, maxHistoryEntries, threadRootId);
 				messages.addAll(history);
 			}
 
@@ -726,9 +754,10 @@ public class AIConversationService {
 	 * Build conversation history from chat entries
 	 * @param chat chat instance
 	 * @param maxEntries maximum entries to include
+	 * @param threadRootId thread root message ID (0 = all messages, >0 = only messages in this thread)
 	 * @return list of AI messages
 	 */
-	private List<AIMessage> buildConversationHistory(MAIChat chat, int maxEntries) {
+	private List<AIMessage> buildConversationHistory(MAIChat chat, int maxEntries, int threadRootId) {
 		List<AIMessage> history = new ArrayList<>();
 
 		if (chat == null) {
@@ -736,19 +765,26 @@ public class AIConversationService {
 		}
 
 		// Get all entries
-		MChatEntry[] entries = chat.getEntries(true);
+		MChatEntry[] allEntries = chat.getEntries(true);
 
-		if (entries == null || entries.length == 0) {
+		if (allEntries == null || allEntries.length == 0) {
+			return history;
+		}
+
+		// Filter entries by thread if threadRootId is specified
+		List<MChatEntry> entries = filterEntriesByThread(allEntries, threadRootId);
+
+		if (entries.isEmpty()) {
 			return history;
 		}
 
 		// Get most recent entries (up to maxEntries)
 		// Exclude the last entry as it will be the one we just added
-		int startIndex = Math.max(0, entries.length - maxEntries - 1);
-		int endIndex = entries.length - 1; // Don't include the message we just added
+		int startIndex = Math.max(0, entries.size() - maxEntries - 1);
+		int endIndex = entries.size() - 1; // Don't include the message we just added
 
-		for (int i = startIndex; i < endIndex && i < entries.length; i++) {
-			MChatEntry entry = entries[i];
+		for (int i = startIndex; i < endIndex && i < entries.size(); i++) {
+			MChatEntry entry = entries.get(i);
 
 			if (!entry.isActive()) {
 				continue;
@@ -809,8 +845,57 @@ public class AIConversationService {
 		}
 
 		log.fine("Built conversation history: " + history.size() + " messages" +
+			(threadRootId > 0 ? " (thread: " + threadRootId + ")" : " (all threads)") +
 			(!history.isEmpty() ? " (first role: " + history.get(0).getRole() + ")" : ""));
 		return history;
+	}
+
+	/**
+	 * Filter chat entries by thread
+	 * Returns only entries that belong to the specified thread (root message and its children)
+	 *
+	 * @param allEntries all chat entries
+	 * @param threadRootId thread root message ID (0 = return all entries)
+	 * @return list of entries in the thread, ordered by creation date
+	 */
+	private List<MChatEntry> filterEntriesByThread(MChatEntry[] allEntries, int threadRootId) {
+		List<MChatEntry> threadEntries = new ArrayList<>();
+
+		// If no thread specified, return all entries as a list
+		if (threadRootId <= 0) {
+			for (MChatEntry entry : allEntries) {
+				threadEntries.add(entry);
+			}
+			return threadEntries;
+		}
+
+		// Find the root entry and add it
+		MChatEntry rootEntry = null;
+		for (MChatEntry entry : allEntries) {
+			if (entry.getCM_ChatEntry_ID() == threadRootId) {
+				rootEntry = entry;
+				threadEntries.add(entry);
+				break;
+			}
+		}
+
+		if (rootEntry == null) {
+			log.warning("Thread root entry not found: " + threadRootId);
+			return threadEntries;
+		}
+
+		// Add all child messages (messages with this root as parent)
+		// We only support one level: root + children (no grandchildren)
+		for (MChatEntry entry : allEntries) {
+			if (entry.getCM_ChatEntry_ID() != threadRootId &&
+				entry.getCM_ChatEntryParent_ID() == threadRootId) {
+				threadEntries.add(entry);
+			}
+		}
+
+		log.fine("Filtered " + allEntries.length + " entries to " + threadEntries.size() +
+			" entries for thread " + threadRootId);
+		return threadEntries;
 	}
 
 	/**

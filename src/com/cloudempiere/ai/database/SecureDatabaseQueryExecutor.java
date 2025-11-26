@@ -20,6 +20,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
 import java.util.logging.Level;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.compiere.model.AccessSqlParser;
 import org.compiere.model.MRole;
@@ -156,12 +158,19 @@ public class SecureDatabaseQueryExecutor {
             // 4. Validate SQL is read-only (no DML/DDL)
             validateReadOnlySQL(request.getSql());
 
-            // 5. Extract table names from query
-            List<String> tables = extractTableNames(request.getSql());
-            result.setTablesAccessed(tables);
+            // 5. Extract table info (names and aliases) from query
+            List<TableInfoHolder> tableInfoList = extractTableInfo(request.getSql());
+
+            // Build table names list for audit logging
+            List<String> tableNames = new ArrayList<>();
+            for (TableInfoHolder info : tableInfoList) {
+                tableNames.add(info.getTableName());
+            }
+            result.setTablesAccessed(tableNames);
 
             // 6. Validate logged-in user's role has access to all tables in query
-            for (String tableName : tables) {
+            for (TableInfoHolder tableInfo : tableInfoList) {
+                String tableName = tableInfo.getTableName();
                 int tableId = getTableId(tableName);
                 if (tableId <= 0) {
                     String error = "Table not found: " + tableName;
@@ -191,9 +200,16 @@ public class SecureDatabaseQueryExecutor {
             // 8. Apply logged-in user's role-based security SQL injection
             // This adds WHERE clauses for client, org, table access, etc.
             // Uses AI user + logged-in user's role for MRole.addAccessSQL()
+            // IMPORTANT: Pass alias (synonym) if present, otherwise table name
+            // This matches how AccessSqlParser.TableInfo works internally in MRole.addAccessSQL
+            TableInfoHolder primaryTable = tableInfoList.get(0);
+            String primaryTableForAccess = primaryTable.getSynonymOrTableName();
+            log.fine("Primary table for access SQL: " + primaryTableForAccess +
+                    " (table: " + primaryTable.getTableName() + ")");
+
             String securedSQL = role.addAccessSQL(
                 sqlWithoutTrailingClauses,
-                tables.get(0), // Primary table
+                primaryTableForAccess, // Pass alias if present, otherwise table name
                 true,          // Fully qualified
                 false          // Read-only mode (less restrictive for SELECT)
             );
@@ -313,13 +329,56 @@ public class SecureDatabaseQueryExecutor {
     }
 
     /**
-     * Extract table names from SQL query using iDempiere's parser
+     * Table information holder with table name and optional alias
      * <p>
+     * This mirrors the concept from {@link AccessSqlParser.TableInfo} to properly
+     * support table aliases when calling {@link MRole#addAccessSQL}.
+     */
+    private static class TableInfoHolder {
+        private final String tableName;
+        private final String alias;
+
+        public TableInfoHolder(String tableName, String alias) {
+            this.tableName = tableName;
+            this.alias = alias;
+        }
+
+        public String getTableName() {
+            return tableName;
+        }
+
+        /**
+         * Get the synonym/alias for use with MRole.addAccessSQL
+         * @return alias if present, otherwise table name
+         */
+        public String getSynonymOrTableName() {
+            if (alias != null && !alias.isEmpty()) {
+                return alias;
+            }
+            return tableName;
+        }
+
+        @Override
+        public String toString() {
+            if (alias != null && !alias.isEmpty()) {
+                return tableName + "=" + alias;
+            }
+            return tableName;
+        }
+    }
+
+    /**
+     * Extract table information from SQL query using iDempiere's parser
+     * <p>
+     * Returns table info with both table names and aliases.
      * Filters out aliases, column names, and other non-table identifiers.
      * Only returns actual iDempiere table names that exist in AD_Table.
+     *
+     * @param sql SQL query to parse
+     * @return list of TableInfoHolder with table names and aliases
      */
-    private List<String> extractTableNames(String sql) {
-        List<String> tables = new ArrayList<>();
+    private List<TableInfoHolder> extractTableInfo(String sql) {
+        List<TableInfoHolder> tables = new ArrayList<>();
 
         try {
             // Use iDempiere's AccessSqlParser
@@ -346,7 +405,11 @@ public class SecureDatabaseQueryExecutor {
 
                             // FILTER: Only add if it looks like a valid table name and exists in AD_Table
                             if (isValidTableName(tableName)) {
-                                tables.add(tableName);
+                                // Get the alias/synonym from parser
+                                String alias = info.getSynonym();
+                                tables.add(new TableInfoHolder(tableName, alias));
+                                log.fine("Extracted table: " + tableName +
+                                        (alias != null && !alias.isEmpty() ? " (alias: " + alias + ")" : ""));
                             }
                         }
                     }
@@ -363,6 +426,20 @@ public class SecureDatabaseQueryExecutor {
         }
 
         return tables;
+    }
+
+    /**
+     * Extract table names from SQL query (for backward compatibility and audit logging)
+     * @param sql SQL query to parse
+     * @return list of table names
+     */
+    private List<String> extractTableNames(String sql) {
+        List<TableInfoHolder> tableInfo = extractTableInfo(sql);
+        List<String> tableNames = new ArrayList<>();
+        for (TableInfoHolder info : tableInfo) {
+            tableNames.add(info.getTableName());
+        }
+        return tableNames;
     }
 
     /**
@@ -492,11 +569,11 @@ public class SecureDatabaseQueryExecutor {
 
         // Extract LIMIT/FETCH FIRST (must come last)
         // PostgreSQL: LIMIT N [OFFSET M]
-        java.util.regex.Pattern limitPattern = java.util.regex.Pattern.compile(
+        Pattern limitPattern = Pattern.compile(
             "\\s+LIMIT\\s+(\\d+)(\\s+OFFSET\\s+\\d+)?\\s*$",
-            java.util.regex.Pattern.CASE_INSENSITIVE
+            Pattern.CASE_INSENSITIVE
         );
-        java.util.regex.Matcher limitMatcher = limitPattern.matcher(trimmedSQL);
+        Matcher limitMatcher = limitPattern.matcher(trimmedSQL);
 
         if (limitMatcher.find()) {
             limitValue = Integer.parseInt(limitMatcher.group(1));
@@ -505,11 +582,11 @@ public class SecureDatabaseQueryExecutor {
             log.fine("Extracted LIMIT clause: " + limitClause);
         } else {
             // Oracle: FETCH FIRST N ROWS ONLY
-            java.util.regex.Pattern fetchPattern = java.util.regex.Pattern.compile(
+            Pattern fetchPattern = Pattern.compile(
                 "\\s+FETCH\\s+FIRST\\s+(\\d+)\\s+ROWS?\\s+ONLY\\s*$",
-                java.util.regex.Pattern.CASE_INSENSITIVE
+                Pattern.CASE_INSENSITIVE
             );
-            java.util.regex.Matcher fetchMatcher = fetchPattern.matcher(trimmedSQL);
+            Matcher fetchMatcher = fetchPattern.matcher(trimmedSQL);
 
             if (fetchMatcher.find()) {
                 limitValue = Integer.parseInt(fetchMatcher.group(1));
@@ -522,11 +599,11 @@ public class SecureDatabaseQueryExecutor {
         // Extract ORDER BY clause
         // Pattern: ORDER BY ... (everything until end or until GROUP BY/HAVING)
         // Must handle: ORDER BY col1, col2 DESC, col3 ASC
-        java.util.regex.Pattern orderByPattern = java.util.regex.Pattern.compile(
+        Pattern orderByPattern = Pattern.compile(
             "\\s+ORDER\\s+BY\\s+[^;]+$",
-            java.util.regex.Pattern.CASE_INSENSITIVE
+            Pattern.CASE_INSENSITIVE
         );
-        java.util.regex.Matcher orderByMatcher = orderByPattern.matcher(trimmedSQL);
+        Matcher orderByMatcher = orderByPattern.matcher(trimmedSQL);
 
         if (orderByMatcher.find()) {
             orderByClause = orderByMatcher.group(0).trim();
@@ -535,11 +612,11 @@ public class SecureDatabaseQueryExecutor {
         }
 
         // Extract HAVING clause (must come after GROUP BY, before ORDER BY)
-        java.util.regex.Pattern havingPattern = java.util.regex.Pattern.compile(
+        Pattern havingPattern = Pattern.compile(
             "\\s+HAVING\\s+[^;]+$",
-            java.util.regex.Pattern.CASE_INSENSITIVE
+            Pattern.CASE_INSENSITIVE
         );
-        java.util.regex.Matcher havingMatcher = havingPattern.matcher(trimmedSQL);
+        Matcher havingMatcher = havingPattern.matcher(trimmedSQL);
 
         if (havingMatcher.find()) {
             havingClause = havingMatcher.group(0).trim();
@@ -548,11 +625,11 @@ public class SecureDatabaseQueryExecutor {
         }
 
         // Extract GROUP BY clause (must come before HAVING and ORDER BY)
-        java.util.regex.Pattern groupByPattern = java.util.regex.Pattern.compile(
+        Pattern groupByPattern = Pattern.compile(
             "\\s+GROUP\\s+BY\\s+[^;]+$",
-            java.util.regex.Pattern.CASE_INSENSITIVE
+            Pattern.CASE_INSENSITIVE
         );
-        java.util.regex.Matcher groupByMatcher = groupByPattern.matcher(trimmedSQL);
+        Matcher groupByMatcher = groupByPattern.matcher(trimmedSQL);
 
         if (groupByMatcher.find()) {
             groupByClause = groupByMatcher.group(0).trim();

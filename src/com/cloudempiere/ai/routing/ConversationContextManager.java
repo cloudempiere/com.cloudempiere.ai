@@ -14,9 +14,15 @@
 package com.cloudempiere.ai.routing;
 
 import java.time.Duration;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.EnumMap;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Stack;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.logging.Level;
 
 import org.compiere.util.CLogger;
 
@@ -28,6 +34,7 @@ import org.compiere.util.CLogger;
  * - TTL-based expiration for cache freshness
  * - LRU eviction when capacity is reached
  * - Thread-safe concurrent access
+ * - Thread-scoped caching (each conversation thread has isolated cache)
  * - Pronoun resolution tracking (it, that, this)
  * - Entity history for conversation continuity
  *
@@ -46,11 +53,14 @@ public class ConversationContextManager {
     /** Maximum entries before LRU eviction kicks in */
     private final int maxEntries;
 
-    /** Track last accessed entity for pronoun resolution */
-    private String lastEntityKey;
+    /** Current thread root ID for thread-scoped caching (0 = global/no thread) */
+    private int currentThreadRootId = 0;
 
-    /** Entity history stack for "previous" references */
-    private final Stack<String> entityHistory = new Stack<>();
+    /** Track last accessed entity for pronoun resolution (per-thread) */
+    private final Map<Integer, String> lastEntityKeyByThread = new ConcurrentHashMap<>();
+
+    /** Entity history stack for "previous" references (per-thread) */
+    private final Map<Integer, Stack<String>> entityHistoryByThread = new ConcurrentHashMap<>();
 
     /**
      * Constructor
@@ -65,7 +75,64 @@ public class ConversationContextManager {
     }
 
     /**
+     * Set the current thread root ID for thread-scoped caching
+     * All subsequent put/get operations will be scoped to this thread
+     *
+     * @param threadRootId thread root message ID (0 = global/no thread scope)
+     */
+    public void setCurrentThreadRootId(int threadRootId) {
+        this.currentThreadRootId = threadRootId;
+        log.fine("Thread context set to: " + (threadRootId > 0 ? threadRootId : "global"));
+    }
+
+    /**
+     * Get the current thread root ID
+     * @return current thread root ID (0 = global/no thread scope)
+     */
+    public int getCurrentThreadRootId() {
+        return currentThreadRootId;
+    }
+
+    /**
+     * Build thread-scoped key from base key
+     * @param key base key
+     * @return thread-scoped key
+     */
+    private String buildThreadKey(String key) {
+        if (currentThreadRootId <= 0) {
+            return key; // Global scope
+        }
+        return "t" + currentThreadRootId + ":" + key;
+    }
+
+    /**
+     * Get entity history stack for current thread
+     * @return entity history stack
+     */
+    private Stack<String> getEntityHistory() {
+        return entityHistoryByThread.computeIfAbsent(currentThreadRootId, k -> new Stack<>());
+    }
+
+    /**
+     * Get last entity key for current thread
+     * @return last entity key or null
+     */
+    private String getLastEntityKey() {
+        return lastEntityKeyByThread.get(currentThreadRootId);
+    }
+
+    /**
+     * Set last entity key for current thread
+     * @param key entity key
+     */
+    private void setLastEntityKey(String key) {
+        lastEntityKeyByThread.put(currentThreadRootId, key);
+    }
+
+    /**
      * Store data with custom TTL
+     * Data is stored with thread-scoped key if currentThreadRootId is set
+     *
      * @param key unique key for the data
      * @param value data to store
      * @param ttlMs time-to-live in milliseconds
@@ -74,14 +141,16 @@ public class ConversationContextManager {
         cleanupExpired();
         enforceMaxEntries();
 
-        data.put(key, new ContextEntry(
+        String threadKey = buildThreadKey(key);
+        data.put(threadKey, new ContextEntry(
             value,
             System.currentTimeMillis() + ttlMs,
             determineDataType(key, value)
         ));
 
-        lastEntityKey = key;
-        log.fine("Cached: " + key + " (TTL: " + (ttlMs / 1000) + "s)");
+        setLastEntityKey(threadKey);
+        log.fine("Cached: " + threadKey + " (TTL: " + (ttlMs / 1000) + "s)" +
+                (currentThreadRootId > 0 ? " [thread: " + currentThreadRootId + "]" : ""));
     }
 
     /**
@@ -95,21 +164,28 @@ public class ConversationContextManager {
 
     /**
      * Get data if not expired
+     * Data is retrieved with thread-scoped key if currentThreadRootId is set
+     *
      * @param key unique key
      * @param <T> expected return type
      * @return cached value or null if expired/not found
      */
     @SuppressWarnings("unchecked")
     public <T> T get(String key) {
+        String lastEntity = getLastEntityKey();
+
         // Handle pronoun resolution
-        if ("LAST_ENTITY".equals(key) && lastEntityKey != null) {
-            key = lastEntityKey;
+        if ("LAST_ENTITY".equals(key) && lastEntity != null) {
+            key = lastEntity; // Already thread-scoped
             log.fine("Resolved LAST_ENTITY to: " + key);
+        } else {
+            key = buildThreadKey(key);
         }
 
         ContextEntry entry = data.get(key);
         if (entry == null) {
-            log.fine("Cache miss: " + key);
+            log.fine("Cache miss: " + key +
+                    (currentThreadRootId > 0 ? " [thread: " + currentThreadRootId + "]" : ""));
             return null;
         }
 
@@ -121,7 +197,8 @@ public class ConversationContextManager {
         }
 
         entry.markAccessed();
-        log.fine("Cache hit: " + key);
+        log.fine("Cache hit: " + key +
+                (currentThreadRootId > 0 ? " [thread: " + currentThreadRootId + "]" : ""));
         return (T) entry.getValue();
     }
 
@@ -151,52 +228,77 @@ public class ConversationContextManager {
     }
 
     /**
-     * Check if context has any data
-     * @return true if context is not empty
+     * Check if context has any data for the current thread
+     * @return true if context is not empty for current thread
      */
     public boolean hasData() {
         cleanupExpired();
-        return !data.isEmpty();
+
+        if (data.isEmpty()) {
+            return false;
+        }
+
+        // Check if there's data for the current thread
+        String threadPrefix = currentThreadRootId > 0 ? "t" + currentThreadRootId + ":" : "";
+
+        for (String key : data.keySet()) {
+            boolean matchesThread = (currentThreadRootId <= 0 && !key.contains(":"))
+                    || (currentThreadRootId > 0 && key.startsWith(threadPrefix));
+            if (matchesThread) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
      * Track entity mention for pronoun resolution
      * Enables "What's its status?" to work after mentioning an entity
+     * Entity is tracked per-thread to maintain conversation isolation
      *
      * @param entityType entity type (ORDER, CUSTOMER, PRODUCT, etc.)
      * @param entityId entity identifier
      */
     public void trackEntity(String entityType, String entityId) {
-        String key = entityType + "_" + entityId;
-        lastEntityKey = key;
-        entityHistory.push(key);
+        String key = buildThreadKey(entityType + "_" + entityId);
+        setLastEntityKey(key);
+
+        Stack<String> history = getEntityHistory();
+        history.push(key);
 
         // Limit history size to prevent memory growth
-        if (entityHistory.size() > 10) {
-            entityHistory.remove(0);
+        if (history.size() > 10) {
+            history.remove(0);
         }
 
-        log.fine("Tracked entity: " + key);
+        log.fine("Tracked entity: " + key +
+                (currentThreadRootId > 0 ? " [thread: " + currentThreadRootId + "]" : ""));
     }
 
     /**
      * Resolve pronoun reference to entity key
+     * Resolves within current thread's entity history
+     *
      * @param pronoun pronoun to resolve (it, that, this, previous)
      * @return entity key or null if can't resolve
      */
     public String resolveReference(String pronoun) {
         String resolved = null;
+        String lastEntity = getLastEntityKey();
+        Stack<String> history = getEntityHistory();
 
         if ("it".equalsIgnoreCase(pronoun) ||
             "that".equalsIgnoreCase(pronoun) ||
             "this".equalsIgnoreCase(pronoun)) {
-            resolved = lastEntityKey;
-        } else if ("previous".equalsIgnoreCase(pronoun) && entityHistory.size() > 1) {
-            resolved = entityHistory.get(entityHistory.size() - 2);
+            resolved = lastEntity;
+        } else if ("previous".equalsIgnoreCase(pronoun) && history.size() > 1) {
+            resolved = history.get(history.size() - 2);
         }
 
         if (resolved != null) {
-            log.fine("Resolved pronoun '" + pronoun + "' to: " + resolved);
+            log.fine("Resolved pronoun '" + pronoun + "' to: " + resolved +
+                    (currentThreadRootId > 0 ? " [thread: " + currentThreadRootId + "]" : ""));
         }
 
         return resolved;
@@ -204,26 +306,43 @@ public class ConversationContextManager {
 
     /**
      * Get description of context contents for LLM system prompt
+     * Only includes entries for the current thread
+     *
      * @return formatted description of cached entities
      */
     public String describeContents() {
         cleanupExpired();
 
-        if (data.isEmpty()) {
-            return "No recent conversation context available.";
+        String threadPrefix = currentThreadRootId > 0 ? "t" + currentThreadRootId + ":" : "";
+
+        // Filter entries by current thread
+        Map<DataType, List<String>> byType = new EnumMap<>(DataType.class);
+        int threadEntryCount = 0;
+
+        for (Map.Entry<String, ContextEntry> mapEntry : data.entrySet()) {
+            String key = mapEntry.getKey();
+            ContextEntry entry = mapEntry.getValue();
+
+            // Filter by thread: include if key starts with thread prefix, or no thread and no prefix
+            boolean matchesThread = (currentThreadRootId <= 0 && !key.contains(":"))
+                    || (currentThreadRootId > 0 && key.startsWith(threadPrefix));
+
+            if (matchesThread && !entry.isExpired()) {
+                // Strip thread prefix for display
+                String displayKey = key.startsWith(threadPrefix) ? key.substring(threadPrefix.length()) : key;
+                byType.computeIfAbsent(entry.getDataType(), k -> new ArrayList<>())
+                      .add(displayKey);
+                threadEntryCount++;
+            }
+        }
+
+        if (threadEntryCount == 0) {
+            return "No recent conversation context available" +
+                    (currentThreadRootId > 0 ? " for this thread." : ".");
         }
 
         StringBuilder sb = new StringBuilder();
         sb.append("Recently discussed entities:\n");
-
-        Map<DataType, List<String>> byType = new EnumMap<>(DataType.class);
-
-        data.forEach((key, entry) -> {
-            if (!entry.isExpired()) {
-                byType.computeIfAbsent(entry.getDataType(), k -> new ArrayList<>())
-                      .add(key);
-            }
-        });
 
         byType.forEach((type, keys) -> {
             sb.append("- ").append(type).append(": ")
@@ -234,13 +353,34 @@ public class ConversationContextManager {
     }
 
     /**
-     * Clear all context data
+     * Clear all context data for the current thread
+     * If no thread is set, clears all global (non-thread-scoped) data
      */
     public void clear() {
+        if (currentThreadRootId <= 0) {
+            // Clear global entries only (keys without thread prefix)
+            data.entrySet().removeIf(e -> !e.getKey().contains(":"));
+            lastEntityKeyByThread.remove(0);
+            entityHistoryByThread.remove(0);
+            log.fine("Global context cleared");
+        } else {
+            // Clear entries for current thread only
+            String threadPrefix = "t" + currentThreadRootId + ":";
+            data.entrySet().removeIf(e -> e.getKey().startsWith(threadPrefix));
+            lastEntityKeyByThread.remove(currentThreadRootId);
+            entityHistoryByThread.remove(currentThreadRootId);
+            log.fine("Thread " + currentThreadRootId + " context cleared");
+        }
+    }
+
+    /**
+     * Clear all context data for all threads
+     */
+    public void clearAll() {
         data.clear();
-        lastEntityKey = null;
-        entityHistory.clear();
-        log.fine("Context cleared");
+        lastEntityKeyByThread.clear();
+        entityHistoryByThread.clear();
+        log.fine("All context cleared");
     }
 
     /**

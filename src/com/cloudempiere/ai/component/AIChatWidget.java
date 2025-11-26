@@ -199,7 +199,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 		newThreadButton = new Button();
 		newThreadButton.addEventListener(Events.ON_CLICK, this);
 		newThreadButton.setSclass("ai-newthread-btn");
-		newThreadButton.setLabel(Msg.getMsg(Env.getCtx(), "New"));
+		newThreadButton.setLabel(Msg.getMsg(Env.getCtx(), "New")); // FIXME: create message
 		if (ThemeManager.isUseFontIconForImage())
 			newThreadButton.setIconSclass("z-icon-New");
 		else
@@ -498,10 +498,10 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 
 		if (isAIMessage(entry)) {
 			// Return the actual AI user's name from the provider
-			return user != null ? user.getName() : "AI Assistant";
+			return user != null ? user.getName() : "AI Assistant"; // FIXME: create message
 		}
 
-		return user != null ? user.getName() : "User";
+		return user != null ? user.getName() : "User"; // FIXME: create message
 	}
 
 	/**
@@ -625,8 +625,9 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 		showLoading();
 		scrollToBottom();
 
-		// Capture context snapshot for async operation
+		// Capture context snapshot and thread root ID for async operation
 		final JSONObject contextSnapshot = currentContext;
+		final int threadRootIdSnapshot = currentThreadRootId;
 
 		// Call AI service asynchronously
 		Desktop desktop = Executions.getCurrent().getDesktop();
@@ -638,12 +639,14 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 					new MAIChat(sessionCtx, chat.getCM_Chat_ID(), null);
 
 				// Call AI service with session context (CRITICAL: use sessionCtx not Env.getCtx()!)
+				// Pass threadRootIdSnapshot to filter conversation history to current thread only
 				AIResponse aiResponse = aiService.sendMessageWithContext(
 					sessionCtx,  // Use session context here to get correct language/client
 					aiChat,
 					message,
 					contextSnapshot,  // Pass context here
 					10,  // Include last 10 messages for conversation history
+					threadRootIdSnapshot,  // Filter history to current thread only
 					null
 				);
 
@@ -657,8 +660,8 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 
 				// Set thread parent (AI response is child of the thread root)
 				// We only support one level: root message + children
-				if (currentThreadRootId > 0) {
-					aiEntry.setCM_ChatEntryParent_ID(currentThreadRootId);
+				if (threadRootIdSnapshot > 0) {
+					aiEntry.setCM_ChatEntryParent_ID(threadRootIdSnapshot);
 				}
 
 				aiEntry.saveEx();
@@ -690,8 +693,8 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 
 					// Set thread parent for error entry
 					// We only support one level: root message + children
-					if (currentThreadRootId > 0) {
-						errorEntry.setCM_ChatEntryParent_ID(currentThreadRootId);
+					if (threadRootIdSnapshot > 0) {
+						errorEntry.setCM_ChatEntryParent_ID(threadRootIdSnapshot);
 					}
 
 					errorEntry.saveEx();
