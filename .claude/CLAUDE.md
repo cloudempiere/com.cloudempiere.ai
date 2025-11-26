@@ -1,0 +1,334 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Project Overview
+
+**com.cloudempiere.ai** is an iDempiere ERP plugin that integrates AI capabilities into the CloudEmpiere enterprise platform. It implements a multi-provider architecture supporting both external AI APIs (Anthropic Claude, AWS Bedrock) and local LLMs (Ollama) with secure database query execution.
+
+**Project Type**: Eclipse Plugin / Maven OSGi Bundle
+**Language**: Java (33 source files)
+**Build System**: Maven with PDE (Tycho) integration
+
+## Build and Development Commands
+
+### Maven Build Commands
+
+```bash
+# Clean build
+mvn clean install
+
+# Build without tests
+mvn clean install -DskipTests
+
+# Skip dependency copy (faster for iterative dev)
+mvn clean compile -DskipTests
+
+# Run tests only
+mvn test
+
+# Run a specific test class
+mvn test -Dtest=AnthropicProviderTest
+
+# Package as OSGi plugin
+mvn package
+```
+
+### Key Maven Phases
+
+- **validate**: Copies dependencies (Anthropic SDK, AWS Bedrock, Jackson, Kotlin, Netty, OkHttp)
+- **compile**: Compiles source to `target/classes/`
+- **package**: Creates OSGi plugin JAR with embedded libraries
+
+### IDE Setup
+
+- **Eclipse**: Import as "Existing Maven Projects" - pom.xml has Maven and PDE integration
+- **Build Spec**: Includes Eclipse JDT, PDE ManifestBuilder, SchemaBuilder, and Maven2Builder
+- **Output Directory**: `target/classes/`
+
+## Project Architecture
+
+### High-Level Design
+
+The plugin implements a **Provider Pattern** with **Factory Pattern** for extensible AI provider integration:
+
+```
+AIRequest/AIResponse (DTOs)
+    ↓
+IAIProvider (Interface)
+    ↓
+    ├── AnthropicProvider (Claude API)
+    ├── AWSBedrockProvider (AWS Foundation Models)
+    └── [Other Providers]
+    ↓
+AIProviderFactory (OSGi Service, @Component)
+    ↓
+Uses: MAIProvider (Database Model)
+```
+
+### Core Components
+
+#### 1. **Provider Layer** (`src/com/cloudempiere/ai/provider/`)
+- **IAIProvider**: Main interface defining provider contract
+  - Text generation (sync/streaming)
+  - Embeddings
+  - Vision and audio support
+  - Health monitoring and cost estimation
+  - Lifecycle management
+
+- **Implementations** (`impl/`):
+  - **AnthropicProvider**: Full Claude integration (3-Opus, 3-Sonnet, 3-Haiku, 3.5-Sonnet)
+    - Uses official Anthropic Java SDK v2.10.0
+    - Streaming support with callbacks
+    - Function calling support
+    - Cost estimation (pricing updated Jan 2025)
+  - **AWSBedrockProvider**: AWS Foundation Models integration
+
+- **Factory** (`factory/`):
+  - **AIProviderFactory**: OSGi service that dynamically loads providers
+    - Registry: Maps AIGProviderType → Implementation class
+    - Caching: Instances cached by provider ID
+    - Service Ranking: 100 (higher priority)
+    - Immediate initialization on bundle start
+
+- **DTOs** (`dto/`):
+  - **AIRequest**: Request wrapper (Builder pattern)
+    - Message history, model, temperature, maxTokens, topP
+    - Provider-specific parameters map
+    - iDempiere context map
+  - **AIResponse**: Response with tokens, cost, function calls
+  - **AIMessage**: Conversation message (role, content, function calls)
+  - **AITokenUsage**: Token tracking (input, output, total)
+  - **AIModelCapabilities**: Feature flags per model
+  - **AIHealthStatus**: Health monitoring
+  - **AIRateLimitStatus**: Rate limit tracking
+  - **AIFunction** / **AIFunctionCall**: Tool use
+  - **AIStreamCallback**: Streaming interface
+
+- **Exception**: **AIProviderException** with error codes and retryable flag
+
+#### 2. **Database & Security** (`src/com/cloudempiere/ai/database/`)
+- **SecureDatabaseQueryExecutor**: Executes AI-requested queries with security
+  - **Security Model**: Query executes as AI User (from AIG_Provider.AD_User_ID) + Logged-in User's Role
+  - **Principle**: If user's role cannot access a table/column/record, AI cannot either
+  - **Audit Trail**: Records both AI user and initiating user
+  - Uses iDempiere's **AccessSqlParser** for role-based permission checks
+  - Query validation prevents injection attacks
+
+- **DTOs**:
+  - **SecureQueryRequest**: Query + context info
+  - **SecureQueryResult**: Result set as JSON + metadata
+  - **SecureQueryAudit**: Audit log records
+
+#### 3. **Context Providers** (`src/com/cloudempiere/ai/context/`)
+- **IAIContextProvider**: Interface for context extraction
+  - **WindowContextProvider**: Extracts context from iDempiere windows
+  - **ChartContextProvider**: Extracts chart data and metadata
+- **AIContextProviderRegistry**: Registry for context providers
+- **ContextParameters**: Parameters for context extraction
+
+#### 4. **Data Models** (`src/com/cloudempiere/ai/model/`)
+- **I_AIG_Provider**: Interface (generated from AD_Table)
+- **X_AIG_Provider**: Base model (generated from AD_Table)
+- **MAIProvider**: Business logic model
+  - Wrapper around AIG_Provider table
+  - Manages provider credentials and configuration
+  - Supports multiple providers in single instance
+
+#### 5. **Processes** (`src/com/cloudempiere/ai/process/`)
+- **TestAIProvider**: iDempiere process for testing provider connectivity
+  - Checks health status
+  - Verifies credentials
+  - Lists available models
+
+#### 6. **OSGi Integration**
+- **Activator.java**: Bundle lifecycle management
+- **OSGI-INF/com.cloudempiere.ai.provider.factory.AIProviderFactory.xml**: Service declaration
+
+### Package Structure
+
+```
+src/com/cloudempiere/ai/
+├── context/
+│   ├── IAIContextProvider.java
+│   ├── AIContextProviderRegistry.java
+│   ├── ContextParameters.java
+│   └── impl/
+│       ├── WindowContextProvider.java
+│       └── ChartContextProvider.java
+├── database/
+│   ├── SecureDatabaseQueryExecutor.java
+│   └── dto/
+│       ├── SecureQueryRequest.java
+│       ├── SecureQueryResult.java
+│       └── SecureQueryAudit.java
+├── model/
+│   ├── I_AIG_Provider.java
+│   ├── X_AIG_Provider.java
+│   └── MAIProvider.java
+├── process/
+│   └── TestAIProvider.java
+├── provider/
+│   ├── IAIProvider.java
+│   ├── AIProviderException.java
+│   ├── dto/
+│   │   ├── AIFunction.java
+│   │   ├── AIFunctionCall.java
+│   │   ├── AIHealthStatus.java
+│   │   ├── AIMessage.java
+│   │   ├── AIModelCapabilities.java
+│   │   ├── AIRateLimitStatus.java
+│   │   ├── AIRequest.java
+│   │   ├── AIResponse.java
+│   │   ├── AIStreamCallback.java
+│   │   └── AITokenUsage.java
+│   ├── factory/
+│   │   ├── IAIProviderFactory.java
+│   │   └── AIProviderFactory.java
+│   ├── impl/
+│   │   ├── AnthropicProvider.java
+│   │   └── AWSBedrockProvider.java
+│   └── test/
+│       └── AnthropicProviderTest.java
+├── Activator.java
+└── ...
+```
+
+## Key Dependencies
+
+### Direct Dependencies (Maven)
+- **Anthropic Java SDK v2.10.0**: Official Claude API client
+- **AWS SDK v2.29.0**: Bedrock runtime for AWS Foundation Models
+- **Jackson v2.17.0**: JSON serialization/deserialization
+- **Kotlin v1.9.10**: Dependency of Anthropic SDK
+- **OkHttp v4.12.0**: HTTP client for Anthropic SDK
+- **Netty v4.1.100**: Async I/O for AWS SDK
+- **iDempiere Core**: Compiere framework (OSGi, database access, logging)
+
+### Embedded in Plugin (via build.properties)
+All Maven dependencies are copied to `lib/` directory and included in the OSGi plugin JAR.
+
+## Security Considerations
+
+### Critical: AI User Identity Model
+- Each AIG_Provider has an associated AD_User_ID (AI user account)
+- Database queries execute as this AI user + caller's role
+- This provides:
+  - Clear audit trail (who initiated vs. who executed)
+  - Role-based access control enforcement
+  - Prevention of privilege escalation
+
+### Query Execution Security
+- All database queries go through **SecureDatabaseQueryExecutor**
+- Uses iDempiere's **AccessSqlParser** to enforce role-based permissions
+- Query validation prevents SQL injection
+- Audit logging of all AI-initiated queries
+
+### Credential Management
+- Provider credentials stored encrypted in database (AIG_Provider table)
+- Never log or expose API keys
+- Use environment variables for testing (not committed to repo)
+
+## Testing
+
+### Existing Tests
+- **AnthropicProviderTest**: Tests Anthropic provider integration
+  - Health checks
+  - Text generation (sync and streaming)
+  - Function calling
+  - Cost estimation
+- **TestAIProvider**: iDempiere process test
+
+### Running Tests
+```bash
+# Run all tests
+mvn test
+
+# Run specific test
+mvn test -Dtest=AnthropicProviderTest
+
+# Skip tests during build
+mvn install -DskipTests
+```
+
+### Important: Environment Setup for Tests
+- Set `ANTHROPIC_API_KEY` environment variable for real API testing
+- For CI/CD, use mock providers or test API keys with rate limits
+
+## Documentation
+
+### In-Repository Documentation
+- **CLAUDE/CLD-1601/**: Implementation planning and tracking
+  - **IMPLEMENTATION_STATUS.md**: Phase completion status
+  - **COMPREHENSIVE_IMPLEMENTATION_PLAN.md**: Full architectural plan with 11 use cases
+  - **AI_PROVIDER_IMPLEMENTATION_PLAN.md**: Provider-specific implementation details
+  - **AI_DATA_MODEL_ARCHITECTURE.md**: Database schema with ERD and materialized views
+
+### External Documentation
+- **Anthropic API**: https://docs.anthropic.com/claude/reference
+- **iDempiere Plugin Development**: https://wiki.idempiere.org/
+
+## Common Development Tasks
+
+### Adding a New AI Provider
+
+1. **Create Provider Class** in `src/com/cloudempiere/ai/provider/impl/`:
+   ```java
+   public class MyProvider implements IAIProvider {
+       @Override public AIResponse generateText(AIRequest request) throws AIProviderException { }
+       // Implement other interface methods
+   }
+   ```
+
+2. **Register in AIProviderFactory**:
+   - Add entry to provider registry map in factory constructor
+   - Factory will dynamically instantiate based on AIGProviderType
+
+3. **Add Model Pricing** if applicable:
+   - Similar to AnthropicProvider's MODEL_PRICING map
+   - Used for cost estimation in AIResponse
+
+4. **Testing**:
+   - Create test class similar to AnthropicProviderTest
+   - Test health checks, text generation, streaming
+   - Test error handling for API rate limits and timeouts
+
+### Extending Context Providers
+
+1. **Implement IAIContextProvider** in `context/impl/`:
+   - Extract relevant business data for AI consumption
+   - Return structured context with metadata
+
+2. **Register in AIContextProviderRegistry**:
+   - Map context type to provider implementation
+
+### Database Query Integration
+
+- Use **SecureDatabaseQueryExecutor** for all AI-initiated queries
+- Call `SecureDatabaseQueryExecutor.executeSecureQuery(request)`
+- Results returned as JSON (SecureQueryResult)
+- Audit trail automatically recorded
+
+## Recent Development
+
+### Latest Implementation (CLD-1601)
+- ✅ AI user identity model for secure database access
+- ✅ Complete provider infrastructure (14 classes)
+- ✅ Anthropic Claude integration (full implementation)
+- ✅ AWS Bedrock integration (skeleton)
+- ✅ Database security layer with audit logging
+- ✅ Context provider system for window/chart data
+
+### Next Phases
+- Phase 2: Complete AWS Bedrock provider and add Ollama integration
+- Phase 3: Production-ready database schema and migrations
+- Phase 4: Comprehensive testing suite
+- Phase 5: Complete Javadoc and user documentation
+
+## Notes
+
+- The plugin follows iDempiere conventions for model classes (I_*, X_*, M*)
+- OSGi services use @Component annotations for lifecycle management
+- Logging uses iDempiere's CLogger (based on java.util.logging)
+- Database queries use iDempiere's DB class and PreparedStatements
+- All external API calls include proper error handling and retryability
