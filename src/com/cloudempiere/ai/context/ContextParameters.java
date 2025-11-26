@@ -322,6 +322,17 @@ public class ContextParameters {
             .put("infoWindowId", infoWindowId);
     }
 
+    /**
+     * Create parameters for knowledge base context extraction
+     *
+     * @param kType knowledge base type
+     * @return parameter set with knowledge base type
+     */
+    public static ContextParameters forKnowledgeBase(String kType) {
+        return new ContextParameters(2)
+            .put("k_type", kType);
+    }
+
     @Override
     public String toString() {
         return "ContextParameters" + parameters;
