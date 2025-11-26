@@ -53,4 +53,5 @@ Bundle-ClassPath: .,
  lib/netty-transport-native-unix-common.jar,
  lib/okhttp.jar,
  lib/okio.jar,
- lib/okio-jvm.jar
+ lib/okio-jvm.jar,
+ lib/langchain4j.jar

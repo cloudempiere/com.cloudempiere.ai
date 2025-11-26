@@ -145,6 +145,12 @@
 									<artifactId>netty-resolver</artifactId>
 									<version>4.1.100.Final</version>
 								</artifactItem>
+								<!-- https://mvnrepository.com/artifact/dev.langchain4j/langchain4j -->
+								<artifactItem>
+								    <groupId>dev.langchain4j</groupId>
+								    <artifactId>langchain4j</artifactId>
+								    <version>1.8.0</version>
+								</artifactItem>
 							</artifactItems>
 							<outputDirectory>lib</outputDirectory>
 							<stripVersion>true</stripVersion>
