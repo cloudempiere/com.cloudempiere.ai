@@ -149,7 +149,13 @@
 								<artifactItem>
 								    <groupId>dev.langchain4j</groupId>
 								    <artifactId>langchain4j</artifactId>
-								    <version>1.8.0</version>
+								    <version>1.0.0-beta3</version>
+								</artifactItem>
+								<!-- LangChain4j Core for @Tool annotations -->
+								<artifactItem>
+								    <groupId>dev.langchain4j</groupId>
+								    <artifactId>langchain4j-core</artifactId>
+								    <version>1.0.0-beta3</version>
 								</artifactItem>
 							</artifactItems>
 							<outputDirectory>lib</outputDirectory>

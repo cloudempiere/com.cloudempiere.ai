@@ -317,7 +317,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 			"setTimeout(function(){" +
 			"var el=document.querySelector('.ai-messages');" +
 			"if(el)el.scrollTop=el.scrollHeight;" +
-			"}, 400);"
+			"}, 600);"
 		);
 	}
 
