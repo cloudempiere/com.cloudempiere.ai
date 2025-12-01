@@ -308,9 +308,9 @@ public class ChartContextProvider implements IAIContextProvider {
         if (chartDatasources != null && chartDatasources.length > 0) {
             for (ChartDatasource ds : chartDatasources) {
                 JSONObject dsObj = new JSONObject();
-                dsObj.put("name", ds.getName());
-                dsObj.put("description", ds.getDescription());
-                dsObj.put("entity_type", ds.getEntityType());
+                dsObj.put("id", ds.getAD_ChartDatasource_ID());
+                dsObj.put("name", ds.get_Translation("Name"));
+                dsObj.put("description", ds.get_Translation("Description"));
                 dsObj.put("from_clause", ds.getFromClause());
                 dsObj.put("where_clause", ds.getWhereClause());
                 dsObj.put("date_column", ds.getDateColumn());

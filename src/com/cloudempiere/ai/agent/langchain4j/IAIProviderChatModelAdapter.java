@@ -14,12 +14,14 @@
 package com.cloudempiere.ai.agent.langchain4j;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.logging.Level;
 
 import org.compiere.util.CLogger;
 
-import com.cloudempiere.ai.model.MAIGProvider;
+import com.cloudempiere.ai.model.MAIProvider;
 import com.cloudempiere.ai.provider.AIProviderException;
 import com.cloudempiere.ai.provider.IAIProvider;
 import com.cloudempiere.ai.provider.dto.AIFunction;
@@ -69,7 +71,7 @@ public class IAIProviderChatModelAdapter implements ChatLanguageModel {
     private final IAIProvider provider;
 
     /** Provider configuration */
-    private final MAIGProvider providerConfig;
+    private final MAIProvider providerConfig;
 
     /** Default max tokens */
     private int maxTokens = 4096;
@@ -80,7 +82,7 @@ public class IAIProviderChatModelAdapter implements ChatLanguageModel {
      * @param provider iDempiere AI provider
      * @param providerConfig provider configuration
      */
-    public IAIProviderChatModelAdapter(IAIProvider provider, MAIGProvider providerConfig) {
+    public IAIProviderChatModelAdapter(IAIProvider provider, MAIProvider providerConfig) {
         this.provider = provider;
         this.providerConfig = providerConfig;
     }
@@ -112,7 +114,6 @@ public class IAIProviderChatModelAdapter implements ChatLanguageModel {
         }
     }
 
-    @Override
     public Response<AiMessage> generate(List<ChatMessage> messages) {
         ChatRequest request = ChatRequest.builder()
             .messages(messages)
@@ -126,7 +127,6 @@ public class IAIProviderChatModelAdapter implements ChatLanguageModel {
         );
     }
 
-    @Override
     public Response<AiMessage> generate(List<ChatMessage> messages, List<ToolSpecification> toolSpecifications) {
         ChatRequest request = ChatRequest.builder()
             .messages(messages)
@@ -141,7 +141,6 @@ public class IAIProviderChatModelAdapter implements ChatLanguageModel {
         );
     }
 
-    @Override
     public Response<AiMessage> generate(List<ChatMessage> messages, ToolSpecification toolSpecification) {
         List<ToolSpecification> specs = new ArrayList<>();
         if (toolSpecification != null) {
@@ -156,13 +155,12 @@ public class IAIProviderChatModelAdapter implements ChatLanguageModel {
     private AIRequest convertRequest(ChatRequest chatRequest) {
         AIRequest aiRequest = new AIRequest();
 
-        // Set model if available
+        // Set model if available from request parameters
         ChatRequestParameters params = chatRequest.parameters();
         if (params != null && params.modelName() != null) {
             aiRequest.setModel(params.modelName());
-        } else if (providerConfig != null) {
-            aiRequest.setModel(providerConfig.getAIG_ModelVersion());
         }
+        // Note: Model version is typically set by the provider during initialization
 
         // Set max tokens
         if (params != null && params.maxOutputTokens() != null) {
@@ -235,9 +233,11 @@ public class IAIProviderChatModelAdapter implements ChatLanguageModel {
             func.setName(spec.name());
             func.setDescription(spec.description());
 
-            // Convert parameters schema
+            // Convert parameters schema - store as Map with schema string
             if (spec.parameters() != null) {
-                func.setParameters(spec.parameters().toString());
+                Map<String, Object> paramsMap = new HashMap<>();
+                paramsMap.put("schema", spec.parameters().toString());
+                func.setParameters(paramsMap);
             }
 
             functions.add(func);
@@ -314,9 +314,9 @@ public class IAIProviderChatModelAdapter implements ChatLanguageModel {
     /**
      * Get provider configuration
      *
-     * @return MAIGProvider instance
+     * @return MAIProvider instance
      */
-    public MAIGProvider getProviderConfig() {
+    public MAIProvider getProviderConfig() {
         return providerConfig;
     }
 }

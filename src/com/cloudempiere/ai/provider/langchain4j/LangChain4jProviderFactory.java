@@ -17,6 +17,7 @@ import dev.langchain4j.model.ollama.OllamaChatModel;
 import dev.langchain4j.model.ollama.OllamaStreamingChatModel;
 import dev.langchain4j.model.openai.OpenAiChatModel;
 import dev.langchain4j.model.openai.OpenAiStreamingChatModel;
+import dev.langchain4j.model.bedrock.BedrockChatRequestParameters;
 import software.amazon.awssdk.regions.Region;
 
 /**
@@ -79,13 +80,18 @@ public class LangChain4jProviderFactory {
 
         log.info("Creating LangChain4j model for provider: " + providerType);
 
-        return switch (providerType) {
-            case PROVIDER_ANTHROPIC -> createAnthropicModel(apiKey, modelName);
-            case PROVIDER_BEDROCK -> createBedrockModel(modelName, baseUrl);
-            case PROVIDER_OLLAMA -> createOllamaModel(baseUrl, modelName);
-            case PROVIDER_OPENAI -> createOpenAiModel(apiKey, modelName);
-            default -> throw new IllegalArgumentException("Unknown provider type: " + providerType);
-        };
+        switch (providerType) {
+            case PROVIDER_ANTHROPIC:
+                return createAnthropicModel(apiKey, modelName);
+            case PROVIDER_BEDROCK:
+                return createBedrockModel(modelName, baseUrl);
+            case PROVIDER_OLLAMA:
+                return createOllamaModel(baseUrl, modelName);
+            case PROVIDER_OPENAI:
+                return createOpenAiModel(apiKey, modelName);
+            default:
+                throw new IllegalArgumentException("Unknown provider type: " + providerType);
+        }
     }
 
     /**
@@ -97,12 +103,16 @@ public class LangChain4jProviderFactory {
 
         log.info("Creating LangChain4j streaming model for provider: " + providerType);
 
-        return switch (providerType) {
-            case PROVIDER_ANTHROPIC -> createAnthropicStreamingModel(apiKey, modelName);
-            case PROVIDER_OLLAMA -> createOllamaStreamingModel(baseUrl, modelName);
-            case PROVIDER_OPENAI -> createOpenAiStreamingModel(apiKey, modelName);
-            default -> throw new IllegalArgumentException("Streaming not supported for provider: " + providerType);
-        };
+        switch (providerType) {
+            case PROVIDER_ANTHROPIC:
+                return createAnthropicStreamingModel(apiKey, modelName);
+            case PROVIDER_OLLAMA:
+                return createOllamaStreamingModel(baseUrl, modelName);
+            case PROVIDER_OPENAI:
+                return createOpenAiStreamingModel(apiKey, modelName);
+            default:
+                throw new IllegalArgumentException("Streaming not supported for provider: " + providerType);
+        }
     }
 
     /**
@@ -194,8 +204,10 @@ public class LangChain4jProviderFactory {
         return BedrockChatModel.builder()
             .region(Region.of(region != null ? region : DEFAULT_BEDROCK_REGION))
             .modelId(modelName != null ? modelName : DEFAULT_BEDROCK_MODEL)
-            .maxTokens(4096)
-            .temperature(0.7)
+            .defaultRequestParameters(BedrockChatRequestParameters.builder()
+                .maxOutputTokens(4096)
+                .temperature(0.7)
+                .build())
             .build();
     }
 }

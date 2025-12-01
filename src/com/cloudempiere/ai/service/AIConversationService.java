@@ -484,8 +484,9 @@ public class AIConversationService {
 		response.append("Based on our recent conversation:\n\n");
 
 		for (Map.Entry<String, Object> entry : contextData.entrySet()) {
-			response.append("**").append(entry.getKey()).append("**: ");
-			response.append(entry.getValue().toString()).append("\n");
+			Object value = entry.getValue();
+			// Format cached query results properly instead of dumping raw JSON
+			response.append(formatContextValue(entry.getKey(), value));
 		}
 
 		AIResponse aiResponse = new AIResponse();
@@ -495,6 +496,102 @@ public class AIConversationService {
 
 		log.fine("Built response from context in " + aiResponse.getProcessingTimeMs() + "ms");
 		return aiResponse;
+	}
+
+	/**
+	 * Format a context value for display to the user
+	 * Handles JSON query results specially to present data nicely
+	 *
+	 * @param key context key
+	 * @param value context value
+	 * @return formatted string
+	 */
+	private String formatContextValue(String key, Object value) {
+		if (value == null) {
+			return "";
+		}
+
+		String valueStr = value.toString();
+
+		// Try to parse as JSON query result
+		if (valueStr.startsWith("{") && valueStr.contains("\"data\"")) {
+			try {
+				JSONObject json = new JSONObject(valueStr);
+				return formatQueryResultForDisplay(json);
+			} catch (Exception e) {
+				log.fine("Could not parse context value as JSON: " + e.getMessage());
+			}
+		}
+
+		// Fallback: return as-is but with key label
+		return "**" + key + "**: " + valueStr + "\n";
+	}
+
+	/**
+	 * Format query result JSON for user-friendly display
+	 * Extracts only the data portion and formats it nicely
+	 *
+	 * @param json query result JSON
+	 * @return formatted string
+	 */
+	private String formatQueryResultForDisplay(JSONObject json) {
+		StringBuilder sb = new StringBuilder();
+
+		int rowCount = json.optInt("row_count", 0);
+		JSONArray columns = json.optJSONArray("columns");
+		JSONArray data = json.optJSONArray("data");
+
+		if (rowCount == 0 || data == null || data.length() == 0) {
+			sb.append("No data found.\n");
+			return sb.toString();
+		}
+
+		sb.append("Found ").append(rowCount).append(" record(s):\n\n");
+
+		// Format each row
+		for (int i = 0; i < data.length(); i++) {
+			JSONObject row = data.optJSONObject(i);
+			if (row == null) continue;
+
+			if (data.length() > 1) {
+				sb.append("**Record ").append(i + 1).append(":**\n");
+			}
+
+			// Output each field
+			for (String col : row.keySet()) {
+				Object val = row.get(col);
+				String displayVal = (val == null || val.equals(JSONObject.NULL)) ? "-" : val.toString();
+				sb.append("- ").append(formatColumnName(col)).append(": ").append(displayVal).append("\n");
+			}
+			sb.append("\n");
+		}
+
+		return sb.toString();
+	}
+
+	/**
+	 * Format column name for display (e.g., documentno -> Document No)
+	 *
+	 * @param columnName raw column name
+	 * @return formatted name
+	 */
+	private String formatColumnName(String columnName) {
+		if (columnName == null || columnName.isEmpty()) {
+			return columnName;
+		}
+		// Simple formatting: capitalize and add spaces before capitals
+		StringBuilder sb = new StringBuilder();
+		sb.append(Character.toUpperCase(columnName.charAt(0)));
+		for (int i = 1; i < columnName.length(); i++) {
+			char c = columnName.charAt(i);
+			if (Character.isUpperCase(c) || c == '_') {
+				sb.append(' ');
+				if (c != '_') sb.append(c);
+			} else {
+				sb.append(c);
+			}
+		}
+		return sb.toString();
 	}
 
 	/**

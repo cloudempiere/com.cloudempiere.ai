@@ -66,14 +66,16 @@ public class ERPTools {
 
         try {
             SecureQueryRequest request = new SecureQueryRequest();
+            request.setCtx(ctx);
+            request.setProviderId(provider.getAIG_Provider_ID());
             request.setSql(sql);
             request.setMaxRows(maxRows != null ? Math.min(maxRows, 500) : 50);
-            request.setPurpose(purpose != null ? purpose : "AI Agent Query");
+            request.setQueryPurpose(purpose != null ? purpose : "AI Agent Query");
 
-            SecureQueryResult result = executor.executeSecureQuery(ctx, provider, request);
+            SecureQueryResult result = executor.executeQuery(request);
 
             if (result.isSuccess()) {
-                return result.getResultJson();
+                return result.getRows().toString();
             } else {
                 return createErrorResponse(result.getErrorMessage());
             }
@@ -99,14 +101,16 @@ public class ERPTools {
             );
 
             SecureQueryRequest request = new SecureQueryRequest();
+            request.setCtx(ctx);
+            request.setProviderId(provider.getAIG_Provider_ID());
             request.setSql(sql);
             request.setMaxRows(1);
-            request.setPurpose("Record lookup: " + tableName + "#" + recordId);
+            request.setQueryPurpose("Record lookup: " + tableName + "#" + recordId);
 
-            SecureQueryResult result = executor.executeSecureQuery(ctx, provider, request);
+            SecureQueryResult result = executor.executeQuery(request);
 
             if (result.isSuccess()) {
-                return result.getResultJson();
+                return result.getRows().toString();
             } else {
                 return createErrorResponse(result.getErrorMessage());
             }
@@ -129,14 +133,16 @@ public class ERPTools {
             String sql = String.format("SELECT * FROM %s WHERE %s", tableName, whereClause);
 
             SecureQueryRequest request = new SecureQueryRequest();
+            request.setCtx(ctx);
+            request.setProviderId(provider.getAIG_Provider_ID());
             request.setSql(sql);
             request.setMaxRows(maxRows != null ? Math.min(maxRows, 500) : 50);
-            request.setPurpose("Search: " + tableName);
+            request.setQueryPurpose("Search: " + tableName);
 
-            SecureQueryResult result = executor.executeSecureQuery(ctx, provider, request);
+            SecureQueryResult result = executor.executeQuery(request);
 
             if (result.isSuccess()) {
-                return result.getResultJson();
+                return result.getRows().toString();
             } else {
                 return createErrorResponse(result.getErrorMessage());
             }
@@ -173,14 +179,16 @@ public class ERPTools {
                            "FROM AD_Column WHERE AD_Table_ID = ? AND IsActive = 'Y' ORDER BY ColumnName";
 
             SecureQueryRequest request = new SecureQueryRequest();
+            request.setCtx(ctx);
+            request.setProviderId(provider.getAIG_Provider_ID());
             request.setSql(colSql.replace("?", String.valueOf(table.getAD_Table_ID())));
             request.setMaxRows(200);
-            request.setPurpose("Table metadata: " + tableName);
+            request.setQueryPurpose("Table metadata: " + tableName);
 
-            SecureQueryResult result = executor.executeSecureQuery(ctx, provider, request);
+            SecureQueryResult result = executor.executeQuery(request);
 
             if (result.isSuccess()) {
-                metadata.put("columns", new JSONArray(result.getResultJson()));
+                metadata.put("columns", result.getRows());
             }
 
             return metadata.toString(2);
@@ -208,14 +216,16 @@ public class ERPTools {
             sql.append("ORDER BY TableName");
 
             SecureQueryRequest request = new SecureQueryRequest();
+            request.setCtx(ctx);
+            request.setProviderId(provider.getAIG_Provider_ID());
             request.setSql(sql.toString());
             request.setMaxRows(100);
-            request.setPurpose("List tables");
+            request.setQueryPurpose("List tables");
 
-            SecureQueryResult result = executor.executeSecureQuery(ctx, provider, request);
+            SecureQueryResult result = executor.executeQuery(request);
 
             if (result.isSuccess()) {
-                return result.getResultJson();
+                return result.getRows().toString();
             } else {
                 return createErrorResponse(result.getErrorMessage());
             }
@@ -249,14 +259,16 @@ public class ERPTools {
                         "FROM C_BPartner WHERE " + whereClause;
 
             SecureQueryRequest request = new SecureQueryRequest();
+            request.setCtx(ctx);
+            request.setProviderId(provider.getAIG_Provider_ID());
             request.setSql(sql);
             request.setMaxRows(1);
-            request.setPurpose("Business Partner lookup");
+            request.setQueryPurpose("Business Partner lookup");
 
-            SecureQueryResult result = executor.executeSecureQuery(ctx, provider, request);
+            SecureQueryResult result = executor.executeQuery(request);
 
             if (result.isSuccess()) {
-                return result.getResultJson();
+                return result.getRows().toString();
             } else {
                 return createErrorResponse(result.getErrorMessage());
             }
@@ -286,14 +298,16 @@ public class ERPTools {
                         "FROM M_Product WHERE " + whereClause;
 
             SecureQueryRequest request = new SecureQueryRequest();
+            request.setCtx(ctx);
+            request.setProviderId(provider.getAIG_Provider_ID());
             request.setSql(sql);
             request.setMaxRows(1);
-            request.setPurpose("Product lookup");
+            request.setQueryPurpose("Product lookup");
 
-            SecureQueryResult result = executor.executeSecureQuery(ctx, provider, request);
+            SecureQueryResult result = executor.executeQuery(request);
 
             if (result.isSuccess()) {
-                return result.getResultJson();
+                return result.getRows().toString();
             } else {
                 return createErrorResponse(result.getErrorMessage());
             }
@@ -323,14 +337,16 @@ public class ERPTools {
                         "FROM C_Order WHERE " + whereClause;
 
             SecureQueryRequest request = new SecureQueryRequest();
+            request.setCtx(ctx);
+            request.setProviderId(provider.getAIG_Provider_ID());
             request.setSql(sql);
             request.setMaxRows(1);
-            request.setPurpose("Order lookup");
+            request.setQueryPurpose("Order lookup");
 
-            SecureQueryResult result = executor.executeSecureQuery(ctx, provider, request);
+            SecureQueryResult result = executor.executeQuery(request);
 
             if (result.isSuccess()) {
-                return result.getResultJson();
+                return result.getRows().toString();
             } else {
                 return createErrorResponse(result.getErrorMessage());
             }
