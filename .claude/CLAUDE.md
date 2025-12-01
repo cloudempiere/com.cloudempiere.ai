@@ -319,11 +319,42 @@ mvn install -DskipTests
 - ✅ Database security layer with audit logging
 - ✅ Context provider system for window/chart data
 
-### Next Phases
-- Phase 2: Complete AWS Bedrock provider and add Ollama integration
-- Phase 3: Production-ready database schema and migrations
-- Phase 4: Comprehensive testing suite
-- Phase 5: Complete Javadoc and user documentation
+## Upcoming Phases
+
+| Phase | Version | Target | Status | Key Features |
+|-------|---------|--------|--------|--------------|
+| Phase 1 | v0.1.0 | 2025-12-01 | ✅ Done | Provider architecture, Anthropic integration, security layer |
+| Phase 2 | v0.2.0 | Q1 2026 | Planned | AWS Bedrock completion, Ollama integration |
+| Phase 3 | v0.3.0 | Q1 2026 | Planned | LangChain4j agent framework, domain boundaries |
+| Phase 4 | v0.4.0 | Q1 2026 | Planned | InventoryAgent, SalesAgent, PurchasingAgent |
+| Phase 5 | v0.5.0 | Q2 2026 | Planned | Production database schema, migrations |
+| Phase 6 | v0.6.0 | Q2 2026 | Planned | Comprehensive testing, documentation |
+| Phase 7 | v1.0.0 | Q2 2026 | Planned | Production release |
+
+## Commit Convention
+
+Follow [Conventional Commits](https://conventionalcommits.org/):
+- `feat:` new feature
+- `fix:` bug fix
+- `docs:` documentation
+- `refactor:` code refactor
+- `chore:` maintenance
+- `test:` adding tests
+- `perf:` performance improvement
+
+**Always update:**
+1. `CHANGELOG.md` - Document changes
+2. `FEATURES.md` - Update feature matrix
+
+**Release workflow:**
+1. Update version in `pom.xml`, `MANIFEST.MF`
+2. Update `CHANGELOG.md` with release date
+3. Commit and create tag: `git tag -a vX.Y.Z -m "Release vX.Y.Z"`
+4. Bump to next SNAPSHOT version
+
+## Architecture Decision Records
+
+- [ADR-001](docs/adr/001-initial-architecture.md) - Initial architecture and project standards
 
 ## Notes
 
