@@ -1,7 +1,8 @@
 # ADR-002: Strategic LangChain4j Adoption and Architecture Simplification
 
-**Status:** Proposed
+**Status:** Accepted (Phase 1 Implemented in v0.9.0)
 **Date:** 2025-12-01
+**Updated:** 2025-12-01
 **Deciders:** CloudEmpiere AI Team
 **Context:** Plugin architecture evolution for v0.8.0+
 
@@ -99,16 +100,25 @@ The `com.cloudempiere.ai` plugin has evolved organically with two parallel imple
 
 ## Recommendations
 
-### Phase 1: Provider Migration (v0.8.0)
+### Phase 1: Provider Migration (v0.9.0) ✅ IMPLEMENTED
 
 #### 1.1 Replace Custom Providers with LangChain4j Native Modules
 
-| Current | Replace With | Maven Artifact |
-|---------|--------------|----------------|
-| `AnthropicProvider` | `AnthropicChatModel` | `langchain4j-anthropic` |
-| `AWSBedrockProvider` | `BedrockChatModel` | `langchain4j-bedrock` |
-| (new) | `OllamaChatModel` | `langchain4j-ollama` |
-| (new) | `OpenAiChatModel` | `langchain4j-open-ai` |
+| Current | Replace With | Maven Artifact | Status |
+|---------|--------------|----------------|--------|
+| `AnthropicProvider` | `AnthropicChatModel` | `langchain4j-anthropic` | ✅ Done |
+| `AWSBedrockProvider` | `BedrockChatModel` | `langchain4j-bedrock` | ✅ Done |
+| (new) | `OllamaChatModel` | `langchain4j-ollama` | ✅ Done |
+| (new) | `OpenAiChatModel` | `langchain4j-open-ai` | ✅ Done |
+
+**Note:** `BedrockChatModel` is a unified class supporting all Bedrock foundation models (Claude, Amazon Nova, Mistral, Llama, etc.) via the modelId parameter.
+
+**Implementation Details (v0.9.0):**
+- `LangChain4jProviderFactory.java` - Factory creates ChatLanguageModel from MAIProvider config
+- `ERPTools.java` - @Tool annotated methods for database operations
+- `IDempiereAgent.java` - AiServices interface with system prompt
+- `IDempiereAIService.java` - Main facade for AI interactions
+- Old providers (`AnthropicProvider`, `AWSBedrockProvider`) deprecated, not deleted
 
 **Benefits:**
 - Native streaming support
@@ -131,9 +141,9 @@ public class LangChain4jProviderFactory {
                 .modelName(config.getModelName())
                 .maxTokens(config.getMaxTokens())
                 .build();
-            case "BEDROCK" -> BedrockAnthropicChatModel.builder()
+            case "BEDROCK" -> BedrockChatModel.builder()
                 .region(Region.of(config.getRegion()))
-                .model(config.getModelName())
+                .modelId(config.getModelName())  // Supports Claude, Nova, Mistral, Llama, etc.
                 .build();
             case "OLLAMA" -> OllamaChatModel.builder()
                 .baseUrl(config.getEndpoint())
@@ -415,13 +425,13 @@ ChatLanguageModel model = AnthropicChatModel.builder()
 
 | Component | Replacement | Timeline |
 |-----------|-------------|----------|
-| `IAIProvider` interface | `ChatLanguageModel` | v0.8.0 deprecate, v1.0.0 remove |
-| `AnthropicProvider` | `AnthropicChatModel` | v0.8.0 |
-| `AWSBedrockProvider` | `BedrockChatModel` | v0.8.0 |
-| `AIProviderFactory` | `LangChain4jProviderFactory` | v0.8.0 |
-| `IAIProviderChatModelAdapter` | Direct native models | v0.8.0 |
-| `BaseAgent` | `AiServices` | v0.8.0 |
-| `ToolRegistry`, `ITool` | `@Tool` annotations | v0.8.0 |
+| `IAIProvider` interface | `ChatLanguageModel` | v0.9.0 deprecated ✅, v1.0.0 remove |
+| `AnthropicProvider` | `AnthropicChatModel` | v0.9.0 ✅ |
+| `AWSBedrockProvider` | `BedrockChatModel` | v0.9.0 ✅ |
+| `AIProviderFactory` | `LangChain4jProviderFactory` | v0.9.0 ✅ |
+| `IAIProviderChatModelAdapter` | Direct native models | v0.9.0 ✅ |
+| `BaseAgent` | `AiServices` | v0.9.0 ✅ |
+| `ToolRegistry`, `ITool` | `@Tool` annotations | v0.9.0 ✅ |
 | Custom DTOs (AIRequest, etc.) | LangChain4j messages | v0.9.0 |
 
 ---

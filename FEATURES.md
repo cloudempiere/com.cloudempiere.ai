@@ -6,6 +6,7 @@ This document tracks features, implementation status, and version compatibility.
 
 | Version | Date | Key Features |
 |---------|------|--------------|
+| 0.9.0 | 2025-12-01 | LangChain4j Native Providers |
 | 0.8.0 | 2025-12-01 | MCP Server & Strategic Architecture |
 | 0.7.0 | 2025-12-01 | Documentation & Claude Agents |
 | 0.6.0 | 2025-11-28 | LangChain4j Agent Framework |

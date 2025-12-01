@@ -12,7 +12,7 @@ import dev.langchain4j.model.chat.ChatLanguageModel;
 import dev.langchain4j.model.chat.StreamingChatLanguageModel;
 import dev.langchain4j.model.anthropic.AnthropicChatModel;
 import dev.langchain4j.model.anthropic.AnthropicStreamingChatModel;
-import dev.langchain4j.model.bedrock.BedrockAnthropicChatModel;
+import dev.langchain4j.model.bedrock.BedrockChatModel;
 import dev.langchain4j.model.ollama.OllamaChatModel;
 import dev.langchain4j.model.ollama.OllamaStreamingChatModel;
 import dev.langchain4j.model.openai.OpenAiChatModel;
@@ -190,11 +190,12 @@ public class LangChain4jProviderFactory {
 
     private static ChatLanguageModel createBedrockModel(String modelName, String region) {
         // Bedrock uses AWS credentials from environment/IAM role
-        return BedrockAnthropicChatModel.builder()
+        // BedrockChatModel supports all Bedrock models: Claude, Amazon Nova, Mistral, etc.
+        return BedrockChatModel.builder()
             .region(Region.of(region != null ? region : DEFAULT_BEDROCK_REGION))
             .modelId(modelName != null ? modelName : DEFAULT_BEDROCK_MODEL)
             .maxTokens(4096)
-            .temperature(0.7f)
+            .temperature(0.7)
             .build();
     }
 }
