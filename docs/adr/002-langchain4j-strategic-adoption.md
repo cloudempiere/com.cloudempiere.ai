@@ -482,6 +482,7 @@ ChatLanguageModel model = AnthropicChatModel.builder()
 - [LangChain4j GitHub](https://github.com/langchain4j/langchain4j)
 - [LangChain4j Examples](https://github.com/langchain4j/langchain4j-examples)
 - [ADR-001: Initial Architecture](001-initial-architecture.md)
+- [ADR-002 Appendix: Feature Mapping](002-appendix-feature-mapping.md) - **No functionality lost** verification
 - [CHANGELOG.md](../../CHANGELOG.md)
 
 ---
