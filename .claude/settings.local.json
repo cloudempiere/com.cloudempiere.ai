@@ -3,7 +3,12 @@
     "allow": [
       "mcp__ide__getDiagnostics",
       "WebSearch",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(rm:*)",
+      "WebFetch(domain:www.anthropic.com)",
+      "WebFetch(domain:platform.claude.com)",
+      "WebFetch(domain:aws.amazon.com)",
+      "WebFetch(domain:hbr.org)"
     ],
     "deny": [],
     "ask": []

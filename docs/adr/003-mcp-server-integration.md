@@ -9,6 +9,37 @@
 
 ## Context
 
+### Domain Architecture Context
+
+This ADR addresses the **MCP TOOLS domain** from the 3-domain data source architecture described in `docs/DATA_SOURCE_ARCHITECTURE.md`.
+
+**3 Data Domains:**
+
+| Domain | Scope | Implementation |
+|--------|-------|----------------|
+| **CONTEXT** | Conversation history + UI state | ✅ ADR-012 (RAG pattern) |
+| **DATABASE** | iDempiere ERP data | ✅ ERPTools @Tool methods (ADR-002) |
+| **MCP TOOLS** | External services | 🔜 This ADR (REST API + @Tool) |
+
+**MCP TOOLS Domain Scope (from DATA_SOURCE_ARCHITECTURE.md):**
+- **Information Retrieval:** Web search, documentation lookup
+- **External Data:** Weather, stock prices, exchange rates
+- **File System:** Read, write, list operations
+- **Integration:** Email, calendar, CRM connections
+- **Action Tools:** Workflows, notifications, automations
+
+**Implementation Approach:**
+1. Expose iDempiere AI capabilities via **REST API** (JAX-RS)
+2. External tools can wrap REST calls in **@Tool methods** (ADR-002 pattern)
+3. Standard HTTP interface - no custom MCP protocol required
+4. Same security model as DATABASE domain (role-based access)
+
+**Domain Boundary:** MCP TOOLS domain handles all external service integrations that require data or actions outside iDempiere.
+
+See: `docs/DATA_SOURCE_ARCHITECTURE.md` for complete domain model and boundary definitions.
+
+---
+
 ### Problem Statement
 
 The com.cloudempiere.ai plugin currently provides AI capabilities only through the iDempiere ZK web UI. External AI agents (Claude Code, automation tools, third-party services) cannot access these capabilities programmatically.
@@ -32,76 +63,174 @@ The com.cloudempiere.ai plugin currently provides AI capabilities only through t
 
 ## Decision
 
-Add **REST API endpoints** to the existing iDempiere AI plugin using JAX-RS/Jersey, exposing AI capabilities through HTTP.
+**DECISION (2025-12-01):** Keep **idempiere-mcp-server** as standalone MCP server with **cloudempiere-cli** as backend. Both projects already exist and work - just configuration needed.
 
-### Architecture
+REST API available as fallback for non-MCP clients.
+
+### Architecture (CURRENT - WORKING)
 
 ```
-External AI Agents (Claude Code, automation tools)
-    │
-    └─── HTTP/REST API
-         │
-         ▼
-┌─────────────────────────────────────┐
-│  iDempiere (Port 8080)              │
-│  ┌───────────────────────────────┐  │
-│  │  New: REST API Layer          │  │
-│  │  /api/ai/chat                 │  │
-│  │  /api/ai/query                │  │
-│  │  /api/ai/context              │  │
-│  │  /api/ai/providers            │  │
-│  │  /api/ai/history              │  │
-│  └────────────┬──────────────────┘  │
-│               │                     │
-│  ┌────────────▼──────────────────┐  │
-│  │  Existing Services:           │  │
-│  │  - AIConversationService      │  │
-│  │  - SecureDatabaseQueryExecutor│  │
-│  │  - AIContextProviderRegistry  │  │
-│  └─────────────────────────────────┘  │
-└─────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│  External AI Agents (Claude Code, Cursor, n8n, etc.)            │
+└────────────────────────┬────────────────────────────────────────┘
+                         │ MCP Protocol (stdio)
+┌────────────────────────▼────────────────────────────────────────┐
+│  idempiere-mcp-server (Java 21, MCP SDK 0.16.0) ✅ BUILT        │
+│  Location: ~/github/idempiere-mcp-server                        │
+│  ┌────────────────────────────────────────────────────────────┐ │
+│  │ MCP TOOLS (5 existing):                                    │ │
+│  │  - listTables, describeTable                               │ │
+│  │  - addTable, addColumn, syncTable                          │ │
+│  │                                                            │ │
+│  │ AI TOOLS (to add):                                         │ │
+│  │  - chat, query, analyze                                    │ │
+│  └────────────────────────────────────────────────────────────┘ │
+│  Configuration:                                                 │
+│    IDEMPIERE_BACKEND=cli                                        │
+│    IDEMPIERE_CLI_PATH=../cloudempiere-cli/target/...-runner.jar │
+└────────────────────────┬────────────────────────────────────────┘
+                         │ Subprocess call (java -jar)
+┌────────────────────────▼────────────────────────────────────────┐
+│  cloudempiere-cli (Quarkus 3.16) ✅ v1.26.0                     │
+│  Repository: ~/github/cloudempiere-cli (develop branch)         │
+│  ┌────────────────────────────────────────────────────────────┐ │
+│  │ registry commands                                          │ │
+│  │  - tables, columns, windows, export                        │ │
+│  ├────────────────────────────────────────────────────────────┤ │
+│  │ AI Service                                                 │ │
+│  │  - ClaudeProvider (Anthropic SDK)                          │ │
+│  │  - AIService facade                                        │ │
+│  ├────────────────────────────────────────────────────────────┤ │
+│  │ iDempiere Core JARs                                        │ │
+│  │  - org.adempiere.base (AD_* access)                        │ │
+│  │  - org.adempiere.pipo (2pack import/export)                │ │
+│  └────────────────────────────────────────────────────────────┘ │
+└────────────────────────┬────────────────────────────────────────┘
+                         │ Direct JDBC
+         ┌───────────────▼───────────────┐
+         │  iDempiere Database (PostgreSQL)│
+         │  - Application Dictionary       │
+         │  - Business Data                │
+         └───────────────────────────────┘
+
+         ┌─────────────────────────────────┐
+         │  com.cloudempiere.ai (OSGi)     │
+         │  Repository: ~/github/com.cloudempiere.ai
+         │  ┌────────────────────────────┐ │
+         │  │ LangChain4j Agents         │ │
+         │  │  - ERPTools (@Tool)        │ │
+         │  │  - Domain Agents           │ │
+         │  ├────────────────────────────┤ │
+         │  │ Secure Query Executor      │ │
+         │  │  - Role-based access       │ │
+         │  │  - Audit logging           │ │
+         │  └────────────────────────────┘ │
+         │  (Inside iDempiere Runtime)     │
+         └─────────────────────────────────┘
 ```
 
-### MCP Integration Options
+### Why Separate Projects (Not Merged)
 
-There are **two ways** to enable MCP (Model Context Protocol) access:
+| Concern | Resolution |
+|---------|------------|
+| Code duplication? | No - MCP server delegates to CLI |
+| Config complexity? | Just 2 env vars in MCP server |
+| Multiple deployments? | Both already built, just run |
+| Performance overhead? | Subprocess call is fast (single JVM option later) |
 
-#### Option A: REST API + External MCP Client (Chosen)
+**Key insight:** idempiere-mcp-server is just a thin MCP wrapper - all business logic is in cloudempiere-cli. No need to merge.
+
+### Project Ecosystem
+
+| Project | Tech Stack | Purpose | Status |
+|---------|------------|---------|--------|
+| **idempiere-mcp-server** | Java 21, MCP SDK 0.16.0 | MCP protocol layer | ✅ BUILT |
+| **cloudempiere-cli** | Quarkus 3.16, Java 21 | Business logic + AI | ✅ v1.26.0 |
+| **com.cloudempiere.ai** | Java 11, LangChain4j, OSGi | ERP AI agents | 🔜 This project |
+
+### Configuration
+
+**idempiere-mcp-server/.env:**
+```bash
+IDEMPIERE_BACKEND=cli
+IDEMPIERE_CLI_PATH=../cloudempiere-cli/target/idempiere-cli-1.26.0-SNAPSHOT-runner.jar
+```
+
+**Claude Desktop config (~/.config/claude/claude_desktop_config.json):**
+```json
+{
+  "mcpServers": {
+    "idempiere": {
+      "command": "java",
+      "args": ["-jar", "/path/to/idempiere-mcp-server-1.0.0-SNAPSHOT.jar"]
+    }
+  }
+}
+```
+
+### Implementation Options
+
+#### Option A: Enhance Existing Setup (PRIMARY - CHOSEN)
 
 **How it works:**
-- iDempiere exposes REST endpoints
-- External tools call REST API directly via HTTP
-- No MCP server needed - standard REST
-- Tools can wrap REST calls in their own MCP tools if needed
+- Keep idempiere-mcp-server as MCP layer
+- Add AI tools by extending TableTools.java or creating AITools.java
+- AI tools call cloudempiere-cli's AI commands
 
 **Pros:**
-- ✅ Simplest implementation (4 weeks)
-- ✅ Standard technology (JAX-RS)
-- ✅ Works with any HTTP client
-- ✅ Lower latency (direct access)
+- ✅ **Already working** - just add more tools
+- ✅ **Zero migration** - extend existing code
+- ✅ **Separation of concerns** - MCP vs business logic
+- ✅ **Easy testing** - test CLI separately from MCP
 
-**Cons:**
-- ❌ No native MCP protocol support
-- ❌ External tools must implement HTTP calls
+**Effort:** 1 week (add AI tools)
 
-#### Option B: Built-in Java MCP Server (Deferred)
+#### Option B: Quarkus MCP Extension (FUTURE)
 
 **How it works:**
-- Implement MCP protocol server in Java
-- Native tool discovery and schema validation
-- Claude Code connects via MCP protocol
+- Add `quarkus-langchain4j-mcp` extension to cloudempiere-cli
+- Merge MCP server into CLI (single process)
 
 **Pros:**
-- ✅ Native MCP protocol
-- ✅ Better MCP ecosystem integration
-- ✅ Single tech stack (Java only)
+- ✅ Single process (no subprocess overhead)
+- ✅ Direct method calls
 
 **Cons:**
-- ❌ Complex implementation (8-12 weeks)
-- ❌ No mature Java MCP SDK
-- ❌ Additional testing surface
+- ❌ More complex build
+- ❌ Migration effort
 
-**Decision:** Start with **Option A** (REST API), evaluate Option B later based on demand.
+**Effort:** 2-3 weeks
+
+**Decision:** Use **Option A** - enhance existing setup. Consider Option B later if performance is an issue.
+
+### LangChain4j MCP Integration
+
+Our LangChain4j architecture (ADR-002) fully supports MCP:
+
+**As MCP Server (via idempiere-mcp-server):**
+- Extend existing MCP server with AI-specific tools
+- Support STDIO and SSE transports
+- Enable automatic tool discovery for external agents
+
+**As MCP Client (via LangChain4j):**
+- LangChain4j `langchain4j-mcp` module connects to external MCP servers
+- Our agents can consume external tools (GitHub, filesystem, etc.)
+- Supports STDIO and SSE transports
+
+**Reuse Opportunities:**
+
+| Component | From Project | Reuse In | Status |
+|-----------|-------------|----------|--------|
+| MCP Server infrastructure | idempiere-mcp-server | - | ✅ Ready |
+| App Dictionary tools | idempiere-mcp-server | - | ✅ Ready |
+| AIService, ClaudeProvider | cloudempiere-cli | MCP AI tools | 🔜 Extract |
+| registry commands | cloudempiere-cli | MCP server backend | ✅ Ready |
+| LangChain4j agents | com.cloudempiere.ai | Future MCP backend | 🔜 Phase 4 |
+
+**Phase 4 Roadmap (from idempiere-mcp-server):**
+- [ ] LangChain4j vector storage
+- [ ] Semantic caching
+- [ ] n8n integration
 
 ### REST API Endpoints
 
@@ -192,33 +321,46 @@ There are **two ways** to enable MCP (Model Context Protocol) access:
 
 ## Alternatives Considered
 
-### Alternative 1: Java MCP Server (Deferred)
+### Alternative 1: Build New MCP Server from Scratch (Rejected)
 
-**Approach:** Native MCP protocol in Java
+**Approach:** Create new MCP server in com.cloudempiere.ai
 
-**Why deferred:**
-- More complex (8-12 weeks vs 4 weeks)
-- Java MCP SDK not mature
-- REST API works for 90% of use cases
-- Can build on REST API later if needed
+**Why rejected:**
+- idempiere-mcp-server already exists and works
+- Would duplicate effort
+- MCP SDK already integrated in existing project
 
 ### Alternative 2: Node.js MCP Server (Rejected)
 
 **Approach:** External Node.js service
 
 **Why rejected:**
-- Additional technology stack
+- Additional technology stack (not Java)
 - Separate deployment/maintenance
 - Network overhead (2 hops)
-- Java MCP server is better if MCP protocol needed
+- Java MCP server already exists
 
-### Alternative 3: GraphQL (Rejected)
+### Alternative 3: Embed MCP in iDempiere OSGi (Rejected)
 
-**Why rejected:** Overkill for simple operations, complex to secure
+**Approach:** Add MCP server directly to com.cloudempiere.ai OSGi plugin
 
-### Alternative 4: WebSocket/SSE (Rejected)
+**Why rejected:**
+- OSGi classloader complexity with MCP SDK
+- iDempiere uses Java 11, MCP SDK prefers Java 21
+- Separate MCP server is more flexible
 
-**Why rejected:** Not needed for request/response pattern
+### Alternative 4: GraphQL (Rejected)
+
+**Why rejected:** Overkill for simple operations, MCP provides better tool discovery
+
+### Alternative 5: REST API Only (Deferred to Fallback)
+
+**Approach:** Only REST endpoints, no MCP
+
+**Why deferred:**
+- MCP provides better tool discovery
+- MCP is industry standard for AI agents
+- REST remains as fallback option
 
 ---
 
@@ -297,10 +439,24 @@ There are **two ways** to enable MCP (Model Context Protocol) access:
 
 ## References
 
+### Related Projects (CloudEmpiere Ecosystem)
+- **idempiere-mcp-server** - `~/github/idempiere-mcp-server` - MCP server for Claude Code
+- **cloudempiere-cli** - `~/github/cloudempiere-cli` - Quarkus CLI with App Dictionary access
+- **com.cloudempiere.ai** - This project - LangChain4j ERP agents
+
+### REST API
 - [JAX-RS Specification](https://jakarta.ee/specifications/restful-ws/)
 - [Jersey Framework](https://eclipse-ee4j.github.io/jersey/)
 - [iDempiere REST API](https://wiki.idempiere.org/en/REST_Web_Services)
+
+### MCP (Model Context Protocol)
 - [Model Context Protocol](https://modelcontextprotocol.io/)
+- [Official Java MCP SDK](https://github.com/modelcontextprotocol/java-sdk)
+- [LangChain4j MCP Tutorial](https://docs.langchain4j.dev/tutorials/mcp/)
+- [Quarkus MCP Extension](https://docs.quarkiverse.io/quarkus-langchain4j/dev/mcp.html)
+- [Spring AI MCP](https://docs.spring.io/spring-ai/reference/api/mcp/mcp-overview.html)
+
+### Related ADRs
 - [ADR-001: Initial Architecture](001-initial-architecture.md)
 - [ADR-002: LangChain4j Strategic Adoption](002-langchain4j-strategic-adoption.md)
 - [CHANGELOG.md](../../CHANGELOG.md) - Current version: v0.10.0
@@ -323,6 +479,7 @@ There are **two ways** to enable MCP (Model Context Protocol) access:
 
 ---
 
-*ADR-003 | Version 3.1 | 2025-12-01*
+*ADR-003 | Version 5.0 | 2025-12-01*
 *Status: **Proposed** (Target: v0.11.0, Q1 2026)*
-*Decision: REST API first, Java MCP Server later if needed*
+*Decision: **REVISED** - Enhance idempiere-mcp-server (PRIMARY) + Quarkus MCP (FUTURE) + REST API (FALLBACK)*
+*Validated: 2025-12-01 - See [ADR-003_MCP_VALIDATION_REPORT.md](../ADR-003_MCP_VALIDATION_REPORT.md)*

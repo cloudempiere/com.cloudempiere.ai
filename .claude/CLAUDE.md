@@ -378,7 +378,28 @@ Follow [Conventional Commits](https://conventionalcommits.org/):
 
 ## Architecture Decision Records
 
+### Core Architecture
 - [ADR-001](docs/adr/001-initial-architecture.md) - Initial architecture and project standards
+- [ADR-002](docs/adr/002-langchain4j-strategic-adoption.md) - LangChain4j Strategic Adoption
+- [ADR-003](docs/adr/003-mcp-server-integration.md) - MCP Server Integration
+- [ADR-004](docs/adr/004-java-agent-framework.md) - Java Agent Framework Selection (LangChain4j)
+
+### Data & Intelligence
+- [ADR-005](docs/adr/005-intelligent-data-source-routing.md) - Intelligent Data Source Routing (Superseded by ADR-012)
+- [ADR-006](docs/adr/006-data-model-architecture.md) - Data Model Architecture
+- [ADR-007](docs/adr/007-database-security-model.md) - Database Security Model
+- [ADR-008](docs/adr/008-llm-instruction-following.md) - LLM Instruction Following Strategy
+- [ADR-012](docs/adr/012-rag-based-context-retrieval.md) - RAG-Based Context Retrieval
+
+### Agent Architecture
+- [ADR-009](docs/adr/009-domain-boundaries-agent-scope.md) - Domain Boundaries and Agent Scope Architecture
+- [ADR-010](docs/adr/010-agent-orchestration-architecture.md) - Agent Orchestration Architecture
+- [ADR-011](docs/adr/011-specialized-agent-scopes.md) - Specialized Agent Scopes by Business Domain
+
+### Operations & UX
+- [ADR-013](docs/adr/013-observability-cost-tracking.md) - Observability and Cost Tracking
+- [ADR-014](docs/adr/014-guardrails-and-safety.md) - Guardrails and Safety
+- [ADR-015](docs/adr/015-conversational-ux-patterns.md) - Conversational UX Patterns
 
 ## Notes
 
