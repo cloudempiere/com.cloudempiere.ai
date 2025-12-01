@@ -7,10 +7,35 @@ and this project adheres to [Conventional Commits](https://conventionalcommits.o
 
 ## [Unreleased]
 
-### Next: v0.10.0
+### Next: v0.11.0
 - Domain agents (Inventory, Sales, Purchasing)
 - Structured outputs for common operations
 - RAG for documentation
+
+---
+
+## [0.10.0] - 2025-12-01
+
+### Phase 10: Security Fixes & Migration Scripts
+
+#### Fixed
+- **Metadata Exposure in AI Responses** - Internal fields (user_id, role_id, role_name, column_types) no longer exposed in AI chat responses
+  - `AIDatabaseFunctionHandler.buildFilteredResponse()` - Filters query results before returning to AI
+  - `AIConversationService.buildContextOnlyResponse()` - Formats cached data properly instead of raw JSON dump
+  - Added `formatQueryResultForDisplay()` and `formatColumnName()` helpers
+
+#### Added
+- **Database Migration Scripts** (CLD-1601, CLD-1606)
+  - PostgreSQL and Oracle migration scripts for AI tables
+  - `AIG_Provider`, `AIG_QueryAudit`, `AIG_Chat`, `AIG_ChatEntry` tables
+  - AI prompt configuration tables
+
+#### Changed
+- LangChain4j provider adapter improvements
+- Documentation cleanup (removed obsolete planning docs)
+
+**Commits:**
+- `154b710` fix(ai): filter sensitive metadata from AI chat responses
 
 ---
 
@@ -305,18 +330,19 @@ and this project adheres to [Conventional Commits](https://conventionalcommits.o
 | 6 | v0.6.0 | 2025-11-28 | LangChain4j Agent Framework |
 | 7 | v0.7.0 | 2025-12-01 | Documentation & Claude Agents |
 | 8 | v0.8.0 | 2025-12-01 | MCP Server & Strategic Architecture |
+| 9 | v0.9.0 | 2025-12-01 | LangChain4j Native Providers |
+| 10 | v0.10.0 | 2025-12-01 | Security Fixes & Migration Scripts |
 
 ## Upcoming Phases
 
 | Phase | Version | Target | Milestone |
 |-------|---------|--------|-----------|
-| 9 | v0.9.0 | Q1 2026 | LangChain4j Native Providers |
-| 10 | v0.10.0 | Q1 2026 | Domain Agents (Inventory, Sales, Purchasing) |
-| 11 | v0.11.0 | Q2 2026 | Production Database Schema |
-| 12 | v1.0.0 | Q2 2026 | Production Release |
+| 11 | v0.11.0 | Q1 2026 | Domain Agents (Inventory, Sales, Purchasing) |
+| 12 | v0.12.0 | Q2 2026 | Production Database Schema |
+| 13 | v1.0.0 | Q2 2026 | Production Release |
 
 ## iDempiere Compatibility
 
 | Plugin Version | iDempiere Version | Bundle-Version |
 |----------------|-------------------|----------------|
-| 0.1.0 - 0.8.0 | 10.x, 11.x, 12.x | 10.0.0.qualifier |
+| 0.1.0 - 0.10.0 | 10.x, 11.x, 12.x | 10.0.0.qualifier |
