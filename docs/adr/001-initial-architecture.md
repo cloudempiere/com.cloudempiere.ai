@@ -42,6 +42,7 @@ All commits follow [Conventional Commits](https://conventionalcommits.org/):
 
 | File | Purpose |
 |------|---------|
+| `PROJECT.md` | Project overview and quick start |
 | `CLAUDE.md` | AI assistant instructions |
 | `CHANGELOG.md` | Version history (Keep a Changelog) |
 | `FEATURES.md` | Feature matrix and status |
@@ -108,4 +109,6 @@ ADRs document significant decisions:
 - [Conventional Commits](https://conventionalcommits.org/)
 - [Keep a Changelog](https://keepachangelog.com/)
 - [Semantic Versioning](https://semver.org/)
-- [cloudempiere-cli Repository Rules](../../../cloudempiere-cli/docs/templates/REPOSITORY_RULES.md)
+- [PROJECT.md](../../PROJECT.md)
+- [FEATURES.md](../../FEATURES.md)
+- [CHANGELOG.md](../../CHANGELOG.md)
