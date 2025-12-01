@@ -5,5 +5,8 @@
 # Third-party analysis and reference implementations
 de.bxservice*/
 
+# Test cache directories
+com.cloudempiere.cache.test*
+
 # macOS system files
 .DS_Store

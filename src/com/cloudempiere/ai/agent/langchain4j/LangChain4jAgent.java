@@ -115,13 +115,12 @@ public class LangChain4jAgent implements IAIAgent {
         if (agentProxy == null) {
             log.fine("Building LangChain4j agent proxy for: " + name);
 
-            AiServices.AiServiceContext serviceBuilder = AiServices.builder(IERPAgent.class)
+            agentProxy = AiServices.builder(IERPAgent.class)
                 .chatLanguageModel(chatModel)
                 .tools(tools)
                 .chatMemoryProvider(memoryId ->
-                    MessageWindowChatMemory.withMaxMessages(memorySize));
-
-            agentProxy = (IERPAgent) serviceBuilder.build();
+                    MessageWindowChatMemory.withMaxMessages(memorySize))
+                .build();
 
             log.info("LangChain4j agent proxy created: " + name);
         }

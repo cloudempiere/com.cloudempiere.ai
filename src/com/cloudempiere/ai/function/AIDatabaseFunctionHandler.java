@@ -95,8 +95,8 @@ public class AIDatabaseFunctionHandler {
 			// Execute query
 			SecureQueryResult result = executor.executeQuery(request);
 
-			// Return result as JSON
-			return result.toJSON().toString();
+			// Return filtered result (exclude internal metadata like user_id, role_id, etc.)
+			return buildFilteredResponse(result);
 
 		} catch (SecurityException e) {
 			log.log(Level.WARNING, "Security violation in AI query", e);
@@ -121,6 +121,45 @@ public class AIDatabaseFunctionHandler {
 		error.put("rows", new JSONArray());
 		error.put("row_count", 0);
 		return error.toString();
+	}
+
+	/**
+	 * Build filtered response JSON (excludes internal metadata)
+	 *
+	 * <p>This method filters out sensitive/internal fields like user_id, role_id,
+	 * role_name that should not be exposed to the AI or end user.
+	 *
+	 * @param result SecureQueryResult from query execution
+	 * @return Filtered JSON string with only necessary fields
+	 */
+	private String buildFilteredResponse(SecureQueryResult result) {
+		JSONObject response = new JSONObject();
+
+		// Include only fields needed by the AI to understand and present data
+		response.put("status", result.getStatus());
+		response.put("row_count", result.getRowCount());
+		response.put("execution_time_ms", result.getQueryExecutionTimeMs());
+
+		if (result.getColumns() != null) {
+			response.put("columns", result.getColumns());
+		}
+
+		if (result.getRows() != null) {
+			response.put("data", result.getRows());
+		}
+
+		if (result.getErrorMessage() != null) {
+			response.put("error", result.getErrorMessage());
+		}
+
+		// Include tables_accessed for context (not sensitive)
+		if (result.getTablesAccessed() != null && !result.getTablesAccessed().isEmpty()) {
+			response.put("tables_accessed", result.getTablesAccessed());
+		}
+
+		// Explicitly NOT included: user_id, role_id, role_name, column_types, total_execution_time_ms
+
+		return response.toString();
 	}
 
 	/**

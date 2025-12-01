@@ -1,7 +1,7 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
   <artifactId>com.cloudempiere.ai</artifactId>
-  <version>0.8.0-SNAPSHOT</version>
+  <version>10.0.0-SNAPSHOT</version>
   <packaging>eclipse-plugin</packaging>
   <parent>
 	<groupId>org.idempiere</groupId>
@@ -9,6 +9,46 @@
 	<version>${revision}</version>
 	<relativePath>../iDempiereCLDE/org.idempiere.parent/pom.xml</relativePath>
   </parent>
+
+  <properties>
+    <junit.version>5.10.2</junit.version>
+    <mockito.version>5.11.0</mockito.version>
+  </properties>
+
+  <dependencies>
+    <!-- Test Dependencies -->
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <version>${junit.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter-params</artifactId>
+      <version>${junit.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.mockito</groupId>
+      <artifactId>mockito-core</artifactId>
+      <version>${mockito.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.mockito</groupId>
+      <artifactId>mockito-junit-jupiter</artifactId>
+      <version>${mockito.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.assertj</groupId>
+      <artifactId>assertj-core</artifactId>
+      <version>3.25.3</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
   <build>
 		<plugins>
 		    <plugin>
@@ -158,6 +198,30 @@
 								    <artifactId>langchain4j-core</artifactId>
 								    <version>1.0.0-beta3</version>
 								</artifactItem>
+								<!-- LangChain4j Anthropic Provider -->
+								<artifactItem>
+								    <groupId>dev.langchain4j</groupId>
+								    <artifactId>langchain4j-anthropic</artifactId>
+								    <version>1.0.0-beta3</version>
+								</artifactItem>
+								<!-- LangChain4j Ollama Provider (local LLM) -->
+								<artifactItem>
+								    <groupId>dev.langchain4j</groupId>
+								    <artifactId>langchain4j-ollama</artifactId>
+								    <version>1.0.0-beta3</version>
+								</artifactItem>
+								<!-- LangChain4j OpenAI Provider -->
+								<artifactItem>
+								    <groupId>dev.langchain4j</groupId>
+								    <artifactId>langchain4j-open-ai</artifactId>
+								    <version>1.0.0-beta3</version>
+								</artifactItem>
+								<!-- LangChain4j AWS Bedrock Provider -->
+								<artifactItem>
+								    <groupId>dev.langchain4j</groupId>
+								    <artifactId>langchain4j-bedrock</artifactId>
+								    <version>1.0.0-beta3</version>
+								</artifactItem>
 							</artifactItems>
 							<outputDirectory>lib</outputDirectory>
 							<stripVersion>true</stripVersion>
@@ -166,6 +230,21 @@
 						</configuration>
 					</execution>
 				</executions>
+			</plugin>
+		    <!-- Maven Surefire Plugin for JUnit 5 -->
+		    <plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-surefire-plugin</artifactId>
+				<version>3.2.5</version>
+				<configuration>
+					<includes>
+						<include>**/*Test.java</include>
+						<include>**/*Tests.java</include>
+					</includes>
+					<excludes>
+						<exclude>**/TestAIProvider.java</exclude>
+					</excludes>
+				</configuration>
 			</plugin>
 		</plugins>
 	</build>

@@ -66,7 +66,10 @@ import software.amazon.awssdk.services.bedrockruntime.model.ToolUseBlock;
  *
  * @author Cloudempiere
  * @version 1.0
+ * @deprecated Since v0.9.0. Use {@link com.cloudempiere.ai.provider.langchain4j.LangChain4jProviderFactory}
+ *             with LangChain4j's BedrockChatModel instead. See ADR-002 for migration guide.
  */
+@Deprecated(since = "0.9.0", forRemoval = true)
 public class AWSBedrockProvider implements IAIProvider {
 
 	private static final CLogger log = CLogger.getCLogger(AWSBedrockProvider.class);

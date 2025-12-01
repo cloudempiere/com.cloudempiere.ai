@@ -18,7 +18,7 @@ import java.util.Properties;
 import org.compiere.util.CLogger;
 
 import com.cloudempiere.ai.agent.AgentContext;
-import com.cloudempiere.ai.model.MAIGProvider;
+import com.cloudempiere.ai.model.MAIProvider;
 import com.cloudempiere.ai.provider.IAIProvider;
 import com.cloudempiere.ai.provider.factory.AIProviderFactory;
 
@@ -104,16 +104,22 @@ public class LangChain4jAgentFactory {
         }
 
         // Load provider configuration
-        MAIGProvider provider = MAIGProvider.get(ctx, providerId);
-        if (provider == null) {
+        MAIProvider provider = new MAIProvider(ctx, providerId, null);
+        if (provider == null || provider.getAIG_Provider_ID() == 0) {
             throw new IllegalStateException("Provider not found: " + providerId);
         }
 
         log.info("Creating LangChain4j agent from provider: " + provider.getName() +
-                " (type: " + provider.getAIG_ProviderType() + ")");
+                " (type: " + provider.getAIGProviderType() + ")");
 
         // Get the existing IAIProvider to extract configuration
-        IAIProvider aiProvider = AIProviderFactory.getProvider(ctx, providerId);
+        AIProviderFactory factory = new AIProviderFactory();
+        IAIProvider aiProvider;
+        try {
+            aiProvider = factory.get(provider);
+        } catch (Exception e) {
+            throw new IllegalStateException("Could not create provider: " + providerId, e);
+        }
         if (aiProvider == null) {
             throw new IllegalStateException("Could not create provider: " + providerId);
         }
@@ -121,7 +127,7 @@ public class LangChain4jAgentFactory {
         // Create ChatLanguageModel based on provider type
         ChatLanguageModel chatModel = createChatModel(provider, aiProvider);
 
-        String agentName = "agent-" + provider.getValue();
+        String agentName = "agent-" + provider.getName();
         return new LangChain4jAgent(agentName, chatModel);
     }
 
@@ -142,8 +148,8 @@ public class LangChain4jAgentFactory {
      * @param aiProvider initialized IAIProvider
      * @return ChatLanguageModel instance
      */
-    private static ChatLanguageModel createChatModel(MAIGProvider provider, IAIProvider aiProvider) {
-        String providerType = provider.getAIG_ProviderType();
+    private static ChatLanguageModel createChatModel(MAIProvider provider, IAIProvider aiProvider) {
+        String providerType = provider.getAIGProviderType();
 
         // Create an adapter that wraps our IAIProvider as a ChatLanguageModel
         // This allows using existing provider implementations with LangChain4j

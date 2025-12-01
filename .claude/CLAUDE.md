@@ -10,6 +10,30 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **Language**: Java (33 source files)
 **Build System**: Maven with PDE (Tycho) integration
 
+## Dependencies
+
+### iDempiere Core Dependency
+
+**IMPORTANT:** This plugin depends on the **iDempiereCLDE branch** of the iDempiere project:
+
+- **Repository**: `../iDempiereCLDE/` (relative path from plugin root)
+- **Branch**: `iDempiereCLDE`
+- **Version**: iDempiere v10 (10.0.0-SNAPSHOT)
+- **Java Version**: Amazon Corretto 11
+- **Location**: `/Users/norbertbede/github/iDempiereCLDE`
+
+Before building or testing this plugin, ensure:
+1. iDempiereCLDE repository is cloned at `../iDempiereCLDE/`
+2. The iDempiereCLDE branch is checked out
+3. Java 11 (Corretto) is being used: `JAVA_HOME=/Library/Java/JavaVirtualMachines/amazon-corretto-11.jdk/Contents/Home`
+4. iDempiere parent and target platform are built:
+   ```bash
+   cd ../iDempiereCLDE/org.idempiere.parent && mvn clean install -DskipTests
+   cd ../iDempiereCLDE/org.idempiere.p2.targetplatform && mvn clean install -DskipTests
+   ```
+
+The plugin references the iDempiere parent POM at `../iDempiereCLDE/org.idempiere.parent/pom.xml` (see pom.xml line 10).
+
 ## Build and Development Commands
 
 ### Maven Build Commands
@@ -354,7 +378,28 @@ Follow [Conventional Commits](https://conventionalcommits.org/):
 
 ## Architecture Decision Records
 
+### Core Architecture
 - [ADR-001](docs/adr/001-initial-architecture.md) - Initial architecture and project standards
+- [ADR-002](docs/adr/002-langchain4j-strategic-adoption.md) - LangChain4j Strategic Adoption
+- [ADR-003](docs/adr/003-mcp-server-integration.md) - MCP Server Integration
+- [ADR-004](docs/adr/004-java-agent-framework.md) - Java Agent Framework Selection (LangChain4j)
+
+### Data & Intelligence
+- [ADR-005](docs/adr/005-intelligent-data-source-routing.md) - Intelligent Data Source Routing (Superseded by ADR-012)
+- [ADR-006](docs/adr/006-data-model-architecture.md) - Data Model Architecture
+- [ADR-007](docs/adr/007-database-security-model.md) - Database Security Model
+- [ADR-008](docs/adr/008-llm-instruction-following.md) - LLM Instruction Following Strategy
+- [ADR-012](docs/adr/012-rag-based-context-retrieval.md) - RAG-Based Context Retrieval
+
+### Agent Architecture
+- [ADR-009](docs/adr/009-domain-boundaries-agent-scope.md) - Domain Boundaries and Agent Scope Architecture
+- [ADR-010](docs/adr/010-agent-orchestration-architecture.md) - Agent Orchestration Architecture
+- [ADR-011](docs/adr/011-specialized-agent-scopes.md) - Specialized Agent Scopes by Business Domain
+
+### Operations & UX
+- [ADR-013](docs/adr/013-observability-cost-tracking.md) - Observability and Cost Tracking
+- [ADR-014](docs/adr/014-guardrails-and-safety.md) - Guardrails and Safety
+- [ADR-015](docs/adr/015-conversational-ux-patterns.md) - Conversational UX Patterns
 
 ## Notes
 
