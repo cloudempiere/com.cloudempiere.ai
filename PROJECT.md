@@ -2,7 +2,7 @@
 
 **AI Plugin for iDempiere ERP**
 
-[![Version](https://img.shields.io/badge/version-0.1.0-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.7.0-blue.svg)](CHANGELOG.md)
 [![iDempiere](https://img.shields.io/badge/iDempiere-10.x%20|%2011.x%20|%2012.x-green.svg)](https://www.idempiere.org/)
 [![License](https://img.shields.io/badge/license-Proprietary-red.svg)](LICENSE)
 

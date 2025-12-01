@@ -6,7 +6,13 @@ This document tracks features, implementation status, and version compatibility.
 
 | Version | Date | Key Features |
 |---------|------|--------------|
-| 0.1.0 | 2025-12-01 | Initial release: Provider architecture, Anthropic, security, AI Chat, LangChain |
+| 0.7.0 | 2025-12-01 | Documentation & Claude Agents |
+| 0.6.0 | 2025-11-28 | LangChain4j Agent Framework |
+| 0.5.0 | 2025-11-26 | LangChain Integration |
+| 0.4.0 | 2025-11-26 | AI Chat Widget (CLD-1606) |
+| 0.3.0 | 2025-11-20 | Security Layer & Context Providers |
+| 0.2.0 | 2025-11-18 | AWS Bedrock Integration |
+| 0.1.0 | 2025-11-18 | Initial Provider Infrastructure |
 
 ---
 
