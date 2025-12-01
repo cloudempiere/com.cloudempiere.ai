@@ -71,10 +71,26 @@ This iDempiere plugin integrates AI capabilities into the CloudEmpiere enterpris
 
 ### Prerequisites
 
-- iDempiere 10.x, 11.x, or 12.x
-- Java 11+
+**iDempiere Core Dependency:**
+- **Repository**: `../iDempiereCLDE/`
+- **Branch**: `iDempiereCLDE`
+- **Version**: iDempiere v10 (10.0.0-SNAPSHOT)
+- **Java**: Amazon Corretto 11
+- **Location**: `/Users/norbertbede/github/iDempiereCLDE`
+
+**Other Requirements:**
 - Maven 3.8+
 - API key for AI provider (Anthropic, AWS, etc.)
+
+**Setup Steps:**
+1. Clone iDempiereCLDE repository at `../iDempiereCLDE/`
+2. Checkout the `iDempiereCLDE` branch
+3. Set Java 11: `export JAVA_HOME=/Library/Java/JavaVirtualMachines/amazon-corretto-11.jdk/Contents/Home`
+4. Build iDempiere dependencies:
+   ```bash
+   cd ../iDempiereCLDE/org.idempiere.parent && mvn clean install -DskipTests
+   cd ../iDempiereCLDE/org.idempiere.p2.targetplatform && mvn clean install -DskipTests
+   ```
 
 ### Installation
 

@@ -10,6 +10,30 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **Language**: Java (33 source files)
 **Build System**: Maven with PDE (Tycho) integration
 
+## Dependencies
+
+### iDempiere Core Dependency
+
+**IMPORTANT:** This plugin depends on the **iDempiereCLDE branch** of the iDempiere project:
+
+- **Repository**: `../iDempiereCLDE/` (relative path from plugin root)
+- **Branch**: `iDempiereCLDE`
+- **Version**: iDempiere v10 (10.0.0-SNAPSHOT)
+- **Java Version**: Amazon Corretto 11
+- **Location**: `/Users/norbertbede/github/iDempiereCLDE`
+
+Before building or testing this plugin, ensure:
+1. iDempiereCLDE repository is cloned at `../iDempiereCLDE/`
+2. The iDempiereCLDE branch is checked out
+3. Java 11 (Corretto) is being used: `JAVA_HOME=/Library/Java/JavaVirtualMachines/amazon-corretto-11.jdk/Contents/Home`
+4. iDempiere parent and target platform are built:
+   ```bash
+   cd ../iDempiereCLDE/org.idempiere.parent && mvn clean install -DskipTests
+   cd ../iDempiereCLDE/org.idempiere.p2.targetplatform && mvn clean install -DskipTests
+   ```
+
+The plugin references the iDempiere parent POM at `../iDempiereCLDE/org.idempiere.parent/pom.xml` (see pom.xml line 10).
+
 ## Build and Development Commands
 
 ### Maven Build Commands
