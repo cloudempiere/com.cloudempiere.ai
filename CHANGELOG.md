@@ -7,8 +7,45 @@ and this project adheres to [Conventional Commits](https://conventionalcommits.o
 
 ## [Unreleased]
 
-### Next: v0.8.0
-- Planned features for next release
+### Next: v0.9.0
+- AWS Bedrock completion
+- Ollama local LLM integration
+- Domain agents (Inventory, Sales, Purchasing)
+
+---
+
+## [0.8.0] - 2025-12-01
+
+### Phase 8: MCP Server & Strategic Architecture
+
+#### Added
+- **MCP Server Documentation** (11 comprehensive guides)
+  - `00-START_HERE.md` - Quick orientation guide
+  - `01-ARCHITECTURE.md` - System design and integration patterns
+  - `02-IMPLEMENTATION_GUIDE.md` - Complete build guide (HTTP API + Node.js MCP)
+  - `03-BEST_PRACTICES.md` - Security, reliability, performance patterns
+  - `04-DEPLOYMENT.md` - Docker, AWS, on-prem deployment
+  - `05-MCP_AGENT_INTEGRATION.md` - Agent integration patterns
+  - `06-REUSE_EXISTING_PLUGIN.md` - Leveraging current codebase
+  - `INDEX.md` - Documentation navigation
+  - `MCP_BENEFITS.md` - Business value and ROI
+  - `QUICK_REFERENCE.md` - Developer cheatsheet
+  - `README.md` - Project overview
+- **Architecture Decision Records**
+  - `ADR-002` - LangChain4j strategic adoption plan
+  - `ADR-002-appendix` - Feature mapping (no functionality lost)
+  - `ADR-003` - MCP server integration decision
+- **Project Governance**
+  - `docs/GOVERNANCE.md` - Workflows, conventions, release process
+
+#### Changed
+- Updated roadmap with strategic LangChain4j migration path
+- Refined phase planning for v0.9.0 - v1.0.0
+
+**Commits:**
+- `026f0fb` docs(MCPServer): Add comprehensive MCP server documentation
+- `02ad59d` docs(ADR): Add feature mapping appendix
+- `80ac7bd` docs(ADR): Add ADR-002 for LangChain4j strategic adoption
 
 ---
 
@@ -232,9 +269,19 @@ and this project adheres to [Conventional Commits](https://conventionalcommits.o
 | 5 | v0.5.0 | 2025-11-26 | LangChain Integration |
 | 6 | v0.6.0 | 2025-11-28 | LangChain4j Agent Framework |
 | 7 | v0.7.0 | 2025-12-01 | Documentation & Claude Agents |
+| 8 | v0.8.0 | 2025-12-01 | MCP Server & Strategic Architecture |
+
+## Upcoming Phases
+
+| Phase | Version | Target | Milestone |
+|-------|---------|--------|-----------|
+| 9 | v0.9.0 | Q1 2026 | LangChain4j Native Providers |
+| 10 | v0.10.0 | Q1 2026 | Domain Agents (Inventory, Sales, Purchasing) |
+| 11 | v0.11.0 | Q2 2026 | Production Database Schema |
+| 12 | v1.0.0 | Q2 2026 | Production Release |
 
 ## iDempiere Compatibility
 
 | Plugin Version | iDempiere Version | Bundle-Version |
 |----------------|-------------------|----------------|
-| 0.1.0 - 0.7.0 | 10.x, 11.x, 12.x | 10.0.0.qualifier |
+| 0.1.0 - 0.8.0 | 10.x, 11.x, 12.x | 10.0.0.qualifier |

@@ -84,18 +84,18 @@ Code changes   CHANGELOG.md   chore(release)  git tag -a    X.Y.Z+1-SNAPSHOT
 ## Version Phases (Released)
 
 ```
-v0.1.0 ──▶ v0.2.0 ──▶ v0.3.0 ──▶ v0.4.0 ──▶ v0.5.0 ──▶ v0.6.0 ──▶ v0.7.0
-  │          │          │          │          │          │          │
-  ▼          ▼          ▼          ▼          ▼          ▼          ▼
-┌────┐    ┌────┐    ┌────┐    ┌────┐    ┌────┐    ┌────┐    ┌────┐
-│ P1 │    │ P2 │    │ P3 │    │ P4 │    │ P5 │    │ P6 │    │ P7 │
-│ ✅ │    │ ✅ │    │ ✅ │    │ ✅ │    │ ✅ │    │ ✅ │    │ ✅ │
-└────┘    └────┘    └────┘    └────┘    └────┘    └────┘    └────┘
-Provider  Bedrock   Security  AI Chat  LangChain Lang4j   Docs &
-Anthropic Provider  Context   Widget   Integr    Agents   Claude
-                    Provider                              Agents
+v0.1.0 ──▶ v0.2.0 ──▶ v0.3.0 ──▶ v0.4.0 ──▶ v0.5.0 ──▶ v0.6.0 ──▶ v0.7.0 ──▶ v0.8.0
+  │          │          │          │          │          │          │          │
+  ▼          ▼          ▼          ▼          ▼          ▼          ▼          ▼
+┌────┐    ┌────┐    ┌────┐    ┌────┐    ┌────┐    ┌────┐    ┌────┐    ┌────┐
+│ P1 │    │ P2 │    │ P3 │    │ P4 │    │ P5 │    │ P6 │    │ P7 │    │ P8 │
+│ ✅ │    │ ✅ │    │ ✅ │    │ ✅ │    │ ✅ │    │ ✅ │    │ ✅ │    │ ✅ │
+└────┘    └────┘    └────┘    └────┘    └────┘    └────┘    └────┘    └────┘
+Provider  Bedrock   Security  AI Chat  LangChain Lang4j   Docs &    MCP &
+Anthropic Provider  Context   Widget   Integr    Agents   Claude    Strategic
+                    Provider                              Agents    ADRs
 
-Nov 18    Nov 18    Nov 20    Nov 26   Nov 26    Nov 28   Dec 1
+Nov 18    Nov 18    Nov 20    Nov 26   Nov 26    Nov 28   Dec 1     Dec 1
 ```
 
 ### Completed Phases
@@ -109,15 +109,16 @@ Nov 18    Nov 18    Nov 20    Nov 26   Nov 26    Nov 28   Dec 1
 | Phase 5 | v0.5.0 | 2025-11-26 | ✅ Done | LangChain integration |
 | Phase 6 | v0.6.0 | 2025-11-28 | ✅ Done | LangChain4j agent framework |
 | Phase 7 | v0.7.0 | 2025-12-01 | ✅ Done | Documentation & Claude agents |
+| Phase 8 | v0.8.0 | 2025-12-01 | ✅ Done | MCP Server & Strategic Architecture |
 
 ### Upcoming Phases
 
 | Phase | Version | Target | Status | Key Features |
 |-------|---------|--------|--------|--------------|
-| Phase 8 | v0.8.0 | Q1 2026 | Planned | AWS Bedrock completion, Ollama integration |
-| Phase 9 | v0.9.0 | Q1 2026 | Planned | Domain agents (Inventory, Sales, Purchasing) |
-| Phase 10 | v0.10.0 | Q2 2026 | Planned | Production database schema, migrations |
-| Phase 11 | v1.0.0 | Q2 2026 | Planned | Production release |
+| Phase 9 | v0.9.0 | Q1 2026 | Planned | LangChain4j Native Providers, HTTP API layer |
+| Phase 10 | v0.10.0 | Q1 2026 | Planned | Domain agents (Inventory, Sales, Purchasing) |
+| Phase 11 | v0.11.0 | Q2 2026 | Planned | Production database schema, migrations |
+| Phase 12 | v1.0.0 | Q2 2026 | Planned | Production release |
 
 ---
 
@@ -135,7 +136,17 @@ com.cloudempiere.ai/
 ├── docs/
 │   ├── adr/
 │   │   ├── 000-template.md ◀── ADR Template
-│   │   └── 001-*.md ◀───────── Architecture Decisions
+│   │   ├── 001-*.md ◀───────── Initial Architecture Decision
+│   │   ├── 002-langchain4j-strategic-adoption.md ◀── LangChain4j Strategy
+│   │   ├── 002-appendix-feature-mapping.md ◀── Feature Mapping
+│   │   └── 003-mcp-server-integration.md ◀── MCP Server Decision
+│   ├── mcpserver/ ◀─────────── MCP Server Documentation (11 files)
+│   │   ├── INDEX.md ◀───────── Documentation navigation
+│   │   ├── 00-START_HERE.md
+│   │   ├── 01-ARCHITECTURE.md
+│   │   ├── 02-IMPLEMENTATION_GUIDE.md
+│   │   ├── 03-BEST_PRACTICES.md
+│   │   └── 04-DEPLOYMENT.md
 │   ├── analysis-to-langchain/  Strategic Analysis
 │   └── GOVERNANCE.md ◀──────── This document
 │
@@ -258,7 +269,10 @@ Co-Authored-By: Claude <noreply@anthropic.com>
 - [FEATURES.md](../FEATURES.md)
 - [CHANGELOG.md](../CHANGELOG.md)
 - [ADR-001: Initial Architecture](adr/001-initial-architecture.md)
+- [ADR-002: LangChain4j Strategic Adoption](adr/002-langchain4j-strategic-adoption.md)
+- [ADR-003: MCP Server Integration](adr/003-mcp-server-integration.md)
+- [MCP Server Documentation](mcpserver/INDEX.md)
 
 ---
 
-*Template Version: 1.0 | Based on cloudempiere-cli project standards*
+*Version: 1.1 | Updated: 2025-12-01*

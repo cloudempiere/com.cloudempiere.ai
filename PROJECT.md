@@ -2,7 +2,7 @@
 
 **AI Plugin for iDempiere ERP**
 
-[![Version](https://img.shields.io/badge/version-0.7.0-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.8.0-blue.svg)](CHANGELOG.md)
 [![iDempiere](https://img.shields.io/badge/iDempiere-10.x%20|%2011.x%20|%2012.x-green.svg)](https://www.idempiere.org/)
 [![License](https://img.shields.io/badge/license-Proprietary-red.svg)](LICENSE)
 
@@ -62,6 +62,7 @@ This iDempiere plugin integrates AI capabilities into the CloudEmpiere enterpris
 - **AI Chat Widget**: Interactive chat component for ZK UI
 - **LangChain4j Integration**: Agent framework for complex AI workflows
 - **Context Providers**: Extract business context from iDempiere windows/charts
+- **MCP Server**: Model Context Protocol for external AI tool integration
 - **26 Claude Code Agents**: Specialized development assistants
 
 ---
@@ -124,12 +125,15 @@ AIResponse response = provider.generateText(request);
 | [GOVERNANCE.md](docs/GOVERNANCE.md) | Project governance and workflows |
 | [CLAUDE.md](.claude/CLAUDE.md) | Development guidelines for Claude Code |
 | [ADR-001](docs/adr/001-initial-architecture.md) | Initial architecture decisions |
+| [ADR-002](docs/adr/002-langchain4j-strategic-adoption.md) | LangChain4j strategic adoption |
+| [ADR-003](docs/adr/003-mcp-server-integration.md) | MCP server integration |
+| [MCP Server Docs](docs/mcpserver/INDEX.md) | MCP implementation guides |
 
 ---
 
 ## Roadmap
 
-### Completed Phases (v0.1.0 - v0.7.0)
+### Completed Phases (v0.1.0 - v0.8.0)
 
 | Phase | Version | Date | Milestone |
 |-------|---------|------|-----------|
@@ -140,15 +144,16 @@ AIResponse response = provider.generateText(request);
 | 5 | v0.5.0 | 2025-11-26 | LangChain integration |
 | 6 | v0.6.0 | 2025-11-28 | LangChain4j agent framework |
 | 7 | v0.7.0 | 2025-12-01 | Documentation & Claude agents |
+| 8 | v0.8.0 | 2025-12-01 | MCP Server & Strategic Architecture |
 
 ### Upcoming Phases
 
 | Phase | Version | Target | Key Features |
 |-------|---------|--------|--------------|
-| 8 | v0.8.0 | Q1 2026 | AWS Bedrock completion, Ollama integration |
-| 9 | v0.9.0 | Q1 2026 | Domain agents (Inventory, Sales, Purchasing) |
-| 10 | v0.10.0 | Q2 2026 | Production database schema, migrations |
-| 11 | v1.0.0 | Q2 2026 | Production release |
+| 9 | v0.9.0 | Q1 2026 | LangChain4j Native Providers, HTTP API layer |
+| 10 | v0.10.0 | Q1 2026 | Domain agents (Inventory, Sales, Purchasing) |
+| 11 | v0.11.0 | Q2 2026 | Production database schema, migrations |
+| 12 | v1.0.0 | Q2 2026 | Production release |
 
 ---
 

@@ -6,6 +6,7 @@ This document tracks features, implementation status, and version compatibility.
 
 | Version | Date | Key Features |
 |---------|------|--------------|
+| 0.8.0 | 2025-12-01 | MCP Server & Strategic Architecture |
 | 0.7.0 | 2025-12-01 | Documentation & Claude Agents |
 | 0.6.0 | 2025-11-28 | LangChain4j Agent Framework |
 | 0.5.0 | 2025-11-26 | LangChain Integration |
@@ -99,15 +100,42 @@ This document tracks features, implementation status, and version compatibility.
 | AI Chat | 0.1.0 | Done | Interactive chat (widget) |
 | Batch AI Processing | - | Planned | Bulk AI operations |
 
-### Agent Framework (Planned)
+### Agent Framework
 
 | Feature | Version | Status | Description |
 |---------|---------|--------|-------------|
-| LangChain4j agents | 0.3.0 | Planned | Domain-specific agents |
-| InventoryAgent | 0.4.0 | Planned | Inventory domain agent |
-| SalesAgent | 0.4.0 | Planned | Sales domain agent |
-| PurchasingAgent | 0.4.0 | Planned | Purchasing domain agent |
-| Domain boundaries | 0.3.0 | Planned | Security boundaries per agent |
+| LangChain4j integration | 0.6.0 | Done | Agent framework base |
+| AiServices proxy | 0.6.0 | Done | Dynamic agent proxy |
+| @Tool annotations | 0.6.0 | Done | Tool discovery |
+| MessageWindowChatMemory | 0.6.0 | Done | Conversation memory |
+| LangChain4j native providers | 0.9.0 | Planned | Replace custom providers |
+| InventoryAgent | 0.10.0 | Planned | Inventory domain agent |
+| SalesAgent | 0.10.0 | Planned | Sales domain agent |
+| PurchasingAgent | 0.10.0 | Planned | Purchasing domain agent |
+| Domain boundaries | 0.9.0 | Planned | Security boundaries per agent |
+
+### MCP Server (v0.8.0)
+
+| Feature | Version | Status | Description |
+|---------|---------|--------|-------------|
+| MCP Documentation | 0.8.0 | Done | 11 comprehensive guides |
+| Architecture guide | 0.8.0 | Done | System design patterns |
+| Implementation guide | 0.8.0 | Done | HTTP API + Node.js MCP |
+| Best practices | 0.8.0 | Done | Security, reliability, performance |
+| Deployment guide | 0.8.0 | Done | Docker, AWS, on-prem |
+| Agent integration | 0.8.0 | Done | MCP-agent patterns |
+| HTTP API layer | 0.9.0 | Planned | Java REST endpoints |
+| Node.js MCP server | 0.9.0 | Planned | MCP protocol implementation |
+
+### Architecture Decisions (v0.8.0)
+
+| Feature | Version | Status | Description |
+|---------|---------|--------|-------------|
+| ADR-001 Initial Architecture | 0.7.0 | Done | Project standards |
+| ADR-002 LangChain4j Adoption | 0.8.0 | Done | Strategic migration plan |
+| ADR-003 MCP Server Integration | 0.8.0 | Done | External AI agent access via MCP |
+| Feature mapping appendix | 0.8.0 | Done | No functionality lost verification |
+| Project governance | 0.8.0 | Done | Workflows and conventions |
 
 ---
 
