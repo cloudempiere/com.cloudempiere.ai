@@ -158,6 +158,30 @@
 								    <artifactId>langchain4j-core</artifactId>
 								    <version>1.0.0-beta3</version>
 								</artifactItem>
+								<!-- LangChain4j Anthropic Provider -->
+								<artifactItem>
+								    <groupId>dev.langchain4j</groupId>
+								    <artifactId>langchain4j-anthropic</artifactId>
+								    <version>1.0.0-beta3</version>
+								</artifactItem>
+								<!-- LangChain4j Ollama Provider (local LLM) -->
+								<artifactItem>
+								    <groupId>dev.langchain4j</groupId>
+								    <artifactId>langchain4j-ollama</artifactId>
+								    <version>1.0.0-beta3</version>
+								</artifactItem>
+								<!-- LangChain4j OpenAI Provider -->
+								<artifactItem>
+								    <groupId>dev.langchain4j</groupId>
+								    <artifactId>langchain4j-open-ai</artifactId>
+								    <version>1.0.0-beta3</version>
+								</artifactItem>
+								<!-- LangChain4j AWS Bedrock Provider -->
+								<artifactItem>
+								    <groupId>dev.langchain4j</groupId>
+								    <artifactId>langchain4j-bedrock</artifactId>
+								    <version>1.0.0-beta3</version>
+								</artifactItem>
 							</artifactItems>
 							<outputDirectory>lib</outputDirectory>
 							<stripVersion>true</stripVersion>

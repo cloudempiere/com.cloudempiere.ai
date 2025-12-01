@@ -27,6 +27,7 @@ Bundle-ActivationPolicy: lazy
 Export-Package: com.cloudempiere.ai.component,
  com.cloudempiere.ai.provider.factory,
  com.cloudempiere.ai.provider.dto,
+ com.cloudempiere.ai.provider.langchain4j,
  com.cloudempiere.ai.model,
  com.cloudempiere.ai.service
 Bundle-ClassPath: .,
@@ -54,4 +55,9 @@ Bundle-ClassPath: .,
  lib/okhttp.jar,
  lib/okio.jar,
  lib/okio-jvm.jar,
- lib/langchain4j.jar
+ lib/langchain4j.jar,
+ lib/langchain4j-core.jar,
+ lib/langchain4j-anthropic.jar,
+ lib/langchain4j-ollama.jar,
+ lib/langchain4j-open-ai.jar,
+ lib/langchain4j-bedrock.jar
