@@ -7,10 +7,45 @@ and this project adheres to [Conventional Commits](https://conventionalcommits.o
 
 ## [Unreleased]
 
-### Next: v0.9.0
-- AWS Bedrock completion
-- Ollama local LLM integration
+### Next: v0.10.0
 - Domain agents (Inventory, Sales, Purchasing)
+- Structured outputs for common operations
+- RAG for documentation
+
+---
+
+## [0.9.0] - 2025-12-01
+
+### Phase 9: LangChain4j Native Providers
+
+#### Added
+- **LangChain4j Provider Infrastructure**
+  - `LangChain4jProviderFactory` - Creates ChatLanguageModel from MAIProvider config
+  - `IDempiereAgent` - AiServices interface with system prompt
+  - `IDempiereAIService` - Main facade for AI interactions
+  - `ERPTools` - @Tool annotated methods for ERP operations
+- **New Provider Support**
+  - `langchain4j-anthropic` - Native Anthropic Claude integration
+  - `langchain4j-bedrock` - AWS Bedrock via LangChain4j
+  - `langchain4j-ollama` - Local LLM support
+  - `langchain4j-open-ai` - OpenAI/Azure integration
+- **ERP Tools with @Tool Annotations**
+  - `queryDatabase` - Execute SQL SELECT queries
+  - `lookupRecord` - Get record by ID
+  - `searchRecords` - Search with WHERE clause
+  - `getTableMetadata` - Table structure info
+  - `listTables` - List accessible tables
+  - `getBusinessPartner` - BP lookup
+  - `getProduct` - Product lookup
+  - `getOrder` - Order lookup
+
+#### Deprecated
+- `AnthropicProvider` - Use LangChain4jProviderFactory instead
+- `AWSBedrockProvider` - Use LangChain4jProviderFactory instead
+- `IAIProvider` interface - Use ChatLanguageModel instead
+
+**Commits:**
+- `62eb679` feat(LangChain4j): Migrate to LangChain4j native providers (ADR-002)
 
 ---
 
