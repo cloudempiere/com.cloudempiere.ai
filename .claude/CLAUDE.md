@@ -395,6 +395,7 @@ Follow [Conventional Commits](https://conventionalcommits.org/):
 - [ADR-009](docs/adr/009-domain-boundaries-agent-scope.md) - Domain Boundaries and Agent Scope Architecture
 - [ADR-010](docs/adr/010-agent-orchestration-architecture.md) - Agent Orchestration Architecture
 - [ADR-011](docs/adr/011-specialized-agent-scopes.md) - Specialized Agent Scopes by Business Domain
+- [ADR-016](docs/adr/016-knowledge-base-agent.md) - Knowledge Base Agent Domain
 
 ### Operations & UX
 - [ADR-013](docs/adr/013-observability-cost-tracking.md) - Observability and Cost Tracking
