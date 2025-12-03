@@ -226,11 +226,32 @@ HAVING SUM(ol.LineNetAmt) > 10000
 ORDER BY TotalSales DESC
 ```
 
+**Critical Limitation: PO Cross-Tenant Check**
+
+iDempiere's PO (Persistent Object) layer has built-in cross-tenant validation:
+```java
+// PO.java throws exception if AD_Client_ID doesn't match context
+if (getAD_Client_ID() != Env.getAD_Client_ID(getCtx())) {
+    throw new AdempiereException("Cross-tenant access not allowed");
+}
+```
+
+**REST API (via PO layer) cannot access:**
+- Application Dictionary (AD_Client_ID = 0) from tenant user context
+- Knowledge Base in separate tenant (e.g., AD_Client_ID = 1000014)
+- Cross-tenant analytics or support queries
+
+This is a **fundamental limitation** - not a missing feature, but an architectural constraint of the PO layer.
+
 **CloudEmpiere Advantage:**
-- `SecureDatabaseQueryExecutor` executes any SQL with role-based security
+- `SecureDatabaseQueryExecutor` uses direct SQL, bypassing PO cross-tenant checks
+- Knowledge tables (AD_*, K_*) explicitly allowed for all users
+- Business tables restricted to user's tenant
 - LangChain4j agents can generate and optimize queries
 - RAG retrieval for context-aware responses
-- Not limited to pre-defined REST endpoints
+- Full audit trail maintained
+
+See [ADR-029: Multi-Tenant AI Access](029-multi-tenant-ai-access.md) for detailed architecture.
 
 ### Architecture Differences
 
@@ -241,6 +262,8 @@ ORDER BY TotalSales DESC
 | **REST Backend** | idempiere-rest project | cloudempiere-cli (Quarkus) |
 | **Data Access** | **REST API only (limited)** | **Direct SQL + REST (flexible)** |
 | **Query Capability** | Pre-defined models/views only | Any SQL with role security |
+| **Cross-Tenant Access** | ❌ **PO layer blocks** | ✅ **Controlled via SQL** |
+| **App Dictionary Access** | ❌ Exception if user ≠ System | ✅ Always allowed for context |
 | **Transport** | SSE + Streamable HTTP | STDIO (via MCP SDK) |
 | **Session** | Server-managed | Stateless |
 | **AI Integration** | None (pure MCP) | LangChain4j agents |

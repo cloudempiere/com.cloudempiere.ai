@@ -25,6 +25,7 @@ This directory contains architecture decisions for the CloudEmpiere AI plugin.
 | [008](008-llm-instruction-following.md) | LLM Instruction Following Strategy | Accepted | 2025-12-01 |
 | [012](012-rag-based-context-retrieval.md) | RAG-Based Context Retrieval | Accepted | 2025-12-01 |
 | [026](026-vector-database-strategy.md) | Vector Database Strategy | Proposed | 2025-12-03 |
+| [029](029-multi-tenant-ai-access.md) | Multi-Tenant AI Access for Service Providers | Proposed | 2025-12-03 |
 
 ### Agent Architecture
 
