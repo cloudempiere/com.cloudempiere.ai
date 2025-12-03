@@ -6,7 +6,7 @@
 
 ## Overview
 
-This document describes the enhanced AI context system that provides Claude AI with detailed knowledge of CloudEmpiere's editor.js syntax capabilities. This enables the Knowledge Base Agent to make syntax-aware recommendations and validate content structure.
+This document describes the enhanced AI context system that provides Claude AI with detailed knowledge of Cloudempiere's editor.js syntax capabilities. This enables the Knowledge Base Agent to make syntax-aware recommendations and validate content structure.
 
 ---
 
@@ -46,7 +46,7 @@ The enhanced AI context system consists of three main components:
 #### 1. **EditorJsSyntaxInfo** (DTO)
 **Location:** `src/com/cloudempiere/ai/kb/dto/EditorJsSyntaxInfo.java`
 
-Singleton DTO that documents all editor.js capabilities available in CloudEmpiere:
+Singleton DTO that documents all editor.js capabilities available in Cloudempiere:
 
 - **Block Types (14):** paragraph, heading, list, code, quote, image, table, embed, alert, columns, bpmn, mermaid, excerpt, raw, attaches, delimiter
 - **Inline Tools (8):** bold, italic, underline, code, marker, link, comment, changeCase
@@ -131,7 +131,7 @@ Updated to include syntax capabilities in extracted context:
 
 ### EditorJsSyntaxInfo.java
 
-Complete reference of CloudEmpiere editor.js capabilities.
+Complete reference of Cloudempiere editor.js capabilities.
 
 **Features:**
 - Singleton pattern for efficient memory usage
@@ -744,7 +744,7 @@ The enhanced AI context system provides:
 - ✅ **Extensibility** (easy to add new blocks/plugins)
 - ✅ **No breaking changes** (backward compatible)
 
-This enables the Knowledge Base Agent to provide syntax-aware recommendations that understand the exact capabilities of CloudEmpiere's editor.js implementation.
+This enables the Knowledge Base Agent to provide syntax-aware recommendations that understand the exact capabilities of Cloudempiere's editor.js implementation.
 
 ---
 

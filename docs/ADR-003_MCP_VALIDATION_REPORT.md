@@ -1,7 +1,7 @@
 # ADR-003 MCP Validation Report
 
 **Date:** 2025-12-01
-**Validator:** CloudEmpiere AI Team
+**Validator:** Cloudempiere AI Team
 **Subject:** ADR-003 (REST API for External AI Agent Access) vs LangChain4j MCP Capabilities
 
 ---
@@ -189,4 +189,4 @@ Our LangChain4j architecture (ADR-002) is MCP-compatible:
 
 **Report Version:** 1.0
 **Created:** 2025-12-01
-**Validated By:** CloudEmpiere AI Team
+**Validated By:** Cloudempiere AI Team

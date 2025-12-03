@@ -707,7 +707,7 @@ chore(deps): upgrade langchain4j to 1.0.0-beta4
 
 ## License
 
-Proprietary - CloudEmpiere Ltd.
+Proprietary - Cloudempiere Ltd.
 
 ---
 

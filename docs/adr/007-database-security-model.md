@@ -2,7 +2,7 @@
 
 **Status:** Accepted
 **Date:** 2025-12-01
-**Deciders:** CloudEmpiere AI Team
+**Deciders:** Cloudempiere AI Team
 **Implemented:** v0.10.0
 
 ---

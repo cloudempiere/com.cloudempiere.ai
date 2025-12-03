@@ -27,7 +27,7 @@ import dev.langchain4j.agent.tool.Tool;
  * All database operations go through SecureDatabaseQueryExecutor
  * which enforces role-based access control.
  *
- * @author CloudEmpiere
+ * @author Cloudempiere
  * @version 0.9.0
  * @since ADR-002 LangChain4j Strategic Adoption
  */

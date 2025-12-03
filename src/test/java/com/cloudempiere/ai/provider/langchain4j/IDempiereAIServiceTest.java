@@ -28,7 +28,7 @@ import com.cloudempiere.ai.model.MAIProvider;
  * - Memory management
  * - Cache management
  *
- * @author CloudEmpiere
+ * @author Cloudempiere
  * @version 0.9.0
  */
 @ExtendWith(MockitoExtension.class)

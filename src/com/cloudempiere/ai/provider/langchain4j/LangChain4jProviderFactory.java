@@ -34,7 +34,7 @@ import software.amazon.awssdk.regions.Region;
  * - OllamaChatModel (new - local LLM support)
  * - OpenAiChatModel (new - OpenAI/Azure support)
  *
- * @author CloudEmpiere
+ * @author Cloudempiere
  * @version 0.9.0
  * @since ADR-002 LangChain4j Strategic Adoption
  */

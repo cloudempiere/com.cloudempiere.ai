@@ -10,7 +10,7 @@ Proposed
 
 ## Deciders
 
-CloudEmpiere AI Team
+Cloudempiere AI Team
 
 ## Context and Problem Statement
 

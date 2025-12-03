@@ -29,7 +29,7 @@ import com.cloudempiere.ai.model.MAIProvider;
  * Tests the @Tool annotated methods for LangChain4j agent integration.
  * Uses mocks for database operations to enable isolated testing.
  *
- * @author CloudEmpiere
+ * @author Cloudempiere
  * @version 0.9.0
  */
 @ExtendWith(MockitoExtension.class)

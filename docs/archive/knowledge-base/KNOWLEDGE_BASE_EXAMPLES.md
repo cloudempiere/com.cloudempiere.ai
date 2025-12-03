@@ -20,7 +20,7 @@ String newContent = """
 
 ## Installation Steps
 
-1. Pull the CloudEmpiere image:
+1. Pull the Cloudempiere image:
    ```bash
    docker pull cloudempiere/cloudempiere:latest
    ```
@@ -118,7 +118,7 @@ String newContent = """
 
 ## Helm Chart Installation
 
-1. Add CloudEmpiere helm repo:
+1. Add Cloudempiere helm repo:
    ```bash
    helm repo add cloudempiere https://charts.cloudempiere.io
    ```
@@ -176,7 +176,7 @@ String editorJsContent = """
     {
       "type": "paragraph",
       "data": {
-        "text": "This guide covers best practices for CloudEmpiere configuration."
+        "text": "This guide covers best practices for Cloudempiere configuration."
       }
     },
     {
@@ -201,7 +201,7 @@ String editorJsContent = """
       "type": "quote",
       "data": {
         "text": "Configuration is the foundation of stable production deployments",
-        "caption": "CloudEmpiere DevOps Guide"
+        "caption": "Cloudempiere DevOps Guide"
       }
     }
   ]
@@ -215,7 +215,7 @@ System.out.println(markdown);
 // Output:
 // # Configuration Best Practices
 //
-// This guide covers best practices for CloudEmpiere configuration.
+// This guide covers best practices for Cloudempiere configuration.
 //
 // - Use environment variables for sensitive data
 // - Enable audit logging for compliance
@@ -229,7 +229,7 @@ System.out.println(markdown);
 // ```
 //
 // > Configuration is the foundation of stable production deployments
-// > — CloudEmpiere DevOps Guide
+// > — Cloudempiere DevOps Guide
 
 // For similarity analysis, convert to plain text
 String plainText = EditorJsParser.markdownToPlainText(markdown);
@@ -237,7 +237,7 @@ System.out.println(plainText);
 // Output:
 // Configuration Best Practices
 //
-// This guide covers best practices for CloudEmpiere configuration.
+// This guide covers best practices for Cloudempiere configuration.
 //
 // Use environment variables for sensitive data
 // Enable audit logging for compliance
@@ -249,7 +249,7 @@ System.out.println(plainText);
 // LOG_LEVEL=INFO
 //
 // Configuration is the foundation of stable production deployments
-// CloudEmpiere DevOps Guide
+// Cloudempiere DevOps Guide
 ```
 
 ## Example 4: Similarity Analysis Deep Dive
@@ -422,7 +422,7 @@ public class KnowledgeBaseContentDialog extends AbstractADWindow {
 
 // SCENARIO 1: High confidence - obvious placement
 PlacementRecommendation rec1 = kbAgent.analyzePlacement(ctx, "DEPLOYMENT",
-    "How to Deploy CloudEmpiere on AWS", "AWS Deployment");
+    "How to Deploy Cloudempiere on AWS", "AWS Deployment");
 
 // Expected: 90%+ confidence, CREATE_NEW under Deployment → Cloud
 System.out.println("Scenario 1 Confidence: " + rec1.getConfidencePercent() + "%");
@@ -431,7 +431,7 @@ System.out.println("Reasoning: Clear topic, fits existing structure");
 
 // SCENARIO 2: Medium confidence - somewhat related
 rec = kbAgent.analyzePlacement(ctx, "DEPLOYMENT",
-    "Database optimization for CloudEmpiere", "DB Optimization");
+    "Database optimization for Cloudempiere", "DB Optimization");
 
 // Expected: 60-70% confidence, possibly EXTEND_EXISTING or CREATE_NEW
 System.out.println("\nScenario 2 Confidence: " + rec.getConfidencePercent() + "%");

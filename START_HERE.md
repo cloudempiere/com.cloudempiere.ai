@@ -140,5 +140,5 @@ See `/docs/analysis-to-langchain/STRATEGIC_ANALYSIS_INDEX.md` for:
 **Version**: 1.0
 **Date**: November 26, 2025
 
-🎉 **You have everything needed to build production AI agents for CloudEmpiere!**
+🎉 **You have everything needed to build production AI agents for Cloudempiere!**
 

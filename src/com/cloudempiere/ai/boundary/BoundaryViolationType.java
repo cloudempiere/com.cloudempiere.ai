@@ -19,7 +19,7 @@ package com.cloudempiere.ai.boundary;
  * <p>Each type has a severity level and indicates whether it should trigger
  * a security alert.
  *
- * @author CloudEmpiere AI Team
+ * @author Cloudempiere AI Team
  * @version ADR-009
  * @since v0.10.0
  */

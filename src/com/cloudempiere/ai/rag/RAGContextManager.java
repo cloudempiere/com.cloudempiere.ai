@@ -58,7 +58,7 @@ import dev.langchain4j.store.embedding.inmemory.InMemoryEmbeddingStore;
  *   <li>No regex pattern tuning needed</li>
  * </ul>
  *
- * @author CloudEmpiere AI Team
+ * @author Cloudempiere AI Team
  * @version ADR-012
  * @since v0.10.0
  */

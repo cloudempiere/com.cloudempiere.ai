@@ -27,7 +27,7 @@ import dev.langchain4j.service.UserMessage;
  * String response = agent.chat(sessionId, "Show me overdue orders");
  * </pre>
  *
- * @author CloudEmpiere
+ * @author Cloudempiere
  * @version 0.9.0
  * @since ADR-002 LangChain4j Strategic Adoption
  */

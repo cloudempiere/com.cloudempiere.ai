@@ -1,10 +1,10 @@
-# Editor.js CloudEmpiere Setup Guide
+# Editor.js Cloudempiere Setup Guide
 
-Complete guide to editor.js implementation in CloudEmpiere, based on actual clde-angular-ecommerce production setup.
+Complete guide to editor.js implementation in Cloudempiere, based on actual clde-angular-ecommerce production setup.
 
 ## Overview
 
-CloudEmpiere uses **Editor.js v2.30.8** as a block-based editor for rich content creation. The implementation includes:
+Cloudempiere uses **Editor.js v2.30.8** as a block-based editor for rich content creation. The implementation includes:
 
 - **14 block types** (paragraph, heading, list, table, image, code, alerts, BPMN, Mermaid, etc.)
 - **8 inline tools** (bold, italic, underline, inline code, comments, hyperlinks, case conversion)
@@ -789,7 +789,7 @@ const { default: Paragraph } = await import("@editorjs/paragraph");
 
 ---
 
-## Integration with CloudEmpiere
+## Integration with Cloudempiere
 
 ### Store Methods
 

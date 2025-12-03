@@ -104,11 +104,11 @@ A: Follow iDempiere conventions using 3+ letter custom prefixes:
 // Pattern: [PREFIX]_[EntityName]
 
 // GOOD EXAMPLES:
-// CLD_ = CloudEmpiere custom tables
-//   CLD_CustomOrder        (CloudEmpiere custom order extension)
-//   CLD_Integration        (CloudEmpiere integration settings)
-//   CLD_ProcessLog         (CloudEmpiere process audit log)
-//   CLD_InventorySnapshot  (CloudEmpiere inventory tracking)
+// CLD_ = Cloudempiere custom tables
+//   CLD_CustomOrder        (Cloudempiere custom order extension)
+//   CLD_Integration        (Cloudempiere integration settings)
+//   CLD_ProcessLog         (Cloudempiere process audit log)
+//   CLD_InventorySnapshot  (Cloudempiere inventory tracking)
 
 // EXT_ = General extension/custom
 //   EXT_CustomReport
@@ -129,7 +129,7 @@ A: Follow iDempiere conventions using 3+ letter custom prefixes:
 ### Multi-Plugin Naming Strategy
 
 ```java
-// EXAMPLE: Multiple plugins in same CloudEmpiere system
+// EXAMPLE: Multiple plugins in same Cloudempiere system
 
 // Plugin 1: Advanced Inventory Tracking
   AIT_InventoryMovement      (Advanced Inventory Tracking)
@@ -279,7 +279,7 @@ A: Use the data dictionary to create tables with proper metadata:
 <ADObjects>
   <Table>
     <Name>CLD_CustomOrder</Name>
-    <Description>CloudEmpiere Custom Order Management</Description>
+    <Description>Cloudempiere Custom Order Management</Description>
     <Access>4</Access>
     <Help></Help>
     <TableName>CLD_CustomOrder</TableName>
@@ -366,7 +366,7 @@ A: Never use reserved iDempiere prefixes:
   WS_*     (Web Service)
 
 ✅ RECOMMENDED CUSTOM PREFIXES:
-  CLD_*    (CloudEmpiere - good for enterprise customizations)
+  CLD_*    (Cloudempiere - good for enterprise customizations)
   EXT_*    (General extensions)
   CUST_*   (Customer-specific)
   [ClientCode]_*  (Client-specific, e.g., ACME_, XYZ_)

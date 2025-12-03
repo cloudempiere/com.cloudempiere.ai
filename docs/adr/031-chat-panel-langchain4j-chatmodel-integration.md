@@ -10,7 +10,7 @@ Accepted (Revised 2025-12-03)
 
 ## Deciders
 
-CloudEmpiere AI Team
+Cloudempiere AI Team
 
 ## Revision Note (2025-12-03)
 

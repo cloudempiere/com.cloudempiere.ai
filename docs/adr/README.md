@@ -1,6 +1,6 @@
 # Architecture Decision Records (ADRs)
 
-This directory contains architecture decisions for the CloudEmpiere AI plugin.
+This directory contains architecture decisions for the Cloudempiere AI plugin.
 
 ---
 

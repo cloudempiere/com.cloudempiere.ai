@@ -19,10 +19,10 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * DTO representing editor.js syntax capabilities in CloudEmpiere
+ * DTO representing editor.js syntax capabilities in Cloudempiere
  *
  * <p>This class documents all block types, inline tools, and plugins
- * available in the CloudEmpiere editor.js implementation. Used by AI
+ * available in the Cloudempiere editor.js implementation. Used by AI
  * to provide syntax-aware recommendations and content validation.
  *
  * @author Cloudempiere
@@ -45,7 +45,7 @@ public class EditorJsSyntaxInfo {
     private List<String> outputFormats = new ArrayList<>();
 
     /**
-     * Private constructor - initialize syntax info from CloudEmpiere setup
+     * Private constructor - initialize syntax info from Cloudempiere setup
      */
     private EditorJsSyntaxInfo() {
         initializeBlockTypes();
@@ -64,7 +64,7 @@ public class EditorJsSyntaxInfo {
     }
 
     /**
-     * Initialize all supported block types in CloudEmpiere editor.js
+     * Initialize all supported block types in Cloudempiere editor.js
      */
     private void initializeBlockTypes() {
         // Paragraph block
@@ -197,7 +197,7 @@ public class EditorJsSyntaxInfo {
     }
 
     /**
-     * Initialize all supported inline tools in CloudEmpiere editor.js
+     * Initialize all supported inline tools in Cloudempiere editor.js
      */
     private void initializeInlineTools() {
         inlineTools.put("bold", new InlineToolInfo(
@@ -258,7 +258,7 @@ public class EditorJsSyntaxInfo {
     }
 
     /**
-     * Initialize all supported plugins in CloudEmpiere editor.js
+     * Initialize all supported plugins in Cloudempiere editor.js
      */
     private void initializePlugins() {
         // Official Editor.js plugins

@@ -1,6 +1,6 @@
 # Knowledge Base Agent Documentation
 
-Complete documentation for the CloudEmpiere AI Knowledge Base Agent implementation.
+Complete documentation for the Cloudempiere AI Knowledge Base Agent implementation.
 
 ## 📚 Documentation Files
 

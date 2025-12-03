@@ -11,8 +11,10 @@ You create paired PostgreSQL and Oracle migration scripts for iDempiere. Always 
 
 ## File Naming Convention
 
-Format: `YYYYMMDDHHMI_[TICKET-ID]_Description.sql`
-Example: `202510301420_CLD-1582_ABCAnalysis.sql`
+Format: `YYYYMMDDHHMI_TICKET-ID.sql`
+Example: `202510301420_CLD-1582.sql`
+
+**Important:** Do NOT add any description suffix after the ticket number.
 
 Use current date/time for timestamp.
 
@@ -21,7 +23,7 @@ Use current date/time for timestamp.
 ### PostgreSQL Template
 ```sql
 -- CLD-XXXX - Description
-SELECT register_migration_script('YYYYMMDDHHMI_CLD-XXXX_Description.sql') FROM dual;
+SELECT register_migration_script('YYYYMMDDHHMI_CLD-XXXX.sql') FROM dual;
 
 -- Register Process
 INSERT INTO AD_Process (
@@ -44,7 +46,7 @@ INSERT INTO AD_Process (
 ### Oracle Template
 ```sql
 -- CLD-XXXX - Description
-SELECT register_migration_script('YYYYMMDDHHMI_CLD-XXXX_Description.sql') FROM dual;
+SELECT register_migration_script('YYYYMMDDHHMI_CLD-XXXX.sql') FROM dual;
 
 SET SQLBLANKLINES ON
 SET DEFINE OFF

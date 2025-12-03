@@ -24,7 +24,7 @@ import org.compiere.util.Env;
 import com.cloudempiere.ai.agent.AgentContext;
 
 /**
- * Boundary Enforcement Filter for AI agents (ADR-009).
+ * Boundary Enforcement Filter for AI agents (ADR-009, ADR-029).
  *
  * <p>Automatically injects AD_Client_ID and AD_Org_ID filters into SQL queries
  * to ensure agents only access data within their authorized scope.
@@ -35,21 +35,53 @@ import com.cloudempiere.ai.agent.AgentContext;
  *   <li>Role-based organization access validation</li>
  *   <li>Detection of multi-tenant bypass attempts</li>
  *   <li>SQL injection prevention</li>
+ *   <li>ADR-029: Tiered multi-tenant access (End User / Service Provider)</li>
+ * </ul>
+ *
+ * <p>ADR-029 Access Tiers:
+ * <ul>
+ *   <li>Tier 1 (End User): Own client + knowledge sources (AD_*, K_*)</li>
+ *   <li>Tier 2 (Service Provider): Target client + knowledge sources</li>
  * </ul>
  *
  * <p>Usage:
  * <pre>
  * BoundaryEnforcementFilter filter = new BoundaryEnforcementFilter();
  * String secureSql = filter.enforceOrgFilter(sql, context);
+ * // Or with tiered access:
+ * String secureSql = filter.enforceOrgFilter(sql, context, accessTier);
  * </pre>
  *
- * @author CloudEmpiere AI Team
- * @version ADR-009
- * @since v0.10.0
+ * <p><b>Tags:</b> #boundaries #sql-filter #multi-tenant #security #injection-prevention
+ *
+ * @author Cloudempiere AI Team
+ * @version 1.0.0
+ * @since v0.11.0
+ * @see DataAccessValidator
+ * @see AgentBoundary
  */
 public class BoundaryEnforcementFilter {
 
     private static final CLogger log = CLogger.getCLogger(BoundaryEnforcementFilter.class);
+
+    // ========================================================================
+    // ADR-029: Access Tier Enumeration
+    // ========================================================================
+
+    /**
+     * Access tier for multi-tenant AI operations (ADR-029).
+     */
+    public enum AIGAccessTier {
+        /** Tenant only - user's own AD_Client_ID */
+        TENANT,
+        /** Tenant + Dictionary - own client + knowledge tables (AD_*, K_*) */
+        TENANT_DICTIONARY,
+        /** Service Provider - access to target client's data */
+        SERVICE_PROVIDER
+    }
+
+    /** Data access validator for knowledge table detection */
+    private final DataAccessValidator dataAccessValidator = new DataAccessValidator();
 
     /** Pattern to detect WHERE clause */
     private static final Pattern WHERE_PATTERN =
@@ -131,6 +163,128 @@ public class BoundaryEnforcementFilter {
                 ", Org=" + context.getOrgId() + "]");
 
         return filteredSql;
+    }
+
+    /**
+     * Enforce organization boundary on SQL query with access tier (ADR-029).
+     *
+     * <p>Applies appropriate client filter based on access tier:
+     * <ul>
+     *   <li>TENANT: AD_Client_ID = userClientId</li>
+     *   <li>TENANT_DICTIONARY: AD_Client_ID = userClientId OR knowledge tables</li>
+     *   <li>SERVICE_PROVIDER: AD_Client_ID = targetClientId</li>
+     * </ul>
+     *
+     * @param sql Original SQL query
+     * @param context Agent context with client/org info
+     * @param accessTier Access tier for this operation
+     * @param targetClientId Target client ID (for SERVICE_PROVIDER tier)
+     * @return Modified SQL with boundary filters
+     * @throws BoundaryViolationException if SQL contains injection attempt
+     */
+    public String enforceOrgFilter(String sql, AgentContext context,
+                                    AIGAccessTier accessTier, int targetClientId)
+            throws BoundaryViolationException {
+
+        if (sql == null || sql.trim().isEmpty()) {
+            return sql;
+        }
+
+        // Check for injection attempts
+        validateNoInjection(sql);
+
+        // Extract main table name
+        String tableName = extractMainTable(sql);
+        if (tableName == null) {
+            log.warning("Could not extract table name from SQL: " + sql);
+            return sql;
+        }
+
+        // Skip system tables
+        if (isSystemTable(tableName)) {
+            log.fine("Skipping boundary filter for system table: " + tableName);
+            return sql;
+        }
+
+        // Build filter clause based on access tier
+        StringBuilder filter = new StringBuilder();
+        boolean isKnowledgeTable = dataAccessValidator.isKnowledgeTable(tableName);
+
+        switch (accessTier) {
+            case TENANT:
+                // User's own client only
+                filter.append("AD_Client_ID = ").append(context.getClientId());
+                break;
+
+            case TENANT_DICTIONARY:
+                // User's client + knowledge tables
+                if (isKnowledgeTable) {
+                    filter.append("AD_Client_ID IN (0, ")
+                          .append(DataAccessValidator.KNOWLEDGE_CLIENT_ID).append(")");
+                } else {
+                    filter.append("AD_Client_ID = ").append(context.getClientId());
+                }
+                break;
+
+            case SERVICE_PROVIDER:
+                // Target client (for service providers)
+                if (isKnowledgeTable) {
+                    filter.append("AD_Client_ID IN (0, ")
+                          .append(DataAccessValidator.KNOWLEDGE_CLIENT_ID).append(")");
+                } else if (targetClientId > 0) {
+                    filter.append("AD_Client_ID = ").append(targetClientId);
+                } else {
+                    // Fallback to user's own client
+                    filter.append("AD_Client_ID = ").append(context.getClientId());
+                }
+                break;
+
+            default:
+                filter.append("AD_Client_ID = ").append(context.getClientId());
+        }
+
+        // Add org filter if not accessing all orgs
+        if (context.getOrgId() > 0 && !isKnowledgeTable) {
+            filter.append(" AND AD_Org_ID IN (0, ").append(context.getOrgId()).append(")");
+        } else if (!isKnowledgeTable) {
+            // Validate user can access all orgs
+            MRole role = MRole.get(context.getCtx(), context.getRoleId());
+            if (role != null && !role.isAccessAllOrgs()) {
+                // Restrict to authorized orgs
+                String orgClause = buildAuthorizedOrgClause(role);
+                filter.append(" AND ").append(orgClause);
+            }
+        }
+
+        // Inject filter into SQL
+        String filteredSql = injectFilter(sql, filter.toString());
+
+        log.fine("Tiered boundary filter applied: " + tableName +
+                " [Tier=" + accessTier +
+                ", Client=" + (accessTier == AIGAccessTier.SERVICE_PROVIDER ? targetClientId : context.getClientId()) +
+                ", Org=" + context.getOrgId() +
+                ", KnowledgeTable=" + isKnowledgeTable + "]");
+
+        return filteredSql;
+    }
+
+    /**
+     * Check if a table is a knowledge table (ADR-029 delegation).
+     *
+     * @param tableName Table name
+     * @return true if knowledge table (AD_*, K_*)
+     */
+    public boolean isKnowledgeTable(String tableName) {
+        return dataAccessValidator.isKnowledgeTable(tableName);
+    }
+
+    /**
+     * Get the knowledge client ID (ADR-029 delegation).
+     *
+     * @return Knowledge client ID (1000014)
+     */
+    public int getKnowledgeClientId() {
+        return DataAccessValidator.KNOWLEDGE_CLIENT_ID;
     }
 
     /**

@@ -32,7 +32,7 @@ import java.util.logging.Level;
  *
  * <p>Extends EditorJsParser with syntax-aware parsing that:
  * <ul>
- *   <li>Detects and validates block types against CloudEmpiere capabilities</li>
+ *   <li>Detects and validates block types against Cloudempiere capabilities</li>
  *   <li>Analyzes content structure and formatting options</li>
  *   <li>Preserves plugin-specific metadata</li>
  *   <li>Provides syntax analysis for AI recommendations</li>

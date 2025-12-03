@@ -111,7 +111,7 @@ We will implement a **layered agent architecture** using LangChain4j for orchest
 **Integration with Existing Code**:
 ```java
 // LangChain4j will use our IAIProvider implementations
-public class CloudEmpiereLanguageModel implements ChatLanguageModel {
+public class CloudempiereLanguageModel implements ChatLanguageModel {
     private final IAIProvider provider;
 
     @Override
@@ -186,7 +186,7 @@ public class InventoryAgent implements IAgent {
         );
 
         this.aiService = AiServices.builder(InventoryAssistant.class)
-            .chatLanguageModel(new CloudEmpiereLanguageModel(provider))
+            .chatLanguageModel(new CloudempiereLanguageModel(provider))
             .chatMemory(MessageWindowChatMemory.withMaxMessages(10))
             .tools(toolRegistry.getTools(boundary))
             .build();
@@ -395,7 +395,7 @@ AIG_AgentMemory {
 
 **Week 1**:
 - [ ] Implement `IAgent` interface
-- [ ] Create `CloudEmpiereLanguageModel` adapter
+- [ ] Create `CloudempiereLanguageModel` adapter
 - [ ] Implement `ToolRegistry`
 - [ ] Create `DatabaseQueryTool`
 - [ ] Setup LangChain4j integration

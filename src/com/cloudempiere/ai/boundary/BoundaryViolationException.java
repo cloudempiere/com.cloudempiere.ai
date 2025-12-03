@@ -19,7 +19,7 @@ package com.cloudempiere.ai.boundary;
  * <p>This exception is thrown by boundary validators when an agent attempts
  * to access data or perform actions outside its authorized scope.
  *
- * @author CloudEmpiere AI Team
+ * @author Cloudempiere AI Team
  * @version ADR-009
  * @since v0.10.0
  */
