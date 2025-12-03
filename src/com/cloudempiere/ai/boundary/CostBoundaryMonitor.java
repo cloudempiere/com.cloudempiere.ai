@@ -39,7 +39,7 @@ import com.cloudempiere.ai.agent.AgentContext;
  *   <li>Token usage</li>
  * </ul>
  *
- * @author CloudEmpiere AI Team
+ * @author Cloudempiere AI Team
  * @version ADR-009
  * @since v0.10.0
  */

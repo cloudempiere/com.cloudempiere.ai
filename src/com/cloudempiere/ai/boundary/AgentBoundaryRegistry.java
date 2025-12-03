@@ -37,7 +37,7 @@ import com.cloudempiere.ai.boundary.AgentBoundary.ActionType;
  *   <li><b>general-agent</b>: Default boundary for untyped agents</li>
  * </ul>
  *
- * @author CloudEmpiere AI Team
+ * @author Cloudempiere AI Team
  * @version ADR-009
  * @since v0.10.0
  */
