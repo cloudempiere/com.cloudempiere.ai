@@ -59,7 +59,7 @@ public class KnowledgeBaseContextProvider implements IAIContextProvider {
 
         try {
             // Get requested knowledge base type
-            String kType = parameters.getString("k_type", null);
+            String kType = parameters.getString("k_type");
             if (kType == null) {
                 context.put("error", "k_type parameter is required");
                 context.put("success", false);
@@ -196,7 +196,7 @@ public class KnowledgeBaseContextProvider implements IAIContextProvider {
             JSONObject toolJson = new JSONObject();
             toolJson.put("name", tool.name);
             toolJson.put("display_name", tool.displayName);
-            toolJson.put("shortcut", tool.shortcut);
+            toolJson.put("syntax", tool.syntax);
             toolJson.put("description", tool.description);
             inlineToolsArray.put(toolJson);
         }

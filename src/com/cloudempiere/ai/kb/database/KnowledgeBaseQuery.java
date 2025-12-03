@@ -13,6 +13,11 @@
  *****************************************************************************/
 package com.cloudempiere.ai.kb.database;
 
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.logging.Level;
+
 import org.compiere.util.CLogger;
 import org.compiere.util.DB;
 
@@ -20,9 +25,6 @@ import com.cloudempiere.ai.kb.dto.KnowledgeBaseEntry;
 import com.cloudempiere.ai.kb.dto.KnowledgeBaseHierarchy;
 import com.cloudempiere.ai.kb.dto.SimilarityResult;
 import com.cloudempiere.ai.kb.dto.SimilarityResult.SimilarEntry;
-
-import java.sql.ResultSet;
-import java.util.logging.Level;
 
 /**
  * Database queries for knowledge base operations
@@ -46,17 +48,19 @@ public class KnowledgeBaseQuery {
     public static KnowledgeBaseHierarchy loadHierarchyFromView(String kType) {
         KnowledgeBaseHierarchy hierarchy = new KnowledgeBaseHierarchy(kType);
 
-        String sql = """
-            SELECT k_entry_id, name, title, description, content,
-                   parent_id, seqno, isactive, ad_language,
-                   depth, breadcrumb, path_length
-            FROM v_k_entry_hierarchy
-            WHERE k_type = ?
-            ORDER BY path
-            """;
+        String sql = "SELECT k_entry_id, name, title, description, content, " +
+                     "parent_id, seqno, isactive, ad_language, " +
+                     "depth, breadcrumb, path_length " +
+                     "FROM v_k_entry_hierarchy " +
+                     "WHERE k_type = ? " +
+                     "ORDER BY path";
 
+        PreparedStatement pstmt = null;
+        ResultSet rs = null;
         try {
-            ResultSet rs = DB.query(sql, new Object[]{kType});
+            pstmt = DB.prepareStatement(sql, null);
+            pstmt.setString(1, kType);
+            rs = pstmt.executeQuery();
 
             while (rs.next()) {
                 KnowledgeBaseEntry entry = new KnowledgeBaseEntry();
@@ -71,17 +75,15 @@ public class KnowledgeBaseQuery {
                 entry.setLanguage(rs.getString("ad_language"));
                 entry.setK_type(kType);
 
-                // Breadcrumb path from DB
-                String breadcrumb = rs.getString("breadcrumb");
-
                 hierarchy.addEntry(entry);
             }
 
-            rs.close();
             log.fine("Loaded " + hierarchy.getTotalEntries() + " entries for KB type: " + kType);
 
-        } catch (Exception e) {
+        } catch (SQLException e) {
             log.log(Level.SEVERE, "Failed to load KB hierarchy from view", e);
+        } finally {
+            DB.close(rs, pstmt);
         }
 
         return hierarchy;
@@ -104,25 +106,25 @@ public class KnowledgeBaseQuery {
         // Prepare search query - split into keywords for tsquery
         String searchQuery = prepareSearchQuery(searchText);
 
-        String sql = """
-            SELECT k_entry_id, title, description,
-                   ts_rank(content_tsv, to_tsquery(?, ?)) as similarity_score,
-                   breadcrumb, depth
-            FROM v_k_entry_hierarchy
-            WHERE k_type = ?
-              AND content_tsv @@ to_tsquery(?, ?)
-            ORDER BY similarity_score DESC
-            LIMIT 10
-            """;
+        String sql = "SELECT k_entry_id, title, description, " +
+                     "ts_rank(content_tsv, to_tsquery(?, ?)) as similarity_score, " +
+                     "breadcrumb, depth " +
+                     "FROM v_k_entry_hierarchy " +
+                     "WHERE k_type = ? " +
+                     "AND content_tsv @@ to_tsquery(?, ?) " +
+                     "ORDER BY similarity_score DESC " +
+                     "LIMIT 10";
 
+        PreparedStatement pstmt = null;
+        ResultSet rs = null;
         try {
-            ResultSet rs = DB.query(sql, new Object[]{
-                "english",
-                searchQuery,
-                kType,
-                "english",
-                searchQuery
-            });
+            pstmt = DB.prepareStatement(sql, null);
+            pstmt.setString(1, "english");
+            pstmt.setString(2, searchQuery);
+            pstmt.setString(3, kType);
+            pstmt.setString(4, "english");
+            pstmt.setString(5, searchQuery);
+            rs = pstmt.executeQuery();
 
             while (rs.next()) {
                 int entryId = rs.getInt("k_entry_id");
@@ -130,7 +132,6 @@ public class KnowledgeBaseQuery {
                 String description = rs.getString("description");
                 double score = rs.getDouble("similarity_score");
                 String breadcrumb = rs.getString("breadcrumb");
-                int depth = rs.getInt("depth");
 
                 // Create entry object
                 KnowledgeBaseEntry entry = new KnowledgeBaseEntry(entryId, "", title);
@@ -146,10 +147,10 @@ public class KnowledgeBaseQuery {
                         String.format("%.2f", score) + ")");
             }
 
-            rs.close();
-
-        } catch (Exception e) {
+        } catch (SQLException e) {
             log.log(Level.SEVERE, "Failed to find similar entries", e);
+        } finally {
+            DB.close(rs, pstmt);
         }
 
         return result;
@@ -164,18 +165,20 @@ public class KnowledgeBaseQuery {
     public static SimilarityResult findDuplicates(String kType, String entryTitle) {
         SimilarityResult result = new SimilarityResult();
 
-        String sql = """
-            SELECT entry_id_2, title_2, similarity_score
-            FROM v_k_entry_similarity
-            WHERE k_type = ?
-              AND similarity_score > 0.85
-              AND entry_id_1 <> entry_id_2
-            ORDER BY similarity_score DESC
-            LIMIT 5
-            """;
+        String sql = "SELECT entry_id_2, title_2, similarity_score " +
+                     "FROM v_k_entry_similarity " +
+                     "WHERE k_type = ? " +
+                     "AND similarity_score > 0.85 " +
+                     "AND entry_id_1 <> entry_id_2 " +
+                     "ORDER BY similarity_score DESC " +
+                     "LIMIT 5";
 
+        PreparedStatement pstmt = null;
+        ResultSet rs = null;
         try {
-            ResultSet rs = DB.query(sql, new Object[]{kType});
+            pstmt = DB.prepareStatement(sql, null);
+            pstmt.setString(1, kType);
+            rs = pstmt.executeQuery();
 
             while (rs.next()) {
                 int entryId = rs.getInt("entry_id_2");
@@ -189,10 +192,10 @@ public class KnowledgeBaseQuery {
                 result.addSimilarEntry(similar);
             }
 
-            rs.close();
-
-        } catch (Exception e) {
+        } catch (SQLException e) {
             log.log(Level.SEVERE, "Failed to find duplicates", e);
+        } finally {
+            DB.close(rs, pstmt);
         }
 
         return result;
@@ -204,22 +207,24 @@ public class KnowledgeBaseQuery {
      * <p>Returns full breadcrumb path from root to entry.
      */
     public static String getHierarchyPath(int entryId) {
-        String sql = """
-            SELECT breadcrumb FROM get_hierarchy_path(?)
-            ORDER BY level DESC
-            LIMIT 1
-            """;
+        String sql = "SELECT breadcrumb FROM get_hierarchy_path(?) " +
+                     "ORDER BY level DESC " +
+                     "LIMIT 1";
 
+        PreparedStatement pstmt = null;
+        ResultSet rs = null;
         try {
-            ResultSet rs = DB.query(sql, new Object[]{entryId});
+            pstmt = DB.prepareStatement(sql, null);
+            pstmt.setInt(1, entryId);
+            rs = pstmt.executeQuery();
+
             if (rs.next()) {
-                String breadcrumb = rs.getString("breadcrumb");
-                rs.close();
-                return breadcrumb;
+                return rs.getString("breadcrumb");
             }
-            rs.close();
-        } catch (Exception e) {
+        } catch (SQLException e) {
             log.log(Level.SEVERE, "Failed to get hierarchy path", e);
+        } finally {
+            DB.close(rs, pstmt);
         }
 
         return null;
@@ -233,15 +238,17 @@ public class KnowledgeBaseQuery {
     public static KnowledgeBaseHierarchy getKBStructureWithStats(String kType) {
         KnowledgeBaseHierarchy hierarchy = new KnowledgeBaseHierarchy(kType);
 
-        String sql = """
-            SELECT k_entry_id, title, description, depth, breadcrumb,
-                   child_count, path
-            FROM get_kb_structure(?)
-            ORDER BY path
-            """;
+        String sql = "SELECT k_entry_id, title, description, depth, breadcrumb, " +
+                     "child_count, path " +
+                     "FROM get_kb_structure(?) " +
+                     "ORDER BY path";
 
+        PreparedStatement pstmt = null;
+        ResultSet rs = null;
         try {
-            ResultSet rs = DB.query(sql, new Object[]{kType});
+            pstmt = DB.prepareStatement(sql, null);
+            pstmt.setString(1, kType);
+            rs = pstmt.executeQuery();
 
             while (rs.next()) {
                 KnowledgeBaseEntry entry = new KnowledgeBaseEntry();
@@ -252,10 +259,10 @@ public class KnowledgeBaseQuery {
                 hierarchy.addEntry(entry);
             }
 
-            rs.close();
-
-        } catch (Exception e) {
+        } catch (SQLException e) {
             log.log(Level.SEVERE, "Failed to get KB structure", e);
+        } finally {
+            DB.close(rs, pstmt);
         }
 
         return hierarchy;
@@ -268,21 +275,23 @@ public class KnowledgeBaseQuery {
      * if needed after bulk updates.
      */
     public static void updateSearchIndex(int entryId) {
-        String sql = """
-            UPDATE k_entry
-            SET content_tsv = to_tsvector('english',
-                COALESCE(title, '') || ' ' ||
-                COALESCE(description, '') || ' ' ||
-                COALESCE(name, '')
-            )
-            WHERE k_entry_id = ?
-            """;
+        String sql = "UPDATE k_entry " +
+                     "SET content_tsv = to_tsvector('english', " +
+                     "COALESCE(title, '') || ' ' || " +
+                     "COALESCE(description, '') || ' ' || " +
+                     "COALESCE(name, '')) " +
+                     "WHERE k_entry_id = ?";
 
+        PreparedStatement pstmt = null;
         try {
-            DB.executeUpdate(sql, new Object[]{entryId});
+            pstmt = DB.prepareStatement(sql, null);
+            pstmt.setInt(1, entryId);
+            pstmt.executeUpdate();
             log.fine("Updated search index for entry: " + entryId);
-        } catch (Exception e) {
+        } catch (SQLException e) {
             log.log(Level.SEVERE, "Failed to update search index", e);
+        } finally {
+            DB.close(pstmt);
         }
     }
 
@@ -294,7 +303,7 @@ public class KnowledgeBaseQuery {
      */
     public static void refreshMaterializedViews() {
         try {
-            DB.executeUpdate("SELECT refresh_kb_views()");
+            DB.executeUpdateEx("SELECT refresh_kb_views()", null);
             log.info("Refreshed knowledge base materialized views");
         } catch (Exception e) {
             log.log(Level.SEVERE, "Failed to refresh materialized views", e);
@@ -340,27 +349,31 @@ public class KnowledgeBaseQuery {
     public static KBStatistics getStatistics(String kType) {
         KBStatistics stats = new KBStatistics();
 
-        String sql = """
-            SELECT
-                COUNT(*) as total_entries,
-                COUNT(CASE WHEN parent_id = 0 THEN 1 END) as root_entries,
-                MAX(depth) as max_depth,
-                AVG(array_length(path, 1)) as avg_depth
-            FROM v_k_entry_hierarchy
-            WHERE k_type = ?
-            """;
+        String sql = "SELECT " +
+                     "COUNT(*) as total_entries, " +
+                     "COUNT(CASE WHEN parent_id = 0 THEN 1 END) as root_entries, " +
+                     "MAX(depth) as max_depth, " +
+                     "AVG(array_length(path, 1)) as avg_depth " +
+                     "FROM v_k_entry_hierarchy " +
+                     "WHERE k_type = ?";
 
+        PreparedStatement pstmt = null;
+        ResultSet rs = null;
         try {
-            ResultSet rs = DB.query(sql, new Object[]{kType});
+            pstmt = DB.prepareStatement(sql, null);
+            pstmt.setString(1, kType);
+            rs = pstmt.executeQuery();
+
             if (rs.next()) {
                 stats.totalEntries = rs.getInt("total_entries");
                 stats.rootEntries = rs.getInt("root_entries");
                 stats.maxDepth = rs.getInt("max_depth");
                 stats.avgDepth = rs.getDouble("avg_depth");
             }
-            rs.close();
-        } catch (Exception e) {
+        } catch (SQLException e) {
             log.log(Level.SEVERE, "Failed to get KB statistics", e);
+        } finally {
+            DB.close(rs, pstmt);
         }
 
         return stats;

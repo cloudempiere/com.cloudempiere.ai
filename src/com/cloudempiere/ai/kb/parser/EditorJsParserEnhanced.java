@@ -168,7 +168,7 @@ public class EditorJsParserEnhanced {
                 analyzeAlertContent(data, analysis);
                 break;
             case "bpmn":
-                analyzeBpmn Content(data, analysis);
+                analyzeBpmnContent(data, analysis);
                 break;
             case "mermaid":
                 analyzeMermaidContent(data, analysis);

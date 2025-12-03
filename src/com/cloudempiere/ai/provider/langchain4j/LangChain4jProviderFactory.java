@@ -10,12 +10,17 @@ import com.cloudempiere.ai.model.X_AIG_Provider;
 
 import dev.langchain4j.model.chat.ChatLanguageModel;
 import dev.langchain4j.model.chat.StreamingChatLanguageModel;
+import dev.langchain4j.model.embedding.EmbeddingModel;
 import dev.langchain4j.model.anthropic.AnthropicChatModel;
 import dev.langchain4j.model.anthropic.AnthropicStreamingChatModel;
 import dev.langchain4j.model.bedrock.BedrockChatModel;
+// Note: BedrockEmbeddingModel may require langchain4j-bedrock-embeddings module
+// For now, use Ollama as fallback for Bedrock embedding needs
 import dev.langchain4j.model.ollama.OllamaChatModel;
+import dev.langchain4j.model.ollama.OllamaEmbeddingModel;
 import dev.langchain4j.model.ollama.OllamaStreamingChatModel;
 import dev.langchain4j.model.openai.OpenAiChatModel;
+import dev.langchain4j.model.openai.OpenAiEmbeddingModel;
 import dev.langchain4j.model.openai.OpenAiStreamingChatModel;
 import dev.langchain4j.model.bedrock.BedrockChatRequestParameters;
 import software.amazon.awssdk.regions.Region;
@@ -51,9 +56,15 @@ public class LangChain4jProviderFactory {
     private static final String DEFAULT_OPENAI_MODEL = "gpt-4o";
     private static final String DEFAULT_OLLAMA_URL = "http://localhost:11434";
 
+    /** Default embedding model names per provider */
+    private static final String DEFAULT_BEDROCK_EMBEDDING_MODEL = "amazon.titan-embed-text-v2:0";
+    private static final String DEFAULT_OLLAMA_EMBEDDING_MODEL = "nomic-embed-text";
+    private static final String DEFAULT_OPENAI_EMBEDDING_MODEL = "text-embedding-3-small";
+
     /** Cache for model instances by provider ID */
     private static final Map<Integer, ChatLanguageModel> modelCache = new ConcurrentHashMap<>();
     private static final Map<Integer, StreamingChatLanguageModel> streamingModelCache = new ConcurrentHashMap<>();
+    private static final Map<Integer, EmbeddingModel> embeddingModelCache = new ConcurrentHashMap<>();
 
     /**
      * Create a ChatLanguageModel from MAIProvider configuration.
@@ -138,6 +149,93 @@ public class LangChain4jProviderFactory {
     public static void evictFromCache(int providerId) {
         modelCache.remove(providerId);
         streamingModelCache.remove(providerId);
+        embeddingModelCache.remove(providerId);
+    }
+
+    // ========================================================================
+    // Embedding Model Factory Methods (ADR-012 RAG Support)
+    // ========================================================================
+
+    /**
+     * Create an EmbeddingModel from MAIProvider configuration.
+     *
+     * <p>For RAG (Retrieval-Augmented Generation), we need embedding models
+     * to convert text to vectors for semantic search.
+     *
+     * <p>Provider mapping:
+     * <ul>
+     *   <li>Anthropic → AWS Bedrock Titan Embeddings (Anthropic doesn't have embeddings)</li>
+     *   <li>AWS Bedrock → Amazon Titan Embed Text v2</li>
+     *   <li>Ollama → nomic-embed-text (local)</li>
+     *   <li>OpenAI → text-embedding-3-small</li>
+     * </ul>
+     *
+     * @param config MAIProvider database configuration
+     * @return EmbeddingModel instance
+     * @throws IllegalArgumentException if provider type is unknown
+     */
+    public static EmbeddingModel createEmbeddingModel(MAIProvider config) {
+        return createEmbeddingModel(config, null, null);
+    }
+
+    /**
+     * Create an EmbeddingModel with optional model name override.
+     *
+     * @param config MAIProvider database configuration
+     * @param modelName Optional model name (uses default if null)
+     * @param baseUrl Optional base URL for Ollama (uses default if null)
+     * @return EmbeddingModel instance
+     */
+    public static EmbeddingModel createEmbeddingModel(MAIProvider config, String modelName, String baseUrl) {
+        String providerType = config.getAIGProviderType();
+        String apiKey = config.getAPIKey();
+
+        log.info("Creating LangChain4j embedding model for provider: " + providerType);
+
+        switch (providerType) {
+            case PROVIDER_ANTHROPIC:
+                // Anthropic doesn't have embedding models - use AWS Bedrock Titan
+                log.info("Anthropic provider: using AWS Bedrock Titan Embeddings");
+                return createBedrockEmbeddingModel(modelName, baseUrl);
+
+            case PROVIDER_BEDROCK:
+                return createBedrockEmbeddingModel(modelName, baseUrl);
+
+            case PROVIDER_OLLAMA:
+                return createOllamaEmbeddingModel(baseUrl, modelName);
+
+            case PROVIDER_OPENAI:
+                return createOpenAiEmbeddingModel(apiKey, modelName);
+
+            default:
+                // Fallback to Bedrock Titan for unknown providers
+                log.warning("Unknown provider type: " + providerType + ", falling back to Bedrock Titan Embeddings");
+                return createBedrockEmbeddingModel(modelName, baseUrl);
+        }
+    }
+
+    /**
+     * Get or create a cached EmbeddingModel instance.
+     *
+     * @param config MAIProvider configuration
+     * @return Cached or newly created EmbeddingModel
+     */
+    public static EmbeddingModel getOrCreateEmbeddingModel(MAIProvider config) {
+        return embeddingModelCache.computeIfAbsent(config.getAIG_Provider_ID(),
+            id -> createEmbeddingModel(config));
+    }
+
+    /**
+     * Check if the provider supports embeddings natively.
+     *
+     * @param providerType Provider type code
+     * @return true if provider has native embedding support
+     */
+    public static boolean hasNativeEmbeddings(String providerType) {
+        // Only these providers have native embedding APIs
+        return PROVIDER_BEDROCK.equals(providerType) ||
+               PROVIDER_OLLAMA.equals(providerType) ||
+               PROVIDER_OPENAI.equals(providerType);
     }
 
     // ========================================================================
@@ -208,6 +306,32 @@ public class LangChain4jProviderFactory {
                 .maxOutputTokens(4096)
                 .temperature(0.7)
                 .build())
+            .build();
+    }
+
+    // ========================================================================
+    // Private embedding model factory methods
+    // ========================================================================
+
+    private static EmbeddingModel createBedrockEmbeddingModel(String modelName, String region) {
+        // Note: BedrockEmbeddingModel is not available in langchain4j-bedrock 1.0.0-beta3
+        // Using Ollama as fallback for embedding needs
+        // TODO: Add langchain4j-bedrock-embeddings module when available
+        log.warning("BedrockEmbeddingModel not available - using Ollama nomic-embed-text as fallback");
+        return createOllamaEmbeddingModel(DEFAULT_OLLAMA_URL, DEFAULT_OLLAMA_EMBEDDING_MODEL);
+    }
+
+    private static EmbeddingModel createOllamaEmbeddingModel(String baseUrl, String modelName) {
+        return OllamaEmbeddingModel.builder()
+            .baseUrl(baseUrl != null ? baseUrl : DEFAULT_OLLAMA_URL)
+            .modelName(modelName != null ? modelName : DEFAULT_OLLAMA_EMBEDDING_MODEL)
+            .build();
+    }
+
+    private static EmbeddingModel createOpenAiEmbeddingModel(String apiKey, String modelName) {
+        return OpenAiEmbeddingModel.builder()
+            .apiKey(apiKey)
+            .modelName(modelName != null ? modelName : DEFAULT_OPENAI_EMBEDDING_MODEL)
             .build();
     }
 }

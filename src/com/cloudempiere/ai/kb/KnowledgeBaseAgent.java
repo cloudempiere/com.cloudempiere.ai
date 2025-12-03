@@ -157,10 +157,10 @@ public class KnowledgeBaseAgent {
         );
 
         // Create AIRequest
-        AIRequest request = AIRequest.builder()
-            .withModel("claude-3-5-sonnet-20241022")
-            .withTemperature(0.3) // Lower for more deterministic output
-            .addMessage(new AIMessage("user", analysisPrompt))
+        AIRequest request = new AIRequest.Builder()
+            .model("claude-3-5-sonnet-20241022")
+            .temperature(0.3) // Lower for more deterministic output
+            .userMessage(analysisPrompt)
             .build();
 
         // Call AI provider

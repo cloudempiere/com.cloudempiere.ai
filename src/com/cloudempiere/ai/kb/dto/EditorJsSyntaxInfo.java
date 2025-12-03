@@ -516,7 +516,7 @@ public class EditorJsSyntaxInfo {
         for (String tool : inlineTools.keySet()) {
             InlineToolInfo info = inlineTools.get(tool);
             summary.append("  - ").append(info.displayName)
-                .append(" (").append(info.shortcut).append(")\n");
+                .append(" (").append(info.syntax).append(")\n");
         }
 
         summary.append("\nPlugins (").append(plugins.size()).append("):\n");

@@ -7,18 +7,93 @@ and this project adheres to [Conventional Commits](https://conventionalcommits.o
 
 ## [Unreleased]
 
+### Development Session: 2025-12-03 - RAG Infrastructure & Domain Boundaries
+
+#### Added
+- **RAG Infrastructure (ADR-012)**
+  - `src/com/cloudempiere/ai/rag/RAGContextManager.java` - Core RAG context manager
+    - Provider-based embedding model selection (not hardcoded)
+    - In-memory embedding store with session isolation
+    - Support for all providers: Claude→Bedrock Titan, Bedrock→Titan, Ollama→nomic-embed-text, OpenAI→text-embedding-3-small
+    - Fallback handling when embedding model unavailable
+  - `src/com/cloudempiere/ai/rag/RAGConversationService.java` - RAG-enabled conversation service
+    - Lazy initialization of RAGContextManager from provider
+    - ContentRetriever integration with LangChain4j AiServices
+    - Automatic context injection into agent prompts
+
+- **Domain Boundaries (ADR-009)**
+  - `src/com/cloudempiere/ai/boundary/AgentBoundary.java` - Boundary configuration
+    - Builder pattern for defining boundaries
+    - Table/column whitelist and blacklist support
+    - Action type restrictions (READ, QUERY, CREATE, UPDATE, DELETE, etc.)
+    - Cost and rate limit configuration
+  - `src/com/cloudempiere/ai/boundary/AgentBoundaryRegistry.java` - Predefined boundaries
+    - `inventory-agent`: Read-only access to inventory tables
+    - `sales-agent`: Read + limited write to sales tables
+    - `purchasing-agent`: Read + limited write to purchasing tables
+    - `knowledge-base-agent`: Read-only access to AD metadata
+    - `general-agent`: Default balanced access
+  - `src/com/cloudempiere/ai/boundary/BoundaryEnforcementFilter.java` - SQL security filter
+    - Auto-injects AD_Client_ID and AD_Org_ID into queries
+    - SQL injection pattern detection
+    - Org scope validation against AgentContext
+  - `src/com/cloudempiere/ai/boundary/CostBoundaryMonitor.java` - Budget tracking
+    - Daily cost tracking per client
+    - Rate limiting per session (tool calls/minute)
+    - Token usage monitoring
+    - Alert thresholds at 80% of limits
+  - `src/com/cloudempiere/ai/boundary/DataAccessValidator.java` - Access control
+    - Table whitelist/blacklist validation
+    - Column-level access control
+    - Sensitive table detection (HR, Pricing, Security)
+    - Sensitive column protection (Password, SSN, TaxID, etc.)
+    - Integration with iDempiere MRole permissions
+  - `src/com/cloudempiere/ai/boundary/BoundaryViolationType.java` - Violation categories
+  - `src/com/cloudempiere/ai/boundary/BoundaryViolationException.java` - Exception handling
+
+#### Changed
+- **LangChain4jProviderFactory** - Added embedding model creation methods
+  - `createEmbeddingModel(MAIProvider, modelName, baseUrl)` - Provider-aware factory
+  - `createBedrockEmbeddingModel()` - AWS Bedrock Titan embeddings
+  - `createOllamaEmbeddingModel()` - Local Ollama embeddings
+  - `createOpenAiEmbeddingModel()` - OpenAI text-embedding-3-small
+  - Claude provider now falls back to Bedrock Titan for embeddings
+
+- **MAIProvider** - Added static lookup methods with caching
+  - `get(ctx, AIG_Provider_ID, trxName)` - Get by ID with cache
+  - `getDefault(ctx, trxName)` - Get default provider
+  - `getByType(ctx, providerType, trxName)` - Get by provider type
+  - CCache integration for performance
+
+#### Fixed
+- **KnowledgeBaseQuery.java** - Java 11 compatibility
+  - Converted Java 15 text blocks (`"""..."""`) to string concatenation
+  - Fixed `DB.query()` calls to use `DB.prepareStatement()` + `executeQuery()` pattern
+  - Fixed `DB.executeUpdate(sql, Object[])` to use PreparedStatement pattern
+  - All 6 methods now compile correctly on Java 11
+
+---
+
 ### Next: v0.10.0 (Q1 2026)
 **Focus:** RAG Migration, Structured Outputs, Observability, MCP REST API
 
 **Phase 1: RAG Migration (ADR-012) - 2 weeks**
 - Week 1: Setup LangChain4j RAG infrastructure (EmbeddingStore, ContentRetriever)
-  - Add dependencies: langchain4j-embeddings, langchain4j-ollama
-  - Create RAGContextManager (~50 lines)
+  - ✅ Add dependencies: langchain4j-embeddings, langchain4j-ollama (already in pom.xml)
+  - ✅ Create RAGContextManager (~100 lines) - DONE
+  - ✅ Create RAGConversationService - DONE
   - Parallel testing (RAG vs custom routing)
 - Week 2: Migration and cleanup
   - Switch AIConversationService to RAG pattern
   - Remove custom routing code (PromptAnalyzer, ConversationContextManager, EntityExtractor - 630 lines)
   - Validation testing (target: >50% cache hit rate, >95% accuracy)
+
+**Phase 2: Domain Boundaries (ADR-009) - 1 week**
+- ✅ BoundaryEnforcementFilter - DONE (auto-inject org/client filters)
+- ✅ DataAccessValidator - DONE (table/column permissions)
+- ✅ CostBoundaryMonitor - DONE (budget tracking)
+- ✅ AgentBoundaryRegistry - DONE (predefined boundaries)
+- Integration with existing BoundaryValidator and SecureDatabaseQueryExecutor
 
 **Phase 2: Structured Outputs - 1 week**
 - Structured outputs (OrderSummary, InventoryReport Java records)

@@ -67,7 +67,7 @@ This document tracks features, implementation status, and version compatibility 
 | **Conversation Memory** | 0.6.0 | ✅ Done | Session-based chat history (20 messages) |
 | **Streaming Responses** | 0.9.0 | ✅ Done | Real-time token streaming for better UX |
 | **Zoom Link Support** | 0.4.0 | ✅ Done | Clickable links to records |
-| **RAG (Context Retrieval)** | - | 📝 v0.10.0 | ADR-012: LangChain4j ContentRetriever with semantic search |
+| **RAG (Context Retrieval)** | 0.10.0 | 🚧 In Progress | ADR-012: LangChain4j ContentRetriever with semantic search |
 | **Structured Outputs** | - | 🔴 v0.10.0 | OrderSummary, InventoryReport records |
 | **Domain Agents** | - | 🔴 v0.11.0 | InventoryAgent, SalesAgent, PurchasingAgent |
 | **Process Execution** | - | 🟡 v0.11.0 | AI can trigger iDempiere processes (with approval) |
@@ -169,7 +169,7 @@ This document tracks features, implementation status, and version compatibility 
 | **Audit Logging** | 0.3.0 | ✅ Done | AIG_QueryAudit table (who, what, when) |
 | **Org/Client Filtering** | 0.3.0 | ✅ Done | Automatic multi-tenant isolation |
 | **Sensitive Metadata Filtering** | 0.10.0 | ✅ Done | Filter user_id, role_id from AI responses |
-| **Cost Boundaries** | - | 🟡 v0.11.0 | Token limits, daily budgets per agent |
+| **Cost Boundaries** | 0.10.0 | 🚧 In Progress | Token limits, daily budgets per agent (CostBoundaryMonitor) |
 | **PII Detection** | - | 🟡 v0.11.0 | Prevent exposure of passwords, credit cards |
 
 ---
@@ -300,8 +300,14 @@ Based on validation reports:
 - **ADR-005** (Intelligent Routing) - ✅ Superseded by ADR-012 (RAG-Based Context Retrieval)
 - **ADR-012** (RAG-Based Context Retrieval) - ✅ Created 2025-12-01, planned implementation in v0.10.0
 
+### 🚧 In Progress
+- **ADR-009** (Boundaries) - 🚧 Core boundary framework implemented (7 classes):
+  - AgentBoundary, AgentBoundaryRegistry, BoundaryEnforcementFilter
+  - CostBoundaryMonitor, DataAccessValidator
+  - BoundaryViolationType, BoundaryViolationException
+  - Integration with existing code pending
+
 ### ⚠️ Needs Update
-- **ADR-009** (Boundaries) - ⚠️ Should leverage LangChain4j Guards pattern
 - **ADR-010** (Orchestration) - ⚠️ Should reference `langchain4j-agentic-patterns` module
 
 ### 🔴 Critical Gaps Identified
@@ -312,7 +318,7 @@ Based on validation reports:
 - ⚠️ **Validation loop** - Planned v0.11.0 (70% less validation code via OutputParser)
 - ❌ **Agentic patterns module** (discovered at Devoxx 2025 - not yet implemented)
 - ❌ **Observability listeners** (LangChain4j has full support - not yet implemented)
-- ❌ **Guards for boundary enforcement** (LangChain4j has full support - not yet implemented)
+- 🚧 **Guards for boundary enforcement** - Core framework implemented (DataAccessValidator, CostBoundaryMonitor)
 
 **Code Reduction Achieved:**
 - 630 lines (ADR-012 RAG migration)
@@ -412,6 +418,6 @@ Based on validation reports:
 
 ---
 
-**Last Updated:** 2025-12-01
-**Current Version:** v0.9.0
+**Last Updated:** 2025-12-03
+**Current Version:** v0.9.0 (v0.10.0 in progress)
 **Next Release:** v0.10.0 (Q1 2026) - RAG & Observability
