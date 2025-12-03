@@ -5,7 +5,7 @@
 **Product Name:** iDempiere AI Assistant  
 **Version:** 1.0 MVP  
 **Target Release:** Q1 2025  
-**Team:** CloudEmpiere Slovakia (4 people)  
+**Team:** Cloudempiere Slovakia (4 people)  
 **Primary Goal:** Reduce user cognitive load by 60% when interpreting ERP data and automating routine support tasks
 
 ### Value Proposition
@@ -763,7 +763,7 @@ Feedback Loop:
 
 ```yaml
 Phase 1: Soft Launch (Internal)
-  - Enable for CloudEmpiere team
+  - Enable for Cloudempiere team
   - 1-week internal testing
   - Fix critical bugs
 
@@ -1005,14 +1005,14 @@ Product Owner:   _________________ Date: _______
 
 **Document Version:** 1.0  
 **Last Updated:** December 2024  
-**Author:** CloudEmpiere Slovakia Team  
+**Author:** Cloudempiere Slovakia Team  
 **Status:** Ready for Development
 
 ---
 
 ## Contact Information
 
-**CloudEmpiere Slovakia s.r.o.**  
+**Cloudempiere Slovakia s.r.o.**  
 Website: cloudempiere.com  
 Email: info@cloudempiere.com  
 

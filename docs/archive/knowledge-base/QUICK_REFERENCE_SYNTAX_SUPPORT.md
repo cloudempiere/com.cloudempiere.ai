@@ -111,7 +111,7 @@ System.out.println("Plugins: " + syntax.getInt("plugins_count"));
 ### Official (@editorjs/*)
 - paragraph, header, list, code, quote, image, table, embed, attaches
 
-### Custom (CloudEmpiere)
+### Custom (Cloudempiere)
 - bpmn (business process diagrams)
 - excerpt (highlighted blocks)
 - hyperlink (enhanced links)

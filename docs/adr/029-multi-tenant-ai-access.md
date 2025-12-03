@@ -2,7 +2,7 @@
 
 **Status:** Proposed
 **Date:** 2025-12-03
-**Deciders:** CloudEmpiere AI Team
+**Deciders:** Cloudempiere AI Team
 **Related:** ADR-007 (Database Security Model)
 
 ---
@@ -11,12 +11,12 @@
 
 ### Problem Statement
 
-CloudEmpiere operates as a **service provider** managing multiple iDempiere tenants. The AI system needs to support two distinct access patterns:
+Cloudempiere operates as a **service provider** managing multiple iDempiere tenants. The AI system needs to support two distinct access patterns:
 
 | Access Pattern | User Type | Data Scope |
 |----------------|-----------|------------|
 | **Tenant Mode** | End users | Own tenant data only (AD_Client_ID = N) |
-| **Service Provider Mode** | CloudEmpiere team | Cross-tenant + Application Dictionary |
+| **Service Provider Mode** | Cloudempiere team | Cross-tenant + Application Dictionary |
 
 ### iDempiere Multi-Tenant Architecture
 
@@ -31,7 +31,7 @@ AD_Client_ID = 1000000 (GardenWorld Demo)
 ├── Business partners, orders, invoices
 └── Tenant-specific customizations
 
-AD_Client_ID = 1000014 (CloudEmpiere Documentation Tenant)
+AD_Client_ID = 1000014 (Cloudempiere Documentation Tenant)
 ├── Application Dictionary documentation (EditorJS format)
 ├── Knowledge base articles
 ├── How-to guides and tutorials
@@ -45,7 +45,7 @@ AD_Client_ID = 1000015 (Production Tenant)
 
 ### Documentation Storage Pattern
 
-CloudEmpiere stores **Application Dictionary documentation** in a dedicated tenant (e.g., AD_Client_ID = 1000014) using **EditorJS format**:
+Cloudempiere stores **Application Dictionary documentation** in a dedicated tenant (e.g., AD_Client_ID = 1000014) using **EditorJS format**:
 
 | Table | Purpose | Format |
 |-------|---------|--------|
@@ -150,7 +150,7 @@ See [ADR-016: Knowledge Base Agent](016-knowledge-base-agent.md) for full archit
 
 ### Service Provider Requirements
 
-The CloudEmpiere team needs AI capabilities for:
+The Cloudempiere team needs AI capabilities for:
 
 1. **Application Dictionary Knowledge**
    - Query AD_* tables to understand data model
@@ -191,7 +191,7 @@ Implement **Tiered AI Access Model** with explicit scope selection:
 | Tier | Name | Business Data Access | Knowledge Access | Use Case |
 |------|------|---------------------|------------------|----------|
 | **1** | End User | User's client only | 0 + 1000014 (read-only) | End users |
-| **2** | Service Provider | Target client(s) | 0 + 1000014 (read-only) | CloudEmpiere team |
+| **2** | Service Provider | Target client(s) | 0 + 1000014 (read-only) | Cloudempiere team |
 
 **Key Insight:** ALL users need read access to knowledge sources, but business data is restricted.
 
@@ -360,7 +360,7 @@ protected void checkCrossTenant() {
 | Approach | Cross-Tenant Access | Result |
 |----------|---------------------|--------|
 | **REST API (hengsin-mcp)** | Uses PO/Model layer | ❌ Exception thrown |
-| **Direct SQL (CloudEmpiere)** | Bypasses PO checks | ✅ Works with proper security |
+| **Direct SQL (Cloudempiere)** | Bypasses PO checks | ✅ Works with proper security |
 
 **Why our approach wins:**
 
@@ -382,7 +382,7 @@ Direct SQL (SecureDatabaseQueryExecutor):
                                 ✅ Returns system dictionary data
 ```
 
-**CloudEmpiere Security Model:**
+**Cloudempiere Security Model:**
 - Direct SQL allows controlled cross-tenant access
 - `SecureDatabaseQueryExecutor` enforces our rules (not PO rules)
 - Knowledge tables (AD_*, K_*) explicitly allowed
@@ -397,7 +397,7 @@ This is a **fundamental architectural advantage** over REST-based MCP implementa
 ┌─────────────────────────────────────────────────────────────────┐
 │  AI Request                                                      │
 │  ┌─────────────────────────────────────────────────────────────┐│
-│  │ User: CloudEmpiere Support                                  ││
+│  │ User: Cloudempiere Support                                  ││
 │  │ Role: System Administrator                                  ││
 │  │ Access Tier: SERVICE_PROVIDER                               ││
 │  │ Target Client: 1000014 (or ALL for cross-tenant)            ││
@@ -470,7 +470,7 @@ WHERE e.AD_Client_ID = 1000014  -- KB tenant
 
 #### Tier 2: Service Provider Mode
 
-**Who:** CloudEmpiere team (System Administrator role with `IsServiceProvider=Y`)
+**Who:** Cloudempiere team (System Administrator role with `IsServiceProvider=Y`)
 **Business Data:** Any AD_Client_ID (explicit target required)
 **Knowledge Access:** AD_Client_ID IN (0, 1000014) - always allowed
 

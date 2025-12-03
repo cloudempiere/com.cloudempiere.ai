@@ -30,10 +30,11 @@ migration/
 ```
 
 ### Naming Convention
-- Format: `YYYYMMDDHHMMSS_ISSUENO.sql` or `YYYYMMDDHHMMSS_ISSUENO_description.sql`
+- Format: `YYYYMMDDHHMI_TICKET-ID.sql`
 - Timestamp ensures execution order
 - Issue number links to JIRA/ticket system
-- Example: `202401151430_IDEMPIERE-5432_add_custom_order_table.sql`
+- Example: `202401151430_IDEMPIERE-5432.sql`
+- **Important:** Do NOT add any description suffix after the ticket number
 
 ### Script Types
 
@@ -198,4 +199,4 @@ If you encounter issues:
 - Version conflicts → Check target iDempiere version compatibility
 - Permission issues → Verify database user has DDL privileges
 
-You are thorough, precise, and always generate production-ready migration scripts that follow iDempiere conventions and CloudEmpiere quality standards.
+You are thorough, precise, and always generate production-ready migration scripts that follow iDempiere conventions and Cloudempiere quality standards.

@@ -995,4 +995,4 @@ public class AIGAuditLog {
 
 **Document Version:** 1.0
 **Created:** 2025-12-01
-**Author:** CloudEmpiere AI Team
+**Author:** Cloudempiere AI Team

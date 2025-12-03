@@ -2,16 +2,16 @@
 
 **Status:** Study/Reference
 **Date:** 2025-12-03
-**Deciders:** CloudEmpiere AI Team
+**Deciders:** Cloudempiere AI Team
 **Related:** ADR-003 (MCP Server Integration)
 
 ---
 
 ## Context
 
-This document analyzes [hengsin/idempiere-mcp](https://github.com/hengsin/idempiere-mcp), a proof-of-concept MCP server for iDempiere developed by Heng Sin Low (iDempiere core maintainer). The goal is to identify architectural patterns, features, and implementation approaches that could benefit CloudEmpiere's AI integration.
+This document analyzes [hengsin/idempiere-mcp](https://github.com/hengsin/idempiere-mcp), a proof-of-concept MCP server for iDempiere developed by Heng Sin Low (iDempiere core maintainer). The goal is to identify architectural patterns, features, and implementation approaches that could benefit Cloudempiere's AI integration.
 
-### CloudEmpiere Current State
+### Cloudempiere Current State
 
 We have three related projects:
 
@@ -192,7 +192,7 @@ public class RestApiClient {
 
 ---
 
-## Comparison with CloudEmpiere Architecture
+## Comparison with Cloudempiere Architecture
 
 ### Critical Limitation: REST-Only Data Access
 
@@ -243,7 +243,7 @@ if (getAD_Client_ID() != Env.getAD_Client_ID(getCtx())) {
 
 This is a **fundamental limitation** - not a missing feature, but an architectural constraint of the PO layer.
 
-**CloudEmpiere Advantage:**
+**Cloudempiere Advantage:**
 - `SecureDatabaseQueryExecutor` uses direct SQL, bypassing PO cross-tenant checks
 - Knowledge tables (AD_*, K_*) explicitly allowed for all users
 - Business tables restricted to user's tenant
@@ -255,7 +255,7 @@ See [ADR-029: Multi-Tenant AI Access](029-multi-tenant-ai-access.md) for detaile
 
 ### Architecture Differences
 
-| Aspect | idempiere-mcp | CloudEmpiere |
+| Aspect | idempiere-mcp | Cloudempiere |
 |--------|--------------|--------------|
 | **Runtime** | Inside iDempiere (OSGi) | Separate MCP server + CLI |
 | **Java Version** | Java 17 (iDempiere 12+) | Java 21 (MCP server), Java 11 (OSGi plugin) |
@@ -271,7 +271,7 @@ See [ADR-029: Multi-Tenant AI Access](029-multi-tenant-ai-access.md) for detaile
 
 ### Feature Gap Analysis
 
-| Feature | idempiere-mcp | CloudEmpiere | Gap |
+| Feature | idempiere-mcp | Cloudempiere | Gap |
 |---------|--------------|--------------|-----|
 | **Model CRUD** | ✅ Full OData filtering | ⚠️ Basic via CLI | Need OData support |
 | **Window Operations** | ✅ Window-scoped CRUD | ❌ Not implemented | Add window tools |
@@ -349,7 +349,7 @@ long sessionTtlMs = TimeUnit.MINUTES.toMillis(30);
 ### 6. Do Not Adopt: Direct REST Backend
 
 **idempiere-mcp:** MCP server calls idempiere-rest directly
-**CloudEmpiere:** MCP server calls cloudempiere-cli
+**Cloudempiere:** MCP server calls cloudempiere-cli
 
 **Reasoning:**
 - Our CLI backend provides AI-specific features
@@ -422,7 +422,7 @@ long sessionTtlMs = TimeUnit.MINUTES.toMillis(30);
 2. **REST-Only Backend** - Maintain CLI backend with AI capabilities
 3. **Immediate SSE Support** - STDIO sufficient for current use cases
 
-### What Differentiates CloudEmpiere
+### What Differentiates Cloudempiere
 
 1. **Flexible Data Access** - Direct SQL queries, not limited to REST models
 2. **AI-Native Design** - LangChain4j agents with domain expertise
@@ -432,7 +432,7 @@ long sessionTtlMs = TimeUnit.MINUTES.toMillis(30);
 6. **RAG Integration** - Vector search for documentation and data
 7. **Multi-Provider Support** - Anthropic, AWS Bedrock, Ollama
 
-**Key Insight:** hengsin-mcp is a solid MCP tool wrapper around idempiere-rest, but it's fundamentally a CRUD interface. CloudEmpiere is an **AI-powered analytics and automation platform** that can answer complex business questions requiring custom queries, aggregations, and cross-table analysis.
+**Key Insight:** hengsin-mcp is a solid MCP tool wrapper around idempiere-rest, but it's fundamentally a CRUD interface. Cloudempiere is an **AI-powered analytics and automation platform** that can answer complex business questions requiring custom queries, aggregations, and cross-table analysis.
 
 ---
 

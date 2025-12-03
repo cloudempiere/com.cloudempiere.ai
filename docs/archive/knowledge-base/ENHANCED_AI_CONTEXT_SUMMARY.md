@@ -404,7 +404,7 @@ JSONObject syntax = context.getJSONObject("syntax_capabilities");
 
 ## Summary
 
-**What was delivered:** Enhanced AI context system that provides Claude with detailed knowledge of CloudEmpiere's editor.js syntax capabilities.
+**What was delivered:** Enhanced AI context system that provides Claude with detailed knowledge of Cloudempiere's editor.js syntax capabilities.
 
 **How it works:**
 1. EditorJsSyntaxInfo documents all 14 block types, 8 tools, 18+ plugins

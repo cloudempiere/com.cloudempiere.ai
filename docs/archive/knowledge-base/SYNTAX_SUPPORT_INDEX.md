@@ -315,7 +315,7 @@ A: Yes, fully compatible. Enhancement is additive.
 
 ### Related Technologies
 - Editor.js: https://editorjs.io/
-- CloudEmpiere: https://www.cloudempiere.com/
+- Cloudempiere: https://www.cloudempiere.com/
 - iDempiere: https://www.idempiere.org/
 
 ---

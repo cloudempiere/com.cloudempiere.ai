@@ -2,7 +2,7 @@
 
 **Status**: Proposed
 **Date**: 2025-12-03
-**Deciders**: CloudEmpiere AI Team
+**Deciders**: Cloudempiere AI Team
 **Related**: [ADR-002](002-langchain4j-strategic-adoption.md), [ADR-009](009-domain-boundaries-agent-scope.md), [MVP Documentation](../iDempiere-AI-Assistant-MVP-Documentation.md)
 
 ## Context

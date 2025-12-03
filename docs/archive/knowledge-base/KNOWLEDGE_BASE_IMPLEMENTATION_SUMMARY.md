@@ -2,7 +2,7 @@
 
 ## ✅ Completed Implementation
 
-A specialized **Knowledge Base Agent** has been successfully integrated into the CloudEmpiere AI platform to intelligently manage and organize knowledge base content.
+A specialized **Knowledge Base Agent** has been successfully integrated into the Cloudempiere AI platform to intelligently manage and organize knowledge base content.
 
 ## 📦 Deliverables
 

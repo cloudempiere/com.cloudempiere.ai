@@ -2,7 +2,7 @@
 
 **Status:** Proposed (Target: v0.11.0)
 **Date:** 2025-12-01
-**Deciders:** CloudEmpiere AI Team
+**Deciders:** Cloudempiere AI Team
 **Implementation Target:** Q1 2026
 
 ---
@@ -439,7 +439,7 @@ Our LangChain4j architecture (ADR-002) fully supports MCP:
 
 ## References
 
-### Related Projects (CloudEmpiere Ecosystem)
+### Related Projects (Cloudempiere Ecosystem)
 - **idempiere-mcp-server** - `~/github/idempiere-mcp-server` - MCP server for Claude Code
 - **cloudempiere-cli** - `~/github/cloudempiere-cli` - Quarkus CLI with App Dictionary access
 - **com.cloudempiere.ai** - This project - LangChain4j ERP agents

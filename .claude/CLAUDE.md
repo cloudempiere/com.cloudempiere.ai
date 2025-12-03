@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**com.cloudempiere.ai** is an iDempiere ERP plugin that integrates AI capabilities into the CloudEmpiere enterprise platform. It implements a multi-provider architecture supporting both external AI APIs (Anthropic Claude, AWS Bedrock) and local LLMs (Ollama) with secure database query execution.
+**com.cloudempiere.ai** is an iDempiere ERP plugin that integrates AI capabilities into the Cloudempiere enterprise platform. It implements a multi-provider architecture supporting both external AI APIs (Anthropic Claude, AWS Bedrock) and local LLMs (Ollama) with secure database query execution.
 
 **Project Type**: Eclipse Plugin / Maven OSGi Bundle
 **Language**: Java (33 source files)

@@ -227,7 +227,7 @@ Bundle-Name: My Custom Plugin
 Bundle-SymbolicName: org.cloudempiere.customplugin
 Bundle-Version: 1.0.0
 Bundle-Activator: org.adempiere.plugin.utils.AdempiereActivator
-Bundle-Vendor: CloudEmpiere
+Bundle-Vendor: Cloudempiere
 Bundle-RequiredExecutionEnvironment: JavaSE-11
 Import-Package: org.osgi.framework;version="1.3.0",
  org.compiere.model,

@@ -35,7 +35,7 @@ cd ../com.cloudempiere.ai
 
 ## Overview
 
-AI plugin for CloudEmpiere that integrates advanced AI capabilities into iDempiere ERP. Supports multiple AI providers (Anthropic Claude, AWS Bedrock, Ollama, OpenAI) with secure, role-based database access.
+AI plugin for Cloudempiere that integrates advanced AI capabilities into iDempiere ERP. Supports multiple AI providers (Anthropic Claude, AWS Bedrock, Ollama, OpenAI) with secure, role-based database access.
 
 ### Key Features
 
@@ -216,13 +216,13 @@ See [CHANGELOG.md](CHANGELOG.md) for detailed changes.
 
 ## Contributing
 
-This is a proprietary plugin for CloudEmpiere. For feature requests or bug reports, please contact the CloudEmpiere team.
+This is a proprietary plugin for Cloudempiere. For feature requests or bug reports, please contact the Cloudempiere team.
 
 ---
 
 ## License
 
-Proprietary - CloudEmpiere
+Proprietary - Cloudempiere
 
 ---
 
@@ -230,4 +230,4 @@ Proprietary - CloudEmpiere
 
 - **Documentation**: See [docs/](docs/) directory
 - **Issues**: Internal tracking
-- **Contact**: CloudEmpiere Development Team
+- **Contact**: Cloudempiere Development Team

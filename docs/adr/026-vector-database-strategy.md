@@ -2,7 +2,7 @@
 
 **Status:** Proposed
 **Date:** 2025-12-03
-**Deciders:** CloudEmpiere AI Team
+**Deciders:** Cloudempiere AI Team
 **Relates to:** ADR-012 (RAG-Based Context Retrieval), ADR-006 (Data Model Architecture)
 
 ---
@@ -11,7 +11,7 @@
 
 ### Problem Statement
 
-The CloudEmpiere AI plugin requires vector storage for:
+The Cloudempiere AI plugin requires vector storage for:
 1. **RAG embeddings** - Document and conversation context retrieval (ADR-012)
 2. **Semantic search** - Finding similar records, products, tickets
 3. **AI Knowledge Base** - iDempiere documentation and wiki search (ADR-016, ADR-025)

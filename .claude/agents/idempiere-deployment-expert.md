@@ -86,7 +86,7 @@ STEP 2: Access Pack Out utility
 STEP 3: Create new Pack Out record with:
   Name                "org.cloudempiere.customorder"  // Reverse domain style
   Version             "1.0.0"                          // Match MANIFEST.MF
-  Copyright           "© 2024 CloudEmpiere"            // Your copyright
+  Copyright           "© 2024 Cloudempiere"            // Your copyright
   Description         "Custom order management module"  // What it does
   Help                "Installation instructions here"  // User guide
 
@@ -130,11 +130,11 @@ my-plugin/
 
 // MANIFEST.MF example:
 Manifest-Version: 1.0
-Bundle-Name: CloudEmpiere Custom Order Plugin
+Bundle-Name: Cloudempiere Custom Order Plugin
 Bundle-SymbolicName: org.cloudempiere.customorder
 Bundle-Version: 1.0.0
 Bundle-Activator: org.adempiere.plugin.utils.AdempiereActivator
-Bundle-Vendor: CloudEmpiere
+Bundle-Vendor: Cloudempiere
 Bundle-RequiredExecutionEnvironment: JavaSE-11
 Import-Package: org.osgi.framework;version="1.3.0",
  org.compiere.model,

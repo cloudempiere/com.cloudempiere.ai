@@ -98,7 +98,7 @@
 
 ```
 User Input
-  ├─ Content: "How to deploy CloudEmpiere to Docker"
+  ├─ Content: "How to deploy Cloudempiere to Docker"
   ├─ Title: "Docker Deployment"
   └─ KB Type: "DEPLOYMENT"
          │

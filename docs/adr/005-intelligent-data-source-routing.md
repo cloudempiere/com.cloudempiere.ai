@@ -2,7 +2,7 @@
 
 **Status:** Superseded by ADR-012
 **Date:** 2025-12-01
-**Deciders:** CloudEmpiere AI Team
+**Deciders:** Cloudempiere AI Team
 **Implemented:** v0.10.0
 **Superseded:** 2025-12-01 (by ADR-012: RAG-Based Context Retrieval)
 

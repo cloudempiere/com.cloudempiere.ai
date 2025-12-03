@@ -2,7 +2,7 @@
 
 **Status:** Accepted
 **Date:** 2025-12-03
-**Deciders:** CloudEmpiere AI Team
+**Deciders:** Cloudempiere AI Team
 **Context:** LangChain4j Foundation → Business Case Validation
 
 ---

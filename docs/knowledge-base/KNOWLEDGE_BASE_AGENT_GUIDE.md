@@ -197,7 +197,7 @@ IAIProvider aiProvider = getAnthropicProvider();
 KnowledgeBaseAgent agent = new KnowledgeBaseAgent(aiProvider);
 
 // 2. User provides new content
-String newContent = "# How to Deploy CloudEmpiere to Docker\n" +
+String newContent = "# How to Deploy Cloudempiere to Docker\n" +
                     "## Prerequisites\n" +
                     "- Docker installed\n" +
                     "...\n";
@@ -407,5 +407,5 @@ public PlacementRecommendation analyzePlacement(Properties ctx, String kType, St
 ---
 
 **Version:** 1.0
-**Author:** CloudEmpiere
+**Author:** Cloudempiere
 **Last Updated:** November 2024

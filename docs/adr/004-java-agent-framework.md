@@ -2,7 +2,7 @@
 
 **Status**: Accepted
 **Date**: 2025-11-26
-**Deciders**: CloudEmpiere Development Team
+**Deciders**: Cloudempiere Development Team
 **Related**: [ADR-002](002-langchain4j-strategic-adoption.md)
 
 ---
@@ -133,7 +133,7 @@ src/com/cloudempiere/ai/provider/langchain4j/
 
 - **LangChain4j Documentation**: https://docs.langchain4j.dev/
 - **Provider Comparison**: `docs/ai-agent-javaframeworkagent/SPECIALIZED-LIBRARIES-COMPARISON.md`
-- **Integration Guide**: `docs/ai-agent-javaframeworkagent/CloudEmpiere-Integration-Guide.md`
+- **Integration Guide**: `docs/ai-agent-javaframeworkagent/Cloudempiere-Integration-Guide.md`
 
 ---
 

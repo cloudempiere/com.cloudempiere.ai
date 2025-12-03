@@ -2,7 +2,7 @@
 
 **Status**: Proposed
 **Date**: 2025-12-03
-**Deciders**: CloudEmpiere AI Team
+**Deciders**: Cloudempiere AI Team
 **Phase**: 2-3 (Post-MVP)
 **Related**: [ADR-021](021-product-catalog-enhancement.md) (Product Descriptions)
 

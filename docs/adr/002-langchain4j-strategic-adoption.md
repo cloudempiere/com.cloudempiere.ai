@@ -3,7 +3,7 @@
 **Status:** Accepted (Phase 1 Implemented in v0.9.0)
 **Date:** 2025-12-01
 **Updated:** 2025-12-01
-**Deciders:** CloudEmpiere AI Team
+**Deciders:** Cloudempiere AI Team
 **Context:** Plugin architecture evolution for v0.8.0+
 
 ---

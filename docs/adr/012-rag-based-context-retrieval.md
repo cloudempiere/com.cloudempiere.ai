@@ -2,7 +2,7 @@
 
 **Status:** Accepted
 **Date:** 2025-12-01
-**Deciders:** CloudEmpiere AI Team
+**Deciders:** Cloudempiere AI Team
 **Supersedes:** ADR-005 (Intelligent Data Source Routing)
 **Planned Implementation:** v0.10.0
 
@@ -203,7 +203,7 @@ import java.util.logging.Logger;
  *
  * Uses semantic search via embeddings instead of regex pattern matching
  *
- * @author CloudEmpiere AI Team
+ * @author Cloudempiere AI Team
  * @version ADR-012
  */
 public class RAGContextManager {
