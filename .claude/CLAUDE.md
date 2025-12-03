@@ -384,6 +384,7 @@ Follow [Conventional Commits](https://conventionalcommits.org/):
 - [ADR-003](docs/adr/003-mcp-server-integration.md) - MCP Server Integration
 - [ADR-004](docs/adr/004-java-agent-framework.md) - Java Agent Framework Selection (LangChain4j)
 - [ADR-027](docs/adr/027-implementation-roadmap-priority.md) - Implementation Roadmap and Priority Matrix
+- [ADR-034](docs/adr/034-google-gemini-provider-integration.md) - Google Gemini Provider Integration
 
 ### Data & Intelligence
 - [ADR-005](docs/adr/005-intelligent-data-source-routing.md) - Intelligent Data Source Routing (Superseded by ADR-012)

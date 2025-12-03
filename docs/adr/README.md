@@ -14,6 +14,7 @@ This directory contains architecture decisions for the CloudEmpiere AI plugin.
 | [002](002-langchain4j-strategic-adoption.md) | LangChain4j Strategic Adoption | Accepted | 2025-12-01 |
 | [003](003-mcp-server-integration.md) | MCP Server Integration | Accepted | 2025-12-01 |
 | [004](004-java-agent-framework.md) | Java Agent Framework Selection | Accepted | 2025-11-26 |
+| [034](034-google-gemini-provider-integration.md) | Google Gemini Provider Integration | Proposed | 2025-12-03 |
 
 ### Data & Intelligence
 
@@ -151,6 +152,12 @@ Each ADR includes:
 - LangChain4j chosen over Spring AI and Google ADK
 - Tool system with @Tool annotations
 - Agent orchestration patterns
+
+**ADR-034: Google Gemini Provider Integration**
+- Google AI Gemini via `langchain4j-google-ai-gemini`
+- Cost-effective alternative (95% savings vs. Claude)
+- Native embeddings, code execution, and extended thinking support
+- Vertex AI enterprise path planned
 
 ### Data & Intelligence
 
