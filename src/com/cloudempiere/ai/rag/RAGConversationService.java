@@ -73,7 +73,7 @@ import dev.langchain4j.service.AiServices;
  * AI Response
  * </pre>
  *
- * @author CloudEmpiere AI Team
+ * @author Cloudempiere AI Team
  * @version ADR-012
  * @since v0.10.0
  */

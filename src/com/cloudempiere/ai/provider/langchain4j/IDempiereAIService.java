@@ -28,7 +28,7 @@ import dev.langchain4j.service.AiServices;
  * String response = aiService.chat(provider, ctx, sessionId, "Show me pending orders");
  * </pre>
  *
- * @author CloudEmpiere
+ * @author Cloudempiere
  * @version 0.9.0
  * @since ADR-002 LangChain4j Strategic Adoption
  */

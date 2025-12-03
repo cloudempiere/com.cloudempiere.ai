@@ -27,7 +27,7 @@ import dev.langchain4j.model.chat.StreamingChatLanguageModel;
  * - Ollama (local LLM)
  * - OpenAI
  *
- * @author CloudEmpiere
+ * @author Cloudempiere
  * @version 0.9.0
  */
 @DisplayName("LangChain4jProviderFactory Tests")
