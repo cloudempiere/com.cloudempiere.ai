@@ -1,12 +1,15 @@
 package com.cloudempiere.ai.provider.langchain4j;
 
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.compiere.util.CLogger;
+import org.compiere.util.Env;
 
 import com.cloudempiere.ai.model.MAIProvider;
 import com.cloudempiere.ai.model.X_AIG_Provider;
+import com.cloudempiere.ai.observability.AIMetricsListener;
 
 import dev.langchain4j.model.chat.ChatLanguageModel;
 import dev.langchain4j.model.chat.StreamingChatLanguageModel;
@@ -65,6 +68,9 @@ public class LangChain4jProviderFactory {
     private static final Map<Integer, ChatLanguageModel> modelCache = new ConcurrentHashMap<>();
     private static final Map<Integer, StreamingChatLanguageModel> streamingModelCache = new ConcurrentHashMap<>();
     private static final Map<Integer, EmbeddingModel> embeddingModelCache = new ConcurrentHashMap<>();
+
+    /** Flag to enable/disable metrics listener (default: enabled) */
+    private static boolean metricsEnabled = true;
 
     /**
      * Create a ChatLanguageModel from MAIProvider configuration.
@@ -243,14 +249,20 @@ public class LangChain4jProviderFactory {
     // ========================================================================
 
     private static ChatLanguageModel createAnthropicModel(String apiKey, String modelName) {
-        return AnthropicChatModel.builder()
+        var builder = AnthropicChatModel.builder()
             .apiKey(apiKey)
             .modelName(modelName != null ? modelName : DEFAULT_ANTHROPIC_MODEL)
             .maxTokens(4096)
             .temperature(0.7)
             .logRequests(true)
-            .logResponses(true)
-            .build();
+            .logResponses(true);
+
+        // Add observability listener (ADR-013)
+        if (metricsEnabled) {
+            builder.listeners(List.of(createMetricsListener("anthropic")));
+        }
+
+        return builder.build();
     }
 
     private static StreamingChatLanguageModel createAnthropicStreamingModel(String apiKey, String modelName) {
@@ -263,11 +275,17 @@ public class LangChain4jProviderFactory {
     }
 
     private static ChatLanguageModel createOllamaModel(String baseUrl, String modelName) {
-        return OllamaChatModel.builder()
+        var builder = OllamaChatModel.builder()
             .baseUrl(baseUrl != null ? baseUrl : DEFAULT_OLLAMA_URL)
             .modelName(modelName != null ? modelName : DEFAULT_OLLAMA_MODEL)
-            .temperature(0.7)
-            .build();
+            .temperature(0.7);
+
+        // Add observability listener (ADR-013)
+        if (metricsEnabled) {
+            builder.listeners(List.of(createMetricsListener("ollama")));
+        }
+
+        return builder.build();
     }
 
     private static StreamingChatLanguageModel createOllamaStreamingModel(String baseUrl, String modelName) {
@@ -279,13 +297,19 @@ public class LangChain4jProviderFactory {
     }
 
     private static ChatLanguageModel createOpenAiModel(String apiKey, String modelName) {
-        return OpenAiChatModel.builder()
+        var builder = OpenAiChatModel.builder()
             .apiKey(apiKey)
             .modelName(modelName != null ? modelName : DEFAULT_OPENAI_MODEL)
             .temperature(0.7)
             .logRequests(true)
-            .logResponses(true)
-            .build();
+            .logResponses(true);
+
+        // Add observability listener (ADR-013)
+        if (metricsEnabled) {
+            builder.listeners(List.of(createMetricsListener("openai")));
+        }
+
+        return builder.build();
     }
 
     private static StreamingChatLanguageModel createOpenAiStreamingModel(String apiKey, String modelName) {
@@ -299,14 +323,20 @@ public class LangChain4jProviderFactory {
     private static ChatLanguageModel createBedrockModel(String modelName, String region) {
         // Bedrock uses AWS credentials from environment/IAM role
         // BedrockChatModel supports all Bedrock models: Claude, Amazon Nova, Mistral, etc.
-        return BedrockChatModel.builder()
+        var builder = BedrockChatModel.builder()
             .region(Region.of(region != null ? region : DEFAULT_BEDROCK_REGION))
             .modelId(modelName != null ? modelName : DEFAULT_BEDROCK_MODEL)
             .defaultRequestParameters(BedrockChatRequestParameters.builder()
                 .maxOutputTokens(4096)
                 .temperature(0.7)
-                .build())
-            .build();
+                .build());
+
+        // Add observability listener (ADR-013)
+        if (metricsEnabled) {
+            builder.listeners(List.of(createMetricsListener("bedrock")));
+        }
+
+        return builder.build();
     }
 
     // ========================================================================
@@ -333,5 +363,47 @@ public class LangChain4jProviderFactory {
             .apiKey(apiKey)
             .modelName(modelName != null ? modelName : DEFAULT_OPENAI_EMBEDDING_MODEL)
             .build();
+    }
+
+    // ========================================================================
+    // Observability (ADR-013)
+    // ========================================================================
+
+    /**
+     * Create a metrics listener for the given agent name.
+     *
+     * <p>The listener captures token usage, latency, and cost metrics
+     * and persists them to the AIG_UsageMetrics table.
+     *
+     * @param agentName Agent/provider name for tracking
+     * @return AIMetricsListener instance
+     */
+    private static AIMetricsListener createMetricsListener(String agentName) {
+        // Generate a session ID based on current context
+        String sessionId = "provider-" + System.currentTimeMillis();
+        return new AIMetricsListener(agentName, sessionId);
+    }
+
+    /**
+     * Enable or disable metrics collection.
+     *
+     * <p>When disabled, ChatLanguageModel instances are created without
+     * the AIMetricsListener, which can be useful for testing or
+     * high-throughput scenarios where metrics overhead is a concern.
+     *
+     * @param enabled true to enable metrics, false to disable
+     */
+    public static void setMetricsEnabled(boolean enabled) {
+        metricsEnabled = enabled;
+        log.info("Metrics collection " + (enabled ? "enabled" : "disabled"));
+    }
+
+    /**
+     * Check if metrics collection is enabled.
+     *
+     * @return true if metrics are enabled
+     */
+    public static boolean isMetricsEnabled() {
+        return metricsEnabled;
     }
 }

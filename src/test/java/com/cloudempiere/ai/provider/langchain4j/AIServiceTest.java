@@ -20,7 +20,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import com.cloudempiere.ai.model.MAIProvider;
 
 /**
- * Unit tests for IDempiereAIService.
+ * Unit tests for AIService.
  *
  * Tests the main AI service facade including:
  * - Singleton pattern
@@ -32,8 +32,8 @@ import com.cloudempiere.ai.model.MAIProvider;
  * @version 0.9.0
  */
 @ExtendWith(MockitoExtension.class)
-@DisplayName("IDempiereAIService Tests")
-class IDempiereAIServiceTest {
+@DisplayName("AIService Tests")
+class AIServiceTest {
 
     @Mock
     private MAIProvider mockProvider;
@@ -41,11 +41,11 @@ class IDempiereAIServiceTest {
     @Mock
     private Properties mockCtx;
 
-    private IDempiereAIService service;
+    private AIService service;
 
     @BeforeEach
     void setUp() {
-        service = IDempiereAIService.getInstance();
+        service = AIService.getInstance();
         // Clear caches before each test
         service.clearAllCaches();
     }
@@ -57,8 +57,8 @@ class IDempiereAIServiceTest {
         @Test
         @DisplayName("Should return same instance on multiple calls")
         void shouldReturnSameInstance() {
-            IDempiereAIService instance1 = IDempiereAIService.getInstance();
-            IDempiereAIService instance2 = IDempiereAIService.getInstance();
+            AIService instance1 = AIService.getInstance();
+            AIService instance2 = AIService.getInstance();
 
             assertThat(instance1).isSameAs(instance2);
         }
@@ -66,7 +66,7 @@ class IDempiereAIServiceTest {
         @Test
         @DisplayName("Instance should not be null")
         void instanceShouldNotBeNull() {
-            IDempiereAIService instance = IDempiereAIService.getInstance();
+            AIService instance = AIService.getInstance();
             assertThat(instance).isNotNull();
         }
     }

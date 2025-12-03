@@ -8,7 +8,7 @@ This directory contains JUnit 5 tests for the `com.cloudempiere.ai` plugin.
 |-------|-------------|
 | `LangChain4jProviderFactoryTest` | Tests for provider creation and caching |
 | `ERPToolsTest` | Tests for @Tool annotated ERP operations |
-| `IDempiereAIServiceTest` | Tests for the main AI service facade |
+| `AIServiceTest` | Tests for the main AI service facade |
 
 ## Running Tests
 

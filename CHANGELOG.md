@@ -7,35 +7,148 @@ and this project adheres to [Conventional Commits](https://conventionalcommits.o
 
 ## [Unreleased]
 
-### Development Session: 2025-12-03 - RAG Infrastructure & Domain Boundaries
+### Next: v0.14.0 - RAG Completion & Structured Outputs
 
-#### Status Review (2025-12-03)
+**Focus:** Complete RAG infrastructure and add structured outputs.
 
-**Completed Components:**
-| Component | ADR | Status |
-|-----------|-----|--------|
-| RAGContextManager | ADR-012 | ✅ Done |
-| RAGConversationService | ADR-012 | ✅ Done |
-| AgentBoundary + Registry | ADR-009 | ✅ Done |
-| BoundaryEnforcementFilter | ADR-009 | ✅ Done |
-| CostBoundaryMonitor | ADR-009 | ✅ Done |
-| DataAccessValidator | ADR-009 | ✅ Done |
-| LangChain4jProviderFactory (embeddings) | ADR-002 | ✅ Done |
-| Unit Tests (context, database) | ADR-032 | ✅ Done |
+**Planned:**
+- ADR-012: RAG completion (feature flag, cleanup)
+- ADR-002: Structured outputs (Java records for responses)
+- ADR-026: pgvector integration for production embeddings
 
-**Identified Gaps (Next Sprint):**
-| Component | ADR | Priority | Notes |
-|-----------|-----|----------|-------|
-| ThreadAwareChatMemory | ADR-031 | P0 | Thread isolation for chat |
-| Wire RAGConversationService to AIChatWidget | ADR-012 | P0 | Integration pending |
-| RAG/Boundary unit tests | ADR-012/009 | P0 | Quality gate |
-| Remove old routing code | ADR-012 | P1 | 750 lines to delete |
-| Time-based boundaries | ADR-009 | P2 | Period restrictions |
-| Observability listeners | ADR-013 | P2 | Token/latency tracking |
+---
 
-**Key Decision:** Use `RAGConversationService` (ADR-012) instead of creating new `LangChain4jConversationService` (original ADR-031 plan).
+## [0.13.0] - 2025-12-03
+
+### Phase 13: Naming Standards & Integration Wiring
+
+This release refactors naming conventions to use neutral branding and wires all v0.12.0 infrastructure components into the main service.
+
+#### Changed
+
+- **Naming Standards Refactor**
+  - `IDempiereAIService` → `AIService` - Neutral branding (not iDempiere-specific)
+  - `IDempiereAgent` → `ERPAgent` - Matches `IERPAgent` interface
+  - `MAIGBudget` → `MAIBudget` - Consistent with `MAIProvider`, `MAIChat` pattern
+  - `MAIGUsageMetrics` → `MAIUsageMetrics` - Same consistency fix
+  - All references updated across 10+ files
+
+- **Integration Wiring** (v0.12.0 components were orphaned, now connected)
+  - `AIMetricsListener` wired into `LangChain4jProviderFactory`
+    - All chat model builders (Anthropic, Ollama, OpenAI, Bedrock) now include metrics listeners
+    - Added `setMetricsEnabled(boolean)` for runtime control
+  - Guardrails pipeline wired into `AIService.chat()` and `AIService.execute()`
+    - **CostGuard** - Budget/rate limit checks before AI calls
+    - **InputGuard** - PII masking, injection detection
+    - **OutputGuard** - Credential leak filtering, harmful content detection
+  - Added `setGuardrailsEnabled(boolean)` for runtime control
+  - Added `getBudgetStatus(clientId)` for monitoring
+
+- **Documentation**
+  - Updated test README with new class names
+  - Established naming conventions in implementation plan:
+    - Model classes: `MAI<Entity>` (drop "G" from `AIG_*` tables)
+    - Service classes: `AIService`, `ERPAgent` (neutral, not vendor-specific)
+    - Interfaces: `I<Concept>` for custom, `I_<TABLE>` for iDempiere generated
+
+#### Fixed
+
+- Test file renamed: `IDempiereAIServiceTest` → `AIServiceTest`
+- All internal references updated for consistency
+
+---
+
+## [0.12.0] - 2025-12-03
+
+### Phase 12: Observability, Guardrails & Multi-Tenant Access
+
+This release implements critical P1 infrastructure for production readiness.
 
 #### Added
+
+- **ADR-013: Observability & Cost Tracking** (CLD-1628)
+  - `AIMetricsListener.java` - LangChain4j ChatModelListener implementation
+    - Token usage tracking (input, output, total)
+    - Cost estimation by model (Claude, GPT, Bedrock, Ollama)
+    - Latency measurement in milliseconds
+    - Persists to AIG_UsageMetrics via model class
+  - `CostGuard.java` - Budget enforcement
+    - Daily and monthly budget limits per client
+    - Rate limiting per user (requests/minute)
+    - Token limits per request
+    - Uses MAIGBudget model for configuration
+  - `UsageMetrics.java` - Metrics DTO
+    - Factory methods for easy creation
+    - Computed properties (tokensPerSecond, costPerToken)
+  - `MAIGUsageMetrics.java` - Business model for AIG_UsageMetrics
+    - Factory: `record()`, `recordError()`
+    - Query: `getByUser()`, `getByAgent()`, `getBySession()`, `getRecent()`
+    - Aggregation: `getTodayTokensByUser()`, `getTodayCostByUser()`
+  - `MAIGBudget.java` - Business model for AIG_Budget
+    - Scope hierarchy: Agent → User → Client
+    - Budget checks: `isDailyBudgetExceeded()`, `wouldExceedDailyBudget()`
+    - Usage tracking: `addUsage()`, `maybeResetCounters()`
+    - CCache integration for performance
+
+- **ADR-014: Guardrails & Safety**
+  - `InputGuard.java` - Input sanitization
+    - PII detection (SSN, credit cards, email, phone, tax ID)
+    - Prompt injection detection
+    - SQL injection pattern detection
+    - Actions: PASS, MASK, BLOCK
+  - `OutputGuard.java` - Output filtering
+    - Credential leakage detection (API keys, passwords, connection strings)
+    - Hallucination indicators
+    - Internal ID masking
+    - Harmful content detection (code execution, destructive SQL)
+  - `ExecutionGuard.java` - Risk-based routing
+    - Risk levels: LOW, MEDIUM, HIGH, CRITICAL, PROHIBITED
+    - Approval routing: AUTO_APPROVE, REQUIRE_CONFIRMATION, REQUIRE_HUMAN_APPROVAL, BLOCK
+    - Financial thresholds and bulk operation limits
+    - Sensitive table protection
+  - `GuardResult.java` - Guard result DTO
+    - Actions: PASS, MASK, BLOCK
+    - Factory methods for each action type
+
+- **ADR-029: Multi-Tenant Access Integration**
+  - `AIGAccessTier` enum in `BoundaryEnforcementFilter.java`
+    - TENANT: Own client only
+    - TENANT_DICTIONARY: Own + knowledge sources
+    - SERVICE_PROVIDER: Target client(s) + knowledge
+  - Enhanced `DataAccessValidator.java`
+    - `KNOWLEDGE_CLIENT_ID = 1000014`
+    - `isKnowledgeTable(tableName)` - detects AD_*, K_* tables
+    - `getClientFilter()` methods for tiered access
+  - Tiered SQL filtering in `BoundaryEnforcementFilter.java`
+    - Knowledge tables: `AD_Client_ID IN (0, 1000014)`
+    - Business tables: Respects user/target client
+
+- **Database Migration CLD-1628**
+  - `migration/postgresql/202512031000_CLD-1628.sql`
+  - `migration/oracle/202512031000_CLD-1628.sql`
+  - Tables: AIG_UsageMetrics, AIG_Budget
+  - Views: AIG_UsageSummary_Daily, AIG_AgentPerformance, AIG_BudgetStatus
+
+#### Changed
+
+- **Documentation standardization**
+  - Standardized company name to "Cloudempiere" throughout
+  - Added version annotations (@since v0.11.0, v0.12.0)
+  - Added searchable tags (#observability, #guardrails, #multi-tenant, etc.)
+
+#### Fixed
+
+- Migration script format (added `register_migration_script` call)
+- Oracle migration compatibility (NUMBER, VARCHAR2, DATE, SYSDATE, SYS_GUID())
+
+---
+
+## [0.11.0] - 2025-12-03
+
+### Phase 11: RAG Infrastructure & Domain Boundaries
+
+#### Added
+
 - **RAG Infrastructure (ADR-012)**
   - `src/com/cloudempiere/ai/rag/RAGContextManager.java` - Core RAG context manager
     - Provider-based embedding model selection (not hardcoded)
@@ -658,14 +771,18 @@ and this project adheres to [Conventional Commits](https://conventionalcommits.o
 | 8 | v0.8.0 | 2025-12-01 | MCP Server & Strategic Architecture |
 | 9 | v0.9.0 | 2025-12-01 | LangChain4j Native Providers |
 | 10 | v0.10.0 | 2025-12-01 | Security Fixes & Migration Scripts |
+| 11 | v0.11.0 | 2025-12-03 | RAG Infrastructure & Domain Boundaries |
+| 12 | v0.12.0 | 2025-12-03 | Observability, Guardrails & Multi-Tenant Access |
+| 13 | v0.13.0 | 2025-12-03 | Naming Standards & Integration Wiring |
 
 ## Upcoming Phases
 
 | Phase | Version | Target | Milestone |
 |-------|---------|--------|-----------|
-| 11 | v0.11.0 | Q1 2026 | Domain Agents (Inventory, Sales, Purchasing) |
-| 12 | v0.12.0 | Q2 2026 | Production Database Schema |
-| 13 | v1.0.0 | Q2 2026 | Production Release |
+| 14 | v0.14.0 | Q1 2026 | RAG Completion & Structured Outputs |
+| 15 | v0.15.0 | Q1 2026 | Chart Executive Overview (First Business Case) |
+| 16 | v0.16.0 | Q1 2026 | Domain Agents (Inventory, Sales, Purchasing) |
+| 17 | v1.0.0 | Q2 2026 | Production Release |
 
 ## iDempiere Compatibility
 

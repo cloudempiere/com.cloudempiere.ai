@@ -23,7 +23,7 @@ import org.compiere.util.CLogger;
 import org.compiere.util.DB;
 import org.compiere.util.Env;
 
-import com.cloudempiere.ai.model.MAIGBudget;
+import com.cloudempiere.ai.model.MAIBudget;
 
 /**
  * Cost Guard for AI budget enforcement (ADR-013).
@@ -236,7 +236,7 @@ public class CostGuard {
     }
 
     /**
-     * Load budget limits from database using MAIGBudget model.
+     * Load budget limits from database using MAIBudget model.
      *
      * @param clientId Client ID
      * @return Budget limits (defaults if not configured)
@@ -247,7 +247,7 @@ public class CostGuard {
             Properties ctx = Env.getCtx();
             Env.setContext(ctx, "#AD_Client_ID", clientId);
 
-            MAIGBudget budget = MAIGBudget.getForClient(ctx, clientId, null);
+            MAIBudget budget = MAIBudget.getForClient(ctx, clientId, null);
 
             if (budget != null) {
                 // Convert cents to dollars for BigDecimal limits

@@ -44,12 +44,12 @@ import org.compiere.util.CLogger;
  * @version 1.0.0
  * @since v0.11.0
  * @see com.cloudempiere.ai.observability.CostGuard
- * @see MAIGUsageMetrics
+ * @see MAIUsageMetrics
  */
-public class MAIGBudget extends X_AIG_Budget {
+public class MAIBudget extends X_AIG_Budget {
 
     private static final long serialVersionUID = 1L;
-    private static final CLogger log = CLogger.getCLogger(MAIGBudget.class);
+    private static final CLogger log = CLogger.getCLogger(MAIBudget.class);
 
     // ========================================================================
     // Budget Scope Constants
@@ -85,11 +85,11 @@ public class MAIGBudget extends X_AIG_Budget {
     // ========================================================================
 
     /** Cache of budgets by ID */
-    private static CCache<Integer, MAIGBudget> s_cache =
+    private static CCache<Integer, MAIBudget> s_cache =
         new CCache<>(Table_Name, 20, 30); // 30 minute timeout
 
     /** Cache of client budgets */
-    private static CCache<Integer, MAIGBudget> s_clientCache =
+    private static CCache<Integer, MAIBudget> s_clientCache =
         new CCache<>(Table_Name + "_Client", 20, 30);
 
     // ========================================================================
@@ -103,7 +103,7 @@ public class MAIGBudget extends X_AIG_Budget {
      * @param AIG_Budget_ID ID
      * @param trxName Transaction name
      */
-    public MAIGBudget(Properties ctx, int AIG_Budget_ID, String trxName) {
+    public MAIBudget(Properties ctx, int AIG_Budget_ID, String trxName) {
         super(ctx, AIG_Budget_ID, trxName);
     }
 
@@ -115,7 +115,7 @@ public class MAIGBudget extends X_AIG_Budget {
      * @param trxName Transaction name
      * @param virtualColumns Virtual columns
      */
-    public MAIGBudget(Properties ctx, int AIG_Budget_ID, String trxName, String... virtualColumns) {
+    public MAIBudget(Properties ctx, int AIG_Budget_ID, String trxName, String... virtualColumns) {
         super(ctx, AIG_Budget_ID, trxName, virtualColumns);
     }
 
@@ -126,7 +126,7 @@ public class MAIGBudget extends X_AIG_Budget {
      * @param rs ResultSet
      * @param trxName Transaction name
      */
-    public MAIGBudget(Properties ctx, ResultSet rs, String trxName) {
+    public MAIBudget(Properties ctx, ResultSet rs, String trxName) {
         super(ctx, rs, trxName);
     }
 
@@ -142,17 +142,17 @@ public class MAIGBudget extends X_AIG_Budget {
      * @param trxName Transaction name
      * @return Budget or null
      */
-    public static MAIGBudget get(Properties ctx, int AIG_Budget_ID, String trxName) {
+    public static MAIBudget get(Properties ctx, int AIG_Budget_ID, String trxName) {
         if (AIG_Budget_ID <= 0) {
             return null;
         }
 
-        MAIGBudget budget = s_cache.get(AIG_Budget_ID);
+        MAIBudget budget = s_cache.get(AIG_Budget_ID);
         if (budget != null) {
             return budget;
         }
 
-        budget = new MAIGBudget(ctx, AIG_Budget_ID, trxName);
+        budget = new MAIBudget(ctx, AIG_Budget_ID, trxName);
         if (budget.getAIG_Budget_ID() == AIG_Budget_ID) {
             s_cache.put(AIG_Budget_ID, budget);
             return budget;
@@ -169,8 +169,8 @@ public class MAIGBudget extends X_AIG_Budget {
      * @param trxName Transaction name
      * @return Client budget or null
      */
-    public static MAIGBudget getForClient(Properties ctx, int clientId, String trxName) {
-        MAIGBudget budget = s_clientCache.get(clientId);
+    public static MAIBudget getForClient(Properties ctx, int clientId, String trxName) {
+        MAIBudget budget = s_clientCache.get(clientId);
         if (budget != null) {
             return budget;
         }
@@ -195,7 +195,7 @@ public class MAIGBudget extends X_AIG_Budget {
      * @param trxName Transaction name
      * @return User budget or null
      */
-    public static MAIGBudget getForUser(Properties ctx, int userId, String trxName) {
+    public static MAIBudget getForUser(Properties ctx, int userId, String trxName) {
         return new Query(ctx, Table_Name,
                 COLUMNNAME_BudgetScope + "=? AND " + COLUMNNAME_AD_User_ID + "=? AND IsActive='Y'", trxName)
             .setClient_ID()
@@ -211,7 +211,7 @@ public class MAIGBudget extends X_AIG_Budget {
      * @param trxName Transaction name
      * @return Agent budget or null
      */
-    public static MAIGBudget getForAgent(Properties ctx, String agentName, String trxName) {
+    public static MAIBudget getForAgent(Properties ctx, String agentName, String trxName) {
         if (agentName == null || agentName.isEmpty()) {
             return null;
         }
@@ -234,17 +234,17 @@ public class MAIGBudget extends X_AIG_Budget {
      * @param trxName Transaction name
      * @return Most specific budget or null
      */
-    public static MAIGBudget getEffective(Properties ctx, int userId, String agentName, String trxName) {
+    public static MAIBudget getEffective(Properties ctx, int userId, String agentName, String trxName) {
         // Try agent budget first
         if (agentName != null && !agentName.isEmpty()) {
-            MAIGBudget agentBudget = getForAgent(ctx, agentName, trxName);
+            MAIBudget agentBudget = getForAgent(ctx, agentName, trxName);
             if (agentBudget != null) {
                 return agentBudget;
             }
         }
 
         // Try user budget
-        MAIGBudget userBudget = getForUser(ctx, userId, trxName);
+        MAIBudget userBudget = getForUser(ctx, userId, trxName);
         if (userBudget != null) {
             return userBudget;
         }
@@ -261,7 +261,7 @@ public class MAIGBudget extends X_AIG_Budget {
      * @param trxName Transaction name
      * @return List of budgets
      */
-    public static List<MAIGBudget> getAll(Properties ctx, String trxName) {
+    public static List<MAIBudget> getAll(Properties ctx, String trxName) {
         return new Query(ctx, Table_Name, "IsActive='Y'", trxName)
             .setClient_ID()
             .setOrderBy(COLUMNNAME_BudgetScope + ", " + COLUMNNAME_AgentName)
@@ -277,10 +277,10 @@ public class MAIGBudget extends X_AIG_Budget {
      * @param trxName Transaction name
      * @return New budget (saved)
      */
-    public static MAIGBudget createClientBudget(Properties ctx, int dailyLimitCents,
+    public static MAIBudget createClientBudget(Properties ctx, int dailyLimitCents,
             int monthlyLimitCents, String trxName) {
 
-        MAIGBudget budget = new MAIGBudget(ctx, 0, trxName);
+        MAIBudget budget = new MAIBudget(ctx, 0, trxName);
         budget.setBudgetScope(SCOPE_CLIENT);
         budget.setDailyLimitUSD(dailyLimitCents);
         budget.setMonthlyLimitUSD(monthlyLimitCents);
@@ -309,10 +309,10 @@ public class MAIGBudget extends X_AIG_Budget {
      * @param trxName Transaction name
      * @return New budget (saved)
      */
-    public static MAIGBudget createUserBudget(Properties ctx, int userId,
+    public static MAIBudget createUserBudget(Properties ctx, int userId,
             int dailyLimitCents, int monthlyLimitCents, String trxName) {
 
-        MAIGBudget budget = new MAIGBudget(ctx, 0, trxName);
+        MAIBudget budget = new MAIBudget(ctx, 0, trxName);
         budget.setBudgetScope(SCOPE_USER);
         budget.setAD_User_ID(userId);
         budget.setDailyLimitUSD(dailyLimitCents);
@@ -340,10 +340,10 @@ public class MAIGBudget extends X_AIG_Budget {
      * @param trxName Transaction name
      * @return New budget (saved)
      */
-    public static MAIGBudget createAgentBudget(Properties ctx, String agentName,
+    public static MAIBudget createAgentBudget(Properties ctx, String agentName,
             int dailyLimitCents, int monthlyLimitCents, String trxName) {
 
-        MAIGBudget budget = new MAIGBudget(ctx, 0, trxName);
+        MAIBudget budget = new MAIBudget(ctx, 0, trxName);
         budget.setBudgetScope(SCOPE_AGENT);
         budget.setAgentName(agentName);
         budget.setDailyLimitUSD(dailyLimitCents);
@@ -594,7 +594,7 @@ public class MAIGBudget extends X_AIG_Budget {
 
     @Override
     public String toString() {
-        return "MAIGBudget[" + getAIG_Budget_ID() +
+        return "MAIBudget[" + getAIG_Budget_ID() +
             ", scope=" + getBudgetScope() +
             ", daily=" + getDailyLimitUSD() + "¢ (used " + getCurrentDailyUSD() + "¢)" +
             ", monthly=" + getMonthlyLimitUSD() + "¢ (used " + getCurrentMonthlyUSD() + "¢)]";

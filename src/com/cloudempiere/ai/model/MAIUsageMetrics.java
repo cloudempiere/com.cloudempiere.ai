@@ -45,10 +45,10 @@ import org.compiere.util.Env;
  * @see com.cloudempiere.ai.observability.AIMetricsListener
  * @see com.cloudempiere.ai.observability.CostGuard
  */
-public class MAIGUsageMetrics extends X_AIG_UsageMetrics {
+public class MAIUsageMetrics extends X_AIG_UsageMetrics {
 
     private static final long serialVersionUID = 1L;
-    private static final CLogger log = CLogger.getCLogger(MAIGUsageMetrics.class);
+    private static final CLogger log = CLogger.getCLogger(MAIUsageMetrics.class);
 
     // ========================================================================
     // Constructors
@@ -61,7 +61,7 @@ public class MAIGUsageMetrics extends X_AIG_UsageMetrics {
      * @param AIG_UsageMetrics_ID ID
      * @param trxName Transaction name
      */
-    public MAIGUsageMetrics(Properties ctx, int AIG_UsageMetrics_ID, String trxName) {
+    public MAIUsageMetrics(Properties ctx, int AIG_UsageMetrics_ID, String trxName) {
         super(ctx, AIG_UsageMetrics_ID, trxName);
     }
 
@@ -73,7 +73,7 @@ public class MAIGUsageMetrics extends X_AIG_UsageMetrics {
      * @param trxName Transaction name
      * @param virtualColumns Virtual columns
      */
-    public MAIGUsageMetrics(Properties ctx, int AIG_UsageMetrics_ID, String trxName, String... virtualColumns) {
+    public MAIUsageMetrics(Properties ctx, int AIG_UsageMetrics_ID, String trxName, String... virtualColumns) {
         super(ctx, AIG_UsageMetrics_ID, trxName, virtualColumns);
     }
 
@@ -84,7 +84,7 @@ public class MAIGUsageMetrics extends X_AIG_UsageMetrics {
      * @param rs ResultSet
      * @param trxName Transaction name
      */
-    public MAIGUsageMetrics(Properties ctx, ResultSet rs, String trxName) {
+    public MAIUsageMetrics(Properties ctx, ResultSet rs, String trxName) {
         super(ctx, rs, trxName);
     }
 
@@ -106,11 +106,11 @@ public class MAIGUsageMetrics extends X_AIG_UsageMetrics {
      * @param trxName Transaction name
      * @return New metrics record (not saved)
      */
-    public static MAIGUsageMetrics create(Properties ctx, int userId, String agentName,
+    public static MAIUsageMetrics create(Properties ctx, int userId, String agentName,
             String modelName, int inputTokens, int outputTokens, int costUSD,
             int latencyMs, String trxName) {
 
-        MAIGUsageMetrics metrics = new MAIGUsageMetrics(ctx, 0, trxName);
+        MAIUsageMetrics metrics = new MAIUsageMetrics(ctx, 0, trxName);
         metrics.setAD_User_ID(userId);
         metrics.setAgentName(agentName);
         metrics.setModelName(modelName);
@@ -144,12 +144,12 @@ public class MAIGUsageMetrics extends X_AIG_UsageMetrics {
      * @param trxName Transaction name
      * @return Saved metrics record
      */
-    public static MAIGUsageMetrics record(Properties ctx, int userId, int roleId,
+    public static MAIUsageMetrics record(Properties ctx, int userId, int roleId,
             int providerId, String agentName, String agentType, String modelName,
             int inputTokens, int outputTokens, int costUSD, int latencyMs,
             String sessionId, String requestType, String trxName) {
 
-        MAIGUsageMetrics metrics = new MAIGUsageMetrics(ctx, 0, trxName);
+        MAIUsageMetrics metrics = new MAIUsageMetrics(ctx, 0, trxName);
         metrics.setAD_User_ID(userId);
         if (roleId > 0) {
             metrics.setAD_Role_ID(roleId);
@@ -190,10 +190,10 @@ public class MAIGUsageMetrics extends X_AIG_UsageMetrics {
      * @param trxName Transaction name
      * @return Saved metrics record
      */
-    public static MAIGUsageMetrics recordError(Properties ctx, int userId, String agentName,
+    public static MAIUsageMetrics recordError(Properties ctx, int userId, String agentName,
             String modelName, String errorMessage, int latencyMs, String trxName) {
 
-        MAIGUsageMetrics metrics = new MAIGUsageMetrics(ctx, 0, trxName);
+        MAIUsageMetrics metrics = new MAIUsageMetrics(ctx, 0, trxName);
         metrics.setAD_User_ID(userId);
         metrics.setAgentName(agentName);
         metrics.setModelName(modelName);
@@ -222,11 +222,11 @@ public class MAIGUsageMetrics extends X_AIG_UsageMetrics {
      * @param trxName Transaction name
      * @return Metrics record or null
      */
-    public static MAIGUsageMetrics get(Properties ctx, int AIG_UsageMetrics_ID, String trxName) {
+    public static MAIUsageMetrics get(Properties ctx, int AIG_UsageMetrics_ID, String trxName) {
         if (AIG_UsageMetrics_ID <= 0) {
             return null;
         }
-        return new MAIGUsageMetrics(ctx, AIG_UsageMetrics_ID, trxName);
+        return new MAIUsageMetrics(ctx, AIG_UsageMetrics_ID, trxName);
     }
 
     /**
@@ -237,7 +237,7 @@ public class MAIGUsageMetrics extends X_AIG_UsageMetrics {
      * @param trxName Transaction name
      * @return List of metrics records
      */
-    public static List<MAIGUsageMetrics> getByUser(Properties ctx, int userId, String trxName) {
+    public static List<MAIUsageMetrics> getByUser(Properties ctx, int userId, String trxName) {
         return new Query(ctx, Table_Name, COLUMNNAME_AD_User_ID + "=?", trxName)
             .setClient_ID()
             .setParameters(userId)
@@ -255,7 +255,7 @@ public class MAIGUsageMetrics extends X_AIG_UsageMetrics {
      * @param trxName Transaction name
      * @return List of metrics records
      */
-    public static List<MAIGUsageMetrics> getByUserAndDateRange(Properties ctx, int userId,
+    public static List<MAIUsageMetrics> getByUserAndDateRange(Properties ctx, int userId,
             Timestamp from, Timestamp to, String trxName) {
         return new Query(ctx, Table_Name,
                 COLUMNNAME_AD_User_ID + "=? AND " +
@@ -275,7 +275,7 @@ public class MAIGUsageMetrics extends X_AIG_UsageMetrics {
      * @param trxName Transaction name
      * @return List of metrics records
      */
-    public static List<MAIGUsageMetrics> getByAgent(Properties ctx, String agentName, String trxName) {
+    public static List<MAIUsageMetrics> getByAgent(Properties ctx, String agentName, String trxName) {
         return new Query(ctx, Table_Name, COLUMNNAME_AgentName + "=?", trxName)
             .setClient_ID()
             .setParameters(agentName)
@@ -291,7 +291,7 @@ public class MAIGUsageMetrics extends X_AIG_UsageMetrics {
      * @param trxName Transaction name
      * @return List of metrics records
      */
-    public static List<MAIGUsageMetrics> getBySession(Properties ctx, String sessionId, String trxName) {
+    public static List<MAIUsageMetrics> getBySession(Properties ctx, String sessionId, String trxName) {
         return new Query(ctx, Table_Name, COLUMNNAME_SessionID + "=?", trxName)
             .setClient_ID()
             .setParameters(sessionId)
@@ -307,7 +307,7 @@ public class MAIGUsageMetrics extends X_AIG_UsageMetrics {
      * @param trxName Transaction name
      * @return List of metrics records
      */
-    public static List<MAIGUsageMetrics> getRecent(Properties ctx, int limit, String trxName) {
+    public static List<MAIUsageMetrics> getRecent(Properties ctx, int limit, String trxName) {
         return new Query(ctx, Table_Name, null, trxName)
             .setClient_ID()
             .setOrderBy(COLUMNNAME_Created + " DESC")
@@ -333,14 +333,14 @@ public class MAIGUsageMetrics extends X_AIG_UsageMetrics {
             today = new Timestamp(System.currentTimeMillis());
         }
 
-        List<MAIGUsageMetrics> metrics = new Query(ctx, Table_Name,
+        List<MAIUsageMetrics> metrics = new Query(ctx, Table_Name,
                 COLUMNNAME_AD_User_ID + "=? AND TRUNC(" + COLUMNNAME_RequestTimestamp + ")=TRUNC(?)", trxName)
             .setClient_ID()
             .setParameters(userId, today)
             .list();
 
         return metrics.stream()
-            .mapToInt(MAIGUsageMetrics::getTotalTokens)
+            .mapToInt(MAIUsageMetrics::getTotalTokens)
             .sum();
     }
 
@@ -358,14 +358,14 @@ public class MAIGUsageMetrics extends X_AIG_UsageMetrics {
             today = new Timestamp(System.currentTimeMillis());
         }
 
-        List<MAIGUsageMetrics> metrics = new Query(ctx, Table_Name,
+        List<MAIUsageMetrics> metrics = new Query(ctx, Table_Name,
                 COLUMNNAME_AD_User_ID + "=? AND TRUNC(" + COLUMNNAME_RequestTimestamp + ")=TRUNC(?)", trxName)
             .setClient_ID()
             .setParameters(userId, today)
             .list();
 
         return metrics.stream()
-            .mapToInt(MAIGUsageMetrics::getCostUSD)
+            .mapToInt(MAIUsageMetrics::getCostUSD)
             .sum();
     }
 
@@ -447,7 +447,7 @@ public class MAIGUsageMetrics extends X_AIG_UsageMetrics {
 
     @Override
     public String toString() {
-        return "MAIGUsageMetrics[" + getAIG_UsageMetrics_ID() +
+        return "MAIUsageMetrics[" + getAIG_UsageMetrics_ID() +
             ", agent=" + getAgentName() +
             ", tokens=" + getTotalTokens() +
             ", cost=" + getCostUSD() +

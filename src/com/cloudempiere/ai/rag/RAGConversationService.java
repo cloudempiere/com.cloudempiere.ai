@@ -31,7 +31,7 @@ import com.cloudempiere.ai.model.MAIChatEntry;
 import com.cloudempiere.ai.model.MAIPromptConfig;
 import com.cloudempiere.ai.model.MAIProvider;
 import com.cloudempiere.ai.provider.langchain4j.ERPTools;
-import com.cloudempiere.ai.provider.langchain4j.IDempiereAgent;
+import com.cloudempiere.ai.provider.langchain4j.ERPAgent;
 import com.cloudempiere.ai.provider.langchain4j.LangChain4jProviderFactory;
 
 import dev.langchain4j.data.message.AiMessage;
@@ -66,7 +66,7 @@ import dev.langchain4j.service.AiServices;
  *     ↓
  * ContentRetriever (finds relevant context)
  *     ↓
- * IDempiereAgent (LangChain4j AiServices)
+ * ERPAgent (LangChain4j AiServices)
  *     ↓
  * ERPTools (@Tool methods for database access)
  *     ↓
@@ -189,7 +189,7 @@ public class RAGConversationService {
             }
 
             // 2. Create RAG-enabled agent
-            IDempiereAgent agent = createRAGAgent(ctx, sessionId, trxName, ragManager);
+            ERPAgent agent = createRAGAgent(ctx, sessionId, trxName, ragManager);
 
             // 3. Build conversation with history
             String enhancedMessage = buildEnhancedMessage(ctx, userMessage, windowContext);
@@ -229,9 +229,9 @@ public class RAGConversationService {
      * @param sessionId Session identifier
      * @param trxName Transaction name
      * @param ragManager RAG context manager
-     * @return Configured IDempiereAgent
+     * @return Configured ERPAgent
      */
-    private IDempiereAgent createRAGAgent(Properties ctx, String sessionId, String trxName,
+    private ERPAgent createRAGAgent(Properties ctx, String sessionId, String trxName,
                                           RAGContextManager ragManager) {
         // Get provider for chat model and tools
         MAIProvider provider = MAIProvider.get(ctx, DEFAULT_PROVIDER_ID, trxName);
@@ -255,7 +255,7 @@ public class RAGConversationService {
         String systemPrompt = buildSystemPrompt(ctx);
 
         // Create agent with RAG integration
-        return AiServices.builder(IDempiereAgent.class)
+        return AiServices.builder(ERPAgent.class)
             .chatLanguageModel(chatModel)
             .tools(erpTools)
             .contentRetriever(retriever)  // <-- RAG integration (replaces PromptAnalyzer)

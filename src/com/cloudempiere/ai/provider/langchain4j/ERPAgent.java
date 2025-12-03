@@ -5,10 +5,10 @@ import dev.langchain4j.service.SystemMessage;
 import dev.langchain4j.service.UserMessage;
 
 /**
- * iDempiere AI Agent interface for LangChain4j AiServices.
+ * ERP AI Agent interface for LangChain4j AiServices.
  *
  * This interface defines the contract for AI agents that interact with
- * iDempiere ERP. LangChain4j AiServices creates a dynamic proxy that:
+ * the ERP system. LangChain4j AiServices creates a dynamic proxy that:
  * - Routes user messages to the AI model
  * - Automatically handles tool/function calling
  * - Manages conversation memory per session
@@ -18,7 +18,7 @@ import dev.langchain4j.service.UserMessage;
  * ChatLanguageModel model = LangChain4jProviderFactory.create(config);
  * ERPTools tools = new ERPTools(provider, ctx);
  *
- * IDempiereAgent agent = AiServices.builder(IDempiereAgent.class)
+ * ERPAgent agent = AiServices.builder(ERPAgent.class)
  *     .chatLanguageModel(model)
  *     .tools(tools)
  *     .chatMemory(MessageWindowChatMemory.withMaxMessages(20))
@@ -28,16 +28,16 @@ import dev.langchain4j.service.UserMessage;
  * </pre>
  *
  * @author Cloudempiere
- * @version 0.9.0
+ * @version 0.13.0
  * @since ADR-002 LangChain4j Strategic Adoption
  */
-public interface IDempiereAgent {
+public interface ERPAgent {
 
     /**
      * System message that defines the agent's behavior and constraints.
      */
     String SYSTEM_PROMPT =
-        "You are an intelligent assistant for iDempiere ERP system.\n\n" +
+        "You are an intelligent assistant for the ERP system.\n\n" +
         "CAPABILITIES:\n" +
         "- Query the ERP database to answer questions about orders, products, customers, inventory\n" +
         "- Look up specific records by ID or search value\n" +

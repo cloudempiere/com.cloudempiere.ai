@@ -23,7 +23,7 @@ import org.compiere.util.CLogger;
 import org.compiere.util.DB;
 import org.compiere.util.Env;
 
-import com.cloudempiere.ai.model.MAIGUsageMetrics;
+import com.cloudempiere.ai.model.MAIUsageMetrics;
 
 import dev.langchain4j.model.chat.listener.ChatModelErrorContext;
 import dev.langchain4j.model.chat.listener.ChatModelListener;
@@ -269,7 +269,7 @@ public class AIMetricsListener implements ChatModelListener {
     }
 
     /**
-     * Persist metrics to database using MAIGUsageMetrics model.
+     * Persist metrics to database using MAIUsageMetrics model.
      */
     private void persistMetrics(
         Integer clientId, Integer orgId, Integer userId,
@@ -297,7 +297,7 @@ public class AIMetricsListener implements ChatModelListener {
                 .intValue();
 
             if (success) {
-                MAIGUsageMetrics.record(
+                MAIUsageMetrics.record(
                     ctx, uId, 0, // roleId
                     0, // providerId - not tracked in listener context
                     agnt, null, // agentType
@@ -308,7 +308,7 @@ public class AIMetricsListener implements ChatModelListener {
                     null // trxName
                 );
             } else {
-                MAIGUsageMetrics.recordError(
+                MAIUsageMetrics.recordError(
                     ctx, uId, agnt, modelName,
                     errorMessage, (int) latencyMs,
                     null // trxName

@@ -8,10 +8,10 @@ This document tracks features, implementation status, and version compatibility 
 
 ---
 
-## Current Version: v0.9.0
+## Current Version: v0.13.0
 
-**Status:** ✅ Foundation Complete - LangChain4j native providers implemented
-**Next:** v0.10.0 - RAG, Structured Outputs, Observability
+**Status:** ✅ Naming Standards & Integration Wiring Complete
+**Next:** v0.14.0 - RAG Completion & Structured Outputs
 
 ---
 
@@ -19,16 +19,19 @@ This document tracks features, implementation status, and version compatibility 
 
 | Version | Date | Key Features | Focus Area |
 |---------|------|--------------|------------|
+| **0.13.0** | 2025-12-03 | **Naming Standards, Integration Wiring** | **Code Quality** |
+| 0.12.0 | 2025-12-03 | Observability, Guardrails, Multi-Tenant | P1 Infrastructure |
+| 0.11.0 | 2025-12-03 | RAG Infrastructure & Domain Boundaries | Context & Security |
 | 0.10.0 | 2025-12-01 | Security Fixes & Migration Scripts | Security |
-| 0.9.0 | 2025-12-01 | **LangChain4j Native Providers** | **Foundation** |
+| 0.9.0 | 2025-12-01 | LangChain4j Native Providers | Foundation |
 | 0.8.0 | 2025-12-01 | MCP Server & Strategic Architecture | Documentation |
 | 0.7.0 | 2025-12-01 | Documentation & Claude Agents | Developer Experience |
 | 0.6.0 | 2025-11-28 | LangChain4j Agent Framework | Agent Infrastructure |
 | 0.5.0 | 2025-11-26 | LangChain Integration | Tool Layer |
-| 0.4.0 | 2025-11-26 | AI Chat Widget (CLD-1606) | **User Interface** |
-| 0.3.0 | 2025-11-20 | Security Layer & Context Providers | **Security** |
+| 0.4.0 | 2025-11-26 | AI Chat Widget (CLD-1606) | User Interface |
+| 0.3.0 | 2025-11-20 | Security Layer & Context Providers | Security |
 | 0.2.0 | 2025-11-18 | AWS Bedrock Integration | Multi-Provider |
-| 0.1.0 | 2025-11-18 | Initial Provider Infrastructure | **Foundation** |
+| 0.1.0 | 2025-11-18 | Initial Provider Infrastructure | Foundation |
 
 ---
 
@@ -127,8 +130,8 @@ This document tracks features, implementation status, and version compatibility 
 | **ChatMemory** | 0.6.0 | ✅ Done | LangChain4j | MessageWindowChatMemory (per session) |
 | **ContentRetriever (RAG)** | - | 🔴 v0.10.0 | LangChain4j | Semantic search & context injection |
 | **Structured Outputs** | - | 🔴 v0.10.0 | LangChain4j | Java records as response schemas |
-| **Input/Output Guards** | - | 🟡 v0.11.0 | LangChain4j | Boundary validation (cost, PII, SQL injection) |
-| **Listeners (Observability)** | - | 🔴 v0.10.0 | LangChain4j | TokenUsage, Latency, Audit listeners |
+| **Input/Output Guards** | 0.12.0 | ✅ Done | LangChain4j | InputGuard, OutputGuard, ExecutionGuard |
+| **Listeners (Observability)** | 0.12.0 | ✅ Done | LangChain4j | AIMetricsListener, CostGuard |
 | **Agentic Patterns** | - | 🔴 v0.11.0 | LangChain4j | Sequential, parallel, conditional workflows |
 | **Agents as Tools** | - | 🟡 v0.11.0 | LangChain4j | Agent-to-Agent delegation |
 
@@ -169,8 +172,11 @@ This document tracks features, implementation status, and version compatibility 
 | **Audit Logging** | 0.3.0 | ✅ Done | AIG_QueryAudit table (who, what, when) |
 | **Org/Client Filtering** | 0.3.0 | ✅ Done | Automatic multi-tenant isolation |
 | **Sensitive Metadata Filtering** | 0.10.0 | ✅ Done | Filter user_id, role_id from AI responses |
-| **Cost Boundaries** | 0.10.0 | 🚧 In Progress | Token limits, daily budgets per agent (CostBoundaryMonitor) |
-| **PII Detection** | - | 🟡 v0.11.0 | Prevent exposure of passwords, credit cards |
+| **Cost Boundaries** | 0.12.0 | ✅ Done | CostGuard with budget enforcement, rate limiting |
+| **PII Detection** | 0.12.0 | ✅ Done | InputGuard detects SSN, credit cards, emails |
+| **Prompt Injection Prevention** | 0.12.0 | ✅ Done | InputGuard blocks injection attempts |
+| **Credential Leak Prevention** | 0.12.0 | ✅ Done | OutputGuard blocks API keys, passwords |
+| **Multi-Tenant Access Tiers** | 0.12.0 | ✅ Done | AIGAccessTier (TENANT, TENANT_DICTIONARY, SERVICE_PROVIDER) |
 
 ---
 
@@ -195,56 +201,41 @@ This document tracks features, implementation status, and version compatibility 
 | **AIG_QueryAudit** | 0.3.0 | ✅ Done | Query audit trail |
 | **AIG_Chat** | 0.10.0 | ✅ Done | Chat session metadata |
 | **AIG_ChatEntry** | 0.10.0 | ✅ Done | Chat message history |
-| **AIG_Agent** | - | 🔜 v0.11.0 | Agent configuration |
-| **AIG_AgentBoundary** | - | 🔜 v0.11.0 | Agent permission boundaries |
-| **AIG_Conversation** | - | 🔜 v0.12.0 | Persistent conversation store |
-| **AIG_Document** | - | 🟡 v0.10.0 | RAG document store |
+| **AIG_UsageMetrics** | 0.12.0 | ✅ Done | Token usage, cost, latency tracking |
+| **AIG_Budget** | 0.12.0 | ✅ Done | Budget limits (daily, monthly, per-agent) |
+| **AIG_Agent** | - | 🔜 v0.13.0 | Agent configuration |
+| **AIG_AgentBoundary** | - | 🔜 v0.13.0 | Agent permission boundaries |
+| **AIG_Conversation** | - | 🔜 v0.14.0 | Persistent conversation store |
+| **AIG_Document** | - | 🟡 v0.14.0 | RAG document store |
 
 ---
 
 ## Advanced Features (Roadmap)
 
-### v0.10.0 - RAG & Observability (Q1 2026)
+### v0.13.0 - First Business Case (Q1 2026)
 
-**Timeline:** 6 weeks total
+**Focus:** End-to-end validation of the AI stack with Chart Executive Overview.
 
-**Phase 1: RAG Migration (ADR-012) - 2 weeks**
+| Feature | Priority | Technology | Description |
+|---------|----------|------------|-------------|
+| **ADR-017: Chart Executive Overview** | 🔴 Critical | LangChain4j AiServices | First business use case |
+| **ChartAnalysisAgent** | 🔴 Critical | Structured Outputs | Agent with typed response |
+| **Guardrails Integration** | 🔴 Critical | InputGuard → AI → OutputGuard | End-to-end safety |
+| **Metrics Validation** | 🔴 Critical | AIMetricsListener | Verify token/cost tracking |
 
-| Week | Feature | Implementation | Success Metrics |
-|------|---------|---------------|-----------------|
-| **Week 1** | RAG Infrastructure Setup | Add deps: `langchain4j-embeddings`, `langchain4j-ollama`<br>Create `RAGContextManager` (~50 lines)<br>Create `ContentRetriever` config<br>Parallel testing (RAG vs custom) | Environment setup complete<br>RAG context manager working<br>Parallel tests running |
-| **Week 2** | Migration & Cleanup | Update `AIConversationService` to use RAG<br>Remove custom routing (630 lines)<br>Feature flag for rollback<br>Performance validation | Cache hit rate >50%<br>Accuracy >95%<br>Response time <1.5s |
+### v0.14.0 - RAG Completion & Vector DB (Q1 2026)
 
-**Phase 2-4: Additional Features - 4 weeks**
+| Feature | Priority | Technology | Description |
+|---------|----------|------------|-------------|
+| **Feature Flag** | 🔴 Critical | System Property | `ai.routing.strategy=RAG|LEGACY` |
+| **RAG Integration Tests** | 🔴 Critical | JUnit 5 | Validate RAGContextManager |
+| **Old Routing Cleanup** | 🟡 Medium | Refactoring | Remove 630 lines of legacy code |
+| **ADR-026: pgvector** | 🔴 Critical | PostgreSQL Extension | Production embedding persistence |
+| **MCP REST API** | 🔴 Critical | JAX-RS | HTTP API for external clients |
 
-| Feature | Priority | Technology | Timeline | Description |
-|---------|----------|------------|----------|-------------|
-| **Structured Outputs** | 🔴 Critical | LangChain4j Records | Week 3 | OrderSummary, InventoryReport schemas |
-| **Observability Listeners** | 🔴 Critical | LangChain4j Listeners | Week 4 | Cost, latency, error tracking |
-| **MCP REST API** | 🔴 Critical | JAX-RS | Weeks 5-6 | HTTP API for external clients |
-| **Enhanced Context** | 🟡 Medium | Context Providers | Week 6 | Form state, process parameters |
-| **Query Optimization** | 🟡 Medium | Custom | Week 6 | Query caching, connection pooling |
+### v0.15.0 - Domain Agents (Q1-Q2 2026)
 
-### v0.11.0 - LangChain4j Enhancements & Domain Agents (Q1-Q2 2026)
-
-**Timeline:** 8 weeks total (4 weeks ADR-008 enhancements + 4 weeks domain agents)
-
-**Phase 1: Instruction Following Enhancements (ADR-008) - 4 weeks**
-
-| Week | Feature | Priority | Technology | Implementation | Success Metrics |
-|------|---------|----------|------------|----------------|-----------------|
-| **Week 1** | Temperature Control | 🟢 Quick Win | LangChain4j | Set `temperature(0.0)` in ChatLanguageModel<br>1 line of code, 15-minute implementation | Reproducible results<br>Consistent behavior |
-| **Week 2-3** | Structured Outputs | 🔴 Critical | LangChain4j | Define typed interfaces (`ERPQueryResult`, `Record`)<br>Replace manual JSON parsing<br>Automatic schema validation | 80% less parsing code<br>Type-safe responses<br>Auto-retry on invalid structure |
-| **Week 4** | Validation Loop | 🟡 Medium | LangChain4j | Implement `OutputParser` with `formatInstructions()`<br>Self-correcting AI on validation errors | 70% less validation code<br>Auto-correction of AI errors<br>95% → 98% accuracy |
-
-**Expected Results (Phase 1):**
-- ✅ 80% less parsing code (100 → 20 lines)
-- ✅ Type-safe responses with compile-time validation
-- ✅ Deterministic function calling
-- ✅ Auto-correction of AI errors
-- ✅ 95% → 98% accuracy improvement
-
-**Phase 2: Domain Agents & Workflows - 4 weeks**
+**Focus:** Specialized agents for business domains (ADR-011)
 
 | Feature | Priority | Technology | Description |
 |---------|----------|------------|-------------|
@@ -254,18 +245,7 @@ This document tracks features, implementation status, and version compatibility 
 | **HelpDeskAgent** | 🟡 Medium | Agentic Patterns | Error diagnosis, troubleshooting |
 | **Sequential Workflows** | 🔴 Critical | LangChain4j Agentic | Multi-step business processes |
 | **Parallel Workflows** | 🟡 Medium | LangChain4j Agentic | Concurrent data retrieval |
-| **Conditional Routing** | 🟡 Medium | LangChain4j Agentic | Smart agent delegation |
-| **Input/Output Guards** | 🔴 Critical | LangChain4j Guards | Cost limits, PII detection |
 | **Process Execution Tool** | 🟡 Medium | ERPTools | Trigger iDempiere processes |
-
-### v0.12.0 - Production Preparation (Q2 2026)
-
-| Feature | Priority | Description |
-|---------|----------|-------------|
-| **Production DB Schema** | 🔴 Critical | Finalized table designs, indexes |
-| **Comprehensive Testing** | 🔴 Critical | Unit, integration, security, performance tests |
-| **Multi-Agent Collaboration** | 🟡 Medium | A2A (Agent-to-Agent) communication |
-| **Advanced RAG** | 🟡 Medium | Query transformation, re-ranking |
 
 ### v1.0.0 - Production Release (Q2 2026)
 
@@ -300,25 +280,24 @@ Based on validation reports:
 - **ADR-005** (Intelligent Routing) - ✅ Superseded by ADR-012 (RAG-Based Context Retrieval)
 - **ADR-012** (RAG-Based Context Retrieval) - ✅ Created 2025-12-01, planned implementation in v0.10.0
 
-### 🚧 In Progress
-- **ADR-009** (Boundaries) - 🚧 Core boundary framework implemented (7 classes):
-  - AgentBoundary, AgentBoundaryRegistry, BoundaryEnforcementFilter
-  - CostBoundaryMonitor, DataAccessValidator
-  - BoundaryViolationType, BoundaryViolationException
-  - Integration with existing code pending
+### ✅ Completed (v0.12.0)
+- **ADR-009** (Boundaries) - ✅ Done: 7 boundary classes + ADR-029 integration
+- **ADR-013** (Observability) - ✅ Done: AIMetricsListener, CostGuard, MAIUsageMetrics, MAIBudget
+- **ADR-014** (Guardrails) - ✅ Done: InputGuard, OutputGuard, ExecutionGuard, GuardResult
+- **ADR-029** (Multi-Tenant) - ✅ Done: AIGAccessTier, tiered access filters
 
 ### ⚠️ Needs Update
 - **ADR-010** (Orchestration) - ⚠️ Should reference `langchain4j-agentic-patterns` module
 
-### 🔴 Critical Gaps Identified
+### 🔴 Remaining Gaps
 - ✅ **RAG implementation** - Addressed by ADR-012 (86% code reduction via ContentRetriever)
 - ✅ **Database access** - Already implemented via ADR-002 ERPTools (36% code reduction vs planned)
-- ⚠️ **Structured outputs** - Planned v0.11.0 (80% less parsing code via LangChain4j)
-- ⚠️ **Temperature control** - Planned v0.11.0 (1-line quick win for deterministic function calling)
-- ⚠️ **Validation loop** - Planned v0.11.0 (70% less validation code via OutputParser)
-- ❌ **Agentic patterns module** (discovered at Devoxx 2025 - not yet implemented)
-- ❌ **Observability listeners** (LangChain4j has full support - not yet implemented)
-- 🚧 **Guards for boundary enforcement** - Core framework implemented (DataAccessValidator, CostBoundaryMonitor)
+- ✅ **Observability listeners** - Done v0.12.0 via AIMetricsListener
+- ✅ **Guards for boundary enforcement** - Done v0.12.0 via InputGuard, OutputGuard, ExecutionGuard
+- ⚠️ **Structured outputs** - Planned v0.13.0 (80% less parsing code via LangChain4j)
+- ⚠️ **Temperature control** - Planned v0.13.0 (1-line quick win for deterministic function calling)
+- ⚠️ **Validation loop** - Planned v0.13.0 (70% less validation code via OutputParser)
+- ⏳ **Agentic patterns module** - Planned v0.15.0 (langchain4j-agentic)
 
 **Code Reduction Achieved:**
 - 630 lines (ADR-012 RAG migration)
@@ -419,5 +398,5 @@ Based on validation reports:
 ---
 
 **Last Updated:** 2025-12-03
-**Current Version:** v0.9.0 (v0.10.0 in progress)
-**Next Release:** v0.10.0 (Q1 2026) - RAG & Observability
+**Current Version:** v0.12.0 (Observability, Guardrails, Multi-Tenant Access)
+**Next Release:** v0.13.0 (Q1 2026) - Chart Executive Overview (First Business Case)
