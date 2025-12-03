@@ -24,6 +24,7 @@ This directory contains architecture decisions for the CloudEmpiere AI plugin.
 | [007](007-database-security-model.md) | Database Security Model | Accepted | 2025-12-01 |
 | [008](008-llm-instruction-following.md) | LLM Instruction Following Strategy | Accepted | 2025-12-01 |
 | [012](012-rag-based-context-retrieval.md) | RAG-Based Context Retrieval | Accepted | 2025-12-01 |
+| [026](026-vector-database-strategy.md) | Vector Database Strategy | Proposed | 2025-12-03 |
 
 ### Agent Architecture
 
@@ -32,6 +33,7 @@ This directory contains architecture decisions for the CloudEmpiere AI plugin.
 | [009](009-domain-boundaries-agent-scope.md) | Domain Boundaries and Agent Scope | Accepted | 2025-12-01 |
 | [010](010-agent-orchestration-architecture.md) | Agent Orchestration Architecture | Accepted | 2025-12-01 |
 | [011](011-specialized-agent-scopes.md) | Specialized Agent Scopes by Business Domain | Accepted | 2025-12-01 |
+| [016](016-knowledge-base-agent.md) | Knowledge Base Agent Domain | Accepted | 2025-12-02 |
 
 ### Operations & UX
 
@@ -40,6 +42,31 @@ This directory contains architecture decisions for the CloudEmpiere AI plugin.
 | [013](013-observability-cost-tracking.md) | Observability and Cost Tracking | Accepted | 2025-12-01 |
 | [014](014-guardrails-and-safety.md) | Guardrails and Safety | Accepted | 2025-12-01 |
 | [015](015-conversational-ux-patterns.md) | Conversational UX Patterns | Accepted | 2025-12-01 |
+| [027](027-chain-maintainability-ui-configuration.md) | Chain Maintainability and UI Configuration | Proposed | 2025-12-03 |
+
+### Use Cases - Phase 1 (MVP)
+
+| ADR | Title | Status | Priority | Date |
+|-----|-------|--------|----------|------|
+| [017](017-chart-executive-overview.md) | Chart Executive Overview | Accepted | P0 | 2025-12-03 |
+| [018](018-sales-opportunity-summary.md) | Sales Opportunity Summary | Accepted | P0 | 2025-12-03 |
+| [019](019-support-ticket-classification.md) | Support Ticket Classification | Accepted | P1 | 2025-12-03 |
+| [020](020-email-gateway-enhancement.md) | Email Gateway Enhancement | Accepted | P1 | 2025-12-03 |
+
+### Use Cases - Phase 2
+
+| ADR | Title | Status | Priority | Date |
+|-----|-------|--------|----------|------|
+| [021](021-product-catalog-enhancement.md) | Product Catalog Enhancement | Accepted | P2 | 2025-12-03 |
+| [022](022-translation-wizard.md) | Translation Wizard | Accepted | P2 | 2025-12-03 |
+
+### Use Cases - Phase 3
+
+| ADR | Title | Status | Priority | Date |
+|-----|-------|--------|----------|------|
+| [023](023-ocr-invoice-processing.md) | OCR Invoice Processing | Accepted | P3 | 2025-12-03 |
+| [024](024-import-data-normalization.md) | Import Data Normalization | Accepted | P3 | 2025-12-03 |
+| [025](025-idempiere-development-assistant.md) | iDempiere Development Assistant | Accepted | P3 | 2025-12-03 |
 
 ---
 
@@ -51,11 +78,20 @@ This directory contains architecture decisions for the CloudEmpiere AI plugin.
 
 ---
 
+## Studies & References
+
+| ADR | Title | Status | Date |
+|-----|-------|--------|------|
+| [028](028-idempiere-mcp-applicability-study.md) | iDempiere-MCP (hengsin) Applicability Study | Reference | 2025-12-03 |
+
+---
+
 ## Appendices
 
 | Doc | Title | Related ADR |
 |-----|-------|-------------|
 | [002-appendix](002-appendix-feature-mapping.md) | Feature Mapping: Legacy to LangChain4j | ADR-002 |
+| [014-appendix](014-appendix-langchain4j-validation.md) | LangChain4j Guardrails Validation | ADR-014 |
 
 ---
 
@@ -133,6 +169,11 @@ Each ADR includes:
 - pgvector for embedding storage
 - Hybrid search (vector + keyword)
 
+**ADR-026: Vector Database Strategy**
+- AWS RDS PostgreSQL with pgvector (Phase 1)
+- Aurora pgvector, S3 Vectors alternatives analyzed
+- Cost comparison: RDS pgvector vs OpenSearch Serverless vs S3 Vectors
+
 ### Agent Architecture
 
 **ADR-009: Domain Boundaries and Agent Scope**
@@ -168,3 +209,66 @@ Each ADR includes:
 - Structured response formatting
 - Proactive insights (warnings, suggestions)
 - iDempiere zoom link integration
+
+**ADR-016: Knowledge Base Agent Domain**
+- RAG-based documentation search
+- iDempiere wiki and Application Dictionary integration
+- Context-aware help system
+
+**ADR-027: Chain Maintainability and UI Configuration**
+- Hybrid approach: code structure + database configuration
+- OSGi hot-deploy for chain updates without server restart
+- UI-configurable prompts, parameters, and cost budgets
+- A/B testing support with version management
+- Three-tier update strategy (hot/OSGi/full deployment)
+
+### Use Cases - Phase 1 (MVP)
+
+**ADR-017: Chart Executive Overview**
+- AI-powered chart explanations using ChartContextProvider
+- Structured output with findings and methodology
+- 15-minute cache TTL, <3 second response target
+
+**ADR-018: Sales Opportunity Summary**
+- Opportunity health scoring (ON_TRACK/NEEDS_ATTENTION/AT_RISK)
+- Activity timeline analysis with sentiment detection
+- Stakeholder mapping and engagement tracking
+
+**ADR-019: Support Ticket Classification**
+- Email parsing with signature detection
+- Confidence-based routing (auto-assign >0.85, review 0.70-0.85)
+- R_Request integration for ticket creation
+
+**ADR-020: Email Gateway Enhancement**
+- Signature detection with confidence scoring
+- Image filtering (<5KB removal)
+- Entity extraction (order numbers, SKUs, dates)
+
+### Use Cases - Phase 2
+
+**ADR-021: Product Catalog Enhancement**
+- Multi-mode agent (GENERATE, ENHANCE, SEO_OPTIMIZE, BULK)
+- Brand voice configuration
+- Description quality scoring
+
+**ADR-022: Translation Wizard**
+- AD_*_Trl table integration
+- Translation glossary for ERP terminology
+- Back-translation quality verification
+
+### Use Cases - Phase 3
+
+**ADR-023: OCR Invoice Processing**
+- Vision LLM (Claude 3.5) for document extraction
+- 3-way match validation (PO, receipt, invoice)
+- Draft C_Invoice generation
+
+**ADR-024: Import Data Normalization**
+- Pipeline architecture for name, address, phone, email
+- Fuzzy duplicate detection
+- Country-specific formatting (DE, AT, CH, US, GB)
+
+**ADR-025: iDempiere Development Assistant**
+- MCP server integration for external IDE access
+- RAG-based wiki and documentation search
+- Code templates for Model, Process, Callout generation

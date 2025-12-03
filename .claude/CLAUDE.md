@@ -390,6 +390,7 @@ Follow [Conventional Commits](https://conventionalcommits.org/):
 - [ADR-007](docs/adr/007-database-security-model.md) - Database Security Model
 - [ADR-008](docs/adr/008-llm-instruction-following.md) - LLM Instruction Following Strategy
 - [ADR-012](docs/adr/012-rag-based-context-retrieval.md) - RAG-Based Context Retrieval
+- [ADR-026](docs/adr/026-vector-database-strategy.md) - Vector Database Strategy (AWS pgvector vs alternatives)
 
 ### Agent Architecture
 - [ADR-009](docs/adr/009-domain-boundaries-agent-scope.md) - Domain Boundaries and Agent Scope Architecture
@@ -401,6 +402,21 @@ Follow [Conventional Commits](https://conventionalcommits.org/):
 - [ADR-013](docs/adr/013-observability-cost-tracking.md) - Observability and Cost Tracking
 - [ADR-014](docs/adr/014-guardrails-and-safety.md) - Guardrails and Safety
 - [ADR-015](docs/adr/015-conversational-ux-patterns.md) - Conversational UX Patterns
+
+### Use Cases - Phase 1 (MVP)
+- [ADR-017](docs/adr/017-chart-executive-overview.md) - Chart Executive Overview
+- [ADR-018](docs/adr/018-sales-opportunity-summary.md) - Sales Opportunity Summary
+- [ADR-019](docs/adr/019-support-ticket-classification.md) - Support Ticket Classification
+- [ADR-020](docs/adr/020-email-gateway-enhancement.md) - Email Gateway Enhancement
+
+### Use Cases - Phase 2
+- [ADR-021](docs/adr/021-product-catalog-enhancement.md) - Product Catalog Enhancement
+- [ADR-022](docs/adr/022-translation-wizard.md) - Translation Wizard
+
+### Use Cases - Phase 3
+- [ADR-023](docs/adr/023-ocr-invoice-processing.md) - OCR Invoice Processing
+- [ADR-024](docs/adr/024-import-data-normalization.md) - Import Data Normalization
+- [ADR-025](docs/adr/025-idempiere-development-assistant.md) - iDempiere Development Assistant
 
 ## Notes
 
