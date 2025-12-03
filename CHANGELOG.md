@@ -9,6 +9,32 @@ and this project adheres to [Conventional Commits](https://conventionalcommits.o
 
 ### Development Session: 2025-12-03 - RAG Infrastructure & Domain Boundaries
 
+#### Status Review (2025-12-03)
+
+**Completed Components:**
+| Component | ADR | Status |
+|-----------|-----|--------|
+| RAGContextManager | ADR-012 | ✅ Done |
+| RAGConversationService | ADR-012 | ✅ Done |
+| AgentBoundary + Registry | ADR-009 | ✅ Done |
+| BoundaryEnforcementFilter | ADR-009 | ✅ Done |
+| CostBoundaryMonitor | ADR-009 | ✅ Done |
+| DataAccessValidator | ADR-009 | ✅ Done |
+| LangChain4jProviderFactory (embeddings) | ADR-002 | ✅ Done |
+| Unit Tests (context, database) | ADR-032 | ✅ Done |
+
+**Identified Gaps (Next Sprint):**
+| Component | ADR | Priority | Notes |
+|-----------|-----|----------|-------|
+| ThreadAwareChatMemory | ADR-031 | P0 | Thread isolation for chat |
+| Wire RAGConversationService to AIChatWidget | ADR-012 | P0 | Integration pending |
+| RAG/Boundary unit tests | ADR-012/009 | P0 | Quality gate |
+| Remove old routing code | ADR-012 | P1 | 750 lines to delete |
+| Time-based boundaries | ADR-009 | P2 | Period restrictions |
+| Observability listeners | ADR-013 | P2 | Token/latency tracking |
+
+**Key Decision:** Use `RAGConversationService` (ADR-012) instead of creating new `LangChain4jConversationService` (original ADR-031 plan).
+
 #### Added
 - **RAG Infrastructure (ADR-012)**
   - `src/com/cloudempiere/ai/rag/RAGContextManager.java` - Core RAG context manager

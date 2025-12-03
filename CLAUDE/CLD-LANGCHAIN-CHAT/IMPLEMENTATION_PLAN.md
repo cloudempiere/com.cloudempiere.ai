@@ -2,7 +2,8 @@
 
 **ADR Reference:** [ADR-031](../../docs/adr/031-chat-panel-langchain4j-chatmodel-integration.md)
 **Created:** 2025-12-03
-**Status:** Planned
+**Updated:** 2025-12-03
+**Status:** In Progress
 **Branch:** `langchain`
 
 ---
@@ -13,101 +14,93 @@ This plan details the migration of `AIChatWidget` from the custom `AIConversatio
 
 ---
 
-## Priority Matrix
+## Current State Assessment (2025-12-03)
+
+### What's Already Implemented
+
+| Component | ADR | Status | Location |
+|-----------|-----|--------|----------|
+| **RAGContextManager** | ADR-012 | ✅ Done | `src/.../rag/RAGContextManager.java` |
+| **RAGConversationService** | ADR-012 | ✅ Done | `src/.../rag/RAGConversationService.java` |
+| **AgentBoundary** | ADR-009 | ✅ Done | `src/.../boundary/AgentBoundary.java` |
+| **AgentBoundaryRegistry** | ADR-009 | ✅ Done | `src/.../boundary/AgentBoundaryRegistry.java` |
+| **BoundaryEnforcementFilter** | ADR-009 | ✅ Done | `src/.../boundary/BoundaryEnforcementFilter.java` |
+| **CostBoundaryMonitor** | ADR-009 | ✅ Done | `src/.../boundary/CostBoundaryMonitor.java` |
+| **DataAccessValidator** | ADR-009 | ✅ Done | `src/.../boundary/DataAccessValidator.java` |
+| **LangChain4jProviderFactory** | ADR-002 | ✅ Done | `src/.../langchain4j/LangChain4jProviderFactory.java` |
+| **Context/Database Tests** | ADR-032 | ✅ Done | `src/test/.../` |
+
+### What's NOT Yet Implemented (Gaps)
+
+| Component | ADR | Status | Blocking |
+|-----------|-----|--------|----------|
+| **ThreadAwareChatMemory** | ADR-031 | ❌ Not Started | MVP |
+| **LangChain4jConversationService** | ADR-031 | ❌ Not Started | MVP |
+| **Update AIChatWidget** | ADR-031 | ❌ Not Started | MVP |
+| **Wire RAGConversationService to Widget** | ADR-012 | ❌ Not Started | Integration |
+| **RAGContextManager Tests** | ADR-012 | ❌ Not Started | Quality |
+| **Boundary Component Tests** | ADR-009 | ❌ Not Started | Quality |
+| **Remove Old Routing Code** | ADR-012 | ❌ Not Started | Cleanup |
+| **Time-Based Boundaries** | ADR-009 | ⚠️ Partial | Security |
+
+### Key Decision: RAG vs Custom Routing
+
+**ADR-031 Plan vs ADR-012 Implementation Conflict:**
+
+The original ADR-031 plan references `PromptAnalyzer` and `ConversationContextManager` (custom routing).
+However, ADR-012 supersedes this with RAG-based context retrieval.
+
+**Resolution:** Use `RAGConversationService` instead of creating `LangChain4jConversationService` with custom routing.
+
+```
+OLD PATH (ADR-031 original):
+AIChatWidget → LangChain4jConversationService → PromptAnalyzer → IDempiereAIService
+
+NEW PATH (ADR-012 aligned):
+AIChatWidget → RAGConversationService → RAGContextManager → IDempiereAIService
+```
+
+---
+
+## Revised Priority Matrix
 
 ### Priority Levels
 
 | Priority | Meaning | Criteria |
 |----------|---------|----------|
-| **P0 - Critical** | Must have for MVP | Blocks core functionality, no workaround |
-| **P1 - High** | Should have for MVP | Significant value, minor workarounds exist |
-| **P2 - Medium** | Nice to have | Enhances experience, can defer |
-| **P3 - Low** | Future enhancement | Optional, implement when time permits |
+| **P0 - Critical** | Must have for MVP | Blocks core functionality |
+| **P1 - High** | Should have for MVP | Significant value |
+| **P2 - Medium** | Nice to have | Enhances experience |
+| **P3 - Low** | Future enhancement | Optional |
 
-### Prioritized Task Overview
+### Prioritized Task Overview (Revised)
 
-| Task | Priority | Phase | Dependencies | Value | Effort |
-|------|----------|-------|--------------|-------|--------|
-| **ThreadAwareChatMemory** | P0 | 1.1 | None | Critical for thread isolation | 0.5 day |
-| **LangChain4jConversationService** | P0 | 2.1 | 1.1 | Core integration facade | 1.5 days |
-| **Update AIChatWidget** | P0 | 4.1 | 2.1 | Enable new path | 0.5 day |
-| **Basic unit tests** | P0 | 7.1 | 1.1, 2.1 | Ensure correctness | 1 day |
-| **IDempiereAIService thread support** | P1 | 3.1 | 1.1 | Thread memory in service | 0.5 day |
-| **Feature flag rollout** | P1 | Rollout | 4.1 | Safe deployment | 0.5 day |
-| **TokenUsageListener** | P1 | 1.3a | None | Cost tracking | 0.25 day |
-| **LatencyMetricsListener** | P2 | 1.3b | None | Performance tracking | 0.25 day |
-| **IDempiereAuditListener** | P2 | 1.3c | None | Audit logging | 0.25 day |
-| **Provider factory listeners** | P2 | 5.1 | 1.3 | Wire up observability | 0.5 day |
-| **IDempiereStreamingAgent** | P2 | 1.2 | None | Streaming interface | 0.25 day |
-| **Streaming in service** | P2 | 3.2 | 1.2 | Streaming support | 0.5 day |
-| **Streaming in widget** | P2 | 4.2 | 3.2 | Real-time UI | 1 day |
-| **Integration tests** | P2 | 7.2 | 4.1 | End-to-end validation | 1 day |
-| **Deprecate AIConversationService** | P3 | 6.1 | 4.1 | Code cleanup | 0.25 day |
-| **Manual test checklist** | P3 | 7.3 | 4.1 | QA validation | 0.5 day |
-
-### Critical Path (P0 Tasks)
-
-```
-ThreadAwareChatMemory (0.5d)
-         │
-         ▼
-LangChain4jConversationService (1.5d)
-         │
-         ▼
-Update AIChatWidget (0.5d)
-         │
-         ▼
-Basic Unit Tests (1d)
-         │
-         ▼
-─────────────────────────
-MVP READY (3.5 days)
-─────────────────────────
-```
-
-### Recommended Implementation Order
-
-#### Sprint 1: MVP (P0) - 3.5 days
-1. ✅ ThreadAwareChatMemory
-2. ✅ LangChain4jConversationService (basic)
-3. ✅ Update AIChatWidget
-4. ✅ Basic unit tests
-
-#### Sprint 2: Production Ready (P1) - 2 days
-5. ✅ IDempiereAIService thread support
-6. ✅ Feature flag rollout mechanism
-7. ✅ TokenUsageListener (cost tracking)
-
-#### Sprint 3: Enhanced (P2) - 3 days
-8. ✅ LatencyMetricsListener
-9. ✅ IDempiereAuditListener
-10. ✅ Provider factory listener wiring
-11. ✅ Streaming support (full stack)
-12. ✅ Integration tests
-
-#### Sprint 4: Cleanup (P3) - 1 day
-13. ✅ Deprecate old service
-14. ✅ Manual testing & documentation
+| Task | Priority | Status | Dependencies | Notes |
+|------|----------|--------|--------------|-------|
+| **ThreadAwareChatMemory** | P0 | ❌ TODO | None | Thread isolation |
+| **Wire RAGConversationService to AIChatWidget** | P0 | ❌ TODO | ThreadAwareChatMemory | Replaces LangChain4jConversationService plan |
+| **Basic unit tests (RAG + Boundary)** | P0 | ❌ TODO | Above | Quality gate |
+| **Feature flag rollout** | P1 | ❌ TODO | Widget wiring | Safe deployment |
+| **TokenUsageListener** | P1 | ❌ TODO | None | Cost tracking |
+| **Remove old routing code** | P1 | ❌ TODO | Widget wiring | Per ADR-012 |
+| **Time-based boundaries** | P2 | ⚠️ Partial | None | Period restrictions |
+| **LatencyMetricsListener** | P2 | ❌ TODO | None | Performance |
+| **IDempiereAuditListener** | P2 | ❌ TODO | None | Compliance |
+| **Streaming support** | P2 | ❌ TODO | Widget wiring | UX enhancement |
+| **Integration tests** | P2 | ❌ TODO | All above | E2E validation |
+| **Deprecate AIConversationService** | P3 | ❌ TODO | All above | Cleanup |
 
 ---
 
-## Phase 1: Foundation Components
+## Revised Implementation Plan
 
-### 1.1 Create ThreadAwareChatMemory [P0 - Critical]
+### Sprint 1: MVP Core (P0) - 3 days
+
+#### 1.1 Create ThreadAwareChatMemory [P0]
 
 **File:** `src/com/cloudempiere/ai/provider/langchain4j/ThreadAwareChatMemory.java`
 
-**Priority Justification:** Core blocker - LangChain4j's default memory doesn't support thread filtering. Without this, multi-thread conversations break.
-
-**Purpose:** Custom ChatMemory implementation that supports multi-thread conversations with thread-specific message filtering.
-
-**Key Features:**
-- Thread isolation via memory ID
-- Configurable max messages per thread
-- Thread switching without losing other thread history
-- New thread creation
-
-**Implementation:**
+**Purpose:** Thread-isolated chat memory for multi-thread conversations.
 
 ```java
 package com.cloudempiere.ai.provider.langchain4j;
@@ -117,6 +110,12 @@ import dev.langchain4j.memory.ChatMemory;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * Thread-aware ChatMemory implementation (ADR-031).
+ *
+ * <p>Supports multi-thread conversations where each thread has isolated
+ * message history while sharing the same session context.
+ */
 public class ThreadAwareChatMemory implements ChatMemory {
 
     private final int maxMessages;
@@ -153,18 +152,26 @@ public class ThreadAwareChatMemory implements ChatMemory {
         threadMessages.remove(currentThreadId);
     }
 
-    // Thread management
+    /** Switch to existing thread */
     public void switchThread(String threadId) {
         this.currentThreadId = threadId;
     }
 
+    /** Create new thread with empty history */
     public void createNewThread(String threadId) {
         this.currentThreadId = threadId;
         threadMessages.put(threadId, new LinkedList<>());
     }
 
+    /** Get all thread IDs */
     public Set<String> getThreadIds() {
-        return threadMessages.keySet();
+        return Collections.unmodifiableSet(threadMessages.keySet());
+    }
+
+    /** Clear all threads */
+    public void clearAll() {
+        threadMessages.clear();
+        currentThreadId = "default";
     }
 
     private void trimToMaxSize(String threadId) {
@@ -176,74 +183,268 @@ public class ThreadAwareChatMemory implements ChatMemory {
 }
 ```
 
-**Tests:** `test/com/cloudempiere/ai/provider/langchain4j/ThreadAwareChatMemoryTest.java`
+**Acceptance Criteria:**
+- [ ] Thread isolation verified
+- [ ] Max message trimming works
+- [ ] Concurrent access safe
+- [ ] Unit test passes
 
 ---
 
-### 1.2 Create IDempiereStreamingAgent Interface [P2 - Medium]
+#### 1.2 Wire RAGConversationService to AIChatWidget [P0]
 
-**File:** `src/com/cloudempiere/ai/provider/langchain4j/IDempiereStreamingAgent.java`
+**File:** `src/com/cloudempiere/ai/component/AIChatWidget.java`
 
-**Priority Justification:** Enhancement - Streaming improves UX but sync responses work fine. Can defer to Sprint 3.
+**Changes:** Replace `AIConversationService` with `RAGConversationService`.
 
-**Purpose:** Agent interface with streaming support for real-time response delivery to UI.
+**Before:**
+```java
+private AIConversationService aiService;
+// ...
+aiService = new AIConversationService();
+// ...
+AIResponse aiResponse = aiService.sendMessageWithContext(...);
+String content = aiResponse.getContent();
+```
 
-**Implementation:**
+**After:**
+```java
+private RAGConversationService aiService;
+// ...
+aiService = new RAGConversationService();
+// ...
+String content = aiService.sendMessageWithContext(
+    sessionCtx, (MAIChat)chat, userMessage, currentContext,
+    DEFAULT_MAX_HISTORY, null
+);
+```
+
+**Feature Flag (for safe rollout):**
+```java
+// In AIChatWidget.init()
+boolean useRAG = MSysConfig.getBooleanValue(
+    "AI_USE_RAG_SERVICE", true, Env.getAD_Client_ID(ctx)
+);
+
+if (useRAG) {
+    aiService = new RAGConversationService();
+} else {
+    aiService = new AIConversationService(); // Legacy fallback
+}
+```
+
+**Acceptance Criteria:**
+- [ ] Widget compiles with new service
+- [ ] Chat responses work
+- [ ] Thread switching works
+- [ ] Context injection works
+
+---
+
+#### 1.3 Add Thread Support to RAGConversationService [P0]
+
+**File:** `src/com/cloudempiere/ai/rag/RAGConversationService.java`
+
+**Changes:** Integrate `ThreadAwareChatMemory` for thread isolation.
 
 ```java
-package com.cloudempiere.ai.provider.langchain4j;
+// Add to RAGConversationService
 
-import dev.langchain4j.service.*;
+/** Thread-aware memory cache by session */
+private final Map<String, ThreadAwareChatMemory> sessionMemoryCache = new ConcurrentHashMap<>();
 
-@SystemMessage(IDempiereAgent.SYSTEM_PROMPT)
-public interface IDempiereStreamingAgent {
+/** Default memory size per thread */
+private static final int DEFAULT_MEMORY_SIZE = 20;
 
-    /**
-     * Stream chat response token by token.
-     */
-    TokenStream chat(@MemoryId String sessionId, @UserMessage String message);
+/**
+ * Send message with thread support
+ */
+public String sendMessageWithContext(
+        Properties ctx,
+        MAIChat chat,
+        String userMessage,
+        JSONObject windowContext,
+        int maxHistoryEntries,
+        int threadRootId,  // NEW parameter
+        String trxName) {
 
-    /**
-     * Execute one-shot task with streaming.
-     */
-    TokenStream execute(@UserMessage String goal);
+    String sessionId = getSessionId(chat);
+
+    // Get or create thread-aware memory
+    ThreadAwareChatMemory memory = sessionMemoryCache.computeIfAbsent(
+        sessionId, k -> new ThreadAwareChatMemory(DEFAULT_MEMORY_SIZE));
+
+    // Switch to correct thread
+    String threadId = "thread_" + threadRootId;
+    memory.switchThread(threadId);
+
+    // ... rest of implementation using memory
+}
+
+/**
+ * Create new conversation thread
+ */
+public void createNewThread(MAIChat chat, int threadRootId) {
+    String sessionId = getSessionId(chat);
+    ThreadAwareChatMemory memory = sessionMemoryCache.get(sessionId);
+    if (memory != null) {
+        memory.createNewThread("thread_" + threadRootId);
+    }
+}
+
+/**
+ * Clear thread memory
+ */
+public void clearThread(MAIChat chat, int threadRootId) {
+    String sessionId = getSessionId(chat);
+    ThreadAwareChatMemory memory = sessionMemoryCache.get(sessionId);
+    if (memory != null) {
+        memory.switchThread("thread_" + threadRootId);
+        memory.clear();
+    }
 }
 ```
 
 ---
 
-### 1.3 Create Observability Listeners [P1/P2]
+#### 1.4 Unit Tests [P0]
 
-**Directory:** `src/com/cloudempiere/ai/provider/langchain4j/listener/`
+**New Test Files:**
 
-**Priority Breakdown:**
-- TokenUsageListener: **P1** - Critical for cost tracking/billing
-- LatencyMetricsListener: **P2** - Nice for performance monitoring
-- IDempiereAuditListener: **P2** - Nice for compliance
+| File | Purpose |
+|------|---------|
+| `ThreadAwareChatMemoryTest.java` | Thread isolation, trimming, concurrency |
+| `RAGContextManagerTest.java` | Embedding store, retrieval, fallback |
+| `AgentBoundaryTest.java` | Table/column allow/block |
+| `BoundaryEnforcementFilterTest.java` | SQL injection, org filtering |
 
-#### TokenUsageListener.java [P1 - High]
+**ThreadAwareChatMemoryTest.java:**
+```java
+package com.cloudempiere.ai.provider.langchain4j;
+
+import dev.langchain4j.data.message.UserMessage;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+
+class ThreadAwareChatMemoryTest {
+
+    private ThreadAwareChatMemory memory;
+
+    @BeforeEach
+    void setUp() {
+        memory = new ThreadAwareChatMemory(5);
+    }
+
+    @Test
+    void testThreadIsolation() {
+        // Add messages to thread 1
+        memory.switchThread("thread1");
+        memory.add(UserMessage.from("Hello from thread 1"));
+
+        // Add messages to thread 2
+        memory.switchThread("thread2");
+        memory.add(UserMessage.from("Hello from thread 2"));
+
+        // Verify isolation
+        memory.switchThread("thread1");
+        assertEquals(1, memory.messages().size());
+        assertTrue(memory.messages().get(0).toString().contains("thread 1"));
+
+        memory.switchThread("thread2");
+        assertEquals(1, memory.messages().size());
+        assertTrue(memory.messages().get(0).toString().contains("thread 2"));
+    }
+
+    @Test
+    void testMaxMessageTrimming() {
+        memory.switchThread("test");
+        for (int i = 0; i < 10; i++) {
+            memory.add(UserMessage.from("Message " + i));
+        }
+        assertEquals(5, memory.messages().size());
+        assertTrue(memory.messages().get(0).toString().contains("Message 5"));
+    }
+
+    @Test
+    void testClearThread() {
+        memory.switchThread("thread1");
+        memory.add(UserMessage.from("Test"));
+        memory.clear();
+        assertEquals(0, memory.messages().size());
+    }
+}
+```
+
+---
+
+### Sprint 2: Production Ready (P1) - 2 days
+
+#### 2.1 Feature Flag Configuration [P1]
+
+**Database Setup:**
+```sql
+-- Add to AD_SysConfig
+INSERT INTO AD_SysConfig (AD_SysConfig_ID, AD_Client_ID, AD_Org_ID, Name, Value, Description)
+VALUES (nextval('ad_sysconfig_seq'), 0, 0, 'AI_USE_RAG_SERVICE', 'Y',
+        'Use RAG-based conversation service (Y/N). Set N to use legacy AIConversationService.');
+```
+
+**Usage in code:**
+```java
+boolean useRAG = MSysConfig.getBooleanValue("AI_USE_RAG_SERVICE", true, clientId);
+```
+
+---
+
+#### 2.2 TokenUsageListener [P1]
+
+**File:** `src/com/cloudempiere/ai/provider/langchain4j/listener/TokenUsageListener.java`
+
 ```java
 package com.cloudempiere.ai.provider.langchain4j.listener;
 
 import dev.langchain4j.model.chat.listener.*;
 import org.compiere.util.CLogger;
+import java.math.BigDecimal;
 
+/**
+ * Tracks token usage and cost for AI requests (ADR-013).
+ */
 public class TokenUsageListener implements ChatModelListener {
 
     private static final CLogger log = CLogger.getCLogger(TokenUsageListener.class);
 
+    // Pricing per 1M tokens (Claude claude-sonnet-4-20250514 as of 2025)
+    private static final BigDecimal INPUT_COST_PER_M = new BigDecimal("3.00");
+    private static final BigDecimal OUTPUT_COST_PER_M = new BigDecimal("15.00");
+
     @Override
     public void onRequest(ChatModelRequestContext context) {
-        // Log request start
+        log.fine("AI Request started");
     }
 
     @Override
     public void onResponse(ChatModelResponseContext context) {
         var usage = context.response().tokenUsage();
         if (usage != null) {
-            log.info("Tokens: input=" + usage.inputTokenCount() +
-                     ", output=" + usage.outputTokenCount() +
-                     ", total=" + usage.totalTokenCount());
+            int inputTokens = usage.inputTokenCount();
+            int outputTokens = usage.outputTokenCount();
+
+            BigDecimal inputCost = INPUT_COST_PER_M
+                .multiply(BigDecimal.valueOf(inputTokens))
+                .divide(BigDecimal.valueOf(1_000_000), 6, BigDecimal.ROUND_HALF_UP);
+            BigDecimal outputCost = OUTPUT_COST_PER_M
+                .multiply(BigDecimal.valueOf(outputTokens))
+                .divide(BigDecimal.valueOf(1_000_000), 6, BigDecimal.ROUND_HALF_UP);
+            BigDecimal totalCost = inputCost.add(outputCost);
+
+            log.info(String.format(
+                "AI Usage: input=%d, output=%d, total=%d tokens | Cost: $%.6f",
+                inputTokens, outputTokens, usage.totalTokenCount(), totalCost
+            ));
+
+            // TODO: Persist to AIG_UsageMetrics table (ADR-013)
         }
     }
 
@@ -254,7 +455,88 @@ public class TokenUsageListener implements ChatModelListener {
 }
 ```
 
-#### LatencyMetricsListener.java [P2 - Medium]
+---
+
+#### 2.3 Remove Old Routing Code [P1]
+
+**Per ADR-012, remove these files (630+ lines):**
+
+```
+src/com/cloudempiere/ai/routing/
+├── PromptAnalyzer.java          (120 lines) - DELETE
+├── EntityExtractor.java         (140 lines) - DELETE
+├── SourceDecision.java          (20 lines)  - DELETE
+├── DataType.java                (20 lines)  - DELETE
+├── TTLConfig.java               (80 lines)  - DELETE
+└── RoutingMetrics.java          (100 lines) - DELETE
+
+src/com/cloudempiere/ai/context/
+├── ConversationContextManager.java (230 lines) - DELETE (keep others)
+└── ContextEntry.java               (40 lines)  - DELETE
+```
+
+**Keep:** `AIContextProviderRegistry.java`, `IAIContextProvider.java`, `WindowContextProvider.java`, `ChartContextProvider.java`
+
+**Verification:**
+- [ ] No compile errors after deletion
+- [ ] Widget still works via RAGConversationService
+- [ ] Tests pass
+
+---
+
+### Sprint 3: Enhanced (P2) - 3 days
+
+#### 3.1 Time-Based Boundaries [P2]
+
+**File:** `src/com/cloudempiere/ai/boundary/TimeBoundaryValidator.java`
+
+```java
+package com.cloudempiere.ai.boundary;
+
+import org.compiere.model.MPeriod;
+import org.compiere.util.Env;
+import java.sql.Timestamp;
+import java.util.Properties;
+
+/**
+ * Time-based boundary validation (ADR-009).
+ *
+ * Enforces period restrictions:
+ * - Current period: Can create/modify
+ * - Closed periods: Read-only
+ * - Future periods: Restricted
+ */
+public class TimeBoundaryValidator {
+
+    /**
+     * Check if a period allows modifications
+     */
+    public boolean canModifyPeriod(Properties ctx, Timestamp dateAcct) {
+        MPeriod period = MPeriod.get(ctx, dateAcct,
+            Env.getAD_Org_ID(ctx), null);
+
+        if (period == null) {
+            return false; // No period found
+        }
+
+        return period.isOpen(); // Only open periods
+    }
+
+    /**
+     * Check document status allows modification
+     */
+    public boolean canModifyDocStatus(String docStatus) {
+        // Only Draft and In Progress allowed
+        return "DR".equals(docStatus) || "IP".equals(docStatus);
+    }
+}
+```
+
+---
+
+#### 3.2 Observability Listeners [P2]
+
+**LatencyMetricsListener.java:**
 ```java
 package com.cloudempiere.ai.provider.langchain4j.listener;
 
@@ -264,438 +546,91 @@ import org.compiere.util.CLogger;
 public class LatencyMetricsListener implements ChatModelListener {
 
     private static final CLogger log = CLogger.getCLogger(LatencyMetricsListener.class);
-    private long startTime;
+    private final ThreadLocal<Long> startTime = new ThreadLocal<>();
 
     @Override
     public void onRequest(ChatModelRequestContext context) {
-        startTime = System.currentTimeMillis();
+        startTime.set(System.currentTimeMillis());
     }
 
     @Override
     public void onResponse(ChatModelResponseContext context) {
-        long duration = System.currentTimeMillis() - startTime;
+        long duration = System.currentTimeMillis() - startTime.get();
         log.info("AI Response latency: " + duration + "ms");
+        startTime.remove();
     }
 
     @Override
     public void onError(ChatModelErrorContext context) {
-        long duration = System.currentTimeMillis() - startTime;
+        long duration = System.currentTimeMillis() - startTime.get();
         log.warning("AI Error after " + duration + "ms: " + context.error().getMessage());
-    }
-}
-```
-
-#### IDempiereAuditListener.java [P2 - Medium]
-```java
-package com.cloudempiere.ai.provider.langchain4j.listener;
-
-import dev.langchain4j.model.chat.listener.*;
-import org.compiere.util.CLogger;
-import org.compiere.util.Env;
-import java.util.Properties;
-
-public class IDempiereAuditListener implements ChatModelListener {
-
-    private static final CLogger log = CLogger.getCLogger(IDempiereAuditListener.class);
-    private final Properties ctx;
-
-    public IDempiereAuditListener(Properties ctx) {
-        this.ctx = ctx;
-    }
-
-    @Override
-    public void onRequest(ChatModelRequestContext context) {
-        int userId = Env.getAD_User_ID(ctx);
-        int clientId = Env.getAD_Client_ID(ctx);
-        log.fine("AI Request: user=" + userId + ", client=" + clientId);
-    }
-
-    @Override
-    public void onResponse(ChatModelResponseContext context) {
-        // Could persist to audit table if needed
-    }
-
-    @Override
-    public void onError(ChatModelErrorContext context) {
-        int userId = Env.getAD_User_ID(ctx);
-        log.severe("AI Error for user " + userId + ": " + context.error().getMessage());
+        startTime.remove();
     }
 }
 ```
 
 ---
 
-## Phase 2: LangChain4jConversationService [P0 - Critical]
+#### 3.3 Integration Tests [P2]
 
-### 2.1 Create Service Facade [P0 - Critical]
-
-**File:** `src/com/cloudempiere/ai/service/LangChain4jConversationService.java`
-
-**Priority Justification:** Core component - This is the main integration point. Everything depends on this.
-
-**Purpose:** Bridge between AIChatWidget and LangChain4j, preserving intelligent routing and caching.
-
-**Implementation Outline:**
-
+**RAGConversationServiceIntegrationTest.java:**
 ```java
-package com.cloudempiere.ai.service;
+package com.cloudempiere.ai.rag;
 
-import java.time.Duration;
-import java.util.Properties;
-import org.compiere.util.CLogger;
-import org.json.JSONObject;
-
-import com.cloudempiere.ai.model.MAIChat;
-import com.cloudempiere.ai.model.MAIProvider;
-import com.cloudempiere.ai.provider.langchain4j.*;
-import com.cloudempiere.ai.routing.*;
-
-public class LangChain4jConversationService {
-
-    private static final CLogger log = CLogger.getCLogger(LangChain4jConversationService.class);
-
-    private static final int DEFAULT_PROVIDER_ID = 1000001;
-    private static final int DEFAULT_MEMORY_SIZE = 20;
-
-    private final IDempiereAIService aiService;
-    private final PromptAnalyzer promptAnalyzer;
-    private final ConversationContextManager contextManager;
-    private final RoutingMetrics routingMetrics;
-
-    public LangChain4jConversationService() {
-        this.aiService = IDempiereAIService.getInstance();
-        this.contextManager = new ConversationContextManager(
-            Duration.ofMinutes(30), 50
-        );
-        this.promptAnalyzer = new PromptAnalyzer(new EntityExtractor());
-        this.routingMetrics = new RoutingMetrics();
-    }
-
-    /**
-     * Send message with full context support.
-     */
-    public String sendMessage(
-        Properties ctx,
-        MAIChat chat,
-        String userMessage,
-        JSONObject contextData,
-        int threadRootId,
-        String trxName
-    ) {
-        long startTime = System.currentTimeMillis();
-
-        try {
-            // Set thread context for cache isolation
-            contextManager.setCurrentThreadRootId(threadRootId);
-
-            // Analyze prompt for routing decision
-            SourceDecision decision = promptAnalyzer.analyzePrompt(
-                userMessage, contextManager
-            );
-
-            log.fine("Routing: " + decision.getSource() + " - " + decision.getReasoning());
-
-            // Handle CONTEXT_ONLY (fastest path - no AI call)
-            if (decision.getSource() == SourceDecision.DataSource.CONTEXT_ONLY) {
-                routingMetrics.recordContextOnlyResponse();
-                return buildContextOnlyResponse(decision);
-            }
-
-            // Track routing metrics
-            if (decision.getSource() == SourceDecision.DataSource.HYBRID) {
-                routingMetrics.recordHybridQuery();
-            } else {
-                routingMetrics.recordDatabaseQuery();
-            }
-
-            // Build session ID from chat + thread
-            String sessionId = buildSessionId(chat, threadRootId);
-
-            // Get provider
-            MAIProvider provider = getProvider(ctx, DEFAULT_PROVIDER_ID, trxName);
-            if (provider == null) {
-                throw new RuntimeException("AI Provider not found: " + DEFAULT_PROVIDER_ID);
-            }
-
-            // Call LangChain4j via IDempiereAIService
-            return aiService.chat(provider, ctx, sessionId, userMessage);
-
-        } catch (Exception e) {
-            log.severe("sendMessage failed: " + e.getMessage());
-            return "Error: " + e.getMessage();
-        } finally {
-            long elapsed = System.currentTimeMillis() - startTime;
-            log.fine("Total processing time: " + elapsed + "ms");
-        }
-    }
-
-    /**
-     * Send message with streaming callback.
-     */
-    public void sendMessageStreaming(
-        Properties ctx,
-        MAIChat chat,
-        String userMessage,
-        JSONObject contextData,
-        int threadRootId,
-        StreamingCallback callback,
-        String trxName
-    ) {
-        // Similar logic but uses IDempiereStreamingAgent
-        // Calls callback.onToken(), callback.onComplete(), callback.onError()
-    }
-
-    /**
-     * Create new conversation thread.
-     */
-    public void createNewThread(MAIChat chat, int threadRootId) {
-        String sessionId = buildSessionId(chat, threadRootId);
-        aiService.clearMemory(sessionId);
-    }
-
-    /**
-     * Clear conversation memory for a thread.
-     */
-    public void clearThread(MAIChat chat, int threadRootId) {
-        String sessionId = buildSessionId(chat, threadRootId);
-        aiService.clearMemory(sessionId);
-    }
-
-    // Helper methods
-    private String buildSessionId(MAIChat chat, int threadRootId) {
-        return "chat-" + chat.getCM_Chat_ID() + "-thread-" + threadRootId;
-    }
-
-    private String buildContextOnlyResponse(SourceDecision decision) {
-        return decision.getCachedResult() != null
-            ? decision.getCachedResult()
-            : "I can answer this from context: " + decision.getReasoning();
-    }
-
-    private MAIProvider getProvider(Properties ctx, int providerId, String trxName) {
-        return new MAIProvider(ctx, providerId, trxName);
-    }
-
-    public RoutingMetrics getRoutingMetrics() {
-        return routingMetrics;
-    }
-
-    /**
-     * Callback interface for streaming responses.
-     */
-    public interface StreamingCallback {
-        void onToken(String token);
-        void onComplete(String fullResponse);
-        void onError(Throwable error);
-    }
-}
-```
-
----
-
-## Phase 3: Update IDempiereAIService [P1 - High]
-
-### 3.1 Add Thread-Aware Memory Support [P1 - High]
-
-**File:** `src/com/cloudempiere/ai/provider/langchain4j/IDempiereAIService.java`
-
-**Priority Justification:** Important for proper thread isolation in the service layer. MVP can work with basic implementation, but production needs this.
-
-**Changes:**
-- Replace `MessageWindowChatMemory` with `ThreadAwareChatMemory`
-- Add streaming support via `IDempiereStreamingAgent`
-- Add listener configuration
-
-```java
-// Add to IDempiereAIService.java
-
-/** Thread-aware memory cache by session ID */
-private final Map<String, ThreadAwareChatMemory> threadMemoryCache = new ConcurrentHashMap<>();
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Chat with thread support.
+ * Integration tests for RAG-based conversation flow.
  */
-public String chat(MAIProvider provider, Properties ctx, String sessionId, String threadId, String message) {
-    ThreadAwareChatMemory memory = threadMemoryCache.computeIfAbsent(sessionId,
-        id -> new ThreadAwareChatMemory(DEFAULT_MEMORY_SIZE));
+class RAGConversationServiceIntegrationTest {
 
-    memory.switchThread(threadId);
+    @Test
+    void testEndToEndConversation() {
+        // Setup test context
+        // Send message
+        // Verify response
+        // Verify context stored in RAG
+    }
 
-    ChatLanguageModel model = createModelWithListeners(provider, ctx);
-    ERPTools tools = new ERPTools(provider, ctx);
+    @Test
+    void testThreadIsolation() {
+        // Create session with multiple threads
+        // Send messages to different threads
+        // Verify isolation
+    }
 
-    IDempiereAgent agent = AiServices.builder(IDempiereAgent.class)
-        .chatLanguageModel(model)
-        .tools(tools)
-        .chatMemory(memory)
-        .build();
-
-    return agent.chat(sessionId, message);
-}
-
-/**
- * Streaming chat.
- */
-public void chatStreaming(
-    MAIProvider provider,
-    Properties ctx,
-    String sessionId,
-    String message,
-    Consumer<String> onToken,
-    Consumer<String> onComplete,
-    Consumer<Throwable> onError
-) {
-    StreamingChatLanguageModel model = LangChain4jProviderFactory.createStreaming(provider, null, null);
-    ThreadAwareChatMemory memory = threadMemoryCache.computeIfAbsent(sessionId,
-        id -> new ThreadAwareChatMemory(DEFAULT_MEMORY_SIZE));
-
-    ERPTools tools = new ERPTools(provider, ctx);
-
-    IDempiereStreamingAgent agent = AiServices.builder(IDempiereStreamingAgent.class)
-        .streamingChatLanguageModel(model)
-        .tools(tools)
-        .chatMemory(memory)
-        .build();
-
-    TokenStream stream = agent.chat(sessionId, message);
-    StringBuilder fullResponse = new StringBuilder();
-
-    stream
-        .onPartialResponse(token -> {
-            fullResponse.append(token);
-            onToken.accept(token);
-        })
-        .onComplete(response -> onComplete.accept(fullResponse.toString()))
-        .onError(onError)
-        .start();
-}
-
-private ChatLanguageModel createModelWithListeners(MAIProvider provider, Properties ctx) {
-    // Get base model
-    ChatLanguageModel baseModel = LangChain4jProviderFactory.create(provider);
-
-    // Note: Listeners are configured in LangChain4jProviderFactory
-    // This method could add context-specific configuration if needed
-    return baseModel;
+    @Test
+    void testContextRetrieval() {
+        // Store context
+        // Ask related question
+        // Verify RAG retrieves correct context
+    }
 }
 ```
 
 ---
 
-## Phase 4: Update AIChatWidget [P0 - Critical]
+### Sprint 4: Cleanup (P3) - 1 day
 
-### 4.1 Switch to LangChain4jConversationService [P0 - Critical]
-
-**File:** `src/com/cloudempiere/ai/component/AIChatWidget.java`
-
-**Priority Justification:** This enables the new LangChain4j path in the UI. Without this, all other work is unused.
-
-**Changes:**
-
-```java
-// Replace
-private AIConversationService aiService;
-
-// With
-private LangChain4jConversationService aiService;
-
-// In init()
-// Replace
-aiService = new AIConversationService();
-
-// With
-aiService = new LangChain4jConversationService();
-
-// In sendMessage async block
-// Replace
-AIResponse aiResponse = aiService.sendMessageWithContext(
-    sessionCtx, chat, userMessage, currentContext,
-    DEFAULT_MAX_HISTORY, currentThreadRootId, null
-);
-String content = aiResponse.getContent();
-
-// With
-String content = aiService.sendMessage(
-    sessionCtx, (MAIChat)chat, userMessage, currentContext,
-    currentThreadRootId, null
-);
-
-// Add streaming support (optional enhancement)
-private void sendMessageStreaming(String userMessage) {
-    aiService.sendMessageStreaming(
-        sessionCtx,
-        (MAIChat)chat,
-        userMessage,
-        currentContext,
-        currentThreadRootId,
-        new LangChain4jConversationService.StreamingCallback() {
-            @Override
-            public void onToken(String token) {
-                Executions.schedule(desktop, e -> appendTokenToUI(token), new Event("onToken"));
-            }
-
-            @Override
-            public void onComplete(String fullResponse) {
-                Executions.schedule(desktop, e -> finalizeMessage(fullResponse), new Event("onComplete"));
-            }
-
-            @Override
-            public void onError(Throwable error) {
-                Executions.schedule(desktop, e -> showError(error), new Event("onError"));
-            }
-        },
-        null
-    );
-}
-```
-
----
-
-## Phase 5: Update LangChain4jProviderFactory [P2 - Medium]
-
-### 5.1 Add Listener Support [P2 - Medium]
-
-**File:** `src/com/cloudempiere/ai/provider/langchain4j/LangChain4jProviderFactory.java`
-
-**Priority Justification:** Depends on listeners from Phase 1.3. Enhances observability but not required for MVP.
-
-**Changes:**
-
-```java
-// Add to factory methods
-
-private static ChatLanguageModel createAnthropicModel(String apiKey, String modelName) {
-    return AnthropicChatModel.builder()
-        .apiKey(apiKey)
-        .modelName(modelName != null ? modelName : DEFAULT_ANTHROPIC_MODEL)
-        .maxTokens(4096)
-        .temperature(0.7)
-        .logRequests(true)
-        .logResponses(true)
-        .listeners(List.of(
-            new TokenUsageListener(),
-            new LatencyMetricsListener()
-        ))
-        .build();
-}
-
-// Similar changes for other provider methods
-```
-
----
-
-## Phase 6: Deprecate Old Components [P3 - Low]
-
-### 6.1 Mark AIConversationService as Deprecated [P3 - Low]
-
-**File:** `src/com/cloudempiere/ai/service/AIConversationService.java`
-
-**Priority Justification:** Cleanup task. Old code still works as fallback. Can defer to post-MVP.
+#### 4.1 Deprecate AIConversationService [P3]
 
 ```java
 /**
- * @deprecated Use {@link LangChain4jConversationService} instead.
- * Will be removed in v1.0.0.
+ * @deprecated Use {@link RAGConversationService} instead (ADR-012).
+ * This class will be removed in v1.0.0.
+ *
+ * <p>Migration guide:
+ * <pre>
+ * // Before
+ * AIConversationService service = new AIConversationService();
+ * AIResponse response = service.sendMessageWithContext(...);
+ * String content = response.getContent();
+ *
+ * // After
+ * RAGConversationService service = new RAGConversationService();
+ * String content = service.sendMessageWithContext(...);
+ * </pre>
  */
 @Deprecated
 public class AIConversationService {
@@ -705,215 +640,119 @@ public class AIConversationService {
 
 ---
 
-## Phase 7: Testing [P0/P2/P3]
-
-### 7.1 Unit Tests [P0 - Critical]
-
-**Priority Justification:** Essential for MVP - validates core components work correctly.
-
-| Test Class | Purpose |
-|------------|---------|
-| ThreadAwareChatMemoryTest | Thread isolation, max messages, switching |
-| LangChain4jConversationServiceTest | Routing decisions, caching, session management |
-| IDempiereAIServiceThreadTest | Thread-aware memory integration |
-
-### 7.2 Integration Tests [P2 - Medium]
-
-**Priority Justification:** Nice to have for confidence, but unit tests + manual testing sufficient for MVP.
-
-| Test | Purpose |
-|------|---------|
-| AIChatWidgetIntegrationTest | End-to-end chat flow |
-| StreamingResponseTest | Streaming delivery to UI |
-| MultiThreadConversationTest | Thread switching, isolation |
-
-### 7.3 Manual Testing Checklist [P3 - Low]
-
-**Priority Justification:** QA validation, can be done post-MVP or by QA team.
-
-- [ ] Send message and receive response
-- [ ] Create new thread
-- [ ] Switch between threads
-- [ ] Verify thread messages isolated
-- [ ] Test context indicator updates
-- [ ] Test markdown rendering
-- [ ] Test zoom links
-- [ ] Test streaming (if enabled)
-- [ ] Test error handling
-- [ ] Verify cost/token logging
-
----
-
 ## File Summary
 
-### New Files
+### New Files to Create
 
-| File | Lines (est.) | Purpose |
-|------|--------------|---------|
-| `ThreadAwareChatMemory.java` | ~80 | Thread-aware memory |
-| `IDempiereStreamingAgent.java` | ~20 | Streaming interface |
-| `LangChain4jConversationService.java` | ~200 | Service facade |
-| `TokenUsageListener.java` | ~40 | Cost tracking |
-| `LatencyMetricsListener.java` | ~40 | Performance tracking |
-| `IDempiereAuditListener.java` | ~50 | Audit logging |
-| `ThreadAwareChatMemoryTest.java` | ~100 | Unit tests |
-| `LangChain4jConversationServiceTest.java` | ~150 | Integration tests |
+| File | Lines | Priority | Sprint |
+|------|-------|----------|--------|
+| `ThreadAwareChatMemory.java` | ~80 | P0 | 1 |
+| `ThreadAwareChatMemoryTest.java` | ~100 | P0 | 1 |
+| `RAGContextManagerTest.java` | ~150 | P0 | 1 |
+| `AgentBoundaryTest.java` | ~100 | P0 | 1 |
+| `TokenUsageListener.java` | ~50 | P1 | 2 |
+| `TimeBoundaryValidator.java` | ~60 | P2 | 3 |
+| `LatencyMetricsListener.java` | ~40 | P2 | 3 |
+| `RAGConversationServiceIntegrationTest.java` | ~150 | P2 | 3 |
 
-**Total New Code:** ~680 lines
+### Files to Modify
 
-### Modified Files
+| File | Changes | Priority |
+|------|---------|----------|
+| `AIChatWidget.java` | Use RAGConversationService | P0 |
+| `RAGConversationService.java` | Add thread support | P0 |
+| `LangChain4jProviderFactory.java` | Add listeners | P2 |
+| `AIConversationService.java` | Add @Deprecated | P3 |
 
-| File | Changes |
-|------|---------|
-| `AIChatWidget.java` | Switch to new service (~20 lines changed) |
-| `IDempiereAIService.java` | Add thread/streaming support (~80 lines added) |
-| `LangChain4jProviderFactory.java` | Add listener config (~30 lines changed) |
-| `AIConversationService.java` | Add @Deprecated |
+### Files to Delete (Post-Migration)
 
-### Deprecated Files (v1.0.0 removal)
-
-- `AIConversationService.java` (1226 lines)
-- Custom DTOs if no longer needed
-
----
-
-## Rollout Strategy [P1 - High]
-
-**Priority Justification:** Feature flags are critical for safe production deployment. Enables gradual rollout and instant rollback.
-
-### Step 1: Feature Flag [P1 - High]
-
-Add configuration to enable/disable LangChain4j path:
-
-```java
-// In AIChatWidget or system config
-boolean useLangChain4j = MSysConfig.getBooleanValue(
-    "AI_USE_LANGCHAIN4J", true, Env.getAD_Client_ID(ctx)
-);
-
-if (useLangChain4j) {
-    aiService = new LangChain4jConversationService();
-} else {
-    aiService = new AIConversationService(); // Legacy
-}
-```
-
-### Step 2: Parallel Testing
-
-Run both services for comparison logging:
-
-```java
-String legacyResult = legacyService.sendMessage(...);
-String langchainResult = langchainService.sendMessage(...);
-log.info("Results match: " + legacyResult.equals(langchainResult));
-```
-
-### Step 3: Gradual Rollout
-
-1. Internal testing (dev environment)
-2. Staging environment
-3. Production with feature flag (10% → 50% → 100%)
-4. Remove legacy code in v1.0.0
+| File | Lines | Priority |
+|------|-------|----------|
+| `routing/PromptAnalyzer.java` | 120 | P1 |
+| `routing/EntityExtractor.java` | 140 | P1 |
+| `routing/SourceDecision.java` | 20 | P1 |
+| `routing/DataType.java` | 20 | P1 |
+| `routing/TTLConfig.java` | 80 | P1 |
+| `routing/RoutingMetrics.java` | 100 | P1 |
+| `context/ConversationContextManager.java` | 230 | P1 |
+| `context/ContextEntry.java` | 40 | P1 |
+| **Total Removed** | **750** | |
 
 ---
 
-## Success Metrics
+## Timeline Summary
+
+```
+Sprint 1 (MVP Core):      3 days
+├── ThreadAwareChatMemory          0.5 day
+├── Wire RAGConversationService    1.0 day
+├── Thread support in RAG          0.5 day
+└── Unit tests                     1.0 day
+
+Sprint 2 (Production Ready): 2 days
+├── Feature flag                   0.5 day
+├── TokenUsageListener             0.5 day
+└── Remove old routing code        1.0 day
+
+Sprint 3 (Enhanced):        3 days
+├── Time boundaries                0.5 day
+├── Latency listener               0.25 day
+├── Streaming support              1.25 day
+└── Integration tests              1.0 day
+
+Sprint 4 (Cleanup):         1 day
+├── Deprecate old service          0.25 day
+├── Documentation                  0.5 day
+└── Final testing                  0.25 day
+
+TOTAL:                      9 days
+```
+
+---
+
+## Success Criteria
 
 | Metric | Target | Measurement |
 |--------|--------|-------------|
-| Response latency | ≤ current | LatencyMetricsListener |
-| Code reduction | ≥1000 lines | Line count before/after |
-| Test coverage | ≥80% | JaCoCo |
-| Error rate | ≤ current | Error logging |
-| Cost tracking accuracy | 100% | TokenUsageListener |
+| Widget works with RAG | ✅ | Manual test |
+| Thread isolation | ✅ | Unit test |
+| Code reduction | 750+ lines removed | Line count |
+| Test coverage | ≥80% on new code | JaCoCo |
+| Response latency | ≤ current | LatencyListener |
+| Zero regressions | ✅ | All tests pass |
 
 ---
 
-## Risks and Mitigations
+## Risk Mitigation
 
 | Risk | Mitigation |
 |------|------------|
-| LangChain4j API changes | Pin version, monitor releases |
-| Thread memory leaks | Implement cleanup on session end |
-| Streaming complexity | Feature flag, fallback to sync |
+| RAG service unavailable | Feature flag to fall back to legacy |
+| Thread memory leaks | Implement session cleanup on logout |
 | Performance regression | Benchmark before/after |
-| Missing features | Retain routing/caching layers |
+| Breaking changes | Feature flag for gradual rollout |
 
 ---
 
-## Timeline Estimate (By Priority)
+## Quick Reference: What to Implement Next
 
-### MVP Timeline (P0 Only) - 3.5 days
+**Immediate (P0 - blocks MVP):**
+1. `ThreadAwareChatMemory.java` - Thread isolation for chat
+2. Wire `RAGConversationService` to `AIChatWidget`
+3. Add thread support to `RAGConversationService`
+4. Unit tests for above
 
-| Task | Priority | Duration |
-|------|----------|----------|
-| ThreadAwareChatMemory | P0 | 0.5 day |
-| LangChain4jConversationService | P0 | 1.5 days |
-| Update AIChatWidget | P0 | 0.5 day |
-| Basic Unit Tests | P0 | 1 day |
-| **MVP Total** | | **3.5 days** |
+**After MVP (P1):**
+5. Feature flag configuration
+6. TokenUsageListener
+7. Delete old routing code (750 lines)
 
-### Production Ready (P0 + P1) - 5.5 days
-
-| Task | Priority | Duration |
-|------|----------|----------|
-| MVP (above) | P0 | 3.5 days |
-| IDempiereAIService thread support | P1 | 0.5 day |
-| Feature flag rollout | P1 | 0.5 day |
-| TokenUsageListener | P1 | 0.25 day |
-| Buffer | | 0.75 day |
-| **Production Total** | | **5.5 days** |
-
-### Full Implementation (P0 + P1 + P2) - 8.5 days
-
-| Task | Priority | Duration |
-|------|----------|----------|
-| Production Ready (above) | P0+P1 | 5.5 days |
-| LatencyMetricsListener | P2 | 0.25 day |
-| IDempiereAuditListener | P2 | 0.25 day |
-| Provider factory listeners | P2 | 0.5 day |
-| Streaming (full stack) | P2 | 1 day |
-| Integration tests | P2 | 1 day |
-| **Full Total** | | **8.5 days** |
-
-### Complete with Cleanup (All) - 9.5 days
-
-| Task | Priority | Duration |
-|------|----------|----------|
-| Full Implementation (above) | P0-P2 | 8.5 days |
-| Deprecate old service | P3 | 0.25 day |
-| Manual test checklist | P3 | 0.5 day |
-| Documentation | P3 | 0.25 day |
-| **Complete Total** | | **9.5 days** |
+**Enhancement (P2):**
+8. Time-based boundaries
+9. Latency monitoring
+10. Streaming support
+11. Integration tests
 
 ---
 
-## Quick Start: MVP in 3.5 Days
-
-For rapid delivery, focus only on P0 tasks:
-
-```
-Day 1 (Morning):  ThreadAwareChatMemory
-Day 1 (Afternoon): LangChain4jConversationService (start)
-Day 2 (Full):     LangChain4jConversationService (complete)
-Day 3 (Morning):  Update AIChatWidget
-Day 3 (Afternoon): Basic Unit Tests
-Day 4 (Morning):  Testing & Bug Fixes
-```
-
-**What you get with MVP:**
-- ✅ Chat panel using LangChain4j ChatModel
-- ✅ Multi-thread conversation support
-- ✅ Intelligent routing preserved
-- ✅ Query caching preserved
-- ✅ Basic unit test coverage
-
-**What's deferred:**
-- ❌ Streaming responses (uses sync)
-- ❌ Cost/latency observability
-- ❌ Audit logging
-- ❌ Old code deprecation
-
----
-
-*Implementation Plan v1.1 | 2025-12-03 | Updated with Priority Matrix*
+*Implementation Plan v2.0 | 2025-12-03 | Aligned with ADR-012 RAG approach*

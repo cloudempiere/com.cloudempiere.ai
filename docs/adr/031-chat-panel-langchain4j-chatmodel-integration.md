@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed
+Accepted (Revised 2025-12-03)
 
 ## Date
 
@@ -11,6 +11,17 @@ Proposed
 ## Deciders
 
 CloudEmpiere AI Team
+
+## Revision Note (2025-12-03)
+
+**Original Plan:** Create `LangChain4jConversationService` that retained custom routing (`PromptAnalyzer`, `ConversationContextManager`).
+
+**Revised Decision:** Use existing `RAGConversationService` (ADR-012) instead. ADR-012 supersedes custom routing with LangChain4j RAG pattern, achieving same goals with 86% less code.
+
+**Impact:**
+- No need to create `LangChain4jConversationService` - use `RAGConversationService`
+- Delete custom routing code (750 lines) per ADR-012
+- Still need `ThreadAwareChatMemory` for thread isolation
 
 ## Context and Problem Statement
 
@@ -28,18 +39,18 @@ AIChatWidget
             └── Custom: System prompt building
 ```
 
-**Target Architecture:**
+**Target Architecture (Revised per ADR-012):**
 ```
 AIChatWidget
-    └── LangChain4jConversationService (NEW - simpler facade)
+    └── RAGConversationService (ADR-012)
             ├── Uses: IDempiereAIService
             │           └── IDempiereAgent (AiServices + @Tool)
             │                   └── LangChain4jProviderFactory
             │                           └── ChatLanguageModel (native)
-            ├── Retained: Intelligent routing (PromptAnalyzer, SourceDecision)
-            ├── Retained: Query caching (ConversationContextManager)
+            ├── REPLACED: Custom routing → RAGContextManager (semantic search)
+            ├── REPLACED: Custom caching → EmbeddingStore (built-in TTL)
             ├── Retained: System prompt injection via @SystemMessage
-            └── NEW: Thread-aware ChatMemory
+            └── NEW: ThreadAwareChatMemory (thread isolation)
 ```
 
 ## Decision Drivers
