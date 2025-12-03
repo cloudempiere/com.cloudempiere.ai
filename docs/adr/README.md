@@ -60,6 +60,7 @@ This directory contains architecture decisions for the CloudEmpiere AI plugin.
 |-----|-------|--------|----------|------|
 | [021](021-product-catalog-enhancement.md) | Product Catalog Enhancement | Accepted | P2 | 2025-12-03 |
 | [022](022-translation-wizard.md) | Translation Wizard | Accepted | P2 | 2025-12-03 |
+| [030](030-ecommerce-operations-automation.md) | E-Commerce Operations Automation | Proposed | P2 | 2025-12-03 |
 
 ### Use Cases - Phase 3
 
