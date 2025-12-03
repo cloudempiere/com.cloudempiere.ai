@@ -7,14 +7,23 @@ and this project adheres to [Conventional Commits](https://conventionalcommits.o
 
 ## [Unreleased]
 
-### Next: v0.14.0 - RAG Completion & Structured Outputs
+### Next: v0.14.0 - Chat Widget LangChain4j Migration (ADR-031)
 
-**Focus:** Complete RAG infrastructure and add structured outputs.
+**Focus:** Wire AIChatWidget to use LangChain4j infrastructure with guardrails and metrics.
+
+**Strategic Decision:** The Chat Widget is our primary AI implementation. All features (guardrails, metrics, RAG) will be integrated and tested through the chat widget before other use cases.
 
 **Planned:**
-- ADR-012: RAG completion (feature flag, cleanup)
-- ADR-002: Structured outputs (Java records for responses)
-- ADR-026: pgvector integration for production embeddings
+- Wire AIChatWidget → AIService (replace legacy AIConversationService)
+- Integrate guardrails pipeline (CostGuard, InputGuard, OutputGuard) into chat flow
+- Integrate metrics (AIMetricsListener) into chat flow
+- Implement ThreadAwareChatMemory for thread-isolated conversations
+- Add feature flag `ai.chat.service=LANGCHAIN4J|LEGACY`
+
+**Deferred to v0.16.0+:**
+- ADR-017: Chart Executive Overview
+- ADR-018: Sales Opportunity Summary
+- ADR-011: Domain Agents
 
 ---
 

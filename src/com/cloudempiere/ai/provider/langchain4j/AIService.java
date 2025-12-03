@@ -14,9 +14,13 @@ import com.cloudempiere.ai.guardrails.dto.GuardResult;
 import com.cloudempiere.ai.model.MAIProvider;
 import com.cloudempiere.ai.observability.CostGuard;
 
+import dev.langchain4j.memory.ChatMemory;
 import dev.langchain4j.memory.chat.MessageWindowChatMemory;
 import dev.langchain4j.model.chat.ChatLanguageModel;
 import dev.langchain4j.service.AiServices;
+
+import org.compiere.model.MChat;
+import org.json.JSONObject;
 
 /**
  * Main entry point for ERP AI capabilities using LangChain4j.
@@ -176,6 +180,183 @@ public class AIService {
             log.severe("Chat failed: " + e.getMessage());
             throw new RuntimeException("AI chat failed: " + e.getMessage(), e);
         }
+    }
+
+    /**
+     * Chat with context from the chat widget.
+     *
+     * <p>This method is the main integration point for AIChatWidget:
+     * <ul>
+     *   <li>Uses ThreadAwareChatMemory for thread-isolated conversations</li>
+     *   <li>Injects window/tab context into the conversation</li>
+     *   <li>Applies full guardrails pipeline</li>
+     *   <li>Persists messages to CM_ChatEntry</li>
+     * </ul>
+     *
+     * @param provider AI Provider configuration
+     * @param chat Parent MChat for message persistence
+     * @param message User message
+     * @param contextData Optional context from window/tab (JSON)
+     * @param threadRootId Thread root ID (0 for new thread)
+     * @return AI response (sanitized) and updated thread root ID
+     * @throws RuntimeException if guardrails block or AI call fails
+     */
+    public ChatResult chatWithContext(MAIProvider provider, MChat chat,
+                                       String message, JSONObject contextData,
+                                       int threadRootId) {
+        Properties ctx = chat.getCtx();
+        log.info("AIService.chatWithContext: chat=" + chat.getCM_Chat_ID() +
+                ", thread=" + threadRootId +
+                ", message=" + message.substring(0, Math.min(50, message.length())));
+
+        try {
+            String processedMessage = message;
+            int clientId = Env.getAD_Client_ID(ctx);
+            int userId = Env.getAD_User_ID(ctx);
+
+            // ================================================================
+            // PRE-REQUEST GUARDRAILS
+            // ================================================================
+
+            if (guardrailsEnabled) {
+                // 1. Cost Guard: Check budget
+                try {
+                    costGuard.checkBudget(clientId, ESTIMATED_COST_PER_REQUEST);
+                    costGuard.checkRateLimit(userId);
+                } catch (CostGuard.BudgetExceededException e) {
+                    log.warning("Budget exceeded for client " + clientId + ": " + e.getMessage());
+                    return ChatResult.error("I cannot process this request: " + e.getMessage(), threadRootId);
+                } catch (CostGuard.RateLimitExceededException e) {
+                    log.warning("Rate limit exceeded for user " + userId + ": " + e.getMessage());
+                    return ChatResult.error("Please wait a moment before sending another message.", threadRootId);
+                }
+
+                // 2. Input Guard: Sanitize input
+                GuardResult inputResult = inputGuard.validate(message);
+                if (inputResult.isBlocked()) {
+                    log.warning("Input blocked: " + inputResult.getBlockReason());
+                    return ChatResult.blocked("I cannot process this request: " + inputResult.getBlockReason(),
+                                              threadRootId, inputResult.getViolationType());
+                }
+                if (inputResult.wasModified()) {
+                    processedMessage = inputResult.getProcessedContent();
+                    log.info("Input masked: " + inputResult.getViolationType());
+                }
+            }
+
+            // ================================================================
+            // BUILD MEMORY WITH THREAD AWARENESS
+            // ================================================================
+
+            // Get AI user ID from provider
+            Integer aiUserId = provider.getAD_User_ID() > 0 ? provider.getAD_User_ID() : null;
+
+            // Create thread-aware memory (persistence handled by widget)
+            ThreadAwareChatMemory memory = ThreadAwareChatMemory.builder()
+                .chat(chat)
+                .threadRootId(threadRootId)
+                .maxMessages(DEFAULT_MEMORY_SIZE)
+                .persistMessages(false)  // Widget handles persistence
+                .aiUserId(aiUserId)
+                .build();
+
+            // ================================================================
+            // INJECT CONTEXT (if provided)
+            // ================================================================
+
+            if (contextData != null && contextData.length() > 0) {
+                String contextPrompt = buildContextPrompt(contextData);
+                if (contextPrompt != null && !contextPrompt.isEmpty()) {
+                    // Add context as a system-like user message prefix
+                    processedMessage = contextPrompt + "\n\nUser question: " + processedMessage;
+                }
+            }
+
+            // ================================================================
+            // AI CALL
+            // ================================================================
+
+            ChatLanguageModel model = LangChain4jProviderFactory.getOrCreate(provider);
+            ERPTools tools = new ERPTools(provider, ctx);
+
+            ERPAgent agent = AiServices.builder(ERPAgent.class)
+                .chatLanguageModel(model)
+                .tools(tools)
+                .chatMemory(memory)
+                .build();
+
+            // Build session ID for the agent
+            String sessionId = chat.getCM_Chat_ID() + "-" + memory.getCurrentThreadRootId();
+            String response = agent.chat(sessionId, processedMessage);
+
+            // ================================================================
+            // POST-RESPONSE GUARDRAILS
+            // ================================================================
+
+            String warningMessage = null;
+            if (guardrailsEnabled) {
+                GuardResult outputResult = outputGuard.validate(response);
+                if (outputResult.isBlocked()) {
+                    log.warning("Output blocked: " + outputResult.getBlockReason());
+                    return ChatResult.blocked(
+                        "I apologize, but I cannot provide that response. Please try rephrasing your question.",
+                        memory.getCurrentThreadRootId(), outputResult.getViolationType());
+                }
+                if (outputResult.wasModified()) {
+                    response = outputResult.getProcessedContent();
+                    warningMessage = "Some content was filtered for safety.";
+                    log.info("Output masked: " + outputResult.getViolationType());
+                }
+            }
+
+            return ChatResult.success(response, memory.getCurrentThreadRootId(), warningMessage);
+
+        } catch (Exception e) {
+            log.severe("ChatWithContext failed: " + e.getMessage());
+            return ChatResult.error("AI chat failed: " + e.getMessage(), threadRootId);
+        }
+    }
+
+    /**
+     * Build context prompt from window/tab data.
+     *
+     * @param contextData JSON context data
+     * @return Context prompt string or null
+     */
+    private String buildContextPrompt(JSONObject contextData) {
+        if (contextData == null || contextData.length() == 0) {
+            return null;
+        }
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("Context from current window:\n");
+
+        // Window name
+        if (contextData.has("windowName")) {
+            sb.append("- Window: ").append(contextData.optString("windowName")).append("\n");
+        }
+
+        // Tab name
+        if (contextData.has("tabName")) {
+            sb.append("- Tab: ").append(contextData.optString("tabName")).append("\n");
+        }
+
+        // Record info
+        if (contextData.has("recordId")) {
+            sb.append("- Record ID: ").append(contextData.optInt("recordId")).append("\n");
+        }
+
+        // Table name
+        if (contextData.has("tableName")) {
+            sb.append("- Table: ").append(contextData.optString("tableName")).append("\n");
+        }
+
+        // Field values (if available)
+        if (contextData.has("fields")) {
+            sb.append("- Fields: ").append(contextData.optJSONObject("fields")).append("\n");
+        }
+
+        return sb.toString();
     }
 
     /**
@@ -360,5 +541,76 @@ public class AIService {
      */
     public void clearBudgetCache(int clientId) {
         costGuard.clearBudgetCache(clientId);
+    }
+
+    // ========================================================================
+    // ChatResult - Result object for chatWithContext
+    // ========================================================================
+
+    /**
+     * Result object for chat operations.
+     *
+     * <p>Contains:
+     * <ul>
+     *   <li>Response text (or error message)</li>
+     *   <li>Updated thread root ID</li>
+     *   <li>Success/error/blocked status</li>
+     *   <li>Optional warning message (e.g., content filtered)</li>
+     *   <li>Violation type (if blocked)</li>
+     * </ul>
+     */
+    public static class ChatResult {
+
+        /** Result status */
+        public enum Status { SUCCESS, ERROR, BLOCKED }
+
+        private final Status status;
+        private final String response;
+        private final int threadRootId;
+        private final String warningMessage;
+        private final String violationType;
+
+        private ChatResult(Status status, String response, int threadRootId,
+                          String warningMessage, String violationType) {
+            this.status = status;
+            this.response = response;
+            this.threadRootId = threadRootId;
+            this.warningMessage = warningMessage;
+            this.violationType = violationType;
+        }
+
+        /**
+         * Create a successful result.
+         */
+        public static ChatResult success(String response, int threadRootId, String warningMessage) {
+            return new ChatResult(Status.SUCCESS, response, threadRootId, warningMessage, null);
+        }
+
+        /**
+         * Create an error result.
+         */
+        public static ChatResult error(String errorMessage, int threadRootId) {
+            return new ChatResult(Status.ERROR, errorMessage, threadRootId, null, null);
+        }
+
+        /**
+         * Create a blocked result (guardrails).
+         */
+        public static ChatResult blocked(String message, int threadRootId, String violationType) {
+            return new ChatResult(Status.BLOCKED, message, threadRootId, null, violationType);
+        }
+
+        // Getters
+
+        public Status getStatus() { return status; }
+        public String getResponse() { return response; }
+        public int getThreadRootId() { return threadRootId; }
+        public String getWarningMessage() { return warningMessage; }
+        public String getViolationType() { return violationType; }
+
+        public boolean isSuccess() { return status == Status.SUCCESS; }
+        public boolean isError() { return status == Status.ERROR; }
+        public boolean isBlocked() { return status == Status.BLOCKED; }
+        public boolean hasWarning() { return warningMessage != null; }
     }
 }

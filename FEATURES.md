@@ -11,7 +11,9 @@ This document tracks features, implementation status, and version compatibility 
 ## Current Version: v0.13.0
 
 **Status:** ✅ Naming Standards & Integration Wiring Complete
-**Next:** v0.14.0 - RAG Completion & Structured Outputs
+**Next:** v0.14.0 - Chat Widget LangChain4j Migration (ADR-031)
+
+**Strategic Focus:** The Chat Widget is our primary AI implementation. All features will be integrated and tested through the chat widget before other use cases (charts, reports, etc.).
 
 ---
 
@@ -212,40 +214,39 @@ This document tracks features, implementation status, and version compatibility 
 
 ## Advanced Features (Roadmap)
 
-### v0.13.0 - First Business Case (Q1 2026)
+### v0.14.0 - Chat Widget LangChain4j Migration (ADR-031)
 
-**Focus:** End-to-end validation of the AI stack with Chart Executive Overview.
-
-| Feature | Priority | Technology | Description |
-|---------|----------|------------|-------------|
-| **ADR-017: Chart Executive Overview** | 🔴 Critical | LangChain4j AiServices | First business use case |
-| **ChartAnalysisAgent** | 🔴 Critical | Structured Outputs | Agent with typed response |
-| **Guardrails Integration** | 🔴 Critical | InputGuard → AI → OutputGuard | End-to-end safety |
-| **Metrics Validation** | 🔴 Critical | AIMetricsListener | Verify token/cost tracking |
-
-### v0.14.0 - RAG Completion & Vector DB (Q1 2026)
+**Focus:** Wire AIChatWidget to use LangChain4j infrastructure with guardrails and metrics.
 
 | Feature | Priority | Technology | Description |
 |---------|----------|------------|-------------|
-| **Feature Flag** | 🔴 Critical | System Property | `ai.routing.strategy=RAG|LEGACY` |
-| **RAG Integration Tests** | 🔴 Critical | JUnit 5 | Validate RAGContextManager |
-| **Old Routing Cleanup** | 🟡 Medium | Refactoring | Remove 630 lines of legacy code |
-| **ADR-026: pgvector** | 🔴 Critical | PostgreSQL Extension | Production embedding persistence |
-| **MCP REST API** | 🔴 Critical | JAX-RS | HTTP API for external clients |
+| **AIChatWidget → AIService** | 🔴 Critical | LangChain4j | Replace legacy AIConversationService |
+| **Guardrails in Chat Flow** | 🔴 Critical | CostGuard, InputGuard, OutputGuard | Pre/post processing |
+| **Metrics in Chat Flow** | 🔴 Critical | AIMetricsListener | Token/cost tracking per message |
+| **ThreadAwareChatMemory** | 🔴 Critical | LangChain4j ChatMemory | Thread-isolated conversation memory |
+| **Feature Flag** | 🟡 Medium | System Property | `ai.chat.service=LANGCHAIN4J|LEGACY` |
 
-### v0.15.0 - Domain Agents (Q1-Q2 2026)
+### v0.15.0 - RAG & Streaming in Chat
 
-**Focus:** Specialized agents for business domains (ADR-011)
+**Focus:** Semantic context retrieval and real-time response streaming.
 
 | Feature | Priority | Technology | Description |
 |---------|----------|------------|-------------|
-| **InventoryAgent** | 🔴 Critical | Agentic Patterns | Stock analysis, reorder suggestions |
-| **SalesAgent** | 🔴 Critical | Agentic Patterns | Order analysis, revenue insights |
-| **PurchasingAgent** | 🔴 Critical | Agentic Patterns | Vendor analysis, PO creation |
-| **HelpDeskAgent** | 🟡 Medium | Agentic Patterns | Error diagnosis, troubleshooting |
-| **Sequential Workflows** | 🔴 Critical | LangChain4j Agentic | Multi-step business processes |
-| **Parallel Workflows** | 🟡 Medium | LangChain4j Agentic | Concurrent data retrieval |
-| **Process Execution Tool** | 🟡 Medium | ERPTools | Trigger iDempiere processes |
+| **RAG in Chat Flow** | 🔴 Critical | RAGContextManager | Semantic context retrieval |
+| **Streaming Responses** | 🔴 Critical | StreamingChatModel | Token-by-token rendering |
+| **Legacy Code Removal** | 🟡 Medium | Refactoring | Remove AIConversationService (~1,500 lines) |
+
+### v0.16.0+ - Business Use Cases & Domain Agents
+
+**Focus:** Extend proven chat infrastructure to other UI contexts.
+
+| Feature | Priority | Technology | Description |
+|---------|----------|------------|-------------|
+| **ADR-017: Chart Executive Overview** | 🟡 Medium | LangChain4j AiServices | Chart data analysis |
+| **ADR-018: Sales Opportunity Summary** | 🟡 Medium | Structured Outputs | Typed response objects |
+| **ADR-011: Domain Agents** | 🟡 Medium | Agentic Patterns | Inventory, Sales, Purchasing |
+| **ADR-026: pgvector** | 🟡 Medium | PostgreSQL Extension | Production embedding persistence |
+| **MCP REST API** | 🟡 Medium | JAX-RS | HTTP API for external clients |
 
 ### v1.0.0 - Production Release (Q2 2026)
 
@@ -398,5 +399,5 @@ Based on validation reports:
 ---
 
 **Last Updated:** 2025-12-03
-**Current Version:** v0.12.0 (Observability, Guardrails, Multi-Tenant Access)
-**Next Release:** v0.13.0 (Q1 2026) - Chart Executive Overview (First Business Case)
+**Current Version:** v0.13.0 (Naming Standards, Integration Wiring)
+**Next Release:** v0.14.0 - Chat Widget LangChain4j Migration (ADR-031)

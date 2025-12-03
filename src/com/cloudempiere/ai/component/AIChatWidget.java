@@ -53,7 +53,10 @@ import com.cloudempiere.ai.context.ContextParameters;
 import com.cloudempiere.ai.context.IAIContextProvider;
 import com.cloudempiere.ai.model.MAIChat;
 import com.cloudempiere.ai.model.MAIChatEntry;
+import com.cloudempiere.ai.model.MAIProvider;
 import com.cloudempiere.ai.provider.dto.AIResponse;
+import com.cloudempiere.ai.provider.langchain4j.AIService;
+import com.cloudempiere.ai.provider.langchain4j.AIService.ChatResult;
 import com.cloudempiere.ai.service.AIConversationService;
 import com.cloudempiere.ai.util.ZoomLinkProcessor;
 
@@ -104,8 +107,17 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 	/** Date formatter for timestamps */
 	private SimpleDateFormat dateFormat;
 
-	/** AI conversation service */
+	/** AI conversation service (legacy) */
 	private AIConversationService aiService;
+
+	/** AI service (LangChain4j - new) */
+	private AIService langchainService;
+
+	/** Feature flag for service selection: "LANGCHAIN4J" or "LEGACY" */
+	private static final String SERVICE_MODE = System.getProperty("ai.chat.service", "LEGACY");
+
+	/** Flag indicating if LangChain4j mode is enabled */
+	private final boolean useLangChain4j = "LANGCHAIN4J".equalsIgnoreCase(SERVICE_MODE);
 
 	/** Maximum messages to display (for performance) */
 	private static final int MAX_MESSAGES_DISPLAY = 100;
@@ -169,8 +181,14 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 		// Load Markdown rendering libraries (marked.js + Prism.js for syntax highlighting)
 		loadMarkdownLibraries();
 
-		// Initialize AI service
-		aiService = new AIConversationService();
+		// Initialize AI service based on feature flag
+		if (useLangChain4j) {
+			langchainService = AIService.getInstance();
+			log.info("AIChatWidget using LangChain4j service");
+		} else {
+			aiService = new AIConversationService();
+			log.info("AIChatWidget using legacy service");
+		}
 
 		// Context indicator (if enabled)
 		if (contextEnabled) {
@@ -584,7 +602,8 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 	}
 
 	/**
-	 * Send user message and get AI response
+	 * Send user message and get AI response.
+	 * Dispatches to either legacy or LangChain4j service based on feature flag.
 	 */
 	public void sendMessage() {
 		String message = inputBox.getText();
@@ -627,11 +646,105 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 		showLoading();
 		scrollToBottom();
 
-		// Capture context snapshot and thread root ID for async operation
+		// Dispatch to appropriate service
+		if (useLangChain4j) {
+			sendMessageLangChain4j(message);
+		} else {
+			sendMessageLegacy(message);
+		}
+	}
+
+	/**
+	 * Send message using LangChain4j service (new path).
+	 * Includes guardrails, metrics, and improved conversation memory.
+	 */
+	private void sendMessageLangChain4j(String message) {
 		final JSONObject contextSnapshot = currentContext;
 		final int threadRootIdSnapshot = currentThreadRootId;
 
-		// Call AI service asynchronously
+		Desktop desktop = Executions.getCurrent().getDesktop();
+		CompletableFuture.runAsync(() -> {
+			try {
+				// Get MAIChat instance
+				MAIChat aiChat = (chat instanceof MAIChat) ?
+					(MAIChat) chat :
+					new MAIChat(sessionCtx, chat.getCM_Chat_ID(), null);
+
+				// Get default provider
+				MAIProvider provider = MAIProvider.getDefault(sessionCtx, null);
+				if (provider == null) {
+					throw new Exception("No AI provider configured. Please configure an AI provider in the system.");
+				}
+
+				// Call LangChain4j service with context
+				// Session ID combines chat ID and thread for memory isolation
+				ChatResult result = langchainService.chatWithContext(
+					provider,
+					aiChat,
+					message,
+					contextSnapshot,
+					threadRootIdSnapshot
+				);
+
+				// Handle result based on status
+				if (result.isBlocked()) {
+					// Guardrails blocked the request - show warning
+					handleBlockedResponse(desktop, result, threadRootIdSnapshot);
+					return;
+				}
+
+				if (result.isError()) {
+					throw new Exception(result.getResponse());
+				}
+
+				// Success - create AI response entry
+				String response = result.getResponse();
+
+				// Update thread root ID if it changed (new thread was created)
+				if (result.getThreadRootId() != threadRootIdSnapshot && result.getThreadRootId() > 0) {
+					currentThreadRootId = result.getThreadRootId();
+				}
+
+				// Create AI chat entry with proper thread parent
+				MAIChatEntry aiEntry = MAIChatEntry.createAIResponse(aiChat, response);
+
+				if (threadRootIdSnapshot > 0) {
+					aiEntry.setCM_ChatEntryParent_ID(threadRootIdSnapshot);
+				}
+
+				aiEntry.saveEx();
+				aiChat.saveEx();
+
+				// Update UI
+				Executions.schedule(desktop, e -> {
+					hideLoading();
+
+					// Show warning if content was filtered
+					if (result.hasWarning()) {
+						showGuardWarning(result.getWarningMessage());
+					}
+
+					renderMessage(aiEntry);
+					inputBox.setDisabled(false);
+					sendButton.setDisabled(false);
+					inputBox.focus();
+					scrollToBottom();
+				}, new Event("onAIResponse"));
+
+			} catch (Exception e) {
+				log.log(Level.SEVERE, "LangChain4j AI response failed", e);
+				handleErrorResponse(desktop, e, threadRootIdSnapshot);
+			}
+		});
+	}
+
+	/**
+	 * Send message using legacy AIConversationService.
+	 */
+	private void sendMessageLegacy(String message) {
+		final JSONObject contextSnapshot = currentContext;
+		final int threadRootIdSnapshot = currentThreadRootId;
+
 		Desktop desktop = Executions.getCurrent().getDesktop();
 		CompletableFuture.runAsync(() -> {
 			try {
@@ -682,30 +795,77 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 
 			} catch (Exception e) {
 				log.log(Level.SEVERE, "AI response failed", e);
-
-				// Show error in UI
-				Executions.schedule(desktop, ev -> {
-					hideLoading();
-
-					String errorMsg = "<div style='color: #d32f2f; padding: 8px; " +
-						"background: #ffebee; border-radius: 4px; border-left: 3px solid #d32f2f;'>" +
-						"<strong>Error:</strong> " + Util.maskHTML(e.getMessage(), true) + "</div>";
-
-					MChatEntry errorEntry = MAIChatEntry.createAIResponse(chat, errorMsg);
-
-					// Set thread parent for error entry
-					// We only support one level: root message + children
-					if (threadRootIdSnapshot > 0) {
-						errorEntry.setCM_ChatEntryParent_ID(threadRootIdSnapshot);
-					}
-
-					errorEntry.saveEx();
-					renderMessage(errorEntry);
-					inputBox.setDisabled(false);
-					sendButton.setDisabled(false);
-				}, new Event("onAIError"));
+				handleErrorResponse(desktop, e, threadRootIdSnapshot);
 			}
 		});
+	}
+
+	/**
+	 * Handle blocked response from guardrails.
+	 */
+	private void handleBlockedResponse(Desktop desktop, ChatResult result, int threadRootIdSnapshot) {
+		Executions.schedule(desktop, ev -> {
+			hideLoading();
+
+			String warningHtml = "<div style='color: #ed6c02; padding: 8px; " +
+				"background: #fff4e5; border-radius: 4px; border-left: 3px solid #ed6c02;'>" +
+				"<strong>Request blocked:</strong> " + Util.maskHTML(result.getResponse(), true);
+
+			if (result.getViolationType() != null) {
+				warningHtml += "<br/><small>Reason: " + Util.maskHTML(result.getViolationType(), true) + "</small>";
+			}
+			warningHtml += "</div>";
+
+			MChatEntry warningEntry = MAIChatEntry.createAIResponse(chat, warningHtml);
+			if (threadRootIdSnapshot > 0) {
+				warningEntry.setCM_ChatEntryParent_ID(threadRootIdSnapshot);
+			}
+			warningEntry.saveEx();
+			renderMessage(warningEntry);
+			inputBox.setDisabled(false);
+			sendButton.setDisabled(false);
+		}, new Event("onAIBlocked"));
+	}
+
+	/**
+	 * Handle error response.
+	 */
+	private void handleErrorResponse(Desktop desktop, Exception e, int threadRootIdSnapshot) {
+		Executions.schedule(desktop, ev -> {
+			hideLoading();
+
+			String errorMsg = "<div style='color: #d32f2f; padding: 8px; " +
+				"background: #ffebee; border-radius: 4px; border-left: 3px solid #d32f2f;'>" +
+				"<strong>Error:</strong> " + Util.maskHTML(e.getMessage(), true) + "</div>";
+
+			MChatEntry errorEntry = MAIChatEntry.createAIResponse(chat, errorMsg);
+
+			// Set thread parent for error entry
+			if (threadRootIdSnapshot > 0) {
+				errorEntry.setCM_ChatEntryParent_ID(threadRootIdSnapshot);
+			}
+
+			errorEntry.saveEx();
+			renderMessage(errorEntry);
+			inputBox.setDisabled(false);
+			sendButton.setDisabled(false);
+		}, new Event("onAIError"));
+	}
+
+	/**
+	 * Show guardrail warning in UI.
+	 */
+	private void showGuardWarning(String warningMessage) {
+		if (warningMessage == null || warningMessage.isEmpty()) {
+			return;
+		}
+
+		String warningHtml = "<div style='color: #ed6c02; padding: 6px 10px; margin-bottom: 8px; " +
+			"background: #fff4e5; border-radius: 4px; font-size: 12px;'>" +
+			"⚠️ " + Util.maskHTML(warningMessage, true) + "</div>";
+
+		Html warningDiv = new Html(warningHtml);
+		messagesContainer.appendChild(warningDiv);
 	}
 
 	/**
