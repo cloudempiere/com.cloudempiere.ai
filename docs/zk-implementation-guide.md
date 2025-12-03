@@ -2,6 +2,247 @@
 
 This guide explains how to implement AI use cases (ADR-017 to ADR-020) using iDempiere ZK components, building on the existing `AIChatWidget` infrastructure.
 
+---
+
+## ASCII Diagrams
+
+### AIChatWidget UI Structure
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        AIChatWidget (extends Div)                           │
+│  sclass="ai-chat-widget"                                                    │
+│  style="display: flex; flex-direction: column; height: 700px"               │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  ┌───────────────────────────────────────────────────────────────────────┐  │
+│  │  Context Indicator (Html) - optional, shown when contextEnabled=true  │  │
+│  │  "Context: Sales Order > Header"                                      │  │
+│  └───────────────────────────────────────────────────────────────────────┘  │
+│                                                                             │
+│  ┌─────────────────────────────────────────────┬─────────────────────────┐  │
+│  │  Thread Selector (Combobox)                 │  New Thread (Button)    │  │
+│  │  [▼ Select conversation...              ]   │  [+ New]                │  │
+│  └─────────────────────────────────────────────┴─────────────────────────┘  │
+│                                                                             │
+│  ┌───────────────────────────────────────────────────────────────────────┐  │
+│  │                                                                       │  │
+│  │  Messages Container (Vlayout) - sclass="ai-messages"                  │  │
+│  │  style="overflow-y: auto; flex: 1 1 auto"                             │  │
+│  │                                                                       │  │
+│  │  ┌─────────────────────────────────────────────────────────────────┐  │  │
+│  │  │ User Message (Div) - sclass="user-message"                      │  │  │
+│  │  │ ┌─────────────────────────────────────────────────────────────┐ │  │  │
+│  │  │ │ What are my top 5 sales orders this month?                  │ │  │  │
+│  │  │ └─────────────────────────────────────────────────────────────┘ │  │  │
+│  │  │ [Copy]                                                          │  │  │
+│  │  └─────────────────────────────────────────────────────────────────┘  │  │
+│  │                                                                       │  │
+│  │  ─────────────────────────────────────────────────────────────────────│  │
+│  │                                                                       │  │
+│  │  ┌─────────────────────────────────────────────────────────────────┐  │  │
+│  │  │ AI Message (Div) - sclass="ai-message"                          │  │  │
+│  │  │ ┌─────────────────────────────────────────────────────────────┐ │  │  │
+│  │  │ │ [🤖] AI Assistant                                           │ │  │  │
+│  │  │ └─────────────────────────────────────────────────────────────┘ │  │  │
+│  │  │ ┌─────────────────────────────────────────────────────────────┐ │  │  │
+│  │  │ │ Here are your top 5 sales orders:                           │ │  │  │
+│  │  │ │                                                             │ │  │  │
+│  │  │ │ | Order     | Customer    | Amount    |                     │ │  │  │
+│  │  │ │ |-----------|-------------|-----------|                     │ │  │  │
+│  │  │ │ | SO-1234   | Acme Corp   | $15,000   |  ← Clickable zoom   │ │  │  │
+│  │  │ │ | SO-1235   | Tech Inc    | $12,500   |                     │ │  │  │
+│  │  │ │ | ...       | ...         | ...       |                     │ │  │  │
+│  │  │ │                                                             │ │  │  │
+│  │  │ │ (Rendered via marked.js + Prism.js)                         │ │  │  │
+│  │  │ └─────────────────────────────────────────────────────────────┘ │  │  │
+│  │  └─────────────────────────────────────────────────────────────────┘  │  │
+│  │                                                                       │  │
+│  │  ┌─────────────────────────────────────────────────────────────────┐  │  │
+│  │  │ Loading Indicator (Html) - hidden by default                    │  │  │
+│  │  │ "AI is thinking..."                                             │  │  │
+│  │  └─────────────────────────────────────────────────────────────────┘  │  │
+│  │                                                                       │  │
+│  └───────────────────────────────────────────────────────────────────────┘  │
+│                                                                             │
+│  ┌──────────────────────────────────────────────────────────┬────────────┐  │
+│  │  Input Box (Textbox)                                     │ Send (Btn) │  │
+│  │  [Ask anything about your business data...           ]   │    [➤]     │  │
+│  └──────────────────────────────────────────────────────────┴────────────┘  │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Component Hierarchy
+
+```
+AIChatWidget (Div)
+│
+├── contextIndicator (Html) ─────────────────── Optional context info
+│
+├── threadControlBar (Hlayout)
+│   ├── threadSelector (Combobox) ───────────── Thread dropdown
+│   └── newThreadButton (Button) ────────────── "+ New" button
+│
+├── messagesContainer (Vlayout) ─────────────── Scrollable messages area
+│   ├── [User Message Divs] ─────────────────── Gray bubble, right-aligned
+│   ├── [AI Message Divs] ───────────────────── White, with logo header
+│   └── loadingIndicator (Html) ─────────────── "AI is thinking..."
+│
+└── inputArea (Hlayout)
+    ├── inputBox (Textbox) ──────────────────── User input
+    └── sendButton (Button) ─────────────────── Send action
+```
+
+### Data Flow
+
+```
+┌──────────────────┐     ┌──────────────────┐     ┌──────────────────┐
+│   User Types     │     │   AIChatWidget   │     │  AIConversation  │
+│   Message        │────▶│   sendMessage()  │────▶│     Service      │
+└──────────────────┘     └──────────────────┘     └──────────────────┘
+                                                           │
+                         ┌─────────────────────────────────┘
+                         │
+                         ▼
+┌──────────────────┐     ┌──────────────────┐     ┌──────────────────┐
+│  MAIChatEntry    │     │   IAIProvider    │     │  Context         │
+│  (Persistence)   │◀────│  generateText()  │◀────│  Extraction      │
+└──────────────────┘     └──────────────────┘     └──────────────────┘
+                                │
+                                ▼
+                         ┌──────────────────┐
+                         │  External LLM    │
+                         │  (Anthropic/     │
+                         │   Bedrock/etc)   │
+                         └──────────────────┘
+```
+
+### Thread Management
+
+```
+CM_Chat (MChat)
+│
+├── Thread 1 (Root: CM_ChatEntry_ID = 100)
+│   ├── Entry 100: "What are today's orders?" (User, Parent=0)
+│   ├── Entry 101: "Here are the orders..." (AI, Parent=100)
+│   ├── Entry 102: "Show me details of SO-123" (User, Parent=100)
+│   └── Entry 103: "SO-123 details: ..." (AI, Parent=100)
+│
+├── Thread 2 (Root: CM_ChatEntry_ID = 200)
+│   ├── Entry 200: "Help with invoices" (User, Parent=0)
+│   └── Entry 201: "Invoice help: ..." (AI, Parent=200)
+│
+└── Thread 3 (Root: CM_ChatEntry_ID = 300)
+    └── ...
+
+Thread Selection Logic:
+- Root entries: CM_ChatEntryParent_ID = 0
+- Child entries: CM_ChatEntryParent_ID = root entry ID
+- Only ONE level deep (no grandchildren)
+```
+
+### Async Processing Pattern
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                            ZK UI Thread                                 │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│  1. User clicks Send                                                    │
+│     │                                                                   │
+│     ▼                                                                   │
+│  2. Capture Desktop reference                                           │
+│     Desktop desktop = Executions.getCurrent().getDesktop();             │
+│     │                                                                   │
+│     ▼                                                                   │
+│  3. Show loading, disable input                                         │
+│     │                                                                   │
+│     └──────────────────┐                                                │
+│                        │                                                │
+└────────────────────────│────────────────────────────────────────────────┘
+                         │
+                         ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                       Background Thread                                 │
+│                   (CompletableFuture.runAsync)                          │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│  4. Call AI Service (blocking)                                          │
+│     AIResponse response = aiService.sendMessage(...);                   │
+│     │                                                                   │
+│     ▼                                                                   │
+│  5. Schedule UI update back to ZK thread                                │
+│     Executions.schedule(desktop, event -> {                             │
+│         hideLoading();                                                  │
+│         renderMessage(response);                                        │
+│     }, new Event("onAIResponse"));                                      │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+                         │
+                         ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                            ZK UI Thread                                 │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│  6. Update UI (via scheduled event)                                     │
+│     - Hide loading indicator                                            │
+│     - Render AI message                                                 │
+│     - Re-enable input                                                   │
+│     - Scroll to bottom                                                  │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Use Case Integration Points
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                        iDempiere Web UI                                 │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│  ┌─────────────────┐                                                    │
+│  │  Dashboard      │                                                    │
+│  │  ┌───────────┐  │     ADR-017: Chart Executive Overview              │
+│  │  │  Chart    │──┼────▶ ChartAIOverlay (Window)                       │
+│  │  │  Widget   │  │     Opens on chart click                           │
+│  │  └───────────┘  │                                                    │
+│  │  ┌───────────┐  │                                                    │
+│  │  │  AI Chat  │  │     Existing AIChatWidget                          │
+│  │  │  Gadget   │──┼────▶ DashboardPanel wrapper                        │
+│  │  └───────────┘  │                                                    │
+│  └─────────────────┘                                                    │
+│                                                                         │
+│  ┌─────────────────┐                                                    │
+│  │  C_Opportunity  │     ADR-018: Sales Opportunity Summary             │
+│  │  Window         │                                                    │
+│  │  ┌───────────┐  │                                                    │
+│  │  │ [AI ◉]   │──┼────▶ OpportunitySummaryPanel (Panel)                │
+│  │  │ Toolbar   │  │     Toolbar button or side panel                   │
+│  │  └───────────┘  │                                                    │
+│  └─────────────────┘                                                    │
+│                                                                         │
+│  ┌─────────────────┐                                                    │
+│  │  Menu           │     ADR-019: Ticket Classification                 │
+│  │  ┌───────────┐  │                                                    │
+│  │  │ AI Ticket │──┼────▶ TicketClassificationForm (ADForm)             │
+│  │  │ Classify  │  │     Batch processing form                          │
+│  │  └───────────┘  │                                                    │
+│  └─────────────────┘                                                    │
+│                                                                         │
+│  ┌─────────────────┐                                                    │
+│  │  R_Request      │     ADR-020: Email Gateway Enhancement             │
+│  │  Window         │                                                    │
+│  │  ┌───────────┐  │                                                    │
+│  │  │Description│──┼────▶ EnhancedEmailViewer (Panel)                   │
+│  │  │  Field    │  │     Inline panel with toggle                       │
+│  │  └───────────┘  │                                                    │
+│  └─────────────────┘                                                    │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
 ## Table of Contents
 
 1. [Existing Infrastructure](#existing-infrastructure)
