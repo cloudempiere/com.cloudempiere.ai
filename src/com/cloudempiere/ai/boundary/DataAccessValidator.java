@@ -26,7 +26,7 @@ import org.compiere.util.DB;
 import com.cloudempiere.ai.agent.AgentContext;
 
 /**
- * Data Access Validator for AI agents (ADR-009).
+ * Data Access Validator for AI agents (ADR-009, ADR-029).
  *
  * <p>Validates that agents only access tables and columns they are authorized
  * to see based on their configured boundaries and user role.
@@ -37,15 +37,51 @@ import com.cloudempiere.ai.agent.AgentContext;
  *   <li>Column-level access control</li>
  *   <li>Sensitive data protection (payroll, pricing, etc.)</li>
  *   <li>Integration with iDempiere role-based access</li>
+ *   <li>Multi-tenant knowledge table access (ADR-029)</li>
  * </ul>
  *
- * @author CloudEmpiere AI Team
- * @version ADR-009
- * @since v0.10.0
+ * <p>ADR-029 Knowledge Access:
+ * <ul>
+ *   <li>Knowledge tables (AD_*, K_*) accessible via AD_Client_ID IN (0, KNOWLEDGE_CLIENT_ID)</li>
+ *   <li>System client (0) provides base definitions</li>
+ *   <li>Knowledge client (1000014) provides AI knowledge base content</li>
+ * </ul>
+ *
+ * <p><b>Tags:</b> #boundaries #data-access #multi-tenant #security #role-based-access
+ *
+ * @author Cloudempiere AI Team
+ * @version 1.0.0
+ * @since v0.11.0
+ * @see BoundaryEnforcementFilter
+ * @see AgentBoundary
  */
 public class DataAccessValidator {
 
     private static final CLogger log = CLogger.getCLogger(DataAccessValidator.class);
+
+    // ========================================================================
+    // ADR-029: Multi-Tenant Knowledge Access Constants
+    // ========================================================================
+
+    /** Knowledge client ID for shared AI knowledge base content */
+    public static final int KNOWLEDGE_CLIENT_ID = 1000014;
+
+    /** Tables containing knowledge base content (K_ prefix) */
+    private static final Set<String> KNOWLEDGE_TABLE_PREFIXES = Collections.unmodifiableSet(
+        new HashSet<>(Arrays.asList(
+            "K_",      // Knowledge base tables
+            "AD_"      // Application dictionary tables
+        ))
+    );
+
+    /** Specific knowledge tables (not matching prefix) */
+    private static final Set<String> KNOWLEDGE_TABLES = Collections.unmodifiableSet(
+        new HashSet<>(Arrays.asList(
+            "K_Category", "K_CategoryValue", "K_Comment",
+            "K_Entry", "K_Index", "K_IndexLog",
+            "K_Source", "K_Synonym", "K_Topic", "K_Type"
+        ))
+    );
 
     // ========================================================================
     // Sensitive Tables (always require extra validation)
@@ -312,5 +348,104 @@ public class DataAccessValidator {
         all.addAll(SENSITIVE_PRICING_TABLES);
         all.addAll(SECURITY_TABLES);
         return Collections.unmodifiableSet(all);
+    }
+
+    // ========================================================================
+    // ADR-029: Multi-Tenant Knowledge Access
+    // ========================================================================
+
+    /**
+     * Check if table is a knowledge table (ADR-029).
+     *
+     * <p>Knowledge tables are shared across tenants and accessible via:
+     * <pre>AD_Client_ID IN (0, KNOWLEDGE_CLIENT_ID)</pre>
+     *
+     * <p>Knowledge tables include:
+     * <ul>
+     *   <li>AD_* tables - Application Dictionary definitions</li>
+     *   <li>K_* tables - Knowledge base content</li>
+     * </ul>
+     *
+     * @param tableName Table name to check
+     * @return true if table is a knowledge table
+     */
+    public boolean isKnowledgeTable(String tableName) {
+        if (tableName == null || tableName.isEmpty()) {
+            return false;
+        }
+
+        // Check explicit knowledge tables
+        if (KNOWLEDGE_TABLES.contains(tableName)) {
+            return true;
+        }
+
+        // Check prefixes (AD_, K_)
+        String upperName = tableName.toUpperCase();
+        for (String prefix : KNOWLEDGE_TABLE_PREFIXES) {
+            if (upperName.startsWith(prefix.toUpperCase())) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Get the client filter for a table (ADR-029).
+     *
+     * <p>Returns appropriate AD_Client_ID filter based on table type:
+     * <ul>
+     *   <li>Knowledge tables: AD_Client_ID IN (0, 1000014)</li>
+     *   <li>Business tables: AD_Client_ID = {userClientId}</li>
+     * </ul>
+     *
+     * @param tableName Table name
+     * @param userClientId User's client ID
+     * @return SQL filter clause (without "AND" prefix)
+     */
+    public String getClientFilter(String tableName, int userClientId) {
+        if (isKnowledgeTable(tableName)) {
+            return "AD_Client_ID IN (0, " + KNOWLEDGE_CLIENT_ID + ")";
+        } else {
+            return "AD_Client_ID = " + userClientId;
+        }
+    }
+
+    /**
+     * Get the client filter for a table with service provider support (ADR-029).
+     *
+     * <p>Tiered access model:
+     * <ul>
+     *   <li>Tier 1 (End User): Own client + knowledge sources</li>
+     *   <li>Tier 2 (Service Provider): Target client + knowledge sources</li>
+     * </ul>
+     *
+     * @param tableName Table name
+     * @param userClientId User's client ID
+     * @param isServiceProvider Whether user is a service provider accessing another tenant
+     * @param targetClientId Target client ID (for service providers)
+     * @return SQL filter clause
+     */
+    public String getClientFilter(String tableName, int userClientId,
+                                   boolean isServiceProvider, int targetClientId) {
+        if (isKnowledgeTable(tableName)) {
+            // Knowledge tables always accessible via system + knowledge client
+            return "AD_Client_ID IN (0, " + KNOWLEDGE_CLIENT_ID + ")";
+        } else if (isServiceProvider && targetClientId > 0) {
+            // Service provider accessing target client's data
+            return "AD_Client_ID = " + targetClientId;
+        } else {
+            // Normal user accessing own client's data
+            return "AD_Client_ID = " + userClientId;
+        }
+    }
+
+    /**
+     * Get the knowledge client ID (ADR-029).
+     *
+     * @return Knowledge client ID (1000014)
+     */
+    public int getKnowledgeClientId() {
+        return KNOWLEDGE_CLIENT_ID;
     }
 }
