@@ -1,0 +1,96 @@
+{
+  "$schema": "https://raw.githubusercontent.com/modelcontextprotocol/inspector/main/config-schema.json",
+  "description": "MCP Inspector configuration for iDempiere MCP Server testing",
+  "server": {
+    "command": "java",
+    "args": [
+      "-jar",
+      "../idempiere-mcp-server/target/idempiere-mcp-server-1.0.0-SNAPSHOT.jar"
+    ],
+    "env": {
+      "IDEMPIERE_BACKEND": "cli",
+      "IDEMPIERE_CLI_PATH": "../cloudempiere-cli/target/idempiere-cli-1.26.0-SNAPSHOT-runner.jar",
+      "LOG_LEVEL": "INFO"
+    },
+    "cwd": "${workspaceFolder}"
+  },
+  "tests": {
+    "timeout": 30000,
+    "retries": 2,
+    "parallelism": 1
+  },
+  "tools": {
+    "expected": [
+      {
+        "name": "listTables",
+        "description": "List tables from Application Dictionary"
+      },
+      {
+        "name": "describeTable",
+        "description": "Get table schema and columns"
+      },
+      {
+        "name": "addTable",
+        "description": "Add a new table definition"
+      },
+      {
+        "name": "addColumn",
+        "description": "Add a column to a table"
+      },
+      {
+        "name": "syncTable",
+        "description": "Synchronize table with database"
+      }
+    ]
+  },
+  "scenarios": [
+    {
+      "name": "Tool Discovery",
+      "description": "Verify all expected tools are available",
+      "steps": [
+        {
+          "command": "tools/list",
+          "validate": {
+            "containsTools": ["listTables", "describeTable"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "List Order Tables",
+      "description": "List tables matching C_Order pattern",
+      "steps": [
+        {
+          "command": "tools/call",
+          "params": {
+            "name": "listTables",
+            "arguments": {
+              "pattern": "C_Order%"
+            }
+          },
+          "validate": {
+            "containsTables": ["C_Order", "C_OrderLine"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Describe Order Table",
+      "description": "Get C_Order table schema",
+      "steps": [
+        {
+          "command": "tools/call",
+          "params": {
+            "name": "describeTable",
+            "arguments": {
+              "tableName": "C_Order"
+            }
+          },
+          "validate": {
+            "containsColumns": ["C_Order_ID", "DocumentNo", "C_BPartner_ID"]
+          }
+        }
+      ]
+    }
+  ]
+}
