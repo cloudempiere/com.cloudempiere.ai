@@ -54,10 +54,65 @@ CloudEmpiere stores **Application Dictionary documentation** in a dedicated tena
 | `K_Topic` | KB topics | Text |
 | `K_Type` | Entry types | Reference |
 
-**Note:** K_Entry.TextMsg contains EditorJS JSON format. Uses existing **EditorJS parser** (already implemented):
+**Note:** K_Entry.TextMsg contains EditorJS JSON format.
+
+**Recommended: Push to Vector on K_Entry Change (not cross-tenant SQL)**
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  K_Entry Created/Updated (AD_Client_ID = 1000014)               │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  ModelValidator / EventHandler                                   │
+│  1. Parse EditorJS (EditorJsParserEnhanced.java)                │
+│  2. Generate embeddings (LangChain4j EmbeddingModel)            │
+│  3. Push to Vector Store (pgvector)                             │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  Vector Store (pgvector) - No tenant restrictions               │
+│  - Knowledge indexed by topic, type, content                    │
+│  - Metadata: K_Entry_ID, K_Topic, K_Type, AD_Table reference    │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+        ┌─────────────────────┴─────────────────────┐
+        ▼                                           ▼
+┌───────────────────┐                   ┌───────────────────┐
+│  User Query       │                   │  User Query       │
+│  (Tenant 1000015) │                   │  (Tenant 1000020) │
+└───────────────────┘                   └───────────────────┘
+        │                                           │
+        └─────────────────────┬─────────────────────┘
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  RAG Retrieval (ContentRetriever)                               │
+│  - Semantic search in vector store                              │
+│  - No cross-tenant SQL needed                                   │
+│  - Knowledge available to ALL tenants                           │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  AI Chain                                                        │
+│  - Knowledge context from RAG                                    │
+│  - Business data from user's tenant (SQL)                        │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Why Vector Store (not cross-tenant SQL):**
+- No PO cross-tenant exceptions
+- Pre-indexed, semantic search ready
+- All tenants access same knowledge base
+- Scales better than runtime queries
+
+**Implementation:**
 - `EditorJsParser.java` - Base parser
 - `EditorJsParserEnhanced.java` - Enhanced with syntax support
 - `KnowledgeBaseContextProvider.java` - Context extraction for AI
+- ModelValidator on K_Entry to trigger embedding
 
 See [ADR-016: Knowledge Base Agent](016-knowledge-base-agent.md) for full architecture.
 
