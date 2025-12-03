@@ -403,6 +403,9 @@ Follow [Conventional Commits](https://conventionalcommits.org/):
 - [ADR-013](docs/adr/013-observability-cost-tracking.md) - Observability and Cost Tracking
 - [ADR-014](docs/adr/014-guardrails-and-safety.md) - Guardrails and Safety
 - [ADR-015](docs/adr/015-conversational-ux-patterns.md) - Conversational UX Patterns
+- [ADR-031](docs/adr/031-chat-panel-langchain4j-chatmodel-integration.md) - Chat Panel LangChain4j ChatModel Integration
+- [ADR-032](docs/adr/032-testing-strategy.md) - Testing Strategy
+- [ADR-033](docs/adr/033-streaming-thinking-timeline-ux.md) - Streaming Responses and Thinking Timeline UX
 
 ### Use Cases - Phase 1 (MVP)
 - [ADR-017](docs/adr/017-chart-executive-overview.md) - Chart Executive Overview

@@ -44,6 +44,9 @@ This directory contains architecture decisions for the CloudEmpiere AI plugin.
 | [014](014-guardrails-and-safety.md) | Guardrails and Safety | Accepted | 2025-12-01 |
 | [015](015-conversational-ux-patterns.md) | Conversational UX Patterns | Accepted | 2025-12-01 |
 | [027](027-chain-maintainability-ui-configuration.md) | Chain Maintainability and UI Configuration | Proposed | 2025-12-03 |
+| [031](031-chat-panel-langchain4j-chatmodel-integration.md) | Chat Panel LangChain4j ChatModel Integration | Proposed | 2025-12-03 |
+| [032](032-testing-strategy.md) | Testing Strategy | Proposed | 2025-12-03 |
+| [033](033-streaming-thinking-timeline-ux.md) | Streaming Responses and Thinking Timeline UX | Proposed | 2025-12-03 |
 
 ### Use Cases - Phase 1 (MVP)
 
@@ -223,6 +226,25 @@ Each ADR includes:
 - UI-configurable prompts, parameters, and cost budgets
 - A/B testing support with version management
 - Three-tier update strategy (hot/OSGi/full deployment)
+
+**ADR-031: Chat Panel LangChain4j ChatModel Integration**
+- Migration from custom AIConversationService to LangChain4j
+- ThreadAwareChatMemory for multi-thread conversations
+- IDempiereAIService/IDempiereAgent for AI calls
+- Retention of intelligent routing and caching
+
+**ADR-032: Testing Strategy**
+- JUnit 5 testing framework
+- Mock provider testing patterns
+- Integration test guidelines
+
+**ADR-033: Streaming Responses and Thinking Timeline UX**
+- Token-by-token streaming via LangChain4j TokenStream
+- Enhanced AIStreamCallback with tool/thinking events
+- AIChatStreamingMessage component for real-time rendering
+- Tool timeline display ("Querying database...", "✓ Complete")
+- Collapsible thinking section for extended thinking models
+- ZK thread safety with Executions.schedule()
 
 ### Use Cases - Phase 1 (MVP)
 
