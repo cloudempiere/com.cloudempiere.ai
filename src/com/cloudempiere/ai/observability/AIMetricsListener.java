@@ -153,17 +153,15 @@ public class AIMetricsListener implements ChatModelListener {
             long latencyMs = startTime != null ?
                 System.currentTimeMillis() - startTime : 0;
 
-            // Extract token usage
-            TokenUsage tokenUsage = responseContext.chatResponse()
-                .metadata().tokenUsage();
+            // Extract token usage from Response (0.35.0 API)
+            TokenUsage tokenUsage = responseContext.response().tokenUsage();
 
             int inputTokens = tokenUsage != null ? tokenUsage.inputTokenCount() : 0;
             int outputTokens = tokenUsage != null ? tokenUsage.outputTokenCount() : 0;
             int totalTokens = inputTokens + outputTokens;
 
-            // Get model name
-            String modelName = responseContext.chatRequest().parameters() != null ?
-                responseContext.chatRequest().parameters().modelName() : "unknown";
+            // Get model name from attributes (stored during request phase)
+            String modelName = (String) responseContext.attributes().getOrDefault("modelName", "unknown");
 
             // Calculate cost
             BigDecimal costUsd = calculateCost(modelName, inputTokens, outputTokens);
@@ -204,9 +202,8 @@ public class AIMetricsListener implements ChatModelListener {
             long latencyMs = startTime != null ?
                 System.currentTimeMillis() - startTime : 0;
 
-            // Get model name
-            String modelName = errorContext.chatRequest().parameters() != null ?
-                errorContext.chatRequest().parameters().modelName() : "unknown";
+            // Get model name from attributes (stored during request phase)
+            String modelName = (String) errorContext.attributes().getOrDefault("modelName", "unknown");
 
             // Persist error metrics
             persistMetrics(

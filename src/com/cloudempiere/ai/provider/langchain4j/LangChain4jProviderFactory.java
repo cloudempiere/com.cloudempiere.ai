@@ -16,16 +16,15 @@ import dev.langchain4j.model.chat.StreamingChatLanguageModel;
 import dev.langchain4j.model.embedding.EmbeddingModel;
 import dev.langchain4j.model.anthropic.AnthropicChatModel;
 import dev.langchain4j.model.anthropic.AnthropicStreamingChatModel;
-import dev.langchain4j.model.bedrock.BedrockChatModel;
-// Note: BedrockEmbeddingModel may require langchain4j-bedrock-embeddings module
-// For now, use Ollama as fallback for Bedrock embedding needs
+import dev.langchain4j.model.bedrock.BedrockAnthropicMessageChatModel;
+import dev.langchain4j.model.bedrock.BedrockAnthropicStreamingChatModel;
+import dev.langchain4j.model.bedrock.BedrockTitanEmbeddingModel;
 import dev.langchain4j.model.ollama.OllamaChatModel;
 import dev.langchain4j.model.ollama.OllamaEmbeddingModel;
 import dev.langchain4j.model.ollama.OllamaStreamingChatModel;
 import dev.langchain4j.model.openai.OpenAiChatModel;
 import dev.langchain4j.model.openai.OpenAiEmbeddingModel;
 import dev.langchain4j.model.openai.OpenAiStreamingChatModel;
-import dev.langchain4j.model.bedrock.BedrockChatRequestParameters;
 import software.amazon.awssdk.regions.Region;
 
 /**
@@ -123,6 +122,8 @@ public class LangChain4jProviderFactory {
         switch (providerType) {
             case PROVIDER_ANTHROPIC:
                 return createAnthropicStreamingModel(apiKey, modelName);
+            case PROVIDER_BEDROCK:
+                return createBedrockStreamingModel(modelName, baseUrl);
             case PROVIDER_OLLAMA:
                 return createOllamaStreamingModel(baseUrl, modelName);
             case PROVIDER_OPENAI:
@@ -249,6 +250,9 @@ public class LangChain4jProviderFactory {
     // ========================================================================
 
     private static ChatLanguageModel createAnthropicModel(String apiKey, String modelName) {
+        if (apiKey == null || apiKey.isEmpty()) {
+            throw new IllegalArgumentException("Anthropic API key is not configured. Please set the API Key in the AI Provider configuration.");
+        }
         var builder = AnthropicChatModel.builder()
             .apiKey(apiKey)
             .modelName(modelName != null ? modelName : DEFAULT_ANTHROPIC_MODEL)
@@ -266,6 +270,9 @@ public class LangChain4jProviderFactory {
     }
 
     private static StreamingChatLanguageModel createAnthropicStreamingModel(String apiKey, String modelName) {
+        if (apiKey == null || apiKey.isEmpty()) {
+            throw new IllegalArgumentException("Anthropic API key is not configured. Please set the API Key in the AI Provider configuration.");
+        }
         return AnthropicStreamingChatModel.builder()
             .apiKey(apiKey)
             .modelName(modelName != null ? modelName : DEFAULT_ANTHROPIC_MODEL)
@@ -297,6 +304,9 @@ public class LangChain4jProviderFactory {
     }
 
     private static ChatLanguageModel createOpenAiModel(String apiKey, String modelName) {
+        if (apiKey == null || apiKey.isEmpty()) {
+            throw new IllegalArgumentException("OpenAI API key is not configured. Please set the API Key in the AI Provider configuration.");
+        }
         var builder = OpenAiChatModel.builder()
             .apiKey(apiKey)
             .modelName(modelName != null ? modelName : DEFAULT_OPENAI_MODEL)
@@ -313,6 +323,9 @@ public class LangChain4jProviderFactory {
     }
 
     private static StreamingChatLanguageModel createOpenAiStreamingModel(String apiKey, String modelName) {
+        if (apiKey == null || apiKey.isEmpty()) {
+            throw new IllegalArgumentException("OpenAI API key is not configured. Please set the API Key in the AI Provider configuration.");
+        }
         return OpenAiStreamingChatModel.builder()
             .apiKey(apiKey)
             .modelName(modelName != null ? modelName : DEFAULT_OPENAI_MODEL)
@@ -322,21 +335,26 @@ public class LangChain4jProviderFactory {
 
     private static ChatLanguageModel createBedrockModel(String modelName, String region) {
         // Bedrock uses AWS credentials from environment/IAM role
-        // BedrockChatModel supports all Bedrock models: Claude, Amazon Nova, Mistral, etc.
-        var builder = BedrockChatModel.builder()
+        // BedrockAnthropicMessageChatModel for Claude on Bedrock (0.35.0 API)
+        var builder = BedrockAnthropicMessageChatModel.builder()
             .region(Region.of(region != null ? region : DEFAULT_BEDROCK_REGION))
-            .modelId(modelName != null ? modelName : DEFAULT_BEDROCK_MODEL)
-            .defaultRequestParameters(BedrockChatRequestParameters.builder()
-                .maxOutputTokens(4096)
-                .temperature(0.7)
-                .build());
+            .model(modelName != null ? modelName : DEFAULT_BEDROCK_MODEL)
+            .maxTokens(4096)
+            .temperature(0.7f);
 
-        // Add observability listener (ADR-013)
-        if (metricsEnabled) {
-            builder.listeners(List.of(createMetricsListener("bedrock")));
-        }
+        // Note: 0.35.0 BedrockAnthropicMessageChatModel doesn't support listeners
 
         return builder.build();
+    }
+
+    private static StreamingChatLanguageModel createBedrockStreamingModel(String modelName, String region) {
+        // Bedrock streaming model uses AWS credentials from environment/IAM role
+        return BedrockAnthropicStreamingChatModel.builder()
+            .region(Region.of(region != null ? region : DEFAULT_BEDROCK_REGION))
+            .model(modelName != null ? modelName : DEFAULT_BEDROCK_MODEL)
+            .maxTokens(4096)
+            .temperature(0.7f)
+            .build();
     }
 
     // ========================================================================
@@ -344,11 +362,11 @@ public class LangChain4jProviderFactory {
     // ========================================================================
 
     private static EmbeddingModel createBedrockEmbeddingModel(String modelName, String region) {
-        // Note: BedrockEmbeddingModel is not available in langchain4j-bedrock 1.0.0-beta3
-        // Using Ollama as fallback for embedding needs
-        // TODO: Add langchain4j-bedrock-embeddings module when available
-        log.warning("BedrockEmbeddingModel not available - using Ollama nomic-embed-text as fallback");
-        return createOllamaEmbeddingModel(DEFAULT_OLLAMA_URL, DEFAULT_OLLAMA_EMBEDDING_MODEL);
+        // BedrockTitanEmbeddingModel for Amazon Titan Embeddings (0.35.0 API)
+        return BedrockTitanEmbeddingModel.builder()
+            .region(Region.of(region != null ? region : DEFAULT_BEDROCK_REGION))
+            .model(modelName != null ? modelName : DEFAULT_BEDROCK_EMBEDDING_MODEL)
+            .build();
     }
 
     private static EmbeddingModel createOllamaEmbeddingModel(String baseUrl, String modelName) {
@@ -359,6 +377,9 @@ public class LangChain4jProviderFactory {
     }
 
     private static EmbeddingModel createOpenAiEmbeddingModel(String apiKey, String modelName) {
+        if (apiKey == null || apiKey.isEmpty()) {
+            throw new IllegalArgumentException("OpenAI API key is not configured. Please set the API Key in the AI Provider configuration.");
+        }
         return OpenAiEmbeddingModel.builder()
             .apiKey(apiKey)
             .modelName(modelName != null ? modelName : DEFAULT_OPENAI_EMBEDDING_MODEL)

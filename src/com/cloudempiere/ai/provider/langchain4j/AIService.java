@@ -4,23 +4,25 @@ import java.math.BigDecimal;
 import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicReference;
 
+import org.compiere.model.MChat;
 import org.compiere.util.CLogger;
 import org.compiere.util.Env;
+import org.json.JSONObject;
 
 import com.cloudempiere.ai.guardrails.InputGuard;
 import com.cloudempiere.ai.guardrails.OutputGuard;
 import com.cloudempiere.ai.guardrails.dto.GuardResult;
 import com.cloudempiere.ai.model.MAIProvider;
 import com.cloudempiere.ai.observability.CostGuard;
+import com.cloudempiere.ai.provider.dto.AIStreamCallback;
 
-import dev.langchain4j.memory.ChatMemory;
 import dev.langchain4j.memory.chat.MessageWindowChatMemory;
 import dev.langchain4j.model.chat.ChatLanguageModel;
+import dev.langchain4j.model.chat.StreamingChatLanguageModel;
 import dev.langchain4j.service.AiServices;
-
-import org.compiere.model.MChat;
-import org.json.JSONObject;
+import dev.langchain4j.service.TokenStream;
 
 /**
  * Main entry point for ERP AI capabilities using LangChain4j.
@@ -54,6 +56,9 @@ public class AIService {
 
     /** Memory cache by session ID */
     private final Map<String, MessageWindowChatMemory> memoryCache = new ConcurrentHashMap<>();
+
+    /** Streaming model cache by provider ID */
+    private final Map<Integer, StreamingChatLanguageModel> streamingModelCache = new ConcurrentHashMap<>();
 
     /** Default conversation memory size */
     private static final int DEFAULT_MEMORY_SIZE = 20;
@@ -204,6 +209,17 @@ public class AIService {
     public ChatResult chatWithContext(MAIProvider provider, MChat chat,
                                        String message, JSONObject contextData,
                                        int threadRootId) {
+        // Validate required parameters
+        if (provider == null) {
+            return ChatResult.error("AI Provider is not configured", threadRootId);
+        }
+        if (chat == null) {
+            return ChatResult.error("Chat context is required", threadRootId);
+        }
+        if (message == null || message.trim().isEmpty()) {
+            return ChatResult.error("Message cannot be empty", threadRootId);
+        }
+
         Properties ctx = chat.getCtx();
         log.info("AIService.chatWithContext: chat=" + chat.getCM_Chat_ID() +
                 ", thread=" + threadRootId +
@@ -279,10 +295,13 @@ public class AIService {
             ChatLanguageModel model = LangChain4jProviderFactory.getOrCreate(provider);
             ERPTools tools = new ERPTools(provider, ctx);
 
+            // Use chatMemoryProvider for @MemoryId support in ERPAgent
+            // The provider returns our thread-aware memory for any session ID
+            final ThreadAwareChatMemory memoryForProvider = memory;
             ERPAgent agent = AiServices.builder(ERPAgent.class)
                 .chatLanguageModel(model)
                 .tools(tools)
-                .chatMemory(memory)
+                .chatMemoryProvider(memoryId -> memoryForProvider)
                 .build();
 
             // Build session ID for the agent
@@ -312,9 +331,232 @@ public class AIService {
             return ChatResult.success(response, memory.getCurrentThreadRootId(), warningMessage);
 
         } catch (Exception e) {
-            log.severe("ChatWithContext failed: " + e.getMessage());
-            return ChatResult.error("AI chat failed: " + e.getMessage(), threadRootId);
+            String errorMsg = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+            // Log full stack trace to identify NPE location
+            log.log(java.util.logging.Level.SEVERE, "ChatWithContext failed: " + errorMsg, e);
+            return ChatResult.error("AI chat failed: " + errorMsg, threadRootId);
         }
+    }
+
+    // ========================================================================
+    // Streaming Chat (ADR-033)
+    // ========================================================================
+
+    /**
+     * Chat with streaming response and full callback support.
+     *
+     * <p>This method implements ADR-033: Streaming Responses and Thinking Timeline UX.
+     *
+     * <p>Features:
+     * <ul>
+     *   <li>Real-time token streaming via {@link AIStreamCallback#onChunk(String)}</li>
+     *   <li>Tool execution events via {@link AIStreamCallback#onToolStart} and {@link AIStreamCallback#onToolComplete}</li>
+     *   <li>Guardrails applied to input (output filtering done on accumulated response)</li>
+     * </ul>
+     *
+     * @param provider AI Provider configuration
+     * @param chat Parent MChat for message persistence
+     * @param message User message
+     * @param contextData Optional context from window/tab (JSON)
+     * @param threadRootId Thread root ID (0 for new thread)
+     * @param callback Streaming callback for real-time response handling
+     */
+    public void chatStreamingWithContext(MAIProvider provider, MChat chat,
+                                          String message, JSONObject contextData,
+                                          int threadRootId, AIStreamCallback callback) {
+        log.warning("[STREAM] >>> chatStreamingWithContext METHOD ENTRY <<<");
+
+        // Validate required parameters
+        if (provider == null) {
+            log.severe("[STREAM] Provider is NULL!");
+            callback.onError(new IllegalArgumentException("AI Provider is not configured"));
+            return;
+        }
+        log.warning("[STREAM] Provider: " + provider.getName() + " (ID=" + provider.getAIG_Provider_ID() + ")");
+
+        if (chat == null) {
+            log.severe("[STREAM] Chat is NULL!");
+            callback.onError(new IllegalArgumentException("Chat context is required"));
+            return;
+        }
+        log.warning("[STREAM] Chat ID: " + chat.getCM_Chat_ID());
+
+        if (message == null || message.trim().isEmpty()) {
+            log.severe("[STREAM] Message is empty!");
+            callback.onError(new IllegalArgumentException("Message cannot be empty"));
+            return;
+        }
+        log.warning("[STREAM] Message length: " + message.length());
+
+        if (callback == null) {
+            log.severe("[STREAM] Callback is NULL!");
+            throw new IllegalArgumentException("Callback is required for streaming");
+        }
+        log.warning("[STREAM] Callback: OK");
+
+        Properties ctx = chat.getCtx();
+        log.warning("[STREAM] ========================================");
+        log.warning("[STREAM] AIService.chatStreamingWithContext STARTED");
+        log.warning("[STREAM] chat=" + chat.getCM_Chat_ID() +
+                ", thread=" + threadRootId +
+                ", provider=" + (provider != null ? provider.getName() : "null"));
+        log.warning("[STREAM] message: " + message.substring(0, Math.min(50, message.length())));
+        log.warning("[STREAM] ========================================");
+
+        try {
+            String processedMessage = message;
+            int clientId = Env.getAD_Client_ID(ctx);
+            int userId = Env.getAD_User_ID(ctx);
+
+            // ================================================================
+            // PRE-REQUEST GUARDRAILS
+            // ================================================================
+
+            if (guardrailsEnabled) {
+                // 1. Cost Guard: Check budget
+                try {
+                    costGuard.checkBudget(clientId, ESTIMATED_COST_PER_REQUEST);
+                    costGuard.checkRateLimit(userId);
+                } catch (CostGuard.BudgetExceededException e) {
+                    log.warning("Budget exceeded for client " + clientId + ": " + e.getMessage());
+                    callback.onError(new RuntimeException("Budget exceeded: " + e.getMessage()));
+                    return;
+                } catch (CostGuard.RateLimitExceededException e) {
+                    log.warning("Rate limit exceeded for user " + userId + ": " + e.getMessage());
+                    callback.onError(new RuntimeException("Rate limit exceeded: " + e.getMessage()));
+                    return;
+                }
+
+                // 2. Input Guard: Sanitize input
+                GuardResult inputResult = inputGuard.validate(message);
+                if (inputResult.isBlocked()) {
+                    log.warning("Input blocked: " + inputResult.getBlockReason());
+                    callback.onError(new RuntimeException("Input blocked: " + inputResult.getBlockReason()));
+                    return;
+                }
+                if (inputResult.wasModified()) {
+                    processedMessage = inputResult.getProcessedContent();
+                    log.info("Input masked: " + inputResult.getViolationType());
+                }
+            }
+
+            // ================================================================
+            // BUILD MEMORY WITH THREAD AWARENESS
+            // ================================================================
+
+            Integer aiUserId = provider.getAD_User_ID() > 0 ? provider.getAD_User_ID() : null;
+
+            ThreadAwareChatMemory memory = ThreadAwareChatMemory.builder()
+                .chat(chat)
+                .threadRootId(threadRootId)
+                .maxMessages(DEFAULT_MEMORY_SIZE)
+                .persistMessages(false)  // Widget handles persistence
+                .aiUserId(aiUserId)
+                .build();
+
+            // ================================================================
+            // INJECT CONTEXT (if provided)
+            // ================================================================
+
+            if (contextData != null && contextData.length() > 0) {
+                String contextPrompt = buildContextPrompt(contextData);
+                if (contextPrompt != null && !contextPrompt.isEmpty()) {
+                    processedMessage = contextPrompt + "\n\nUser question: " + processedMessage;
+                }
+            }
+
+            // ================================================================
+            // STREAMING AI CALL
+            // ================================================================
+
+            StreamingChatLanguageModel streamingModel = getOrCreateStreamingModel(provider);
+            ERPTools tools = new ERPTools(provider, ctx);
+
+            // Build streaming agent with thread-aware memory
+            final ThreadAwareChatMemory memoryForProvider = memory;
+            ERPStreamingAgent agent = AiServices.builder(ERPStreamingAgent.class)
+                .streamingChatLanguageModel(streamingModel)
+                .tools(tools)
+                .chatMemoryProvider(memoryId -> memoryForProvider)
+                .build();
+
+            // Build session ID
+            String sessionId = chat.getCM_Chat_ID() + "-" + memory.getCurrentThreadRootId();
+
+            // Track accumulated response for output guardrails
+            final AtomicReference<StringBuilder> responseAccumulator = new AtomicReference<>(new StringBuilder());
+
+            // Start streaming
+            log.warning("[STREAM] Starting streaming for session: " + sessionId);
+            callback.onProgress("analyzing", "Processing your request...");
+
+            TokenStream stream = agent.chat(sessionId, processedMessage);
+            log.warning("[STREAM] TokenStream created, setting up handlers...");
+
+            stream
+                .onNext(token -> {
+                    // onNext is called for each token chunk
+                    log.warning("[STREAM] onNext: received token chunk, length=" + (token != null ? token.length() : 0));
+                    responseAccumulator.get().append(token);
+                    try {
+                        callback.onChunk(token);
+                    } catch (Exception e) {
+                        log.severe("[STREAM] Error in onChunk callback: " + e.getMessage());
+                        e.printStackTrace();
+                    }
+                })
+                .onComplete(response -> {
+                    log.warning("[STREAM] onComplete: streaming finished, response length=" +
+                        responseAccumulator.get().length());
+                    // Apply output guardrails on complete response
+                    if (guardrailsEnabled) {
+                        String fullResponse = responseAccumulator.get().toString();
+                        GuardResult outputResult = outputGuard.validate(fullResponse);
+                        if (outputResult.isBlocked()) {
+                            log.warning("Output blocked: " + outputResult.getBlockReason());
+                            // Note: Response already streamed, just log warning
+                        }
+                        if (outputResult.wasModified()) {
+                            log.warning("Output would have been masked: " + outputResult.getViolationType());
+                        }
+                    }
+                    try {
+                        callback.onComplete();
+                    } catch (Exception e) {
+                        log.severe("[STREAM] Error in onComplete callback: " + e.getMessage());
+                        e.printStackTrace();
+                    }
+                })
+                .onError(error -> {
+                    log.severe("[STREAM] onError: " + error.getClass().getName() + ": " + error.getMessage());
+                    error.printStackTrace();
+                    try {
+                        callback.onError(new Exception(error.getMessage(), error));
+                    } catch (Exception e) {
+                        log.severe("[STREAM] Error in onError callback: " + e.getMessage());
+                        e.printStackTrace();
+                    }
+                })
+                .start();
+
+            log.warning("[STREAM] TokenStream.start() called, streaming initiated");
+
+        } catch (Exception e) {
+            String errorMsg = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+            log.log(java.util.logging.Level.SEVERE, "ChatStreamingWithContext failed: " + errorMsg, e);
+            callback.onError(e);
+        }
+    }
+
+    /**
+     * Get or create a cached StreamingChatLanguageModel instance.
+     *
+     * @param provider MAIProvider configuration
+     * @return StreamingChatLanguageModel instance
+     */
+    private StreamingChatLanguageModel getOrCreateStreamingModel(MAIProvider provider) {
+        return streamingModelCache.computeIfAbsent(provider.getAIG_Provider_ID(),
+            id -> LangChain4jProviderFactory.createStreaming(provider, null, null));
     }
 
     /**
@@ -480,6 +722,7 @@ public class AIService {
     public void clearAllCaches() {
         agentCache.clear();
         memoryCache.clear();
+        streamingModelCache.clear();
         LangChain4jProviderFactory.clearCache();
         log.info("All caches cleared");
     }

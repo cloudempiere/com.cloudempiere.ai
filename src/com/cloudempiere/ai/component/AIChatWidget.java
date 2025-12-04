@@ -55,6 +55,7 @@ import com.cloudempiere.ai.model.MAIChat;
 import com.cloudempiere.ai.model.MAIChatEntry;
 import com.cloudempiere.ai.model.MAIProvider;
 import com.cloudempiere.ai.provider.dto.AIResponse;
+import com.cloudempiere.ai.provider.dto.AIStreamCallback;
 import com.cloudempiere.ai.provider.langchain4j.AIService;
 import com.cloudempiere.ai.provider.langchain4j.AIService.ChatResult;
 import com.cloudempiere.ai.service.AIConversationService;
@@ -114,10 +115,14 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 	private AIService langchainService;
 
 	/** Feature flag for service selection: "LANGCHAIN4J" or "LEGACY" */
-	private static final String SERVICE_MODE = System.getProperty("ai.chat.service", "LEGACY");
+	private static final String SERVICE_MODE = System.getProperty("ai.chat.service", "LEGACY"); // TODO: make configurable
 
 	/** Flag indicating if LangChain4j mode is enabled */
 	private final boolean useLangChain4j = "LANGCHAIN4J".equalsIgnoreCase(SERVICE_MODE);
+
+	/** Flag indicating if streaming mode is enabled (ADR-033) */
+	private static final String STREAMING_MODE = System.getProperty("ai.chat.streaming", "true");
+	private final boolean useStreaming = "true".equalsIgnoreCase(STREAMING_MODE);
 
 	/** Maximum messages to display (for performance) */
 	private static final int MAX_MESSAGES_DISPLAY = 100;
@@ -657,12 +662,247 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 	/**
 	 * Send message using LangChain4j service (new path).
 	 * Includes guardrails, metrics, and improved conversation memory.
+	 * Supports both streaming (ADR-033) and non-streaming modes.
 	 */
 	private void sendMessageLangChain4j(String message) {
 		final JSONObject contextSnapshot = currentContext;
 		final int threadRootIdSnapshot = currentThreadRootId;
 
 		Desktop desktop = Executions.getCurrent().getDesktop();
+
+		// Use streaming mode if enabled (ADR-033)
+		if (useStreaming) {
+			sendMessageLangChain4jStreaming(message, contextSnapshot, threadRootIdSnapshot, desktop);
+		} else {
+			sendMessageLangChain4jBatch(message, contextSnapshot, threadRootIdSnapshot, desktop);
+		}
+	}
+
+	/**
+	 * Send message using LangChain4j streaming mode (ADR-033).
+	 * Provides real-time token streaming with tool timeline visibility.
+	 */
+	private void sendMessageLangChain4jStreaming(String message, JSONObject contextSnapshot,
+			int threadRootIdSnapshot, Desktop desktop) {
+
+		log.warning("[UI-STREAM] ========================================");
+		log.warning("[UI-STREAM] sendMessageLangChain4jStreaming STARTED");
+		log.warning("[UI-STREAM] message: " + message.substring(0, Math.min(50, message.length())));
+		log.warning("[UI-STREAM] threadRootId: " + threadRootIdSnapshot);
+		log.warning("[UI-STREAM] desktop: " + (desktop != null ? desktop.getId() : "null"));
+		log.warning("[UI-STREAM] ========================================");
+
+		// Get MAIChat and provider
+		final MAIChat aiChat;
+		final MAIProvider provider;
+		try {
+			aiChat = (chat instanceof MAIChat) ?
+				(MAIChat) chat :
+				new MAIChat(sessionCtx, chat.getCM_Chat_ID(), null);
+
+			provider = MAIProvider.getDefault(sessionCtx, null);
+			if (provider == null) {
+				throw new Exception("No AI provider configured. Please configure an AI provider in the system.");
+			}
+		} catch (Exception e) {
+			log.log(Level.SEVERE, "Failed to initialize streaming", e);
+			handleErrorResponse(desktop, e, threadRootIdSnapshot);
+			return;
+		}
+
+		// Create streaming message component
+		final AIChatStreamingMessage streamingMsg = new AIChatStreamingMessage();
+
+		// Insert streaming message into UI (before loading indicator)
+		Executions.schedule(desktop, e -> {
+			// Add divider before message
+			if (messagesContainer.getChildren().size() > 1) {
+				Html divider = new Html();
+				divider.setContent("<div style='width: 100%; height: 0; border: 1px solid rgba(24, 29, 39, 0.12); margin: 0;'></div>");
+				messagesContainer.insertBefore(divider, loadingIndicator);
+			}
+
+			// Add AI message header
+			Div msgDiv = new Div();
+			msgDiv.setSclass("ai-message");
+			msgDiv.setStyle("display: flex; flex-direction: column; gap: 12px; padding: 12px 18px; background: transparent;");
+
+			// Header with logo
+			Html header = new Html();
+			String logoUrl = ThemeManager.THEME_PATH_PREFIX + ThemeManager.getTheme() + "/images/clde-logo-icon-vector.svg";
+			header.setContent(
+				"<div style='display: flex; align-items: center; gap: 8px; margin-bottom: 12px;'>" +
+				"<img src='" + Executions.encodeURL(logoUrl) + "' style='width: 18px; height: 18px;'/>" +
+				"<span style='font-family: Helvetica Neue; font-weight: 500; font-size: 12px; color: #181D27;'>AI Assistant</span>" +
+				"</div>"
+			);
+			msgDiv.appendChild(header);
+			msgDiv.appendChild(streamingMsg);
+			messagesContainer.insertBefore(msgDiv, loadingIndicator);
+
+			hideLoading();
+			scrollToBottom();
+		}, new Event("onStreamStart"));
+
+		// Build streaming callback with logging
+		log.warning("[UI-STREAM] Building streaming callback...");
+		AIStreamCallback callback = AIStreamCallback.builder()
+			.onChunk(chunk -> {
+				log.warning("[UI-STREAM] onChunk received, length=" + (chunk != null ? chunk.length() : 0));
+				try {
+					Executions.schedule(desktop, e -> {
+						streamingMsg.appendChunk(chunk);
+						scrollToBottom();
+					}, new Event("onChunk"));
+				} catch (Exception ex) {
+					log.severe("[UI-STREAM] Failed to schedule onChunk: " + ex.getMessage());
+					ex.printStackTrace();
+				}
+			})
+			.onToolStart((toolName, args) -> {
+				log.warning("[UI-STREAM] onToolStart: " + toolName);
+				try {
+					Executions.schedule(desktop, e -> {
+						streamingMsg.showToolStart(toolName, args);
+					}, new Event("onToolStart"));
+				} catch (Exception ex) {
+					log.severe("[UI-STREAM] Failed to schedule onToolStart: " + ex.getMessage());
+				}
+			})
+			.onToolComplete((toolName, result) -> {
+				log.warning("[UI-STREAM] onToolComplete: " + toolName);
+				try {
+					Executions.schedule(desktop, e -> {
+						streamingMsg.showToolComplete(toolName, result);
+					}, new Event("onToolComplete"));
+				} catch (Exception ex) {
+					log.severe("[UI-STREAM] Failed to schedule onToolComplete: " + ex.getMessage());
+				}
+			})
+			.onToolError((toolName, error) -> {
+				log.warning("[UI-STREAM] onToolError: " + toolName + " - " + error);
+				try {
+					Executions.schedule(desktop, e -> {
+						streamingMsg.showToolError(toolName, error);
+					}, new Event("onToolError"));
+				} catch (Exception ex) {
+					log.severe("[UI-STREAM] Failed to schedule onToolError: " + ex.getMessage());
+				}
+			})
+			.onThinking(thinkingChunk -> {
+				log.warning("[UI-STREAM] onThinking received");
+				try {
+					Executions.schedule(desktop, e -> {
+						streamingMsg.appendThinking(thinkingChunk);
+					}, new Event("onThinking"));
+				} catch (Exception ex) {
+					log.severe("[UI-STREAM] Failed to schedule onThinking: " + ex.getMessage());
+				}
+			})
+			.onThinkingComplete(() -> {
+				log.warning("[UI-STREAM] onThinkingComplete");
+				try {
+					Executions.schedule(desktop, e -> {
+						streamingMsg.completeThinking();
+					}, new Event("onThinkingComplete"));
+				} catch (Exception ex) {
+					log.severe("[UI-STREAM] Failed to schedule onThinkingComplete: " + ex.getMessage());
+				}
+			})
+			.onComplete(() -> {
+				log.warning("[UI-STREAM] onComplete - finalizing message");
+				try {
+					Executions.schedule(desktop, e -> {
+						log.warning("[UI-STREAM] Executing onComplete in UI thread");
+						// Finalize streaming message
+						streamingMsg.finalize();
+
+						// Save AI response to database
+						String response = streamingMsg.getContent();
+						log.warning("[UI-STREAM] Saving response, length=" + response.length());
+						MAIChatEntry aiEntry = MAIChatEntry.createAIResponse(aiChat, response);
+						if (threadRootIdSnapshot > 0) {
+							aiEntry.setCM_ChatEntryParent_ID(threadRootIdSnapshot);
+						}
+						aiEntry.saveEx();
+						aiChat.saveEx();
+
+						// Re-enable input
+						inputBox.setDisabled(false);
+						sendButton.setDisabled(false);
+						inputBox.focus();
+						scrollToBottom();
+						log.warning("[UI-STREAM] onComplete finished successfully");
+					}, new Event("onComplete"));
+				} catch (Exception ex) {
+					log.severe("[UI-STREAM] Failed to schedule onComplete: " + ex.getMessage());
+					ex.printStackTrace();
+				}
+			})
+			.onError(error -> {
+				log.severe("[UI-STREAM] onError: " + error.getMessage());
+				error.printStackTrace();
+				try {
+					Executions.schedule(desktop, e -> {
+						// Show error in streaming message
+						streamingMsg.appendChunk("\n\n**Error:** " + error.getMessage());
+						streamingMsg.finalize();
+
+						inputBox.setDisabled(false);
+						sendButton.setDisabled(false);
+					}, new Event("onError"));
+				} catch (Exception ex) {
+					log.severe("[UI-STREAM] Failed to schedule onError: " + ex.getMessage());
+				}
+			})
+			.onProgress((stage, detail) -> {
+				log.warning("[UI-STREAM] onProgress: " + stage + " - " + detail);
+			})
+			.build();
+		log.warning("[UI-STREAM] Streaming callback built successfully");
+
+		// Start streaming in background
+		log.warning("[UI-STREAM] Starting async streaming...");
+		log.warning("[UI-STREAM] langchainService: " + (langchainService != null ? "OK" : "NULL!"));
+		log.warning("[UI-STREAM] provider: " + (provider != null ? provider.getName() : "NULL!"));
+		log.warning("[UI-STREAM] aiChat: " + (aiChat != null ? aiChat.getCM_Chat_ID() : "NULL!"));
+
+		CompletableFuture.runAsync(() -> {
+			log.warning("[UI-STREAM] Async task started, calling chatStreamingWithContext...");
+			try {
+				if (langchainService == null) {
+					throw new IllegalStateException("langchainService is null!");
+				}
+				log.warning("[UI-STREAM] About to call langchainService.chatStreamingWithContext()");
+				langchainService.chatStreamingWithContext(
+					provider,
+					aiChat,
+					message,
+					contextSnapshot,
+					threadRootIdSnapshot,
+					callback
+				);
+				log.warning("[UI-STREAM] chatStreamingWithContext returned successfully");
+			} catch (Exception ex) {
+				log.severe("[UI-STREAM] Exception in chatStreamingWithContext: " + ex.getMessage());
+				ex.printStackTrace();
+				// Trigger error callback
+				callback.onError(ex);
+			} catch (Throwable t) {
+				log.severe("[UI-STREAM] THROWABLE in chatStreamingWithContext: " + t.getClass().getName() + ": " + t.getMessage());
+				t.printStackTrace();
+				callback.onError(new Exception("Unexpected error: " + t.getMessage(), t));
+			}
+		});
+	}
+
+	/**
+	 * Send message using LangChain4j batch mode (non-streaming).
+	 * Original implementation for backward compatibility.
+	 */
+	private void sendMessageLangChain4jBatch(String message, JSONObject contextSnapshot,
+			int threadRootIdSnapshot, Desktop desktop) {
+
 		CompletableFuture.runAsync(() -> {
 			try {
 				// Get MAIChat instance

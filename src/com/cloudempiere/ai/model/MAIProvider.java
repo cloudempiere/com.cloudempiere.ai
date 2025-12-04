@@ -63,16 +63,25 @@ public class MAIProvider extends X_AIG_Provider {
 	}
 
 	/**
-	 * Get default AI Provider for the current client
+	 * Get default AI Provider for the current client.
+	 *
+	 * <p>Priority order:
+	 * <ol>
+	 *   <li>Default provider for current tenant (IsDefault='Y' AND AD_Client_ID=current)</li>
+	 *   <li>Default system provider (IsDefault='Y' AND AD_Client_ID=0)</li>
+	 *   <li>Any active provider for current tenant</li>
+	 *   <li>Any active system provider (fallback)</li>
+	 * </ol>
 	 *
 	 * @param ctx Context
 	 * @param trxName Transaction name
-	 * @return First active provider or null
+	 * @return Default provider or null if none found
 	 */
 	public static MAIProvider getDefault(Properties ctx, String trxName) {
-		return new Query(ctx, Table_Name, "IsActive='Y'", trxName)
-			.setClient_ID()
-			.setOrderBy("AIG_Provider_ID")
+		// Order by IsDefault DESC (Y before N), then AD_Client_ID DESC (tenant before system)
+		return new Query(ctx, Table_Name, "AD_Client_ID IN (0,?) AND IsActive='Y'", trxName)
+			.setParameters(Env.getAD_Client_ID(ctx))
+			.setOrderBy("IsDefault DESC, AD_Client_ID DESC, AIG_Provider_ID")
 			.first();
 	}
 

@@ -38,9 +38,6 @@ import dev.langchain4j.data.message.SystemMessage;
 import dev.langchain4j.data.message.ToolExecutionResultMessage;
 import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.model.chat.ChatLanguageModel;
-import dev.langchain4j.model.chat.request.ChatRequest;
-import dev.langchain4j.model.chat.request.ChatRequestParameters;
-import dev.langchain4j.model.chat.response.ChatResponse;
 import dev.langchain4j.model.output.Response;
 import dev.langchain4j.model.output.TokenUsage;
 
@@ -88,14 +85,18 @@ public class IAIProviderChatModelAdapter implements ChatLanguageModel {
     }
 
     @Override
-    public ChatResponse chat(ChatRequest chatRequest) {
-        try {
-            // Convert LangChain4j request to IAIProvider request
-            AIRequest aiRequest = convertRequest(chatRequest);
+    public Response<AiMessage> generate(List<ChatMessage> messages) {
+        return generate(messages, (List<ToolSpecification>) null);
+    }
 
-            // Get tool specifications if any
-            List<ToolSpecification> toolSpecs = chatRequest.toolSpecifications();
-            List<AIFunction> functions = convertToolSpecs(toolSpecs);
+    @Override
+    public Response<AiMessage> generate(List<ChatMessage> messages, List<ToolSpecification> toolSpecifications) {
+        try {
+            // Convert LangChain4j messages to IAIProvider request
+            AIRequest aiRequest = convertMessages(messages);
+
+            // Convert tool specifications if any
+            List<AIFunction> functions = convertToolSpecs(toolSpecifications);
 
             // Execute through provider
             AIResponse aiResponse;
@@ -109,38 +110,12 @@ public class IAIProviderChatModelAdapter implements ChatLanguageModel {
             return convertResponse(aiResponse);
 
         } catch (AIProviderException e) {
-            log.log(Level.SEVERE, "Provider error in chat", e);
+            log.log(Level.SEVERE, "Provider error in generate", e);
             throw new RuntimeException("AI Provider error: " + e.getMessage(), e);
         }
     }
 
-    public Response<AiMessage> generate(List<ChatMessage> messages) {
-        ChatRequest request = ChatRequest.builder()
-            .messages(messages)
-            .build();
-
-        ChatResponse response = chat(request);
-        return Response.from(
-            response.aiMessage(),
-            response.tokenUsage(),
-            response.finishReason()
-        );
-    }
-
-    public Response<AiMessage> generate(List<ChatMessage> messages, List<ToolSpecification> toolSpecifications) {
-        ChatRequest request = ChatRequest.builder()
-            .messages(messages)
-            .toolSpecifications(toolSpecifications)
-            .build();
-
-        ChatResponse response = chat(request);
-        return Response.from(
-            response.aiMessage(),
-            response.tokenUsage(),
-            response.finishReason()
-        );
-    }
-
+    @Override
     public Response<AiMessage> generate(List<ChatMessage> messages, ToolSpecification toolSpecification) {
         List<ToolSpecification> specs = new ArrayList<>();
         if (toolSpecification != null) {
@@ -150,33 +125,17 @@ public class IAIProviderChatModelAdapter implements ChatLanguageModel {
     }
 
     /**
-     * Convert LangChain4j ChatRequest to IAIProvider AIRequest
+     * Convert LangChain4j messages to IAIProvider AIRequest
      */
-    private AIRequest convertRequest(ChatRequest chatRequest) {
+    private AIRequest convertMessages(List<ChatMessage> messages) {
         AIRequest aiRequest = new AIRequest();
 
-        // Set model if available from request parameters
-        ChatRequestParameters params = chatRequest.parameters();
-        if (params != null && params.modelName() != null) {
-            aiRequest.setModel(params.modelName());
-        }
-        // Note: Model version is typically set by the provider during initialization
-
         // Set max tokens
-        if (params != null && params.maxOutputTokens() != null) {
-            aiRequest.setMaxTokens(params.maxOutputTokens());
-        } else {
-            aiRequest.setMaxTokens(maxTokens);
-        }
-
-        // Set temperature
-        if (params != null && params.temperature() != null) {
-            aiRequest.setTemperature(params.temperature());
-        }
+        aiRequest.setMaxTokens(maxTokens);
 
         // Convert messages
         List<AIMessage> aiMessages = new ArrayList<>();
-        for (ChatMessage message : chatRequest.messages()) {
+        for (ChatMessage message : messages) {
             AIMessage aiMsg = convertMessage(message);
             if (aiMsg != null) {
                 // Handle system message separately
@@ -247,21 +206,18 @@ public class IAIProviderChatModelAdapter implements ChatLanguageModel {
     }
 
     /**
-     * Convert IAIProvider AIResponse to LangChain4j ChatResponse
+     * Convert IAIProvider AIResponse to LangChain4j Response
      */
-    private ChatResponse convertResponse(AIResponse aiResponse) {
-        // Build AiMessage
-        AiMessage.Builder aiMsgBuilder = AiMessage.builder();
-
-        // Set text content if present
-        if (aiResponse.getContent() != null && !aiResponse.getContent().isEmpty()) {
-            aiMsgBuilder.text(aiResponse.getContent());
-        }
+    private Response<AiMessage> convertResponse(AIResponse aiResponse) {
+        // Get text content
+        String text = aiResponse.getContent();
 
         // Convert function calls to tool execution requests
         List<AIFunctionCall> functionCalls = aiResponse.getFunctionCalls();
+        List<ToolExecutionRequest> toolRequests = null;
+
         if (functionCalls != null && !functionCalls.isEmpty()) {
-            List<ToolExecutionRequest> toolRequests = new ArrayList<>();
+            toolRequests = new ArrayList<>();
 
             for (AIFunctionCall call : functionCalls) {
                 ToolExecutionRequest request = ToolExecutionRequest.builder()
@@ -271,11 +227,17 @@ public class IAIProviderChatModelAdapter implements ChatLanguageModel {
                     .build();
                 toolRequests.add(request);
             }
-
-            aiMsgBuilder.toolExecutionRequests(toolRequests);
         }
 
-        AiMessage aiMessage = aiMsgBuilder.build();
+        // Build AiMessage using static factory methods (0.35.0 API)
+        AiMessage aiMessage;
+        if (toolRequests != null && !toolRequests.isEmpty()) {
+            aiMessage = AiMessage.from(text, toolRequests);
+        } else if (text != null && !text.isEmpty()) {
+            aiMessage = AiMessage.from(text);
+        } else {
+            aiMessage = AiMessage.from("");
+        }
 
         // Build token usage
         TokenUsage tokenUsage = null;
@@ -286,11 +248,8 @@ public class IAIProviderChatModelAdapter implements ChatLanguageModel {
             );
         }
 
-        // Build ChatResponse
-        return ChatResponse.builder()
-            .aiMessage(aiMessage)
-            .tokenUsage(tokenUsage)
-            .build();
+        // Return Response (0.35.0 API)
+        return Response.from(aiMessage, tokenUsage);
     }
 
     /**

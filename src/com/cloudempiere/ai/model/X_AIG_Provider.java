@@ -31,7 +31,7 @@ public class X_AIG_Provider extends PO implements I_AIG_Provider, I_Persistent
 	/**
 	 *
 	 */
-	private static final long serialVersionUID = 20251119L;
+	private static final long serialVersionUID = 20251203L;
 
     /** Standard Constructor */
     public X_AIG_Provider (Properties ctx, int AIG_Provider_ID, String trxName)
@@ -186,6 +186,29 @@ public class X_AIG_Provider extends PO implements I_AIG_Provider, I_Persistent
 	public String getAPIKey()
 	{
 		return (String)get_Value(COLUMNNAME_APIKey);
+	}
+
+	/** Set Default.
+		@param IsDefault Default value
+	*/
+	public void setIsDefault (boolean IsDefault)
+	{
+		set_Value (COLUMNNAME_IsDefault, Boolean.valueOf(IsDefault));
+	}
+
+	/** Get Default.
+		@return Default value
+	  */
+	public boolean isDefault()
+	{
+		Object oo = get_Value(COLUMNNAME_IsDefault);
+		if (oo != null) 
+		{
+			 if (oo instanceof Boolean) 
+				 return ((Boolean)oo).booleanValue(); 
+			return "Y".equals(oo);
+		}
+		return false;
 	}
 
 	/** Set Name.
