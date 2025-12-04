@@ -7,23 +7,82 @@ and this project adheres to [Conventional Commits](https://conventionalcommits.o
 
 ## [Unreleased]
 
-### Next: v0.14.0 - Chat Widget LangChain4j Migration (ADR-031)
+### Next: v0.15.0 - Streaming Enhancements & Stop Button
 
-**Focus:** Wire AIChatWidget to use LangChain4j infrastructure with guardrails and metrics.
-
-**Strategic Decision:** The Chat Widget is our primary AI implementation. All features (guardrails, metrics, RAG) will be integrated and tested through the chat widget before other use cases.
+**Focus:** Complete streaming UX with stop button and thinking timeline.
 
 **Planned:**
-- Wire AIChatWidget → AIService (replace legacy AIConversationService)
-- Integrate guardrails pipeline (CostGuard, InputGuard, OutputGuard) into chat flow
-- Integrate metrics (AIMetricsListener) into chat flow
-- Implement ThreadAwareChatMemory for thread-isolated conversations
-- Add feature flag `ai.chat.service=LANGCHAIN4J|LEGACY`
+- Add stop button to cancel streaming responses (ADR-031 requirement)
+- Enhance thinking timeline visualization
+- Add streaming progress indicators
+- Performance optimization for long responses
 
 **Deferred to v0.16.0+:**
 - ADR-017: Chart Executive Overview
 - ADR-018: Sales Opportunity Summary
 - ADR-011: Domain Agents
+
+---
+
+## [0.14.0] - 2025-12-04
+
+### Phase 14: Real-Time Chat Streaming (ADR-033, CLD-1606)
+
+This release implements real-time streaming for AI chat responses with tool execution timeline.
+
+#### Added
+
+- **AIChatStreamingMessage Component** (CLD-1606)
+  - Real-time token-by-token streaming display
+  - Tool execution timeline with status indicators (pending, running, completed, error)
+  - Thinking/reasoning section display
+  - Copy button with proper quote escaping
+  - Markdown rendering for streamed content
+
+- **ERPStreamingAgent** (CLD-1606)
+  - Streaming-aware agent for tool execution
+  - Integration with LangChain4j StreamingChatLanguageModel
+
+- **AIStreamCallback Builder Pattern** (CLD-1606)
+  - `onThinking(Consumer<String>)` - Thinking content callback
+  - `onToolStart(BiConsumer<String, String>)` - Tool execution start
+  - `onToolEnd(TriConsumer<String, String, String>)` - Tool execution end
+  - `onToken(Consumer<String>)` - Token streaming callback
+  - `onComplete(Consumer<AiMessage>)` - Completion callback
+  - `onError(Consumer<Throwable>)` - Error handling callback
+
+- **AIService Streaming Methods** (CLD-1606)
+  - `chatStreamingWithContext()` - Context-aware streaming chat
+  - `getOrCreateStreamingModel()` - Streaming model caching
+
+- **LangChain4jProviderFactory Streaming Support** (CLD-1628)
+  - `createAnthropicStreamingModel()` - Anthropic streaming model factory
+  - Streaming model instance caching
+
+- **Dependencies** (CLD-1628)
+  - Retrofit2 2.9.0 for LangChain4j Anthropic HTTP client
+  - converter-jackson and converter-gson for serialization
+  - Gson 2.10.1 as Retrofit dependency
+  - OkHttp-SSE for streaming SSE support
+
+- **Database Migrations** (CLD-1628)
+  - `202512032347_CLD-1628.sql` - PostgreSQL and Oracle migrations
+
+#### Changed
+
+- **AIChatWidget** (CLD-1606)
+  - Added `sendMessageLangChain4jStreaming()` method
+  - Integrated with AIService streaming infrastructure
+  - Real-time message updates during streaming
+
+#### Removed
+
+- Legacy test files with LangChain4j mocking issues
+  - AIServiceTest.java
+  - ERPToolsTest.java
+  - LangChain4jProviderFactoryTest.java
+  - AIContextProviderRegistryTest.java
+  - SecureDatabaseQueryExecutorTest.java
 
 ---
 
@@ -783,15 +842,16 @@ This release implements critical P1 infrastructure for production readiness.
 | 11 | v0.11.0 | 2025-12-03 | RAG Infrastructure & Domain Boundaries |
 | 12 | v0.12.0 | 2025-12-03 | Observability, Guardrails & Multi-Tenant Access |
 | 13 | v0.13.0 | 2025-12-03 | Naming Standards & Integration Wiring |
+| 14 | v0.14.0 | 2025-12-04 | Real-Time Chat Streaming |
 
 ## Upcoming Phases
 
 | Phase | Version | Target | Milestone |
 |-------|---------|--------|-----------|
-| 14 | v0.14.0 | Q1 2026 | RAG Completion & Structured Outputs |
-| 15 | v0.15.0 | Q1 2026 | Chart Executive Overview (First Business Case) |
-| 16 | v0.16.0 | Q1 2026 | Domain Agents (Inventory, Sales, Purchasing) |
-| 17 | v1.0.0 | Q2 2026 | Production Release |
+| 15 | v0.15.0 | Q1 2026 | Streaming Enhancements & Stop Button |
+| 16 | v0.16.0 | Q1 2026 | Chart Executive Overview (First Business Case) |
+| 17 | v0.17.0 | Q1 2026 | Domain Agents (Inventory, Sales, Purchasing) |
+| 18 | v1.0.0 | Q2 2026 | Production Release |
 
 ## iDempiere Compatibility
 

@@ -8,10 +8,10 @@ This document tracks features, implementation status, and version compatibility 
 
 ---
 
-## Current Version: v0.13.0
+## Current Version: v0.14.0
 
-**Status:** ✅ Naming Standards & Integration Wiring Complete
-**Next:** v0.14.0 - Chat Widget LangChain4j Migration (ADR-031)
+**Status:** ✅ Real-Time Chat Streaming Complete (ADR-033)
+**Next:** v0.15.0 - Streaming Enhancements & Stop Button
 
 **Strategic Focus:** The Chat Widget is our primary AI implementation. All features will be integrated and tested through the chat widget before other use cases (charts, reports, etc.).
 
@@ -21,7 +21,8 @@ This document tracks features, implementation status, and version compatibility 
 
 | Version | Date | Key Features | Focus Area |
 |---------|------|--------------|------------|
-| **0.13.0** | 2025-12-03 | **Naming Standards, Integration Wiring** | **Code Quality** |
+| **0.14.0** | 2025-12-04 | **Real-Time Chat Streaming** | **User Experience** |
+| 0.13.0 | 2025-12-03 | Naming Standards, Integration Wiring | Code Quality |
 | 0.12.0 | 2025-12-03 | Observability, Guardrails, Multi-Tenant | P1 Infrastructure |
 | 0.11.0 | 2025-12-03 | RAG Infrastructure & Domain Boundaries | Context & Security |
 | 0.10.0 | 2025-12-01 | Security Fixes & Migration Scripts | Security |
