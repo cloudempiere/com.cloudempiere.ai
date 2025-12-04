@@ -16,7 +16,6 @@ package com.cloudempiere.ai.component;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.compiere.util.Msg;
 import org.compiere.util.Util;
 import org.zkoss.zk.ui.event.Event;
 import org.zkoss.zk.ui.event.EventListener;
@@ -87,6 +86,9 @@ public class AIChatStreamingMessage extends Div {
 
     /** Whether streaming is complete */
     private boolean isComplete = false;
+
+    /** Whether request was cancelled by user */
+    private boolean isCancelled = false;
 
     /** Unique ID for JavaScript operations */
     private final String componentId;
@@ -240,6 +242,10 @@ public class AIChatStreamingMessage extends Div {
      * @param chunk text chunk to append
      */
     public void appendChunk(String chunk) {
+        // Ignore chunks if cancelled or already complete
+        if (isCancelled || isComplete) {
+            return;
+        }
         if (chunk == null || chunk.isEmpty()) {
             return;
         }
@@ -319,11 +325,17 @@ public class AIChatStreamingMessage extends Div {
     }
 
     /**
-     * Finalize the message when streaming completes.
+     * Complete the message when streaming finishes.
      *
      * <p>Removes streaming cursor, enables copy button, renders final markdown.
+     *
+     * <p><b>Note:</b> This method was renamed from finalize() to avoid conflict
+     * with Java's Object.finalize() which is called by the garbage collector.
      */
-    public void finalize() {
+    public void complete() {
+        if (isComplete) {
+            return; // Already completed
+        }
         isComplete = true;
         updateContentDisplay(); // Removes cursor
         enableCopyButton();
@@ -354,6 +366,44 @@ public class AIChatStreamingMessage extends Div {
      */
     public boolean isComplete() {
         return isComplete;
+    }
+
+    /**
+     * Check if request was cancelled.
+     *
+     * @return true if cancelled
+     */
+    public boolean isCancelled() {
+        return isCancelled;
+    }
+
+    /**
+     * Mark this streaming message as cancelled by user.
+     *
+     * <p>Appends "AI request cancelled" and stops accepting new chunks.
+     */
+    public void markCancelled() {
+        if (isCancelled || isComplete) {
+            return;
+        }
+        isCancelled = true;
+        isComplete = true;
+
+        // Update display to remove cursor and show termination notice on new line
+        String html = renderPartialMarkdown(content.toString());
+        String terminatedHtml = "<div style='margin-top: 12px; color: #888; font-style: italic;'>AI request cancelled</div>";
+        streamingContent.setContent("<div class='ai-markdown-content'>" + html + "</div>" + terminatedHtml);
+
+        // Update any running tools to show cancelled status
+        for (ToolEvent event : toolEvents) {
+            if (event.getStatus() == ToolStatus.RUNNING) {
+                event.setStatus(ToolStatus.ERROR);
+                event.setResult("Cancelled");
+            }
+        }
+        updateToolsDisplay();
+
+        // Don't show copy button for cancelled messages
     }
 
     // ============= Private UI Update Methods =============
@@ -483,28 +533,27 @@ public class AIChatStreamingMessage extends Div {
     private void enableCopyButton() {
         copyButton.setVisible(true);
 
-        // Escape content for JavaScript
-        String jsEscapedContent = content.toString()
-            .replace("\\", "\\\\")
-            .replace("'", "\\'")
-            .replace("\"", "\\\"")
-            .replace("\n", "\\n")
-            .replace("\r", "\\r");
-
-        String copyHtml = String.format(
-            "<div onclick=\"(function(btn){" +
-            "var orig=btn.innerHTML;" +
-            "navigator.clipboard.writeText('%s').then(function(){" +
-            "btn.innerHTML='<span style=\\'font-size: 10.5px; color: #4CAF50;\\'>Copied!</span>';" +
-            "setTimeout(function(){btn.innerHTML=orig;},2000);" +
-            "}).catch(function(err){console.error('Copy failed:',err);});" +
-            "})(this);\" " +
+        // Use script tag with proper escaping to avoid inline onclick issues
+        String copyHtml =
+            "<div id='copy_btn_" + componentId + "' " +
             "style='display: flex; align-items: center; gap: 6px; cursor: pointer;'>" +
             "<i class='z-icon-Copy' style='font-size: 12px; color: #717680;'></i>" +
             "<span style='font-size: 10.5px; color: #717680;'>Copy</span>" +
-            "</div>",
-            jsEscapedContent
-        );
+            "</div>" +
+            "<script>" +
+            "(function(){" +
+            "var btn=document.getElementById('copy_btn_" + componentId + "');" +
+            "if(!btn)return;" +
+            "btn.onclick=function(){" +
+            "var orig=this.innerHTML;" +
+            "var text=" + escapeForJavaScript(content.toString()) + ";" +
+            "navigator.clipboard.writeText(text).then(function(){" +
+            "btn.innerHTML='<span style=\"font-size:10.5px;color:#4CAF50;\">Copied!</span>';" +
+            "setTimeout(function(){btn.innerHTML=orig;},2000);" +
+            "}).catch(function(err){console.error('Copy failed:',err);});" +
+            "};" +
+            "})();" +
+            "</script>";
 
         copyButton.getChildren().clear();
         Html copyHtmlContent = new Html(copyHtml);
@@ -521,10 +570,28 @@ public class AIChatStreamingMessage extends Div {
             return "";
         }
 
+        // Remove hallucinated function call XML blocks (model without tools may generate these)
+        // Pattern matches <function_calls>...</function_calls> and <function_result>...</function_result>
+        String cleaned = text;
+        cleaned = cleaned.replaceAll("(?s)<function_calls>.*?</function_calls>", "");
+        cleaned = cleaned.replaceAll("(?s)<function_result>.*?</function_result>", "");
+        // Also remove incomplete/partial tags that may appear during streaming
+        cleaned = cleaned.replaceAll("(?s)<function_calls>.*$", "");
+        cleaned = cleaned.replaceAll("(?s)<function_result>.*$", "");
+        cleaned = cleaned.replaceAll("(?s)<invoke[^>]*>.*?</invoke>", "");
+        cleaned = cleaned.replaceAll("(?s)<parameter[^>]*>.*?</parameter>", "");
+
         // Basic HTML escaping
-        String escaped = Util.maskHTML(text, true);
+        String escaped = Util.maskHTML(cleaned, true);
 
         // Simple markdown transformations for streaming display
+
+        // Headings: # text, ## text, ### text (must be at start of line)
+        // Process headings before line breaks to preserve newline matching
+        escaped = escaped.replaceAll("(?m)^### (.+)$", "<h4 style='font-size: 14px; font-weight: 600; margin: 12px 0 8px 0;'>$1</h4>");
+        escaped = escaped.replaceAll("(?m)^## (.+)$", "<h3 style='font-size: 15px; font-weight: 600; margin: 14px 0 8px 0;'>$1</h3>");
+        escaped = escaped.replaceAll("(?m)^# (.+)$", "<h2 style='font-size: 16px; font-weight: 600; margin: 16px 0 10px 0;'>$1</h2>");
+
         // Bold: **text** or __text__
         escaped = escaped.replaceAll("\\*\\*(.+?)\\*\\*", "<strong>$1</strong>");
         escaped = escaped.replaceAll("__(.+?)__", "<strong>$1</strong>");
@@ -536,10 +603,42 @@ public class AIChatStreamingMessage extends Div {
         // Code: `text`
         escaped = escaped.replaceAll("`([^`]+)`", "<code style='background: #f5f5f5; padding: 2px 6px; border-radius: 3px; font-family: monospace; font-size: 0.9em;'>$1</code>");
 
-        // Line breaks
+        // Lists: - item or * item (basic support)
+        escaped = escaped.replaceAll("(?m)^- (.+)$", "<li style='margin-left: 16px; list-style-type: disc;'>$1</li>");
+        escaped = escaped.replaceAll("(?m)^\\* (.+)$", "<li style='margin-left: 16px; list-style-type: disc;'>$1</li>");
+
+        // Line breaks (after all other line-based processing)
         escaped = escaped.replace("\n", "<br/>");
 
+        // Clean up extra <br/> after block elements
+        escaped = escaped.replaceAll("</h2><br/>", "</h2>");
+        escaped = escaped.replaceAll("</h3><br/>", "</h3>");
+        escaped = escaped.replaceAll("</h4><br/>", "</h4>");
+        escaped = escaped.replaceAll("</li><br/>", "</li>");
+
         return escaped;
+    }
+
+    /**
+     * Escape a string for use in JavaScript, returning a quoted string literal.
+     *
+     * @param text the text to escape
+     * @return a JavaScript string literal (including quotes)
+     */
+    private String escapeForJavaScript(String text) {
+        if (text == null) {
+            return "''";
+        }
+        // Use JSON-style escaping which is safe for JavaScript
+        String escaped = text
+            .replace("\\", "\\\\")
+            .replace("'", "\\'")
+            .replace("\"", "\\\"")
+            .replace("\n", "\\n")
+            .replace("\r", "\\r")
+            .replace("\t", "\\t")
+            .replace("</script>", "<\\/script>");
+        return "'" + escaped + "'";
     }
 
     /**

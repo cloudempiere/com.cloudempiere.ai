@@ -87,6 +87,21 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 	/** Send button */
 	private Button sendButton;
 
+	/** Stop button (cancels in-progress AI request) */
+	private Button stopButton;
+
+	/** Current async request (for cancellation) */
+	private volatile CompletableFuture<?> currentRequest;
+
+	/** Flag indicating if the current request was cancelled */
+	private volatile boolean requestCancelled = false;
+
+	/** Flag indicating if streaming is in progress */
+	private volatile boolean streamingInProgress = false;
+
+	/** Current streaming message component (for cancellation) */
+	private volatile AIChatStreamingMessage currentStreamingMessage;
+
 	/** Clear chat button */
 	private Button clearButton;
 
@@ -261,7 +276,11 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 		inputBox.setMultiline(false);
 		inputBox.setStyle("border: 1px solid rgba(122, 128, 140, 0.32); border-radius: 22px; padding: 12px 18px; " +
 			"font-size: 12px; line-height: 18px; color: #717680; background: #FFFFFF;");
-		inputBox.addEventListener(Events.ON_OK, this); // Enter key
+		inputBox.addEventListener(Events.ON_OK, this); // Enter key to send
+
+		// Button container - holds send/stop buttons in same position
+		Div buttonContainer = new Div();
+		buttonContainer.setStyle("position: relative; width: 42px; height: 42px;");
 
 		sendButton = new Button();
 		sendButton.addEventListener(Events.ON_CLICK, this);
@@ -270,8 +289,23 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 			sendButton.setIconSclass("z-icon-Send-White");
 		else
 			sendButton.setImage(ThemeManager.getThemeResource("images/Send-White.png"));
-		sendButton.setStyle("width: 42px; height: 42px; background: #181D27; border-radius: 100px; " +
+		sendButton.setStyle("position: absolute; top: 0; left: 0; width: 42px; height: 42px; background: #181D27; border-radius: 100px; " +
 			"display: flex; align-items: center; justify-content: center; border: none; cursor: pointer;");
+
+		// Stop button (hidden by default, shown during AI processing)
+		stopButton = new Button();
+		stopButton.addEventListener(Events.ON_CLICK, this);
+		stopButton.setSclass("ai-stop-btn");
+		if (ThemeManager.isUseFontIconForImage())
+			stopButton.setIconSclass("z-icon-Square-White");
+		else
+			stopButton.setImage(ThemeManager.getThemeResource("images/Cancel24.png"));
+		stopButton.setStyle("position: absolute; top: 0; left: 0; width: 42px; height: 42px; background: #D32F2F; border-radius: 100px; " +
+			"display: none; align-items: center; justify-content: center; border: none; cursor: pointer;");
+		stopButton.setTooltiptext(Msg.getMsg(Env.getCtx(), "Stop"));
+
+		buttonContainer.appendChild(sendButton);
+		buttonContainer.appendChild(stopButton);
 
 		clearButton = new Button(Msg.getMsg(Env.getCtx(), "ClearChat"));
 		clearButton.addEventListener(Events.ON_CLICK, this);
@@ -279,7 +313,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 		clearButton.setTooltiptext(Msg.getMsg(Env.getCtx(), "ClearChat"));
 
 		inputArea.appendChild(inputBox);
-		inputArea.appendChild(sendButton);
+		inputArea.appendChild(buttonContainer);
 //		inputArea.appendChild(clearButton); // the clear chat button is disabled for now
 		appendChild(inputArea);
 
@@ -565,6 +599,11 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 		if (event.getTarget() == sendButton ||
 			(event.getTarget() == inputBox && event.getName().equals(Events.ON_OK))) {
 			sendMessage();
+		} else if (event.getTarget() == stopButton) {
+			// Stop button click - cancel if streaming is in progress
+			if (streamingInProgress) {
+				cancelCurrentRequest();
+			}
 		} else if (event.getTarget() == clearButton) {
 			clearChat();
 		} else if (event.getTarget() == newThreadButton) {
@@ -574,6 +613,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 		} else if (event.getName().equals(ON_ZOOM)) {
 			handleZoomEvent(event);
 		}
+		// TODO: Add ESC key shortcut to cancel streaming (requires ZK keyboard handling research)
 	}
 
 	/**
@@ -692,6 +732,11 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 		log.warning("[UI-STREAM] desktop: " + (desktop != null ? desktop.getId() : "null"));
 		log.warning("[UI-STREAM] ========================================");
 
+		// Reset cancellation state, mark streaming as in progress, and show stop button
+		requestCancelled = false;
+		streamingInProgress = true;
+		showStopButton();
+
 		// Get MAIChat and provider
 		final MAIChat aiChat;
 		final MAIProvider provider;
@@ -706,12 +751,15 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 			}
 		} catch (Exception e) {
 			log.log(Level.SEVERE, "Failed to initialize streaming", e);
+			streamingInProgress = false;
+			showSendButton();
 			handleErrorResponse(desktop, e, threadRootIdSnapshot);
 			return;
 		}
 
-		// Create streaming message component
+		// Create streaming message component and store reference for cancellation
 		final AIChatStreamingMessage streamingMsg = new AIChatStreamingMessage();
+		currentStreamingMessage = streamingMsg;
 
 		// Insert streaming message into UI (before loading indicator)
 		Executions.schedule(desktop, e -> {
@@ -748,6 +796,10 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 		log.warning("[UI-STREAM] Building streaming callback...");
 		AIStreamCallback callback = AIStreamCallback.builder()
 			.onChunk(chunk -> {
+				// Skip if request was cancelled
+				if (requestCancelled) {
+					return;
+				}
 				log.warning("[UI-STREAM] onChunk received, length=" + (chunk != null ? chunk.length() : 0));
 				try {
 					Executions.schedule(desktop, e -> {
@@ -760,6 +812,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 				}
 			})
 			.onToolStart((toolName, args) -> {
+				if (requestCancelled) return;
 				log.warning("[UI-STREAM] onToolStart: " + toolName);
 				try {
 					Executions.schedule(desktop, e -> {
@@ -770,6 +823,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 				}
 			})
 			.onToolComplete((toolName, result) -> {
+				if (requestCancelled) return;
 				log.warning("[UI-STREAM] onToolComplete: " + toolName);
 				try {
 					Executions.schedule(desktop, e -> {
@@ -780,6 +834,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 				}
 			})
 			.onToolError((toolName, error) -> {
+				if (requestCancelled) return;
 				log.warning("[UI-STREAM] onToolError: " + toolName + " - " + error);
 				try {
 					Executions.schedule(desktop, e -> {
@@ -790,6 +845,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 				}
 			})
 			.onThinking(thinkingChunk -> {
+				if (requestCancelled) return;
 				log.warning("[UI-STREAM] onThinking received");
 				try {
 					Executions.schedule(desktop, e -> {
@@ -800,6 +856,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 				}
 			})
 			.onThinkingComplete(() -> {
+				if (requestCancelled) return;
 				log.warning("[UI-STREAM] onThinkingComplete");
 				try {
 					Executions.schedule(desktop, e -> {
@@ -814,8 +871,15 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 				try {
 					Executions.schedule(desktop, e -> {
 						log.warning("[UI-STREAM] Executing onComplete in UI thread");
+
+						// Skip if request was cancelled
+						if (requestCancelled) {
+							log.warning("[UI-STREAM] Request was cancelled, skipping onComplete");
+							return;
+						}
+
 						// Finalize streaming message
-						streamingMsg.finalize();
+						streamingMsg.complete();
 
 						// Save AI response to database
 						String response = streamingMsg.getContent();
@@ -827,7 +891,10 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 						aiEntry.saveEx();
 						aiChat.saveEx();
 
-						// Re-enable input
+						// Re-enable input and show send button
+						streamingInProgress = false;
+						showSendButton();
+						currentStreamingMessage = null;
 						inputBox.setDisabled(false);
 						sendButton.setDisabled(false);
 						inputBox.focus();
@@ -843,11 +910,27 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 				log.severe("[UI-STREAM] onError: " + error.getMessage());
 				error.printStackTrace();
 				try {
-					Executions.schedule(desktop, e -> {
-						// Show error in streaming message
-						streamingMsg.appendChunk("\n\n**Error:** " + error.getMessage());
-						streamingMsg.finalize();
+					// Parse user-friendly error message
+					final String userFriendlyError = parseErrorMessage(error);
 
+					Executions.schedule(desktop, e -> {
+						// Skip if request was cancelled (cancellation triggers error callback)
+						if (requestCancelled) {
+							log.warning("[UI-STREAM] Request was cancelled, skipping onError");
+							return;
+						}
+
+						// Show user-friendly error in streaming message
+						streamingMsg.appendChunk("\n\n**Error:** " + userFriendlyError);
+						streamingMsg.complete();
+
+						// Persist partial response with error to database
+						persistErrorResponse(streamingMsg.getContent(), userFriendlyError, threadRootIdSnapshot);
+
+						// Re-enable input and show send button
+						streamingInProgress = false;
+						showSendButton();
+						currentStreamingMessage = null;
 						inputBox.setDisabled(false);
 						sendButton.setDisabled(false);
 					}, new Event("onError"));
@@ -861,13 +944,13 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 			.build();
 		log.warning("[UI-STREAM] Streaming callback built successfully");
 
-		// Start streaming in background
+		// Start streaming in background and store reference for cancellation
 		log.warning("[UI-STREAM] Starting async streaming...");
 		log.warning("[UI-STREAM] langchainService: " + (langchainService != null ? "OK" : "NULL!"));
 		log.warning("[UI-STREAM] provider: " + (provider != null ? provider.getName() : "NULL!"));
 		log.warning("[UI-STREAM] aiChat: " + (aiChat != null ? aiChat.getCM_Chat_ID() : "NULL!"));
 
-		CompletableFuture.runAsync(() -> {
+		currentRequest = CompletableFuture.runAsync(() -> {
 			log.warning("[UI-STREAM] Async task started, calling chatStreamingWithContext...");
 			try {
 				if (langchainService == null) {
@@ -1560,5 +1643,237 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 		sb.append("</script>");
 
 		return sb.toString();
+	}
+
+	// ========================================================================
+	// Stop Button / Request Cancellation (ADR-031)
+	// ========================================================================
+
+	/**
+	 * Show the stop button and hide the send button.
+	 * Called when AI processing starts.
+	 */
+	private void showStopButton() {
+		sendButton.setStyle(sendButton.getStyle().replace("display: flex", "display: none"));
+		stopButton.setStyle(stopButton.getStyle().replace("display: none", "display: flex"));
+	}
+
+	/**
+	 * Show the send button and hide the stop button.
+	 * Called when AI processing completes or is cancelled.
+	 */
+	private void showSendButton() {
+		stopButton.setStyle(stopButton.getStyle().replace("display: flex", "display: none"));
+		sendButton.setStyle(sendButton.getStyle().replace("display: none", "display: flex"));
+	}
+
+	/**
+	 * Cancel the current AI request.
+	 * Called when stop button is clicked.
+	 */
+	private void cancelCurrentRequest() {
+		log.info("[CANCEL] Cancel request initiated, streamingInProgress=" + streamingInProgress);
+		requestCancelled = true;
+		streamingInProgress = false;
+
+		// Cancel the CompletableFuture if running (may not help much since streaming is async)
+		if (currentRequest != null && !currentRequest.isDone()) {
+			currentRequest.cancel(true);
+			log.info("[CANCEL] CompletableFuture cancelled");
+		}
+
+		// Mark streaming message as cancelled and persist partial response
+		if (currentStreamingMessage != null) {
+			currentStreamingMessage.markCancelled();
+			log.info("[CANCEL] Streaming message marked as cancelled");
+
+			// Persist partial response to database
+			persistCancelledResponse();
+		}
+
+		// Reset UI state
+		hideLoading();
+		showSendButton();
+		sendButton.setDisabled(false);
+		inputBox.setDisabled(false);
+		inputBox.focus();
+		currentStreamingMessage = null;
+	}
+
+	/**
+	 * Parse error message to extract user-friendly text from API errors.
+	 * Handles JSON error responses from Anthropic and other providers.
+	 *
+	 * @param error the exception to parse
+	 * @return user-friendly error message
+	 */
+	private String parseErrorMessage(Throwable error) {
+		String message = error.getMessage();
+		if (message == null) {
+			return "An unexpected error occurred";
+		}
+
+		// Try to parse JSON error response
+		if (message.contains("{") && message.contains("}")) {
+			try {
+				JSONObject json = new JSONObject(message);
+
+				// Anthropic error format: {"type":"error","error":{"message":"..."}}
+				if (json.has("error")) {
+					Object errorObj = json.get("error");
+					if (errorObj instanceof JSONObject) {
+						JSONObject errorJson = (JSONObject) errorObj;
+						String errorMessage = errorJson.optString("message", null);
+						if (errorMessage != null && !errorMessage.isEmpty()) {
+							return formatKnownError(errorMessage);
+						}
+					}
+				}
+
+				// Generic error format: {"message":"..."}
+				String errorMessage = json.optString("message", null);
+				if (errorMessage != null && !errorMessage.isEmpty()) {
+					return formatKnownError(errorMessage);
+				}
+			} catch (Exception e) {
+				// JSON parsing failed, fall through to raw message handling
+				log.fine("Failed to parse error JSON: " + e.getMessage());
+			}
+		}
+
+		// Return cleaned up message for common error patterns
+		return formatKnownError(message);
+	}
+
+	/**
+	 * Format known error messages to be more user-friendly.
+	 *
+	 * @param message the error message
+	 * @return formatted user-friendly message
+	 */
+	private String formatKnownError(String message) {
+		// Content filtering
+		if (message.contains("blocked by content filtering")) {
+			return "The response was blocked by content safety filters. Please try rephrasing your question.";
+		}
+
+		// Rate limiting
+		if (message.contains("rate_limit") || message.contains("rate limit")) {
+			return "Too many requests. Please wait a moment and try again.";
+		}
+
+		// Authentication
+		if (message.contains("authentication") || message.contains("api_key") || message.contains("unauthorized")) {
+			return "Authentication error. Please check the AI provider configuration.";
+		}
+
+		// Timeout
+		if (message.contains("timeout") || message.contains("timed out")) {
+			return "The request timed out. Please try again.";
+		}
+
+		// Context length
+		if (message.contains("context_length") || message.contains("too long") || message.contains("max_tokens")) {
+			return "The conversation is too long. Please start a new thread.";
+		}
+
+		// Server errors
+		if (message.contains("internal_error") || message.contains("server_error") || message.contains("500")) {
+			return "The AI service is temporarily unavailable. Please try again later.";
+		}
+
+		// Return the original message if no known pattern matches
+		// Truncate if too long
+		if (message.length() > 200) {
+			return message.substring(0, 197) + "...";
+		}
+		return message;
+	}
+
+	/**
+	 * Persist the cancelled/partial AI response to the database.
+	 * Called when user cancels a streaming request.
+	 */
+	private void persistCancelledResponse() {
+		if (currentStreamingMessage == null) {
+			return;
+		}
+
+		try {
+			// Get the partial content (may be empty if cancelled immediately)
+			String partialContent = currentStreamingMessage.getContent();
+			if (partialContent == null) {
+				partialContent = "";
+			}
+
+			// Append cancellation notice to persisted content
+			String persistedContent = partialContent.isEmpty()
+				? "_AI request cancelled_"
+				: partialContent + "\n\n_AI request cancelled_";
+
+			// Get MAIChat instance
+			MAIChat aiChat = (chat instanceof MAIChat) ?
+				(MAIChat) chat :
+				new MAIChat(sessionCtx, chat.getCM_Chat_ID(), null);
+
+			// Create AI chat entry with partial response
+			MAIChatEntry aiEntry = MAIChatEntry.createAIResponse(aiChat, persistedContent);
+
+			// Set thread parent if applicable
+			if (currentThreadRootId > 0) {
+				aiEntry.setCM_ChatEntryParent_ID(currentThreadRootId);
+			}
+
+			aiEntry.saveEx();
+			aiChat.saveEx();
+
+			log.info("[CANCEL] Partial response persisted, length=" + partialContent.length());
+		} catch (Exception e) {
+			log.log(Level.WARNING, "Failed to persist cancelled response", e);
+		}
+	}
+
+	/**
+	 * Persist the error AI response to the database.
+	 * Called when streaming encounters an error.
+	 *
+	 * @param partialContent the partial content received before the error
+	 * @param errorMessage the user-friendly error message
+	 * @param threadRootId the thread root ID for proper threading
+	 */
+	private void persistErrorResponse(String partialContent, String errorMessage, int threadRootId) {
+		try {
+			// Build content with error appended
+			String content = partialContent;
+			if (content == null) {
+				content = "";
+			}
+
+			// The error is already appended to partialContent via appendChunk,
+			// so we just need to persist it as-is
+			if (content.isEmpty()) {
+				content = "**Error:** " + errorMessage;
+			}
+
+			// Get MAIChat instance
+			MAIChat aiChat = (chat instanceof MAIChat) ?
+				(MAIChat) chat :
+				new MAIChat(sessionCtx, chat.getCM_Chat_ID(), null);
+
+			// Create AI chat entry with error response
+			MAIChatEntry aiEntry = MAIChatEntry.createAIResponse(aiChat, content);
+
+			// Set thread parent if applicable
+			if (threadRootId > 0) {
+				aiEntry.setCM_ChatEntryParent_ID(threadRootId);
+			}
+
+			aiEntry.saveEx();
+			aiChat.saveEx();
+
+			log.info("[ERROR] Error response persisted, length=" + content.length());
+		} catch (Exception e) {
+			log.log(Level.WARNING, "Failed to persist error response", e);
+		}
 	}
 }

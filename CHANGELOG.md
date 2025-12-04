@@ -7,20 +7,60 @@ and this project adheres to [Conventional Commits](https://conventionalcommits.o
 
 ## [Unreleased]
 
-### Next: v0.15.0 - Streaming Enhancements & Stop Button
+### Next: v0.16.0 - Chat Ownership & Sharing (ADR-036)
 
-**Focus:** Complete streaming UX with stop button and thinking timeline.
+**Focus:** Multi-user chat ownership and role-based access control.
 
 **Planned:**
-- Add stop button to cancel streaming responses (ADR-031 requirement)
-- Enhance thinking timeline visualization
-- Add streaming progress indicators
-- Performance optimization for long responses
+- Chat ownership model (AIG_ChatOwnership table)
+- Role-based chat access (Owner, Editor, Viewer)
+- Chat sharing functionality
+- Ownership transfer capability
 
-**Deferred to v0.16.0+:**
+**Deferred to v0.17.0+:**
+- ESC key shortcut to cancel streaming (requires ZK keyboard handling)
+- Upgrade LangChain4j to v1.8.0+ for proper HTTP cancellation
 - ADR-017: Chart Executive Overview
 - ADR-018: Sales Opportunity Summary
 - ADR-011: Domain Agents
+
+---
+
+## [0.15.0] - 2025-12-04
+
+### Phase 15: Stop Button & Error Handling (ADR-031, CLD-1606)
+
+This release adds the ability to cancel in-progress AI streaming requests and improves error handling.
+
+#### Added
+
+- **Stop Button** (ADR-031)
+  - Red stop button replaces send button during AI processing
+  - Cancel streaming requests in progress
+  - Partial responses are persisted with "AI request cancelled" notice
+  - Uses `z-icon-Square-White` icon
+
+- **User-Friendly Error Messages**
+  - Parse JSON error responses from Anthropic API
+  - Friendly messages for: content filtering, rate limits, auth errors, timeouts
+  - Error responses persisted to chat entry table
+
+- **Cancellation Infrastructure**
+  - `streamingInProgress` flag for reliable cancellation detection
+  - `requestCancelled` flag checked in all streaming callbacks
+  - `markCancelled()` method on AIChatStreamingMessage
+  - Renamed `finalize()` to `complete()` to avoid Java GC conflict
+
+#### Fixed
+
+- Send button stays enabled after cancellation
+- Error responses now persist to database (visible after logout/login)
+- Streaming message ignores chunks after cancellation
+
+#### Known Limitations
+
+- ESC key shortcut not yet implemented (TODO for v0.16.0)
+- HTTP connection not actually closed on cancel (requires LangChain4j v1.8.0+)
 
 ---
 
