@@ -349,18 +349,38 @@ public ChatAccess resolveAccess(Properties ctx, MChat chat) {
 
 #### Phase 2: UI Integration (v0.6.0)
 
-1. **Share button in AIChatWidget**
-2. **User/role picker dialog**
-3. **Access indicator (read-only badge)**
-4. **"Shared with me" chat list**
+1. ~~**Share button in AIChatWidget**~~ → **Deferred to Phase 3** (see notes below)
+2. ~~**User/role picker dialog**~~ → **Deferred to Phase 3**
+3. ✅ **Access indicator (read-only badge)** - Implemented
+4. ✅ **"Shared with me" chat list** - Implemented
+
+**Implementation Notes (v0.5.0):**
+- Access checks integrated into `AIChatWidget.loadOrCreateChat()` and `sendMessage()`
+- Read-only badge shows when user has READ access
+- Input disabled for users without WRITE access
+- Thread selector shows "Shared with me" section with access icons (📖 read, ✏️ write)
+- Shared chat switching via `switchToSharedChat()` method
+
+**Future Feature: Share Button (v0.7.0)**
+
+The Share Button is planned for Phase 3. It will:
+- Only be visible to chat owners (OWNER access)
+- Open a modal dialog with user/role picker
+- Allow granting READ or WRITE access
+- Display current sharing info with revoke option
+- Call existing `ChatAccessService.shareWithUser()` and `shareWithRole()` methods
+
+The backend service methods are already implemented and ready for UI integration.
 
 #### Phase 3: Advanced Features (v0.7.0)
 
-1. **Time-bound sharing** (ValidFrom/ValidTo)
-2. **Transfer ownership**
-3. **Revoke sharing**
-4. **Sharing notifications**
-5. **Audit log viewer**
+1. **Share button in AIChatWidget** (deferred from Phase 2)
+2. **User/role picker dialog** (deferred from Phase 2)
+3. **Time-bound sharing** (ValidFrom/ValidTo)
+4. **Transfer ownership**
+5. **Revoke sharing**
+6. **Sharing notifications**
+7. **Audit log viewer**
 
 ### Migration for Existing Chats
 
