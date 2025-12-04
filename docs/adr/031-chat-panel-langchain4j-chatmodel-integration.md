@@ -84,6 +84,8 @@ The decision will be confirmed when:
 - [ ] Multi-thread conversations work correctly
 - [ ] Cost/token tracking functions via listeners
 - [ ] AIConversationService marked @Deprecated
+- [ ] Stop button implemented for request cancellation
+- [ ] Streaming cancellation works correctly
 
 ## Pros and Cons of the Options
 
@@ -238,7 +240,134 @@ String content = aiService.sendMessage(
     sessionCtx, chat, userMessage, contextData, threadRootId, null);
 ```
 
-#### 4. Streaming Integration
+#### 4. Stop Button for Request Cancellation
+
+The chat panel currently lacks a stop button to cancel in-progress AI requests. This is a critical UX requirement for long-running requests.
+
+**Current State:**
+- Send button is disabled during processing
+- Loading indicator shows "AI is thinking..."
+- No way to cancel/abort the request
+- User must wait for completion or error timeout
+
+**Required Implementation:**
+
+```java
+// New fields in AIChatWidget
+private Button stopButton;
+private volatile CompletableFuture<?> currentRequest;
+private volatile boolean requestCancelled = false;
+
+// Stop button initialization (in init() method)
+stopButton = new Button();
+stopButton.addEventListener(Events.ON_CLICK, this);
+stopButton.setSclass("ai-stop-btn");
+if (ThemeManager.isUseFontIconForImage())
+    stopButton.setIconSclass("z-icon-Stop");
+else
+    stopButton.setImage(ThemeManager.getThemeResource("images/Stop.png"));
+stopButton.setStyle("width: 42px; height: 42px; background: #D32F2F; border-radius: 100px; " +
+    "display: none; align-items: center; justify-content: center; border: none; cursor: pointer;");
+stopButton.setTooltiptext(Msg.getMsg(Env.getCtx(), "Stop"));
+
+// Add to input area (after send button)
+inputArea.appendChild(stopButton);
+
+// Toggle button visibility
+private void showStopButton() {
+    sendButton.setStyle(sendButton.getStyle().replace("display: flex", "display: none"));
+    stopButton.setStyle(stopButton.getStyle().replace("display: none", "display: flex"));
+}
+
+private void showSendButton() {
+    stopButton.setStyle(stopButton.getStyle().replace("display: flex", "display: none"));
+    sendButton.setStyle(sendButton.getStyle().replace("display: none", "display: flex"));
+}
+
+// Stop button handler (in onEvent method)
+else if (event.getTarget() == stopButton) {
+    cancelCurrentRequest();
+}
+
+// Cancel implementation
+private void cancelCurrentRequest() {
+    requestCancelled = true;
+    if (currentRequest != null && !currentRequest.isDone()) {
+        currentRequest.cancel(true);
+    }
+    hideLoading();
+    showSendButton();
+    inputBox.setDisabled(false);
+
+    // Show cancellation message
+    Clients.showNotification(
+        Msg.getMsg(Env.getCtx(), "AIRequestCancelled"),
+        "info", this, null, 2000);
+}
+
+// Modify sendMessage to track the future
+public void sendMessage() {
+    // ... existing code ...
+    requestCancelled = false;
+    showStopButton();
+
+    currentRequest = CompletableFuture.runAsync(() -> {
+        // Check cancellation at key points
+        if (requestCancelled) return;
+
+        // ... AI call ...
+
+        if (requestCancelled) return;
+
+        // ... process response ...
+    });
+}
+```
+
+**Streaming Cancellation (for LangChain4j):**
+
+```java
+// For streaming responses, use TokenStream's cancel capability
+private volatile TokenStream currentStream;
+
+TokenStream stream = agent.chat(sessionId, message);
+currentStream = stream;
+
+stream.onPartialResponse(token -> {
+    if (requestCancelled) {
+        currentStream.cancel();  // Stop the stream
+        return;
+    }
+    Executions.schedule(desktop, e -> appendToken(token), new Event("onToken"));
+})
+.onComplete(response -> {
+    if (!requestCancelled) {
+        Executions.schedule(desktop, e -> finalizeMessage(), new Event("onComplete"));
+    }
+    showSendButton();
+})
+.onError(error -> {
+    if (!requestCancelled) {
+        Executions.schedule(desktop, e -> showError(error), new Event("onError"));
+    }
+    showSendButton();
+})
+.start();
+```
+
+**Migration Phase Addition:**
+
+| Phase | Action | Files Affected |
+|-------|--------|----------------|
+| 4a | Add stop button UI | MODIFY: component/AIChatWidget.java |
+| 4b | Implement request cancellation | MODIFY: component/AIChatWidget.java |
+| 4c | Add streaming cancellation | MODIFY: component/AIChatWidget.java |
+
+**New Messages Required:**
+- `AIRequestCancelled` = "AI request cancelled"
+- `Stop` = "Stop" (tooltip)
+
+#### 5. Streaming Integration
 
 For streaming responses, use `StreamingChatLanguageModel`:
 
@@ -294,7 +423,7 @@ ChatLanguageModel model = AnthropicChatModel.builder()
 ┌────────────────────────────────────────────────────────────────────────────┐
 │                             AIChatWidget (ZK UI)                           │
 │  ┌─────────────┐  ┌───────────────┐  ┌──────────────┐  ┌──────────────┐   │
-│  │Thread Select│  │ Messages      │  │ Input Box    │  │ Send Button  │   │
+│  │Thread Select│  │ Messages      │  │ Input Box    │  │Send/Stop Btn │   │
 │  └─────────────┘  └───────────────┘  └──────────────┘  └──────────────┘   │
 └────────────────────────────────────────────────────────────────────────────┘
                                     │
@@ -345,6 +474,8 @@ ChatLanguageModel model = AnthropicChatModel.builder()
 | Error Handling | AIResponse.getErrorMessage() | Exception + Listener | Migrated |
 | Message Persistence | MAIChatEntry | MAIChatEntry (unchanged) | Retained |
 | Context Injection | contextData parameter | Memory injection | Migrated |
+| Stop/Cancel Request | Not implemented | stopButton + CompletableFuture.cancel() | New |
+| Streaming Cancellation | Not implemented | TokenStream.cancel() | New |
 
 ### Related ADRs
 
@@ -363,4 +494,5 @@ ChatLanguageModel model = AnthropicChatModel.builder()
 
 ---
 
-*ADR-031 | Version 1.0 | 2025-12-03*
+*ADR-031 | Version 1.1 | 2025-12-04*
+*Updated: Added Stop Button for Request Cancellation (Section 4)*
