@@ -32,7 +32,7 @@ public class X_AIG_UsageMetrics extends PO implements I_AIG_UsageMetrics, I_Pers
 	/**
 	 *
 	 */
-	private static final long serialVersionUID = 20251203L;
+	private static final long serialVersionUID = 20251204L;
 
     /** Standard Constructor */
     public X_AIG_UsageMetrics (Properties ctx, int AIG_UsageMetrics_ID, String trxName)
@@ -288,16 +288,19 @@ public class X_AIG_UsageMetrics extends PO implements I_AIG_UsageMetrics, I_Pers
 	/** Set Latency Ms.
 		@param LatencyMs Latency Ms
 	*/
-	public void setLatencyMs (String LatencyMs)
+	public void setLatencyMs (int LatencyMs)
 	{
-		set_Value (COLUMNNAME_LatencyMs, LatencyMs);
+		set_Value (COLUMNNAME_LatencyMs, Integer.valueOf(LatencyMs));
 	}
 
 	/** Get Latency Ms.
 		@return Latency Ms	  */
-	public String getLatencyMs()
+	public int getLatencyMs()
 	{
-		return (String)get_Value(COLUMNNAME_LatencyMs);
+		Integer ii = (Integer)get_Value(COLUMNNAME_LatencyMs);
+		if (ii == null)
+			 return 0;
+		return ii.intValue();
 	}
 
 	/** Set Model Name.

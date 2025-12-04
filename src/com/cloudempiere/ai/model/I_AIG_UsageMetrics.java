@@ -205,10 +205,10 @@ public interface I_AIG_UsageMetrics
     public static final String COLUMNNAME_LatencyMs = "LatencyMs";
 
 	/** Set Latency Ms	  */
-	public void setLatencyMs (String LatencyMs);
+	public void setLatencyMs (int LatencyMs);
 
 	/** Get Latency Ms	  */
-	public String getLatencyMs();
+	public int getLatencyMs();
 
     /** Column name ModelName */
     public static final String COLUMNNAME_ModelName = "ModelName";
