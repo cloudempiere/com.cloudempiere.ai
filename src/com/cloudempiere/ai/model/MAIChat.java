@@ -82,9 +82,11 @@ public class MAIChat extends MChat {
 	/**
 	 * Get or Create Global AI Chat for current user
 	 * <p>
-	 * IMPORTANT: This method ensures proper tenant isolation for system users.
-	 * System users (AD_Client_ID=0) will have separate chats for each tenant
-	 * they log into, preventing data leakage across tenants.
+	 * NOTE: Due to database constraint cm_chat_record UNIQUE(ad_table_id, record_id),
+	 * only ONE global chat can exist per user across all tenants. This method
+	 * returns the existing chat regardless of which tenant created it.
+	 * <p>
+	 * Chat entries (CM_ChatEntry) are filtered by AD_Client_ID for tenant isolation.
 	 *
 	 * @param ctx context
 	 * @param trxName transaction
@@ -92,44 +94,48 @@ public class MAIChat extends MChat {
 	 */
 	public static MAIChat getOrCreateGlobalChat(Properties ctx, String trxName) {
 		int userId = Env.getAD_User_ID(ctx);
-		int contextClientId = Env.getAD_Client_ID(ctx); // Current login tenant
 
-		// Try to find existing global AI chat for this user in this tenant
-		// CRITICAL: Filter by both userId and contextClientId to ensure tenant isolation
-		int chatId = getGlobalChatID(ctx, AI_GLOBAL_TABLE_ID, userId, contextClientId);
+		// Check if ANY global AI chat exists for this user (regardless of tenant)
+		// Database constraint cm_chat_record enforces uniqueness on (ad_table_id, record_id)
+		int chatId = getGlobalChatID(ctx, AI_GLOBAL_TABLE_ID, userId);
 
 		if (chatId > 0) {
 			return new MAIChat(ctx, chatId, trxName);
 		}
 
-		// Create new global AI chat for this user in this tenant
+		// Create new global AI chat for this user
+		int contextClientId = Env.getAD_Client_ID(ctx);
 		MAIChat chat = new MAIChat(ctx, "AI Assistant - " + Env.getContext(ctx, "#AD_User_Name"), trxName);
-		// Explicitly set AD_Client_ID to current context (important for system users)
 		chat.setAD_Client_ID(contextClientId);
 		chat.saveEx();
 		return chat;
 	}
 
 	/**
-	 * Get Global Chat ID for user in specific tenant
+	 * Get Global Chat ID for user
 	 * <p>
-	 * This method replaces MChat.getID() to add tenant filtering.
-	 * System users (AD_Client_ID=0) need separate chats per tenant.
+	 * Searches across all tenants due to database constraint cm_chat_record
+	 * which enforces uniqueness on (ad_table_id, record_id) only.
 	 *
 	 * @param ctx context
 	 * @param AD_Table_ID table ID (should be AD_User table)
 	 * @param Record_ID record ID (user ID)
-	 * @param AD_Client_ID client ID (tenant)
 	 * @return CM_Chat_ID or 0 if not found
 	 */
-	private static int getGlobalChatID(Properties ctx, int AD_Table_ID,
-			int Record_ID, int AD_Client_ID) {
-		// Use Query to filter by AD_Table_ID, Record_ID, and AD_Client_ID
-		String whereClause = "AD_Table_ID=? AND Record_ID=? AND AD_Client_ID=?";
+	private static int getGlobalChatID(Properties ctx, int AD_Table_ID, int Record_ID) {
+		// Query without AD_Client_ID filter - constraint only allows one per (table, record)
+		String whereClause = "AD_Table_ID=? AND Record_ID=?";
 		MChat chat = new org.compiere.model.Query(ctx, MChat.Table_Name, whereClause, null)
-			.setParameters(AD_Table_ID, Record_ID, AD_Client_ID)
-			.setOrderBy("Created DESC") // Get most recent if multiple exist
+			.setParameters(AD_Table_ID, Record_ID)
+			.setClient_ID() // Still respect client security for the query itself
 			.first();
+
+		// If not found with client filter, try without (for cross-tenant users)
+		if (chat == null) {
+			chat = new org.compiere.model.Query(Env.getCtx(), MChat.Table_Name, whereClause, null)
+				.setParameters(AD_Table_ID, Record_ID)
+				.first();
+		}
 
 		return chat != null ? chat.get_ID() : 0;
 	}
