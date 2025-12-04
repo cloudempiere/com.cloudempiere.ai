@@ -403,7 +403,7 @@ Result: ✅ LOGGED - Both users recorded in AIG_QueryAudit
 - Audit Model: `src/com/cloudempiere/ai/model/MAIQueryAudit.java`
 - iDempiere Security: `org.compiere.model.MRole.addAccessSQL()`
 - Test Suite: `src/com/cloudempiere/ai/process/TestAIProvider.java:318-379`
-- Related ADRs: ADR-006 (Data Model Architecture)
+- Related ADRs: ADR-006 (Data Model Architecture), ADR-036 (Chat Ownership and Sharing Model)
 
 ---
 

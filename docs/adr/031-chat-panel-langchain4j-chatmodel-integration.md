@@ -484,6 +484,7 @@ ChatLanguageModel model = AnthropicChatModel.builder()
 - [ADR-007](007-database-security-model.md) - Database Security Model (retained via ERPTools)
 - [ADR-013](013-observability-cost-tracking.md) - Observability and Cost Tracking (enhanced via listeners)
 - [ADR-015](015-conversational-ux-patterns.md) - Conversational UX Patterns (UI unchanged)
+- [ADR-036](036-chat-ownership-and-sharing-model.md) - Chat Ownership and Sharing Model (chat access control)
 
 ### References
 

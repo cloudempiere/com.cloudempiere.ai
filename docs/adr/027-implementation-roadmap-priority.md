@@ -57,6 +57,7 @@ We have 26 ADRs covering technical infrastructure and business use cases. Withou
 | **P1** | Foundation | ADR-014 (Guardrails) | Not Started | Production safety |
 | **P2** | Foundation | ADR-012 (RAG) | Not Started | ADR-016, ADR-017, ADR-018 |
 | **P2** | Foundation | ADR-026 (Vector DB) | Not Started | ADR-012 persistence |
+| **P2** | Foundation | ADR-036 (Chat Ownership) | Accepted | Team collaboration, shared chats |
 | **P3** | Foundation | ADR-009 (Boundaries) | 20% Done | ALL domain agents |
 | **P3** | Foundation | ADR-011 (Specialized Agents) | Not Started | ADR-018, ADR-019 |
 | **V1** | Business MVP | ADR-017 (Chart Overview) | Not Started | Validates P0, P1 |
@@ -579,6 +580,7 @@ Foundation Proven:
 - [ADR-013](013-observability-cost-tracking.md) - Observability and Cost Tracking
 - [ADR-014](014-guardrails-and-safety.md) - Guardrails and Safety
 - [ADR-026](026-vector-database-strategy.md) - Vector Database Strategy
+- [ADR-036](036-chat-ownership-and-sharing-model.md) - Chat Ownership and Sharing Model
 
 ### Business Case ADRs (Validation)
 - [ADR-016](016-knowledge-base-agent.md) - Knowledge Base Agent

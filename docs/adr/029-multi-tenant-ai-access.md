@@ -800,6 +800,7 @@ public class SecureQueryRequest {
 ## References
 
 - [ADR-007: Database Security Model](007-database-security-model.md)
+- [ADR-036: Chat Ownership and Sharing Model](036-chat-ownership-and-sharing-model.md)
 - [iDempiere Multi-Tenant Architecture](https://wiki.idempiere.org/en/Multi-Tenant)
 - [Application Dictionary Overview](https://wiki.idempiere.org/en/Application_Dictionary)
 - Implementation: `SecureDatabaseQueryExecutor.java`
