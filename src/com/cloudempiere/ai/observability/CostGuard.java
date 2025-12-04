@@ -84,8 +84,8 @@ public class CostGuard {
     /** Last reset time for rate limiting */
     private volatile long lastRateLimitReset = System.currentTimeMillis();
 
-    /** Cached budget limits per client */
-    private final Map<Integer, BudgetLimits> clientBudgets = new ConcurrentHashMap<>();
+    /** Cached budget limits per client (static so event handler can clear it) */
+    private static final Map<Integer, BudgetLimits> clientBudgets = new ConcurrentHashMap<>();
 
     /**
      * Check if budget allows the estimated cost.
@@ -274,11 +274,18 @@ public class CostGuard {
         );
     }
 
+    /** Microdollars per dollar (1 USD = 1,000,000 microdollars) */
+    private static final BigDecimal MICRODOLLARS_PER_DOLLAR = new BigDecimal("1000000");
+
     /**
      * Get month-to-date cost for a client.
      *
+     * <p>Note: CostUSD in AIG_UsageMetrics is stored in microdollars
+     * (1 USD = 1,000,000 microdollars) for precision. This method
+     * converts to dollars for comparison with budget limits.
+     *
      * @param clientId Client ID
-     * @return Month-to-date cost in USD
+     * @return Month-to-date cost in USD (dollars)
      */
     private BigDecimal getMonthCost(int clientId) {
         String sql = "SELECT COALESCE(SUM(CostUSD), 0) FROM AIG_UsageMetrics " +
@@ -286,7 +293,12 @@ public class CostGuard {
                     "AND Created >= DATE_TRUNC('month', CURRENT_DATE)";
 
         try {
-            return DB.getSQLValueBD(null, sql, clientId);
+            BigDecimal microdollars = DB.getSQLValueBD(null, sql, clientId);
+            if (microdollars == null) {
+                return BigDecimal.ZERO;
+            }
+            // Convert microdollars to dollars
+            return microdollars.divide(MICRODOLLARS_PER_DOLLAR, 6, BigDecimal.ROUND_HALF_UP);
         } catch (Exception e) {
             return BigDecimal.ZERO;
         }
@@ -310,8 +322,9 @@ public class CostGuard {
     /**
      * Clear cached budget limits (call when configuration changes).
      */
-    public void clearBudgetCache() {
+    public static void clearBudgetCache() {
         clientBudgets.clear();
+        log.info("All budget caches cleared");
     }
 
     /**
@@ -319,8 +332,9 @@ public class CostGuard {
      *
      * @param clientId Client ID
      */
-    public void clearBudgetCache(int clientId) {
+    public static void clearBudgetCache(int clientId) {
         clientBudgets.remove(clientId);
+        log.fine("Budget cache cleared for client " + clientId);
     }
 
     // ========================================================================

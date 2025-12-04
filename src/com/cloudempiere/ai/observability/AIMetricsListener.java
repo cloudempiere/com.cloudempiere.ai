@@ -14,7 +14,6 @@
 package com.cloudempiere.ai.observability;
 
 import java.math.BigDecimal;
-import java.sql.Timestamp;
 import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.ConcurrentHashMap;
@@ -318,18 +317,30 @@ public class AIMetricsListener implements ChatModelListener {
         }
     }
 
+    /** Microdollars per dollar (1 USD = 1,000,000 microdollars) */
+    private static final BigDecimal MICRODOLLARS_PER_DOLLAR = new BigDecimal("1000000");
+
     /**
      * Get total cost for a client today.
      *
+     * <p>Note: CostUSD in AIG_UsageMetrics is stored in microdollars
+     * (1 USD = 1,000,000 microdollars) for precision. This method
+     * converts to dollars for comparison with budget limits.
+     *
      * @param clientId Client ID
-     * @return Today's total cost in USD
+     * @return Today's total cost in USD (dollars)
      */
     public static BigDecimal getTodayCost(int clientId) {
         String sql = "SELECT COALESCE(SUM(CostUSD), 0) FROM AIG_UsageMetrics " +
                     "WHERE AD_Client_ID = ? AND Created >= CURRENT_DATE";
 
         try {
-            return DB.getSQLValueBD(null, sql, clientId);
+            BigDecimal microdollars = DB.getSQLValueBD(null, sql, clientId);
+            if (microdollars == null) {
+                return BigDecimal.ZERO;
+            }
+            // Convert microdollars to dollars
+            return microdollars.divide(MICRODOLLARS_PER_DOLLAR, 6, BigDecimal.ROUND_HALF_UP);
         } catch (Exception e) {
             return BigDecimal.ZERO;
         }

@@ -118,7 +118,7 @@ public class MAIUsageMetrics extends X_AIG_UsageMetrics {
         metrics.setOutputTokens(outputTokens);
         metrics.setTotalTokens(inputTokens + outputTokens);
         metrics.setCostUSD(costUSD);
-        metrics.setLatencyMs(String.valueOf(latencyMs));
+        metrics.setLatencyMs(latencyMs);
         metrics.setRequestTimestamp(new Timestamp(System.currentTimeMillis()));
         metrics.setSuccessFlag(true);
 
@@ -164,7 +164,7 @@ public class MAIUsageMetrics extends X_AIG_UsageMetrics {
         metrics.setOutputTokens(outputTokens);
         metrics.setTotalTokens(inputTokens + outputTokens);
         metrics.setCostUSD(costUSD);
-        metrics.setLatencyMs(String.valueOf(latencyMs));
+        metrics.setLatencyMs(latencyMs);
         metrics.setSessionID(sessionId);
         metrics.setRequestType(requestType);
         metrics.setRequestTimestamp(new Timestamp(System.currentTimeMillis()));
@@ -197,7 +197,7 @@ public class MAIUsageMetrics extends X_AIG_UsageMetrics {
         metrics.setAD_User_ID(userId);
         metrics.setAgentName(agentName);
         metrics.setModelName(modelName);
-        metrics.setLatencyMs(String.valueOf(latencyMs));
+        metrics.setLatencyMs(latencyMs);
         metrics.setRequestTimestamp(new Timestamp(System.currentTimeMillis()));
         metrics.setSuccessFlag(false);
         metrics.setErrorMessage(truncate(errorMessage, 2000));
@@ -393,23 +393,6 @@ public class MAIUsageMetrics extends X_AIG_UsageMetrics {
     // ========================================================================
 
     /**
-     * Get latency as integer.
-     *
-     * @return Latency in milliseconds
-     */
-    public int getLatencyMsAsInt() {
-        String latency = getLatencyMs();
-        if (latency == null || latency.isEmpty()) {
-            return 0;
-        }
-        try {
-            return Integer.parseInt(latency);
-        } catch (NumberFormatException e) {
-            return 0;
-        }
-    }
-
-    /**
      * Get cost as BigDecimal.
      *
      * @return Cost in USD
@@ -425,7 +408,7 @@ public class MAIUsageMetrics extends X_AIG_UsageMetrics {
      * @return Tokens per second
      */
     public double getTokensPerSecond() {
-        int latency = getLatencyMsAsInt();
+        int latency = getLatencyMs();
         if (latency <= 0) {
             return 0;
         }

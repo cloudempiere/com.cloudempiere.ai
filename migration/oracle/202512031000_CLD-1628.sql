@@ -41,11 +41,13 @@ CREATE TABLE AIG_UsageMetrics (
     OutputTokens            NUMBER(10) DEFAULT 0,
     TotalTokens             NUMBER(10) DEFAULT 0,
 
-    -- Cost tracking (USD with 6 decimal precision)
-    CostUSD                 NUMBER(10,6) DEFAULT 0,
+    -- Cost tracking: stored as MICRODOLLARS (1 USD = 1,000,000 microdollars)
+    -- Example: 121758 microdollars = $0.121758
+    -- Provides 6 decimal places precision for tiny per-token costs
+    CostUSD                 NUMBER(10,0) DEFAULT 0,
 
-    -- Performance
-    LatencyMs               NUMBER(10),
+    -- Performance: stored as milliseconds (integer)
+    LatencyMs               NUMBER(10,0) DEFAULT 0,
     RequestTimestamp        DATE DEFAULT SYSDATE,
 
     -- Request metadata
@@ -75,8 +77,8 @@ COMMENT ON TABLE AIG_UsageMetrics IS 'Usage metrics for AI agent operations';
 COMMENT ON COLUMN AIG_UsageMetrics.AgentName IS 'Name of the agent that made the request';
 COMMENT ON COLUMN AIG_UsageMetrics.InputTokens IS 'Number of input tokens in the request';
 COMMENT ON COLUMN AIG_UsageMetrics.OutputTokens IS 'Number of output tokens in the response';
-COMMENT ON COLUMN AIG_UsageMetrics.CostUSD IS 'Estimated cost in USD';
-COMMENT ON COLUMN AIG_UsageMetrics.LatencyMs IS 'Request latency in milliseconds';
+COMMENT ON COLUMN AIG_UsageMetrics.CostUSD IS 'Estimated cost in MICRODOLLARS (1,000,000 = $1)';
+COMMENT ON COLUMN AIG_UsageMetrics.LatencyMs IS 'Request latency in milliseconds (integer)';
 
 -- =====================================================================
 -- 2. Create AIG_Budget table
@@ -98,15 +100,17 @@ CREATE TABLE AIG_Budget (
     AgentName               VARCHAR2(100),
     BudgetScope             VARCHAR2(60) NOT NULL,
 
-    -- Limits
-    DailyLimitUSD           NUMBER(10,2),
-    MonthlyLimitUSD         NUMBER(10,2),
-    TokenLimitPerRequest    NUMBER(10),
-    RequestsPerMinute       NUMBER(10),
+    -- Limits: stored as CENTS (1 USD = 100 cents)
+    -- Example: 10000000 cents = $100,000.00
+    DailyLimitUSD           NUMBER(10,0) DEFAULT 0,
+    MonthlyLimitUSD         NUMBER(10,0) DEFAULT 0,
+    TokenLimitPerRequest    NUMBER(10) DEFAULT 4000,
+    RequestsPerMinute       NUMBER(10) DEFAULT 20,
 
-    -- Current usage (updated by triggers or scheduled job)
-    CurrentDailyUSD         NUMBER(10,6) DEFAULT 0,
-    CurrentMonthlyUSD       NUMBER(10,6) DEFAULT 0,
+    -- Current usage: stored as CENTS (1 USD = 100 cents)
+    -- Updated by triggers or scheduled job
+    CurrentDailyUSD         NUMBER(10,0) DEFAULT 0,
+    CurrentMonthlyUSD       NUMBER(10,0) DEFAULT 0,
     LastResetDaily          DATE,
     LastResetMonthly        DATE,
 
@@ -126,8 +130,10 @@ CREATE INDEX AIG_Budget_Scope_Idx ON AIG_Budget(BudgetScope, AD_Client_ID);
 -- Add comments
 COMMENT ON TABLE AIG_Budget IS 'Budget limits and current usage for AI operations';
 COMMENT ON COLUMN AIG_Budget.BudgetScope IS 'CLIENT, USER, or AGENT';
-COMMENT ON COLUMN AIG_Budget.DailyLimitUSD IS 'Maximum daily spend in USD';
-COMMENT ON COLUMN AIG_Budget.MonthlyLimitUSD IS 'Maximum monthly spend in USD';
+COMMENT ON COLUMN AIG_Budget.DailyLimitUSD IS 'Maximum daily spend in CENTS (100 cents = $1)';
+COMMENT ON COLUMN AIG_Budget.MonthlyLimitUSD IS 'Maximum monthly spend in CENTS (100 cents = $1)';
+COMMENT ON COLUMN AIG_Budget.CurrentDailyUSD IS 'Current daily spend in CENTS (100 cents = $1)';
+COMMENT ON COLUMN AIG_Budget.CurrentMonthlyUSD IS 'Current monthly spend in CENTS (100 cents = $1)';
 
 -- =====================================================================
 -- 3. Create summary views
