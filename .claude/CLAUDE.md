@@ -34,6 +34,37 @@ Before building or testing this plugin, ensure:
 
 The plugin references the iDempiere parent POM at `../iDempiereCLDE/org.idempiere.parent/pom.xml` (see pom.xml line 10).
 
+### CRITICAL: Java and LangChain4j Version Constraints
+
+**See [ADR-035](docs/adr/035-java-version-strategy.md) for full details.**
+
+| Component | Current | Constraint | Notes |
+|-----------|---------|------------|-------|
+| **Java Runtime** | Amazon Corretto 11 | Java 11 | iDempiere v10 requirement |
+| **LangChain4j** | **0.35.0** | Must use 0.35.0 | Last Java 11 compatible version |
+| **iDempiere** | v10 (10.0.0-SNAPSHOT) | Release-10 | Release-11 requires Java 17 |
+
+**WARNING:** LangChain4j versions 0.36.0 and later (including 1.x) require Java 17!
+
+**Version Compatibility:**
+| LangChain4j Version | Java Requirement |
+|---------------------|------------------|
+| 0.35.0 and earlier | Java 8+ |
+| 0.36.0+ | Java 17+ |
+| 1.0.0-beta1+ | Java 17+ |
+| 1.0.0+ (stable) | Java 17+ |
+
+**Migration Path:**
+1. **Phase 1 (Current)**: Java 11 + LangChain4j 0.35.0 for MVP
+2. **Phase 2 (Future)**: Upgrade to iDempiere Release-11 + Java 17 + LangChain4j 1.x
+
+**Features blocked until Java 17 migration:**
+- MCP (Model Context Protocol) support - ADR-003
+- Extended thinking/reasoning timeline - ADR-033
+- System/tool message caching (cost optimization)
+- Enhanced observability listeners
+- Google Gemini streaming - ADR-034
+
 ## Build and Development Commands
 
 ### Maven Build Commands
@@ -385,6 +416,7 @@ Follow [Conventional Commits](https://conventionalcommits.org/):
 - [ADR-004](docs/adr/004-java-agent-framework.md) - Java Agent Framework Selection (LangChain4j)
 - [ADR-027](docs/adr/027-implementation-roadmap-priority.md) - Implementation Roadmap and Priority Matrix
 - [ADR-034](docs/adr/034-google-gemini-provider-integration.md) - Google Gemini Provider Integration
+- [ADR-035](docs/adr/035-java-version-strategy.md) - Java Version Strategy and Migration Path
 
 ### Data & Intelligence
 - [ADR-005](docs/adr/005-intelligent-data-source-routing.md) - Intelligent Data Source Routing (Superseded by ADR-012)
@@ -407,6 +439,7 @@ Follow [Conventional Commits](https://conventionalcommits.org/):
 - [ADR-031](docs/adr/031-chat-panel-langchain4j-chatmodel-integration.md) - Chat Panel LangChain4j ChatModel Integration
 - [ADR-032](docs/adr/032-testing-strategy.md) - Testing Strategy
 - [ADR-033](docs/adr/033-streaming-thinking-timeline-ux.md) - Streaming Responses and Thinking Timeline UX
+- [ADR-036](docs/adr/036-chat-ownership-and-sharing-model.md) - Chat Ownership and Sharing Model
 
 ### Use Cases - Phase 1 (MVP)
 - [ADR-017](docs/adr/017-chart-executive-overview.md) - Chart Executive Overview

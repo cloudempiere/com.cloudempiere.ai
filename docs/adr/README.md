@@ -15,6 +15,7 @@ This directory contains architecture decisions for the Cloudempiere AI plugin.
 | [003](003-mcp-server-integration.md) | MCP Server Integration | Accepted | 2025-12-01 |
 | [004](004-java-agent-framework.md) | Java Agent Framework Selection | Accepted | 2025-11-26 |
 | [034](034-google-gemini-provider-integration.md) | Google Gemini Provider Integration | Proposed | 2025-12-03 |
+| [035](035-java-version-strategy.md) | Java Version Strategy and Migration Path | Accepted | 2025-12-04 |
 
 ### Data & Intelligence
 
@@ -158,6 +159,13 @@ Each ADR includes:
 - Cost-effective alternative (95% savings vs. Claude)
 - Native embeddings, code execution, and extended thinking support
 - Vertex AI enterprise path planned
+
+**ADR-035: Java Version Strategy and Migration Path**
+- Critical version incompatibility identified: LangChain4j 1.0+ requires Java 17
+- Decision: Downgrade to LangChain4j 0.35.0 for Java 11 MVP
+- Phase 1: Java 11 / LangChain4j 0.35.0 (MVP use cases ADR-017 to ADR-020)
+- Phase 2: Java 17 / LangChain4j 1.x (with iDempiere Release-11 migration)
+- MCP and extended thinking blocked until Java 17 migration
 
 ### Data & Intelligence
 
