@@ -59,6 +59,8 @@ import com.cloudempiere.ai.provider.dto.AIStreamCallback;
 import com.cloudempiere.ai.provider.langchain4j.AIService;
 import com.cloudempiere.ai.provider.langchain4j.AIService.ChatResult;
 import com.cloudempiere.ai.service.AIConversationService;
+import com.cloudempiere.ai.service.ChatAccessService;
+import com.cloudempiere.ai.service.IChatAccessService.ChatAccess;
 import com.cloudempiere.ai.util.ZoomLinkProcessor;
 
 import org.adempiere.webui.apps.AEnv;
@@ -160,6 +162,12 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 	/** Session context (captured at initialization to preserve user's session info) */
 	private Properties sessionCtx;
 
+	/** Current user's access level to the chat (ADR-036) */
+	private ChatAccess currentAccess = ChatAccess.OWNER;
+
+	/** Access indicator (shows read-only badge when applicable) */
+	private Html accessIndicator;
+
 	/**
 	 * Default Constructor
 	 */
@@ -222,6 +230,13 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 			);
 			appendChild(contextIndicator);
 		}
+
+		// Access indicator (ADR-036: shows read-only badge when user has limited access)
+		accessIndicator = new Html();
+		accessIndicator.setId("aiAccessIndicator_" + getUuid());
+		// Initially hidden - will be shown by updateAccessIndicator() if needed
+		accessIndicator.setContent(buildAccessIndicatorHtml(ChatAccess.OWNER));
+		appendChild(accessIndicator);
 
 		// Thread control bar (thread selector + new thread button)
 		Hlayout threadControlBar = new Hlayout();
@@ -328,6 +343,22 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 		try {
 			// Use MAIChat for AI-specific functionality
 			chat = MAIChat.getOrCreateGlobalChat(sessionCtx, null);
+
+			// Check user's access level (ADR-036)
+			currentAccess = ChatAccessService.get().getAccess(sessionCtx, chat);
+			log.fine("Chat access level: " + currentAccess + " for chat " + chat.get_ID());
+
+			// If no access, show error and return
+			if (currentAccess == ChatAccess.NONE) {
+				log.warning("User has no access to chat " + chat.get_ID());
+				Clients.showNotification(
+					Msg.getMsg(sessionCtx, "AccessCannotRead"),
+					"error", this, "middle_center", 5000);
+				return;
+			}
+
+			// Update UI based on access level
+			updateAccessIndicator();
 
 			// Load thread list and select most recent thread
 			loadThreadList();
@@ -653,6 +684,14 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 	public void sendMessage() {
 		String message = inputBox.getText();
 		if (Util.isEmpty(message, true)) {
+			return;
+		}
+
+		// Check write permission (ADR-036)
+		if (currentAccess.ordinal() < ChatAccess.WRITE.ordinal()) {
+			Clients.showNotification(
+				Msg.getMsg(sessionCtx, "AccessCannotWrite"),
+				"warning", inputBox, "top_center", 3000);
 			return;
 		}
 
@@ -1234,6 +1273,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 
 	/**
 	 * Switch to selected thread from dropdown
+	 * Handles both local threads (positive IDs) and shared chats (negative IDs)
 	 */
 	private void switchThread() {
 		if (threadSelector.getSelectedItem() == null) {
@@ -1242,17 +1282,68 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 
 		Object value = threadSelector.getSelectedItem().getValue();
 		if (value instanceof Integer) {
-			currentThreadRootId = (Integer) value;
-			log.fine("Switched to thread: " + currentThreadRootId);
+			int selectedValue = (Integer) value;
 
-			// Re-render messages for this thread
+			if (selectedValue < 0) {
+				// Negative value = shared chat ID (ADR-036)
+				int sharedChatId = -selectedValue;
+				switchToSharedChat(sharedChatId);
+			} else {
+				// Positive value = thread ID in current chat
+				currentThreadRootId = selectedValue;
+				log.fine("Switched to thread: " + currentThreadRootId);
+
+				// Re-render messages for this thread
+				renderMessages();
+			}
+		}
+	}
+
+	/**
+	 * Switch to a shared chat (ADR-036)
+	 * @param chatId the shared chat ID to switch to
+	 */
+	private void switchToSharedChat(int chatId) {
+		try {
+			// Load the shared chat
+			MChat sharedChat = new MChat(sessionCtx, chatId, null);
+			if (sharedChat.get_ID() == 0) {
+				log.warning("Shared chat not found: " + chatId);
+				return;
+			}
+
+			// Check access
+			ChatAccess sharedAccess = ChatAccessService.get().getAccess(sessionCtx, sharedChat);
+			if (sharedAccess == ChatAccess.NONE) {
+				Clients.showNotification(
+					Msg.getMsg(sessionCtx, "AccessCannotRead"),
+					"error", this, "middle_center", 3000);
+				return;
+			}
+
+			// Switch to the shared chat
+			chat = sharedChat;
+			currentAccess = sharedAccess;
+			currentThreadRootId = 0; // Reset thread selection
+
+			// Update UI
+			updateAccessIndicator();
+			loadThreadList();
 			renderMessages();
+
+			log.fine("Switched to shared chat: " + chatId + " with access: " + sharedAccess);
+		} catch (Exception e) {
+			log.log(Level.WARNING, "Failed to switch to shared chat", e);
+			Clients.showNotification(
+				Msg.getMsg(sessionCtx, "Error") + ": " + e.getMessage(),
+				"error", this, "middle_center", 3000);
 		}
 	}
 
 	/**
 	 * Load thread list into dropdown
 	 * Threads are identified by their root message (first message with no parent)
+	 * Also loads shared chats (ADR-036)
 	 */
 	private void loadThreadList() {
 		if (chat == null) {
@@ -1261,11 +1352,14 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 
 		threadSelector.getItems().clear();
 
-		// Add "New Thread" option
-		Comboitem newItem = new Comboitem("+ New Thread");
-		newItem.setValue(0);
-		threadSelector.appendChild(newItem);
+		// Add "New Thread" option (only if user can write)
+		if (currentAccess.ordinal() >= ChatAccess.WRITE.ordinal()) {
+			Comboitem newItem = new Comboitem("+ New Thread");
+			newItem.setValue(0);
+			threadSelector.appendChild(newItem);
+		}
 
+		// --- My Chats section ---
 		// Get all root-level entries (messages with no parent)
 		MChatEntry[] entries = chat.getEntries(true);
 		List<MChatEntry> rootEntries = new ArrayList<>();
@@ -1307,14 +1401,64 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 			}
 		}
 
+		// --- Shared with me section (ADR-036) ---
+		loadSharedChatsSection();
+
 		// If no thread selected and we have threads, select the most recent
 		if (threadSelector.getSelectedItem() == null && rootEntries.size() > 0) {
 			currentThreadRootId = rootEntries.get(rootEntries.size() - 1).getCM_ChatEntry_ID();
-			threadSelector.setSelectedIndex(1); // Index 1 (first real thread, after "New Thread")
+			threadSelector.setSelectedIndex(currentAccess.ordinal() >= ChatAccess.WRITE.ordinal() ? 1 : 0);
 		} else if (rootEntries.size() == 0) {
-			// No threads yet, select "New Thread"
+			// No threads yet, select "New Thread" if available
 			currentThreadRootId = 0;
-			threadSelector.setSelectedIndex(0);
+			if (threadSelector.getItemCount() > 0) {
+				threadSelector.setSelectedIndex(0);
+			}
+		}
+	}
+
+	/**
+	 * Load shared chats section into thread selector (ADR-036)
+	 */
+	private void loadSharedChatsSection() {
+		try {
+			List<MChat> sharedChats = ChatAccessService.get().getSharedChats(sessionCtx, null);
+
+			if (sharedChats.isEmpty()) {
+				return;
+			}
+
+			// Add separator
+			Comboitem separator = new Comboitem("─── " + Msg.getMsg(sessionCtx, "SharedWithMe") + " ───");
+			separator.setDisabled(true);
+			separator.setStyle("font-style: italic; color: #888;");
+			threadSelector.appendChild(separator);
+
+			// Add shared chats
+			for (MChat sharedChat : sharedChats) {
+				ChatAccess sharedAccess = ChatAccessService.get().getAccess(sessionCtx, sharedChat);
+
+				// Build label with access indicator
+				String accessIcon = (sharedAccess == ChatAccess.READ) ? "📖 " : "✏️ ";
+				String label = sharedChat.getDescription();
+				if (label == null || label.trim().isEmpty()) {
+					label = "Chat " + sharedChat.get_ID();
+				} else if (label.length() > 40) {
+					label = label.substring(0, 37) + "...";
+				}
+
+				// Add owner info
+				MUser owner = MUser.get(sessionCtx, sharedChat.getCreatedBy());
+				String ownerName = owner != null ? owner.getName() : "Unknown";
+				label = accessIcon + label + " (from " + ownerName + ")";
+
+				Comboitem item = new Comboitem(label);
+				// Store chat ID as negative to distinguish from thread IDs
+				item.setValue(-sharedChat.get_ID());
+				threadSelector.appendChild(item);
+			}
+		} catch (Exception e) {
+			log.log(Level.WARNING, "Failed to load shared chats", e);
 		}
 	}
 
@@ -1455,6 +1599,69 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 			"var info = document.getElementById('contextInfo_" + getUuid() + "');" +
 			"if(info) info.textContent='" + escapedInfo + "';"
 		);
+	}
+
+	// ========================================================================
+	// Access Control UI (ADR-036)
+	// ========================================================================
+
+	/**
+	 * Build HTML for access indicator based on access level
+	 * @param access current access level
+	 * @return HTML string for indicator
+	 */
+	private String buildAccessIndicatorHtml(ChatAccess access) {
+		if (access == ChatAccess.OWNER || access == ChatAccess.WRITE) {
+			// No indicator needed for full access
+			return "<div id='accessBadge_" + getUuid() + "' style='display: none;'></div>";
+		}
+
+		if (access == ChatAccess.READ) {
+			// Read-only badge
+			return "<div id='accessBadge_" + getUuid() + "' style='display: flex; align-items: center; gap: 6px; " +
+				"padding: 6px 12px; background: #FFF3E0; border-radius: 4px; margin-bottom: 8px; " +
+				"font-size: 11px; color: #E65100;'>" +
+				"<i class='z-icon-Lock' style='font-size: 12px;'></i> " +
+				"<span>" + Msg.getMsg(sessionCtx, "ReadOnly") + "</span>" +
+				"</div>";
+		}
+
+		// No access - should not normally be shown
+		return "<div id='accessBadge_" + getUuid() + "' style='display: none;'></div>";
+	}
+
+	/**
+	 * Update access indicator and input state based on current access level
+	 */
+	private void updateAccessIndicator() {
+		if (accessIndicator == null) {
+			return;
+		}
+
+		// Update indicator HTML
+		accessIndicator.setContent(buildAccessIndicatorHtml(currentAccess));
+
+		// Disable input for read-only access
+		boolean canWrite = currentAccess.ordinal() >= ChatAccess.WRITE.ordinal();
+		inputBox.setDisabled(!canWrite);
+		sendButton.setDisabled(!canWrite);
+		newThreadButton.setDisabled(!canWrite);
+
+		if (!canWrite) {
+			inputBox.setPlaceholder(Msg.getMsg(sessionCtx, "ReadOnly"));
+		} else {
+			inputBox.setPlaceholder(Msg.getMsg(sessionCtx, "AIChatPlaceholder"));
+		}
+
+		log.fine("Access indicator updated: " + currentAccess + ", canWrite=" + canWrite);
+	}
+
+	/**
+	 * Get current access level
+	 * @return current ChatAccess level
+	 */
+	public ChatAccess getCurrentAccess() {
+		return currentAccess;
 	}
 
 	/**

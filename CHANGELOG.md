@@ -7,22 +7,80 @@ and this project adheres to [Conventional Commits](https://conventionalcommits.o
 
 ## [Unreleased]
 
-### Next: v0.16.0 - Chat Ownership & Sharing (ADR-036)
-
-**Focus:** Multi-user chat ownership and role-based access control.
+### Next: v0.17.0 - Share Dialog & Advanced Sharing
 
 **Planned:**
-- Chat ownership model (AIG_ChatOwnership table)
-- Role-based chat access (Owner, Editor, Viewer)
-- Chat sharing functionality
-- Ownership transfer capability
+- Share button in AIChatWidget (OWNER only)
+- User/role picker dialog
+- Time-bound sharing (ValidFrom/ValidTo)
+- Sharing notifications
+- Ownership transfer UI
 
-**Deferred to v0.17.0+:**
+**Deferred:**
 - ESC key shortcut to cancel streaming (requires ZK keyboard handling)
 - Upgrade LangChain4j to v1.8.0+ for proper HTTP cancellation
 - ADR-017: Chart Executive Overview
 - ADR-018: Sales Opportunity Summary
 - ADR-011: Domain Agents
+
+---
+
+## [0.16.0] - 2025-12-04
+
+### Phase 16: Chat Ownership & Sharing (ADR-036, CLD-1636)
+
+This release implements chat ownership and access control for multi-user collaboration.
+
+#### Added
+
+- **AIG_ChatOwnership Table** (CLD-1636)
+  - PostgreSQL and Oracle migration scripts
+  - Links users/roles to chats with access levels (Owner, Write, Read)
+  - Time-bound sharing support (ValidFrom/ValidTo)
+  - Audit trail via SharedBy_User_ID
+
+- **ChatAccessService** (ADR-036)
+  - Hybrid access resolution algorithm (5-step priority)
+  - Creator always has OWNER access
+  - Explicit user grants via AIG_ChatOwnership
+  - Role-based grants for team access
+  - ConfidentialType baseline fallback
+  - Record access check for context chats
+
+- **MAIChatOwnership Model**
+  - Factory methods: createOwnerGrant, createReadGrant, createWriteGrant, createRoleGrant
+  - Time-bound validation: isCurrentlyValid()
+  - Revoke and delete operations
+
+- **AIChatWidget Access Control**
+  - Access check on chat load
+  - Write permission check before sending messages
+  - Read-only badge for limited access users
+  - Input disabled for READ-only access
+  - "Shared with me" section in thread selector
+  - Access icons: 📖 (read), ✏️ (write)
+  - Switch between owned and shared chats
+
+- **MAIChat Access Methods**
+  - canRead(), canWrite(), canShare(), canDelete()
+  - shareWith(), shareWithRole()
+  - getSharingInfo()
+  - getOrCreatePrivateContextChat()
+  - getOrCreateSharedContextChat()
+
+#### UI Notes
+
+⚠️ **UI Improvement Needed:** The current access indicator and shared chat display uses basic styling. Future improvements should include:
+- Polished read-only badge design
+- Better visual separation in thread selector
+- Share button with proper modal dialog (deferred to v0.17.0)
+
+#### Deferred to v0.17.0
+
+- Share button in AIChatWidget
+- User/role picker dialog
+- Transfer ownership UI
+- Revoke access UI
 
 ---
 

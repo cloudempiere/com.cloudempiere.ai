@@ -8,10 +8,10 @@ This document tracks features, implementation status, and version compatibility 
 
 ---
 
-## Current Version: v0.15.0
+## Current Version: v0.16.0
 
-**Status:** ✅ Stop Button & Error Handling Complete (ADR-031)
-**Next:** v0.16.0 - Chat Ownership & Sharing (ADR-036)
+**Status:** ✅ Chat Ownership & Sharing Complete (ADR-036)
+**Next:** v0.17.0 - Share Dialog & Advanced Sharing
 
 **Strategic Focus:** The Chat Widget is our primary AI implementation. All features will be integrated and tested through the chat widget before other use cases (charts, reports, etc.).
 
@@ -21,7 +21,8 @@ This document tracks features, implementation status, and version compatibility 
 
 | Version | Date | Key Features | Focus Area |
 |---------|------|--------------|------------|
-| **0.15.0** | 2025-12-04 | **Stop Button & Error Handling** | **User Experience** |
+| **0.16.0** | 2025-12-04 | **Chat Ownership & Sharing** | **Multi-User Collaboration** |
+| 0.15.0 | 2025-12-04 | Stop Button & Error Handling | User Experience |
 | 0.14.0 | 2025-12-04 | Real-Time Chat Streaming | User Experience |
 | 0.13.0 | 2025-12-03 | Naming Standards, Integration Wiring | Code Quality |
 | 0.12.0 | 2025-12-03 | Observability, Guardrails, Multi-Tenant | P1 Infrastructure |
@@ -68,6 +69,7 @@ This document tracks features, implementation status, and version compatibility 
 | **AI Chat Widget (ZK)** | 0.4.0 | ✅ Done | Interactive chat component in iDempiere WebUI |
 | **Contextual Chat** | 0.4.0 | ✅ Done | Window/tab context awareness |
 | **Role-Based Security** | 0.3.0 | ✅ Done | Queries filtered by AD_Client_ID, AD_Org_ID, AD_Role_ID |
+| **Chat Ownership & Sharing** | 0.16.0 | ✅ Done | Multi-user chat access control (ADR-036) |
 | **Natural Language Queries** | 0.9.0 | ✅ Done | "Show me pending orders over $10k" |
 | **9 ERP Tools** | 0.9.0 | ✅ Done | Database query, lookup, search, metadata |
 | **Business Object Shortcuts** | 0.9.0 | ✅ Done | getBusinessPartner, getProduct, getOrder |
@@ -75,6 +77,7 @@ This document tracks features, implementation status, and version compatibility 
 | **Streaming Responses** | 0.9.0 | ✅ Done | Real-time token streaming for better UX |
 | **Zoom Link Support** | 0.4.0 | ✅ Done | Clickable links to records |
 | **RAG (Context Retrieval)** | 0.10.0 | 🚧 In Progress | ADR-012: LangChain4j ContentRetriever with semantic search |
+| **Share Dialog** | - | 🔜 v0.17.0 | Share button with user/role picker (ADR-036 Phase 3) |
 | **Structured Outputs** | - | 🔴 v0.10.0 | OrderSummary, InventoryReport records |
 | **Domain Agents** | - | 🔴 v0.11.0 | InventoryAgent, SalesAgent, PurchasingAgent |
 | **Process Execution** | - | 🟡 v0.11.0 | AI can trigger iDempiere processes (with approval) |
