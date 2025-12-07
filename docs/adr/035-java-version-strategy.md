@@ -58,11 +58,11 @@ This approach:
 
 ### Confirmation
 
-- [ ] `pom.xml` updated to LangChain4j 0.35.0
+- [x] `pom.xml` updated to LangChain4j 0.35.0 *(Verified 2025-12-04)*
 - [ ] All existing tests pass on Java 11
 - [ ] ADR-017 (Chart Overview) works end-to-end
-- [ ] Migration checklist created for Java 17 upgrade
-- [ ] CLAUDE.md updated with version constraints
+- [x] Migration checklist created for Java 17 upgrade *(See Phase 2 section below)*
+- [x] CLAUDE.md updated with version constraints *(Added to CLAUDE.md header table)*
 
 ---
 

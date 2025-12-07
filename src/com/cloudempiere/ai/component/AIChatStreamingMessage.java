@@ -327,7 +327,7 @@ public class AIChatStreamingMessage extends Div {
     /**
      * Complete the message when streaming finishes.
      *
-     * <p>Removes streaming cursor, enables copy button, renders final markdown.
+     * <p>Removes streaming cursor, enables copy button, renders final markdown using marked.js.
      *
      * <p><b>Note:</b> This method was renamed from finalize() to avoid conflict
      * with Java's Object.finalize() which is called by the garbage collector.
@@ -337,7 +337,8 @@ public class AIChatStreamingMessage extends Div {
             return; // Already completed
         }
         isComplete = true;
-        updateContentDisplay(); // Removes cursor
+        // Use marked.js for full markdown rendering (tables, code blocks, etc.)
+        renderFinalMarkdown();
         enableCopyButton();
     }
 
@@ -528,6 +529,70 @@ public class AIChatStreamingMessage extends Div {
     }
 
     /**
+     * Render final content using marked.js for full markdown support (tables, code blocks, etc.).
+     *
+     * <p>This replaces the simple renderPartialMarkdown() with client-side marked.js rendering.
+     */
+    private void renderFinalMarkdown() {
+        String markdownText = content.toString();
+
+        // Remove hallucinated function call XML blocks
+        markdownText = markdownText.replaceAll("(?s)<function_calls>.*?</function_calls>", "");
+        markdownText = markdownText.replaceAll("(?s)<function_result>.*?</function_result>", "");
+        markdownText = markdownText.replaceAll("(?s)<function_calls>.*$", "");
+        markdownText = markdownText.replaceAll("(?s)<function_result>.*$", "");
+        markdownText = markdownText.replaceAll("(?s)<invoke[^>]*>.*?</invoke>", "");
+        markdownText = markdownText.replaceAll("(?s)<parameter[^>]*>.*?</parameter>", "");
+
+        // Generate unique ID for marked.js rendering
+        String markdownId = "final_md_" + componentId;
+
+        // Escape for JavaScript
+        String escapedMarkdown = markdownText
+            .replace("\\", "\\\\")
+            .replace("'", "\\'")
+            .replace("\r", "")
+            .replace("\n", "\\n")
+            .replace("</script>", "<\\/script>");
+
+        // Build HTML with marked.js rendering script
+        StringBuilder sb = new StringBuilder();
+        sb.append("<div id='").append(markdownId).append("' class='ai-markdown-content'></div>");
+        sb.append("<script>");
+        sb.append("(function() {");
+        sb.append("  var renderMD = function() {");
+        sb.append("    if (!window.marked) {");
+        sb.append("      setTimeout(renderMD, 100);");
+        sb.append("      return;");
+        sb.append("    }");
+        sb.append("    var container = document.getElementById('").append(markdownId).append("');");
+        sb.append("    if (!container) return;");
+        sb.append("    marked.setOptions({");
+        sb.append("      breaks: true,");
+        sb.append("      gfm: true");
+        sb.append("    });");
+        sb.append("    try {");
+        sb.append("      var html = marked.parse('").append(escapedMarkdown).append("');");
+        sb.append("      container.innerHTML = html;");
+        sb.append("    } catch (e) {");
+        sb.append("      console.error('Markdown parse error:', e);");
+        sb.append("      container.innerHTML = '").append(escapedMarkdown.replace("\\n", "<br/>")).append("';");
+        sb.append("    }");
+        // Apply Prism highlighting if available
+        sb.append("    if (window.Prism) {");
+        sb.append("      container.querySelectorAll('pre code').forEach(function(block) {");
+        sb.append("        Prism.highlightElement(block);");
+        sb.append("      });");
+        sb.append("    }");
+        sb.append("  };");
+        sb.append("  renderMD();");
+        sb.append("})();");
+        sb.append("</script>");
+
+        streamingContent.setContent(sb.toString());
+    }
+
+    /**
      * Enable the copy button after completion.
      */
     private void enableCopyButton() {
@@ -658,32 +723,34 @@ public class AIChatStreamingMessage extends Div {
 
     /**
      * Tool event for tracking tool execution status.
+     * Package-private to avoid OSGi classloading issues with private inner classes.
      */
-    private static class ToolEvent {
+    static class ToolEvent {
         private final String name;
         private ToolStatus status;
         private final String arguments;
         private String result;
 
-        public ToolEvent(String name, ToolStatus status, String arguments, String result) {
+        ToolEvent(String name, ToolStatus status, String arguments, String result) {
             this.name = name;
             this.status = status;
             this.arguments = arguments;
             this.result = result;
         }
 
-        public String getName() { return name; }
-        public ToolStatus getStatus() { return status; }
-        public void setStatus(ToolStatus status) { this.status = status; }
-        public String getArguments() { return arguments; }
-        public String getResult() { return result; }
-        public void setResult(String result) { this.result = result; }
+        String getName() { return name; }
+        ToolStatus getStatus() { return status; }
+        void setStatus(ToolStatus status) { this.status = status; }
+        String getArguments() { return arguments; }
+        String getResult() { return result; }
+        void setResult(String result) { this.result = result; }
     }
 
     /**
      * Tool execution status.
+     * Package-private to avoid OSGi classloading issues with private inner enums.
      */
-    private enum ToolStatus {
+    enum ToolStatus {
         RUNNING,
         COMPLETE,
         ERROR

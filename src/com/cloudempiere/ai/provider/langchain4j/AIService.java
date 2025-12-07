@@ -1,6 +1,8 @@
 package com.cloudempiere.ai.provider.langchain4j;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.ConcurrentHashMap;
@@ -15,14 +17,18 @@ import com.cloudempiere.ai.guardrails.InputGuard;
 import com.cloudempiere.ai.guardrails.OutputGuard;
 import com.cloudempiere.ai.guardrails.dto.GuardResult;
 import com.cloudempiere.ai.model.MAIProvider;
+import com.cloudempiere.ai.model.MAIUsageMetrics;
 import com.cloudempiere.ai.observability.CostGuard;
 import com.cloudempiere.ai.provider.dto.AIStreamCallback;
 
+import dev.langchain4j.data.message.AiMessage;
+import dev.langchain4j.data.message.ChatMessage;
+import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.memory.chat.MessageWindowChatMemory;
 import dev.langchain4j.model.chat.ChatLanguageModel;
 import dev.langchain4j.model.chat.StreamingChatLanguageModel;
+import dev.langchain4j.model.output.TokenUsage;
 import dev.langchain4j.service.AiServices;
-import dev.langchain4j.service.TokenStream;
 
 /**
  * Main entry point for ERP AI capabilities using LangChain4j.
@@ -277,6 +283,25 @@ public class AIService {
                 .build();
 
             // ================================================================
+            // PREVENT CONSECUTIVE USER MESSAGES
+            // Remove ALL trailing UserMessages from memory to prevent the
+            // MessageSanitizer from removing the current message.
+            // ================================================================
+            List<ChatMessage> currentMessages = new ArrayList<>(memory.messages());
+            if (!currentMessages.isEmpty()) {
+                int trimIndex = currentMessages.size();
+                while (trimIndex > 0 && currentMessages.get(trimIndex - 1) instanceof UserMessage) {
+                    trimIndex--;
+                }
+                if (trimIndex < currentMessages.size()) {
+                    memory.clear();
+                    for (int i = 0; i < trimIndex; i++) {
+                        memory.add(currentMessages.get(i));
+                    }
+                }
+            }
+
+            // ================================================================
             // INJECT CONTEXT (if provided)
             // ================================================================
 
@@ -455,6 +480,43 @@ public class AIService {
                 .build();
 
             // ================================================================
+            // PREVENT CONSECUTIVE USER MESSAGES
+            // Remove ALL trailing UserMessages from memory to prevent the
+            // MessageSanitizer from removing the current message.
+            // This handles cases where multiple failed retries left consecutive
+            // UserMessages in the database.
+            // ================================================================
+            List<ChatMessage> currentMessages = new ArrayList<>(memory.messages());
+            log.warning("[STREAM] Memory loaded " + currentMessages.size() + " messages from DB");
+
+            if (!currentMessages.isEmpty()) {
+                // Find where to trim - remove all trailing UserMessages
+                int trimIndex = currentMessages.size();
+                while (trimIndex > 0 && currentMessages.get(trimIndex - 1) instanceof UserMessage) {
+                    trimIndex--;
+                }
+
+                if (trimIndex < currentMessages.size()) {
+                    int removedCount = currentMessages.size() - trimIndex;
+                    log.warning("[STREAM] Removing " + removedCount + " trailing UserMessage(s) from memory to prevent consecutive message sanitization");
+
+                    // Rebuild memory without trailing UserMessages
+                    memory.clear();
+                    for (int i = 0; i < trimIndex; i++) {
+                        memory.add(currentMessages.get(i));
+                    }
+                    log.warning("[STREAM] Memory now has " + memory.getMessageCount() + " messages after cleanup");
+                }
+            }
+
+            // Log current memory state for debugging
+            log.warning("[STREAM] Memory state before agent.chat(): " + memory.getMessageCount() + " messages");
+            if (memory.getMessageCount() > 0) {
+                ChatMessage last = memory.messages().get(memory.getMessageCount() - 1);
+                log.warning("[STREAM] Last message type: " + last.type());
+            }
+
+            // ================================================================
             // INJECT CONTEXT (if provided)
             // ================================================================
 
@@ -466,13 +528,45 @@ public class AIService {
             }
 
             // ================================================================
-            // STREAMING AI CALL
+            // STREAMING AI CALL WITH TOOLS (ADR-033)
             // ================================================================
 
             StreamingChatLanguageModel streamingModel = getOrCreateStreamingModel(provider);
-            ERPTools tools = new ERPTools(provider, ctx);
 
-            // Build streaming agent with thread-aware memory
+            // Create streaming-aware tools with callback support
+            // StreamingERPTools wraps ERPTools and fires onToolStart/onToolComplete/onToolError
+            StreamingERPTools tools = new StreamingERPTools(provider, ctx, callback);
+
+            log.warning("[STREAM] Created StreamingERPTools with callback support");
+            log.warning("[STREAM] Message preview: " + processedMessage.substring(0, Math.min(50, processedMessage.length())));
+
+            // Track accumulated response for output guardrails and metrics
+            final AtomicReference<StringBuilder> responseAccumulator = new AtomicReference<>(new StringBuilder());
+
+            // ================================================================
+            // METRICS CONTEXT (ADR-013)
+            // Capture context for recording in onComplete handler
+            // ================================================================
+            final long streamingStartTime = System.currentTimeMillis();
+            final int metricsUserId = Env.getAD_User_ID(ctx);
+            final int metricsRoleId = Env.getAD_Role_ID(ctx);
+            final int metricsProviderId = provider.getAIG_Provider_ID();
+            final String metricsModelName = getModelNameForProvider(provider);
+            final String metricsSessionId = chat.getCM_Chat_ID() + "-" + threadRootId;
+            final Properties metricsCtx = ctx;
+            final String metricsInputMessage = processedMessage; // Capture for token estimation
+
+            // Start streaming
+            callback.onProgress("analyzing", "Processing your request...");
+
+            // ================================================================
+            // BUILD STREAMING AGENT WITH TOOLS
+            // Use AiServices to create ERPStreamingAgent with tool support
+            // ================================================================
+            log.warning("[STREAM] Building ERPStreamingAgent with tools...");
+            log.warning("[STREAM] Tools class: " + tools.getClass().getName());
+            log.warning("[STREAM] StreamingModel class: " + streamingModel.getClass().getName());
+
             final ThreadAwareChatMemory memoryForProvider = memory;
             ERPStreamingAgent agent = AiServices.builder(ERPStreamingAgent.class)
                 .streamingChatLanguageModel(streamingModel)
@@ -480,41 +574,102 @@ public class AIService {
                 .chatMemoryProvider(memoryId -> memoryForProvider)
                 .build();
 
-            // Build session ID
+            log.warning("[STREAM] Agent built successfully: " + agent.getClass().getName());
+
+            // Build session ID for the agent
             String sessionId = chat.getCM_Chat_ID() + "-" + memory.getCurrentThreadRootId();
+            log.warning("[STREAM] Starting TokenStream with sessionId: " + sessionId);
+            log.warning("[STREAM] Memory has " + memoryForProvider.getMessageCount() + " messages before agent.chat()");
 
-            // Track accumulated response for output guardrails
-            final AtomicReference<StringBuilder> responseAccumulator = new AtomicReference<>(new StringBuilder());
+            // Get TokenStream from agent
+            dev.langchain4j.service.TokenStream tokenStream = agent.chat(sessionId, processedMessage);
 
-            // Start streaming
-            log.warning("[STREAM] Starting streaming for session: " + sessionId);
-            callback.onProgress("analyzing", "Processing your request...");
-
-            TokenStream stream = agent.chat(sessionId, processedMessage);
-            log.warning("[STREAM] TokenStream created, setting up handlers...");
-
-            stream
+            // Wire up TokenStream callbacks (LangChain4j 0.35.0 API)
+            tokenStream
                 .onNext(token -> {
-                    // onNext is called for each token chunk
-                    log.warning("[STREAM] onNext: received token chunk, length=" + (token != null ? token.length() : 0));
+                    log.fine("[STREAM] onNext: " + (token != null ? token.length() : 0) + " chars");
                     responseAccumulator.get().append(token);
                     try {
                         callback.onChunk(token);
                     } catch (Exception e) {
                         log.severe("[STREAM] Error in onChunk callback: " + e.getMessage());
-                        e.printStackTrace();
                     }
                 })
                 .onComplete(response -> {
-                    log.warning("[STREAM] onComplete: streaming finished, response length=" +
-                        responseAccumulator.get().length());
+                    log.warning("[STREAM] onComplete: streaming finished");
+                    long streamingEndTime = System.currentTimeMillis();
+
+                    // Get AI response text (from response or accumulator)
+                    String aiResponseText = responseAccumulator.get().toString();
+                    if (response != null && response.content() != null && response.content().text() != null) {
+                        aiResponseText = response.content().text();
+                    }
+
+                    // Add AI response to memory for conversation continuity
+                    if (aiResponseText != null && !aiResponseText.isEmpty()) {
+                        memory.add(AiMessage.from(aiResponseText));
+                    }
+
+                    // ================================================================
+                    // RECORD METRICS (ADR-013)
+                    // ================================================================
+                    try {
+                        TokenUsage tokenUsage = response != null ? response.tokenUsage() : null;
+                        int inputTokens = 0;
+                        int outputTokens = 0;
+
+                        if (tokenUsage != null) {
+                            inputTokens = tokenUsage.inputTokenCount() != null ?
+                                tokenUsage.inputTokenCount() : 0;
+                            outputTokens = tokenUsage.outputTokenCount() != null ?
+                                tokenUsage.outputTokenCount() : 0;
+                        } else {
+                            // Estimate tokens if not provided (rough: 4 chars = 1 token)
+                            inputTokens = metricsInputMessage.length() / 4;
+                            outputTokens = aiResponseText != null ? aiResponseText.length() / 4 : 0;
+                            log.fine("[METRICS] Token usage not provided, estimated: in=" +
+                                inputTokens + ", out=" + outputTokens);
+                        }
+
+                        int latencyMs = (int) (streamingEndTime - streamingStartTime);
+
+                        // Calculate cost in microdollars (1 USD = 1,000,000 microdollars)
+                        int costMicrodollars = calculateCostMicrodollars(
+                            metricsModelName, inputTokens, outputTokens);
+
+                        // Persist metrics
+                        MAIUsageMetrics.record(
+                            metricsCtx,
+                            metricsUserId,
+                            metricsRoleId,
+                            metricsProviderId,
+                            "chat-streaming-tools",  // agentName (updated to reflect tools support)
+                            "STREAMING",             // agentType
+                            metricsModelName,
+                            inputTokens,
+                            outputTokens,
+                            costMicrodollars,
+                            latencyMs,
+                            metricsSessionId,
+                            "CHAT_STREAMING",        // requestType
+                            null                     // trxName (auto-commit)
+                        );
+
+                        log.info("[METRICS] Recorded: model=" + metricsModelName +
+                            ", tokens=" + (inputTokens + outputTokens) +
+                            ", cost=$" + String.format("%.6f", costMicrodollars / 1000000.0) +
+                            ", latency=" + latencyMs + "ms");
+
+                    } catch (Exception e) {
+                        log.warning("[METRICS] Failed to record metrics: " + e.getMessage());
+                    }
+
                     // Apply output guardrails on complete response
-                    if (guardrailsEnabled) {
-                        String fullResponse = responseAccumulator.get().toString();
-                        GuardResult outputResult = outputGuard.validate(fullResponse);
+                    final String finalAiResponseText = aiResponseText;
+                    if (guardrailsEnabled && finalAiResponseText != null) {
+                        GuardResult outputResult = outputGuard.validate(finalAiResponseText);
                         if (outputResult.isBlocked()) {
                             log.warning("Output blocked: " + outputResult.getBlockReason());
-                            // Note: Response already streamed, just log warning
                         }
                         if (outputResult.wasModified()) {
                             log.warning("Output would have been masked: " + outputResult.getViolationType());
@@ -524,22 +679,19 @@ public class AIService {
                         callback.onComplete();
                     } catch (Exception e) {
                         log.severe("[STREAM] Error in onComplete callback: " + e.getMessage());
-                        e.printStackTrace();
                     }
                 })
                 .onError(error -> {
                     log.severe("[STREAM] onError: " + error.getClass().getName() + ": " + error.getMessage());
-                    error.printStackTrace();
                     try {
                         callback.onError(new Exception(error.getMessage(), error));
                     } catch (Exception e) {
                         log.severe("[STREAM] Error in onError callback: " + e.getMessage());
-                        e.printStackTrace();
                     }
                 })
                 .start();
 
-            log.warning("[STREAM] TokenStream.start() called, streaming initiated");
+            log.warning("[STREAM] TokenStream started with tools support");
 
         } catch (Exception e) {
             String errorMsg = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
@@ -784,6 +936,98 @@ public class AIService {
      */
     public void clearBudgetCache(int clientId) {
         costGuard.clearBudgetCache(clientId);
+    }
+
+    // ========================================================================
+    // Metrics Helpers (ADR-013)
+    // ========================================================================
+
+    /**
+     * Get model name based on provider type.
+     *
+     * @param provider AI Provider
+     * @return Model name for metrics tracking
+     */
+    private static String getModelNameForProvider(MAIProvider provider) {
+        if (provider == null) {
+            return "unknown";
+        }
+        String providerType = provider.getAIGProviderType();
+        if (providerType == null) {
+            return "unknown";
+        }
+
+        // Map provider types to model names
+        if (providerType.contains("Anthropic") || providerType.contains("Claude")) {
+            return "claude-sonnet-4";
+        } else if (providerType.contains("Bedrock")) {
+            return "claude-3-5-sonnet-bedrock";
+        } else if (providerType.contains("Ollama")) {
+            return "llama3.2";
+        } else if (providerType.contains("OpenAI")) {
+            return "gpt-4o";
+        } else {
+            return providerType.toLowerCase();
+        }
+    }
+
+    /**
+     * Calculate cost in microdollars based on model pricing.
+     *
+     * <p>Pricing (per 1M tokens):
+     * <ul>
+     *   <li>Claude Sonnet 4: $3 input, $15 output</li>
+     *   <li>Claude Haiku: $0.25 input, $1.25 output</li>
+     *   <li>Claude Opus: $15 input, $75 output</li>
+     *   <li>GPT-4o: $5 input, $15 output</li>
+     *   <li>Ollama (local): Free</li>
+     * </ul>
+     *
+     * @param modelName Model identifier
+     * @param inputTokens Input token count
+     * @param outputTokens Output token count
+     * @return Cost in microdollars (1 USD = 1,000,000 microdollars)
+     */
+    private static int calculateCostMicrodollars(String modelName, int inputTokens, int outputTokens) {
+        if (modelName == null) {
+            modelName = "";
+        }
+        String model = modelName.toLowerCase();
+
+        // Rates in dollars per 1M tokens
+        double inputRatePerMillion;
+        double outputRatePerMillion;
+
+        if (model.contains("opus")) {
+            inputRatePerMillion = 15.0;
+            outputRatePerMillion = 75.0;
+        } else if (model.contains("haiku")) {
+            inputRatePerMillion = 0.25;
+            outputRatePerMillion = 1.25;
+        } else if (model.contains("sonnet") || model.contains("claude")) {
+            // Claude Sonnet 4 / 3.5 Sonnet
+            inputRatePerMillion = 3.0;
+            outputRatePerMillion = 15.0;
+        } else if (model.contains("gpt-4o-mini")) {
+            inputRatePerMillion = 0.15;
+            outputRatePerMillion = 0.6;
+        } else if (model.contains("gpt-4o") || model.contains("gpt-4")) {
+            inputRatePerMillion = 5.0;
+            outputRatePerMillion = 15.0;
+        } else if (model.contains("llama") || model.contains("mistral") || model.contains("ollama")) {
+            // Local models are free
+            return 0;
+        } else {
+            // Default to Sonnet pricing
+            inputRatePerMillion = 3.0;
+            outputRatePerMillion = 15.0;
+        }
+
+        // Calculate cost: (tokens / 1M) * rate * 1M (for microdollars)
+        double inputCost = (inputTokens / 1_000_000.0) * inputRatePerMillion * 1_000_000;
+        double outputCost = (outputTokens / 1_000_000.0) * outputRatePerMillion * 1_000_000;
+
+        return (int) (inputCost + outputCost);
     }
 
     // ========================================================================
