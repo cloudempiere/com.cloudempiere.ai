@@ -7,7 +7,7 @@ and this project adheres to [Conventional Commits](https://conventionalcommits.o
 
 ## [Unreleased]
 
-### Next: v0.17.0 - Share Dialog & Advanced Sharing
+### Next: v0.18.0 - Share Dialog & Advanced Sharing
 
 **Planned:**
 - Share button in AIChatWidget (OWNER only)
@@ -22,6 +22,44 @@ and this project adheres to [Conventional Commits](https://conventionalcommits.o
 - ADR-017: Chart Executive Overview
 - ADR-018: Sales Opportunity Summary
 - ADR-011: Domain Agents
+
+---
+
+## [0.17.0] - 2025-12-07
+
+### Phase 17: Streaming Tool Callbacks & Markdown Rendering (ADR-033)
+
+This release enhances streaming with tool execution callbacks and improves markdown rendering.
+
+#### Added
+
+- **StreamingERPTools** (ADR-033)
+  - Wrapper for ERPTools with callback support
+  - Tool execution notifications for UI updates
+  - Fires `onToolStart` and `onToolEnd` callbacks during execution
+  - Works with LangChain4j 0.35.0 (Java 11 compatible)
+
+- **Marked.js Client-Side Markdown Rendering**
+  - Full markdown support for final AI responses (tables, code blocks, lists)
+  - Prism.js syntax highlighting for code blocks
+  - GFM (GitHub Flavored Markdown) support
+
+#### Changed
+
+- **AIChatStreamingMessage**
+  - `complete()` now uses `renderFinalMarkdown()` with marked.js
+  - Filters hallucinated XML function call blocks from output
+  - Improved escaping for JavaScript string literals
+
+- **AIService & ERPAgent**
+  - Enhanced streaming tool integration
+  - Improved callback handling
+
+#### Technical Notes
+
+- LangChain4j 0.35.0 TokenStream lacks built-in tool callbacks (added in later versions)
+- StreamingERPTools provides callbacks by wrapping tool method invocations
+- Marked.js loaded client-side with retry logic for async availability
 
 ---
 
@@ -941,15 +979,18 @@ This release implements critical P1 infrastructure for production readiness.
 | 12 | v0.12.0 | 2025-12-03 | Observability, Guardrails & Multi-Tenant Access |
 | 13 | v0.13.0 | 2025-12-03 | Naming Standards & Integration Wiring |
 | 14 | v0.14.0 | 2025-12-04 | Real-Time Chat Streaming |
+| 15 | v0.15.0 | 2025-12-04 | Stop Button & Error Handling |
+| 16 | v0.16.0 | 2025-12-04 | Chat Ownership & Sharing |
+| 17 | v0.17.0 | 2025-12-07 | Streaming Tool Callbacks & Markdown Rendering |
 
 ## Upcoming Phases
 
 | Phase | Version | Target | Milestone |
 |-------|---------|--------|-----------|
-| 15 | v0.15.0 | Q1 2026 | Streaming Enhancements & Stop Button |
-| 16 | v0.16.0 | Q1 2026 | Chart Executive Overview (First Business Case) |
-| 17 | v0.17.0 | Q1 2026 | Domain Agents (Inventory, Sales, Purchasing) |
-| 18 | v1.0.0 | Q2 2026 | Production Release |
+| 18 | v0.18.0 | Q1 2026 | Share Dialog & Advanced Sharing |
+| 19 | v0.19.0 | Q1 2026 | Chart Executive Overview (First Business Case) |
+| 20 | v0.20.0 | Q1 2026 | Domain Agents (Inventory, Sales, Purchasing) |
+| 21 | v1.0.0 | Q2 2026 | Production Release |
 
 ## iDempiere Compatibility
 
