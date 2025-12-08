@@ -113,11 +113,12 @@ The `com.cloudempiere.ai` plugin has evolved organically with two parallel imple
 
 **Note:** `BedrockChatModel` is a unified class supporting all Bedrock foundation models (Claude, Amazon Nova, Mistral, Llama, etc.) via the modelId parameter.
 
-**Implementation Details (v0.9.0):**
+**Implementation Details (v0.9.0 → v0.19.0):**
 - `LangChain4jProviderFactory.java` - Factory creates ChatLanguageModel from MAIProvider config
-- `ERPTools.java` - @Tool annotated methods for database operations
-- `IDempiereAgent.java` - AiServices interface with system prompt
-- `IDempiereAIService.java` - Main facade for AI interactions
+- `ERPTools.java` - @Tool annotated methods for database operations (unified with optional callbacks)
+- `ERPAgent.java` / `ERPStreamingAgent.java` - AiServices interfaces with system prompt
+- `SimpleAgent.java` / `SimpleStreamingAgent.java` - Fallback agents for providers without streaming tools
+- `AIService.java` - Main facade with streaming-first architecture
 - Old providers (`AnthropicProvider`, `AWSBedrockProvider`) deprecated, not deleted
 
 **Benefits:**
@@ -365,44 +366,47 @@ ChatLanguageModel model = AnthropicChatModel.builder()
 
 ## Dependencies to Add
 
+**Note:** Due to Java 11 constraints (iDempiere v10), we use LangChain4j 0.35.0.
+See [ADR-035](035-java-version-strategy.md) for migration path to Java 17 + LangChain4j 1.x.
+
 ```xml
-<!-- LangChain4j Core (already present) -->
+<!-- LangChain4j Core -->
 <dependency>
     <groupId>dev.langchain4j</groupId>
     <artifactId>langchain4j</artifactId>
-    <version>1.0.0-beta3</version>
+    <version>0.35.0</version>  <!-- Last Java 11 compatible version -->
 </dependency>
 
 <!-- Native Providers -->
 <dependency>
     <groupId>dev.langchain4j</groupId>
     <artifactId>langchain4j-anthropic</artifactId>
-    <version>1.0.0-beta3</version>
+    <version>0.35.0</version>
 </dependency>
 
 <dependency>
     <groupId>dev.langchain4j</groupId>
     <artifactId>langchain4j-bedrock</artifactId>
-    <version>1.0.0-beta3</version>
+    <version>0.35.0</version>
 </dependency>
 
 <dependency>
     <groupId>dev.langchain4j</groupId>
     <artifactId>langchain4j-ollama</artifactId>
-    <version>1.0.0-beta3</version>
+    <version>0.35.0</version>
 </dependency>
 
 <dependency>
     <groupId>dev.langchain4j</groupId>
     <artifactId>langchain4j-open-ai</artifactId>
-    <version>1.0.0-beta3</version>
+    <version>0.35.0</version>
 </dependency>
 
 <!-- Embeddings for RAG -->
 <dependency>
     <groupId>dev.langchain4j</groupId>
     <artifactId>langchain4j-embeddings</artifactId>
-    <version>1.0.0-beta3</version>
+    <version>0.35.0</version>
 </dependency>
 ```
 

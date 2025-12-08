@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted (Revised 2025-12-03)
+Accepted (Revised 2025-12-08) - Implementation In Progress
 
 ## Date
 
@@ -12,16 +12,28 @@ Accepted (Revised 2025-12-03)
 
 Cloudempiere AI Team
 
-## Revision Note (2025-12-03)
+## Revision Note (2025-12-08)
 
-**Original Plan:** Create `LangChain4jConversationService` that retained custom routing (`PromptAnalyzer`, `ConversationContextManager`).
+**Original Plan (2025-12-03):** Create `LangChain4jConversationService` that retained custom routing.
 
-**Revised Decision:** Use existing `RAGConversationService` (ADR-012) instead. ADR-012 supersedes custom routing with LangChain4j RAG pattern, achieving same goals with 86% less code.
+**Current Implementation (v0.19.0):** `AIService` singleton with streaming-first architecture:
+- `chatStreamingWithContext()` - Primary streaming method (all flows)
+- `chatBlocking()` - CompletableFuture.join() wrapper for synchronous API
+- `chatWithContext()` - Legacy method for non-streaming use cases
+- `ThreadAwareChatMemory` - Thread-isolated conversation memory
+
+**Streaming-First Pattern:**
+```
+chatBlocking() ──┐
+                 ├──► chatStreamingWithContext() ──► AI Provider
+chatWithContext()┘     (Core implementation)
+```
 
 **Impact:**
-- No need to create `LangChain4jConversationService` - use `RAGConversationService`
-- Delete custom routing code (750 lines) per ADR-012
-- Still need `ThreadAwareChatMemory` for thread isolation
+- No separate `LangChain4jConversationService` created - using `AIService` directly
+- Unified `ERPTools` with optional callbacks (merged from StreamingERPTools)
+- Custom routing deferred to RAG integration (ADR-012)
+- `ThreadAwareChatMemory` implemented for thread isolation
 
 ## Context and Problem Statement
 
@@ -39,18 +51,28 @@ AIChatWidget
             └── Custom: System prompt building
 ```
 
-**Target Architecture (Revised per ADR-012):**
+**Current Architecture (v0.19.0 - Streaming-First):**
 ```
 AIChatWidget
-    └── RAGConversationService (ADR-012)
-            ├── Uses: IDempiereAIService
-            │           └── IDempiereAgent (AiServices + @Tool)
-            │                   └── LangChain4jProviderFactory
-            │                           └── ChatLanguageModel (native)
-            ├── REPLACED: Custom routing → RAGContextManager (semantic search)
-            ├── REPLACED: Custom caching → EmbeddingStore (built-in TTL)
-            ├── Retained: System prompt injection via @SystemMessage
-            └── NEW: ThreadAwareChatMemory (thread isolation)
+    └── AIService (Singleton, Streaming-First)
+            ├── chatStreamingWithContext() ─────────────────────┐
+            │                                                    │
+            ├── chatBlocking() ──┐                               │
+            │                    │ CompletableFuture.join()      │
+            │                    ▼                               │
+            │            ───────────────────────────────────────►│
+            │                                                    │
+            ├── Uses: LangChain4jProviderFactory                 │
+            │           └── StreamingChatLanguageModel           │
+            │                                                    │
+            ├── Agents: ERPStreamingAgent (with tools)           │
+            │           SimpleStreamingAgent (Ollama/Llama)      │
+            │                                                    │
+            ├── Tools: ERPTools (unified, optional callback)     │
+            │                                                    │
+            ├── Memory: ThreadAwareChatMemory                    │
+            │                                                    │
+            └── Guardrails: CostGuard, InputGuard, OutputGuard   │
 ```
 
 ## Decision Drivers
@@ -77,12 +99,12 @@ AIChatWidget
 ### Confirmation
 
 The decision will be confirmed when:
-- [ ] AIChatWidget uses LangChain4jConversationService
+- [x] AIChatWidget uses AIService (streaming-first) ✅ v0.19.0
 - [ ] All existing tests pass
 - [ ] New integration tests for LangChain4j path added
-- [ ] Streaming responses work in UI
-- [ ] Multi-thread conversations work correctly
-- [ ] Cost/token tracking functions via listeners
+- [x] Streaming responses work in UI ✅ v0.17.0
+- [x] Multi-thread conversations work correctly ✅ ThreadAwareChatMemory v0.14.0
+- [x] Cost/token tracking functions via listeners ✅ MAIUsageMetrics v0.17.0
 - [ ] AIConversationService marked @Deprecated
 - [ ] Stop button implemented for request cancellation
 - [ ] Streaming cancellation works correctly
@@ -495,5 +517,5 @@ ChatLanguageModel model = AnthropicChatModel.builder()
 
 ---
 
-*ADR-031 | Version 1.1 | 2025-12-04*
-*Updated: Added Stop Button for Request Cancellation (Section 4)*
+*ADR-031 | Version 1.2 | 2025-12-08*
+*Updated: Documented actual streaming-first implementation (AIService, ERPTools unified)*
