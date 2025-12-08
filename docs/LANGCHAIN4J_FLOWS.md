@@ -2,7 +2,7 @@
 
 > Comprehensive documentation of LangChain4j integration in the com.cloudempiere.ai plugin.
 
-**Version:** 0.17.1
+**Version:** 0.18.0
 **LangChain4j Version:** 0.35.0 (Java 11 compatible)
 **Last Updated:** December 2025
 
@@ -28,12 +28,13 @@
 
 The com.cloudempiere.ai plugin integrates LangChain4j to provide AI-powered capabilities within the iDempiere ERP system. This integration enables:
 
-- **Multi-provider LLM support**: Anthropic Claude, AWS Bedrock, OpenAI, Ollama (local)
+- **Multi-provider LLM support**: Anthropic Claude, AWS Bedrock, OpenAI, Ollama, Llama (local)
 - **Real-time streaming responses**: Token-by-token response delivery
-- **Tool/Function calling**: AI can query the ERP database securely
+- **Tool/Function calling**: AI can query the ERP database securely (supported providers only)
 - **Thread-aware conversation memory**: Persistent chat history with thread support
 - **Safety guardrails**: Input/output validation, cost control, rate limiting
 - **Full observability**: Token usage, cost tracking, latency metrics
+- **Model selection**: Configure model per provider via `AIG_Provider.ModelName`
 
 ### Key Design Decisions
 
@@ -139,8 +140,10 @@ src/com/cloudempiere/ai/
 │   └── langchain4j/
 │       ├── AIService.java              # Main entry point (singleton)
 │       ├── LangChain4jProviderFactory.java  # Model factory
-│       ├── ERPAgent.java               # Non-streaming agent interface
-│       ├── ERPStreamingAgent.java      # Streaming agent interface
+│       ├── ERPAgent.java               # Non-streaming agent interface (with tools)
+│       ├── ERPStreamingAgent.java      # Streaming agent interface (with tools)
+│       ├── SimpleAgent.java            # Simple agent (no tools, for Ollama/Llama)
+│       ├── SimpleStreamingAgent.java   # Simple streaming agent (no tools)
 │       ├── ERPTools.java               # @Tool annotated methods
 │       ├── StreamingERPTools.java      # Tools with callbacks
 │       └── ThreadAwareChatMemory.java  # Persistent chat memory
@@ -186,39 +189,78 @@ Factory for creating LangChain4j model instances from iDempiere configuration.
 
 **Supported Providers:**
 
-| Provider | Chat Model | Streaming Model | Embedding Model |
-|----------|-----------|-----------------|-----------------|
-| Anthropic (`ANT`) | `claude-sonnet-4-20250514` | Yes | Via Bedrock |
-| AWS Bedrock (`BED`) | `claude-3-5-sonnet-v2` | Yes | Titan Embed v2 |
-| OpenAI (`OAI`) | `gpt-4o` | Yes | `text-embedding-3-small` |
-| Ollama (`OLL`) | `llama3.2` | Yes | `nomic-embed-text` |
+| Provider | Chat Model | Streaming | Embedding | Tools |
+|----------|-----------|-----------|-----------|-------|
+| Anthropic (`ANT`) | `claude-sonnet-4-20250514` | ✅ | Via Bedrock | ✅ |
+| AWS Bedrock (`BED`) | `claude-3-5-sonnet-v2` | ✅ | Titan Embed v2 | ✅ |
+| OpenAI (`OAI`) | `gpt-4o` | ✅ | `text-embedding-3-small` | ✅ |
+| Ollama (`OLL`) | `llama3.2` | ✅ | `nomic-embed-text` | ❌ |
+| Llama (`LLA`) | `llama3.2` | ✅ | `nomic-embed-text` | ❌ |
 
-### 3. ERPAgent / ERPStreamingAgent
+**Note:** Tool/function calling is not supported by Ollama/Llama in LangChain4j 0.35.0. These providers use `SimpleAgent` / `SimpleStreamingAgent` for basic chat without database access.
+
+**Model Selection:**
+
+Configure the model via `AIG_Provider.ModelName` column:
+
+| Provider | Default Model | Example Alternatives |
+|----------|---------------|---------------------|
+| Anthropic | `claude-sonnet-4-20250514` | `claude-3-opus`, `claude-3-haiku` |
+| AWS Bedrock | `claude-3-5-sonnet-v2` | `claude-3-haiku`, `amazon.titan-text` |
+| OpenAI | `gpt-4o` | `gpt-4o-mini`, `gpt-3.5-turbo` |
+| Ollama | `llama3.2` | `llama3.1`, `phi3:mini`, `gemma2:2b` |
+| Llama | `llama3.2` | `llama3.2:1b`, `codellama`, `llama2` |
+
+### 3. Agent Interfaces
 
 **Files:**
-- `src/com/cloudempiere/ai/provider/langchain4j/ERPAgent.java`
-- `src/com/cloudempiere/ai/provider/langchain4j/ERPStreamingAgent.java`
+- `src/com/cloudempiere/ai/provider/langchain4j/ERPAgent.java` - With tools
+- `src/com/cloudempiere/ai/provider/langchain4j/ERPStreamingAgent.java` - Streaming with tools
+- `src/com/cloudempiere/ai/provider/langchain4j/SimpleAgent.java` - No tools (Ollama/Llama)
+- `src/com/cloudempiere/ai/provider/langchain4j/SimpleStreamingAgent.java` - Streaming, no tools
 
 LangChain4j service interfaces that define the agent contract:
 
 ```java
-// Non-streaming
+// ERPAgent - Full functionality with tools (Anthropic, OpenAI, Bedrock)
 public interface ERPAgent {
-    @SystemMessage(SYSTEM_PROMPT)
+    @SystemMessage(SYSTEM_PROMPT)  // Includes tool usage instructions
     String chat(@MemoryId String sessionId, @UserMessage String userMessage);
 }
 
-// Streaming
+// ERPStreamingAgent - Streaming with tools
 public interface ERPStreamingAgent {
     @SystemMessage(SYSTEM_PROMPT)
     TokenStream chat(@MemoryId String sessionId, @UserMessage String userMessage);
 }
+
+// SimpleAgent - Basic chat without tools (Ollama/Llama)
+public interface SimpleAgent {
+    @SystemMessage(SIMPLE_SYSTEM_PROMPT)  // No tool instructions
+    String chat(@MemoryId String sessionId, @UserMessage String userMessage);
+}
+
+// SimpleStreamingAgent - Streaming without tools
+public interface SimpleStreamingAgent {
+    @SystemMessage(SIMPLE_SYSTEM_PROMPT)
+    TokenStream chat(@MemoryId String sessionId, @UserMessage String userMessage);
+}
 ```
 
-**System Prompt Highlights:**
+**Agent Selection (in AIService):**
+- `supportsTools(provider)` checks if provider supports function calling
+- Tool-supported providers: `ANT`, `OAI`, `BED` → use `ERPAgent`/`ERPStreamingAgent`
+- Non-tool providers: `OLL`, `LLA` → use `SimpleAgent`/`SimpleStreamingAgent`
+
+**ERPAgent System Prompt Highlights:**
 - Must use tools for all data queries (never hallucinate)
 - Respects role-based security
 - Available tools: `queryDatabase`, `lookupRecord`, `searchRecords`, etc.
+
+**SimpleAgent System Prompt Highlights:**
+- General ERP assistant without database access
+- Explains limitations when asked about specific data
+- Suggests using cloud providers for full functionality
 
 ### 4. ERPTools / StreamingERPTools
 
