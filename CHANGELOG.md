@@ -7,7 +7,7 @@ and this project adheres to [Conventional Commits](https://conventionalcommits.o
 
 ## [Unreleased]
 
-### Next: v0.19.0 - Share Dialog & Advanced Sharing
+### Next: v0.20.0 - Share Dialog & Advanced Sharing
 
 **Planned:**
 - Share button in AIChatWidget (OWNER only)
@@ -22,6 +22,50 @@ and this project adheres to [Conventional Commits](https://conventionalcommits.o
 - ADR-017: Chart Executive Overview
 - ADR-018: Sales Opportunity Summary
 - ADR-011: Domain Agents
+
+---
+
+## [0.19.0] - 2025-12-08
+
+### Streaming-First Architecture & Tool Support Separation
+
+This release unifies the ERPTools implementation and properly separates streaming vs non-streaming tool support for different providers.
+
+#### Added
+
+- **supportsStreamingTools() method** in AIService
+  - Separates streaming tool support from non-streaming
+  - Streaming tools: Anthropic, OpenAI, AWS Bedrock only
+  - Non-streaming tools: All providers including Ollama/Llama
+  - LangChain4j 0.35.0 limitation: OllamaStreamingChatModel doesn't support tools
+
+#### Changed
+
+- **Unified ERPTools** (deleted StreamingERPTools)
+  - Single ERPTools class with optional callback support
+  - Constructor accepts optional `AIStreamCallback` for tool events
+  - Fires `onToolStart`, `onToolComplete`, `onToolError` when callback provided
+  - Reduces code duplication between streaming and non-streaming paths
+
+- **Agent Name Display** in AIChatWidget
+  - Now uses `provider.getAD_User().getName()` instead of provider name
+  - Displays actual AI user name (e.g., "Ollama Agent") in chat messages
+  - Consistent naming between initial display and after refresh
+
+- **AIService Tool Support Logic**
+  - `TOOL_SUPPORTED_PROVIDERS`: All major providers (non-streaming)
+  - `STREAMING_TOOL_SUPPORTED_PROVIDERS`: Anthropic, OpenAI, Bedrock only
+  - Ollama/Llama streaming uses `SimpleStreamingAgent` (no tools)
+
+#### Removed
+
+- **StreamingERPTools.java** - Functionality merged into ERPTools
+
+#### Technical Notes
+
+- Streaming tool support for Ollama requires LangChain4j 0.37.0+ (Java 17)
+- Current LangChain4j 0.35.0 throws "Tools are currently not supported by this model" for Ollama streaming
+- Non-streaming tool support works for Ollama/Llama in 0.35.0
 
 ---
 
@@ -1087,15 +1131,17 @@ This release implements critical P1 infrastructure for production readiness.
 | 15 | v0.15.0 | 2025-12-04 | Stop Button & Error Handling |
 | 16 | v0.16.0 | 2025-12-04 | Chat Ownership & Sharing |
 | 17 | v0.17.0 | 2025-12-07 | Streaming Tool Callbacks & Markdown Rendering |
+| 18 | v0.18.0 | 2025-12-08 | Llama Provider & Model Selection |
+| 19 | v0.19.0 | 2025-12-08 | Streaming-First Architecture & Tool Support Separation |
 
 ## Upcoming Phases
 
 | Phase | Version | Target | Milestone |
 |-------|---------|--------|-----------|
-| 18 | v0.18.0 | Q1 2026 | Share Dialog & Advanced Sharing |
-| 19 | v0.19.0 | Q1 2026 | Chart Executive Overview (First Business Case) |
-| 20 | v0.20.0 | Q1 2026 | Domain Agents (Inventory, Sales, Purchasing) |
-| 21 | v1.0.0 | Q2 2026 | Production Release |
+| 20 | v0.20.0 | Q1 2026 | Share Dialog & Advanced Sharing |
+| 21 | v0.21.0 | Q1 2026 | Chart Executive Overview (First Business Case) |
+| 22 | v0.22.0 | Q1 2026 | Domain Agents (Inventory, Sales, Purchasing) |
+| 23 | v1.0.0 | Q2 2026 | Production Release |
 
 ## iDempiere Compatibility
 

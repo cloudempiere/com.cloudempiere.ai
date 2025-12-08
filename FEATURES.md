@@ -8,10 +8,10 @@ This document tracks features, implementation status, and version compatibility 
 
 ---
 
-## Current Version: v0.18.0
+## Current Version: v0.19.0
 
-**Status:** ✅ Llama Provider & Model Selection
-**Next:** v0.19.0 - Share Dialog & Advanced Sharing
+**Status:** ✅ Streaming-First Architecture & Tool Support Separation
+**Next:** v0.20.0 - Share Dialog & Advanced Sharing
 
 **Strategic Focus:** The Chat Widget is our primary AI implementation. All features will be integrated and tested through the chat widget before other use cases (charts, reports, etc.).
 
@@ -21,7 +21,8 @@ This document tracks features, implementation status, and version compatibility 
 
 | Version | Date | Key Features | Focus Area |
 |---------|------|--------------|------------|
-| **0.18.0** | 2025-12-08 | **Llama Provider & Model Selection** | **Multi-Provider** |
+| **0.19.0** | 2025-12-08 | **Streaming-First Architecture & Tool Support** | **Architecture** |
+| 0.18.0 | 2025-12-08 | Llama Provider & Model Selection | Multi-Provider |
 | 0.17.2 | 2025-12-08 | Unit Test Infrastructure | Testing & Docs |
 | 0.17.1 | 2025-12-08 | Window Context Fix | Bug Fix |
 | 0.17.0 | 2025-12-07 | Streaming Tool Callbacks & Markdown | User Experience |
@@ -411,5 +412,5 @@ Based on validation reports:
 ---
 
 **Last Updated:** 2025-12-08
-**Current Version:** v0.18.0 (Llama Provider & Model Selection)
-**Next Release:** v0.19.0 - Streaming-First Architecture & Share Dialog
+**Current Version:** v0.19.0 (Streaming-First Architecture & Tool Support Separation)
+**Next Release:** v0.20.0 - Share Dialog & Advanced Sharing
