@@ -2,7 +2,7 @@
 
 > Comprehensive documentation of LangChain4j integration in the com.cloudempiere.ai plugin.
 
-**Version:** 0.19.0
+**Version:** 0.20.0
 **LangChain4j Version:** 0.35.0 (Java 11 compatible)
 **Last Updated:** December 2025
 
