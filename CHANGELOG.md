@@ -25,6 +25,31 @@ and this project adheres to [Conventional Commits](https://conventionalcommits.o
 
 ---
 
+## [0.17.1] - 2025-12-08
+
+### Bug Fix: Window Context Not Passed to AI Chat
+
+This patch release fixes a critical bug where the AI chat was not receiving context from the currently opened iDempiere window/tab.
+
+#### Fixed
+
+- **AIService.buildContextPrompt()** - Fixed JSON structure mismatch
+  - The method was looking for flat keys (`windowName`, `tabName`, `recordId`)
+  - WindowContextProvider produces nested structure (`window_metadata.name`, `tab_context.tab_name`, `record_data`)
+  - Context is now correctly extracted and included in AI prompts
+
+- **AIChatStreamingMessage** - Fixed markdown rendering DOM race condition
+  - Improved DOM element lookup for marked.js rendering
+  - Added fallback strategies for ZK framework element access
+
+#### Added
+
+- Context debugging logs in `chatWithContext()` and `chatStreamingWithContext()`
+  - Logs context keys and success flag for troubleshooting
+  - Logs when context injection succeeds or fails
+
+---
+
 ## [0.17.0] - 2025-12-07
 
 ### Phase 17: Streaming Tool Callbacks & Markdown Rendering (ADR-033)

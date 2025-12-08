@@ -8,10 +8,10 @@ This document tracks features, implementation status, and version compatibility 
 
 ---
 
-## Current Version: v0.16.0
+## Current Version: v0.17.1
 
-**Status:** ✅ Chat Ownership & Sharing Complete (ADR-036)
-**Next:** v0.17.0 - Share Dialog & Advanced Sharing
+**Status:** ✅ Window Context Fix
+**Next:** v0.18.0 - Share Dialog & Advanced Sharing
 
 **Strategic Focus:** The Chat Widget is our primary AI implementation. All features will be integrated and tested through the chat widget before other use cases (charts, reports, etc.).
 
@@ -21,7 +21,9 @@ This document tracks features, implementation status, and version compatibility 
 
 | Version | Date | Key Features | Focus Area |
 |---------|------|--------------|------------|
-| **0.16.0** | 2025-12-04 | **Chat Ownership & Sharing** | **Multi-User Collaboration** |
+| **0.17.1** | 2025-12-08 | **Window Context Fix** | **Bug Fix** |
+| 0.17.0 | 2025-12-07 | Streaming Tool Callbacks & Markdown | User Experience |
+| 0.16.0 | 2025-12-04 | Chat Ownership & Sharing | Multi-User Collaboration |
 | 0.15.0 | 2025-12-04 | Stop Button & Error Handling | User Experience |
 | 0.14.0 | 2025-12-04 | Real-Time Chat Streaming | User Experience |
 | 0.13.0 | 2025-12-03 | Naming Standards, Integration Wiring | Code Quality |
