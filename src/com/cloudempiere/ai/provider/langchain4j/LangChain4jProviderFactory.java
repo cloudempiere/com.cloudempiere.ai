@@ -33,11 +33,12 @@ import software.amazon.awssdk.regions.Region;
  * Replaces the custom IAIProvider implementations with LangChain4j native providers:
  * - AnthropicChatModel (replaces AnthropicProvider)
  * - BedrockAnthropicChatModel (replaces AWSBedrockProvider)
- * - OllamaChatModel (new - local LLM support)
- * - OpenAiChatModel (new - OpenAI/Azure support)
+ * - OllamaChatModel (local LLM support for any Ollama model)
+ * - OpenAiChatModel (OpenAI/Azure support)
+ * - LlamaModel (Meta Llama models via Ollama - llama3.2, llama3.1, codellama, etc.)
  *
  * @author Cloudempiere
- * @version 0.9.0
+ * @version 0.10.0
  * @since ADR-002 LangChain4j Strategic Adoption
  */
 public class LangChain4jProviderFactory {
@@ -49,6 +50,7 @@ public class LangChain4jProviderFactory {
     public static final String PROVIDER_BEDROCK = X_AIG_Provider.AIGPROVIDERTYPE_AWSBedrock;
     public static final String PROVIDER_OLLAMA = "OLL";    // To be added to AD_Ref_List
     public static final String PROVIDER_OPENAI = "OAI";    // To be added to AD_Ref_List
+    public static final String PROVIDER_LLAMA = "LLA";     // Meta Llama via Ollama - To be added to AD_Ref_List
 
     /** Default model names per provider */
     private static final String DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-4-20250514";
@@ -56,6 +58,7 @@ public class LangChain4jProviderFactory {
     private static final String DEFAULT_BEDROCK_REGION = "us-east-1";
     private static final String DEFAULT_OLLAMA_MODEL = "llama3.2";
     private static final String DEFAULT_OPENAI_MODEL = "gpt-4o";
+    private static final String DEFAULT_LLAMA_MODEL = "llama3.2";
     private static final String DEFAULT_OLLAMA_URL = "http://localhost:11434";
 
     /** Default embedding model names per provider */
@@ -74,19 +77,27 @@ public class LangChain4jProviderFactory {
     /**
      * Create a ChatLanguageModel from MAIProvider configuration.
      *
+     * <p>Uses the ModelName from the provider configuration if set,
+     * otherwise falls back to provider-specific defaults.
+     *
      * @param config MAIProvider database configuration
      * @return ChatLanguageModel instance
      * @throws IllegalArgumentException if provider type is unknown
      */
     public static ChatLanguageModel create(MAIProvider config) {
-        return create(config, null, null);
+        // Use ModelName from config if set, otherwise null (will use defaults)
+        String modelName = config.getModelName();
+        if (modelName != null && modelName.trim().isEmpty()) {
+            modelName = null;  // Treat empty string as null
+        }
+        return create(config, modelName, null);
     }
 
     /**
      * Create a ChatLanguageModel with optional model name override.
      *
      * @param config MAIProvider database configuration
-     * @param modelName Optional model name (uses default if null)
+     * @param modelName Optional model name (uses config.getModelName() or default if null)
      * @param baseUrl Optional base URL for Ollama (uses default if null)
      * @return ChatLanguageModel instance
      */
@@ -94,7 +105,16 @@ public class LangChain4jProviderFactory {
         String providerType = config.getAIGProviderType();
         String apiKey = config.getAPIKey();
 
-        log.info("Creating LangChain4j model for provider: " + providerType);
+        // If modelName not provided as parameter, try to get from config
+        if (modelName == null) {
+            modelName = config.getModelName();
+            if (modelName != null && modelName.trim().isEmpty()) {
+                modelName = null;
+            }
+        }
+
+        log.info("Creating LangChain4j model for provider: " + providerType +
+                (modelName != null ? ", model: " + modelName : " (using default model)"));
 
         switch (providerType) {
             case PROVIDER_ANTHROPIC:
@@ -105,19 +125,48 @@ public class LangChain4jProviderFactory {
                 return createOllamaModel(baseUrl, modelName);
             case PROVIDER_OPENAI:
                 return createOpenAiModel(apiKey, modelName);
+            case PROVIDER_LLAMA:
+                return createLlamaModel(baseUrl, modelName);
             default:
                 throw new IllegalArgumentException("Unknown provider type: " + providerType);
         }
     }
 
     /**
-     * Create a StreamingChatLanguageModel for real-time response streaming.
+     * Create a StreamingChatLanguageModel from MAIProvider configuration.
+     *
+     * <p>Uses the ModelName from the provider configuration if set,
+     * otherwise falls back to provider-specific defaults.
+     *
+     * @param config MAIProvider database configuration
+     * @return StreamingChatLanguageModel instance
+     */
+    public static StreamingChatLanguageModel createStreaming(MAIProvider config) {
+        // Use ModelName from config if set, otherwise null (will use defaults)
+        String modelName = config.getModelName();
+        if (modelName != null && modelName.trim().isEmpty()) {
+            modelName = null;  // Treat empty string as null
+        }
+        return createStreaming(config, modelName, null);
+    }
+
+    /**
+     * Create a StreamingChatLanguageModel with optional model name override.
      */
     public static StreamingChatLanguageModel createStreaming(MAIProvider config, String modelName, String baseUrl) {
         String providerType = config.getAIGProviderType();
         String apiKey = config.getAPIKey();
 
-        log.info("Creating LangChain4j streaming model for provider: " + providerType);
+        // If modelName not provided as parameter, try to get from config
+        if (modelName == null) {
+            modelName = config.getModelName();
+            if (modelName != null && modelName.trim().isEmpty()) {
+                modelName = null;
+            }
+        }
+
+        log.info("Creating LangChain4j streaming model for provider: " + providerType +
+                (modelName != null ? ", model: " + modelName : " (using default model)"));
 
         switch (providerType) {
             case PROVIDER_ANTHROPIC:
@@ -128,6 +177,8 @@ public class LangChain4jProviderFactory {
                 return createOllamaStreamingModel(baseUrl, modelName);
             case PROVIDER_OPENAI:
                 return createOpenAiStreamingModel(apiKey, modelName);
+            case PROVIDER_LLAMA:
+                return createLlamaStreamingModel(baseUrl, modelName);
             default:
                 throw new IllegalArgumentException("Streaming not supported for provider: " + providerType);
         }
@@ -214,6 +265,10 @@ public class LangChain4jProviderFactory {
             case PROVIDER_OPENAI:
                 return createOpenAiEmbeddingModel(apiKey, modelName);
 
+            case PROVIDER_LLAMA:
+                // Llama uses Ollama for embeddings with nomic-embed-text or similar
+                return createLlamaEmbeddingModel(baseUrl, modelName);
+
             default:
                 // Fallback to Bedrock Titan for unknown providers
                 log.warning("Unknown provider type: " + providerType + ", falling back to Bedrock Titan Embeddings");
@@ -242,7 +297,8 @@ public class LangChain4jProviderFactory {
         // Only these providers have native embedding APIs
         return PROVIDER_BEDROCK.equals(providerType) ||
                PROVIDER_OLLAMA.equals(providerType) ||
-               PROVIDER_OPENAI.equals(providerType);
+               PROVIDER_OPENAI.equals(providerType) ||
+               PROVIDER_LLAMA.equals(providerType);
     }
 
     // ========================================================================
@@ -299,6 +355,51 @@ public class LangChain4jProviderFactory {
         return OllamaStreamingChatModel.builder()
             .baseUrl(baseUrl != null ? baseUrl : DEFAULT_OLLAMA_URL)
             .modelName(modelName != null ? modelName : DEFAULT_OLLAMA_MODEL)
+            .temperature(0.7)
+            .build();
+    }
+
+    /**
+     * Create a ChatLanguageModel for Meta Llama models via Ollama.
+     *
+     * <p>Llama models run locally through Ollama server. Supported models include:
+     * <ul>
+     *   <li>llama3.2 (default) - Latest Llama 3.2 with 128K context</li>
+     *   <li>llama3.1 - Llama 3.1 family (8B, 70B, 405B)</li>
+     *   <li>llama3 - Llama 3 family</li>
+     *   <li>llama2 - Llama 2 family</li>
+     *   <li>codellama - Code-specialized Llama</li>
+     * </ul>
+     *
+     * @param baseUrl Ollama server URL (default: http://localhost:11434)
+     * @param modelName Llama model name (default: llama3.2)
+     * @return ChatLanguageModel configured for Llama
+     */
+    private static ChatLanguageModel createLlamaModel(String baseUrl, String modelName) {
+        var builder = OllamaChatModel.builder()
+            .baseUrl(baseUrl != null ? baseUrl : DEFAULT_OLLAMA_URL)
+            .modelName(modelName != null ? modelName : DEFAULT_LLAMA_MODEL)
+            .temperature(0.7);
+
+        // Add observability listener (ADR-013)
+        if (metricsEnabled) {
+            builder.listeners(List.of(createMetricsListener("llama")));
+        }
+
+        return builder.build();
+    }
+
+    /**
+     * Create a StreamingChatLanguageModel for Meta Llama models via Ollama.
+     *
+     * @param baseUrl Ollama server URL (default: http://localhost:11434)
+     * @param modelName Llama model name (default: llama3.2)
+     * @return StreamingChatLanguageModel configured for Llama
+     */
+    private static StreamingChatLanguageModel createLlamaStreamingModel(String baseUrl, String modelName) {
+        return OllamaStreamingChatModel.builder()
+            .baseUrl(baseUrl != null ? baseUrl : DEFAULT_OLLAMA_URL)
+            .modelName(modelName != null ? modelName : DEFAULT_LLAMA_MODEL)
             .temperature(0.7)
             .build();
     }
@@ -370,6 +471,27 @@ public class LangChain4jProviderFactory {
     }
 
     private static EmbeddingModel createOllamaEmbeddingModel(String baseUrl, String modelName) {
+        return OllamaEmbeddingModel.builder()
+            .baseUrl(baseUrl != null ? baseUrl : DEFAULT_OLLAMA_URL)
+            .modelName(modelName != null ? modelName : DEFAULT_OLLAMA_EMBEDDING_MODEL)
+            .build();
+    }
+
+    /**
+     * Create an EmbeddingModel for Llama via Ollama.
+     *
+     * <p>Uses Ollama's embedding models. Recommended models:
+     * <ul>
+     *   <li>nomic-embed-text (default) - Good general-purpose embeddings</li>
+     *   <li>mxbai-embed-large - High-quality embeddings</li>
+     *   <li>all-minilm - Fast, lightweight embeddings</li>
+     * </ul>
+     *
+     * @param baseUrl Ollama server URL (default: http://localhost:11434)
+     * @param modelName Embedding model name (default: nomic-embed-text)
+     * @return EmbeddingModel configured for Llama/Ollama embeddings
+     */
+    private static EmbeddingModel createLlamaEmbeddingModel(String baseUrl, String modelName) {
         return OllamaEmbeddingModel.builder()
             .baseUrl(baseUrl != null ? baseUrl : DEFAULT_OLLAMA_URL)
             .modelName(modelName != null ? modelName : DEFAULT_OLLAMA_EMBEDDING_MODEL)

@@ -69,6 +69,24 @@ public class AIService {
     /** Default conversation memory size */
     private static final int DEFAULT_MEMORY_SIZE = 20;
 
+    /** Provider types that support tool/function calling in LangChain4j 0.35.0 */
+    private static final java.util.Set<String> TOOL_SUPPORTED_PROVIDERS = java.util.Set.of(
+        LangChain4jProviderFactory.PROVIDER_ANTHROPIC,
+        LangChain4jProviderFactory.PROVIDER_OPENAI,
+        LangChain4jProviderFactory.PROVIDER_BEDROCK
+    );
+
+    /**
+     * Check if provider supports tool calling.
+     * LangChain4j 0.35.0 doesn't support tools for Ollama/Llama.
+     */
+    private static boolean supportsTools(MAIProvider provider) {
+        if (provider == null || provider.getAIGProviderType() == null) {
+            return false;
+        }
+        return TOOL_SUPPORTED_PROVIDERS.contains(provider.getAIGProviderType());
+    }
+
     // ========================================================================
     // Guardrails (ADR-014) and Cost Control (ADR-013)
     // ========================================================================
@@ -326,20 +344,40 @@ public class AIService {
             // ================================================================
 
             ChatLanguageModel model = LangChain4jProviderFactory.getOrCreate(provider);
-            ERPTools tools = new ERPTools(provider, ctx);
-
-            // Use chatMemoryProvider for @MemoryId support in ERPAgent
-            // The provider returns our thread-aware memory for any session ID
-            final ThreadAwareChatMemory memoryForProvider = memory;
-            ERPAgent agent = AiServices.builder(ERPAgent.class)
-                .chatLanguageModel(model)
-                .tools(tools)
-                .chatMemoryProvider(memoryId -> memoryForProvider)
-                .build();
 
             // Build session ID for the agent
             String sessionId = chat.getCM_Chat_ID() + "-" + memory.getCurrentThreadRootId();
-            String response = agent.chat(sessionId, processedMessage);
+            String response;
+
+            // Check if provider supports tools (Ollama/Llama don't in LangChain4j 0.35.0)
+            if (supportsTools(provider)) {
+                // Use full agent with tools
+                ERPTools tools = new ERPTools(provider, ctx);
+
+                // Use chatMemoryProvider for @MemoryId support in ERPAgent
+                // The provider returns our thread-aware memory for any session ID
+                final ThreadAwareChatMemory memoryForProvider = memory;
+                ERPAgent agent = AiServices.builder(ERPAgent.class)
+                    .chatLanguageModel(model)
+                    .tools(tools)
+                    .chatMemoryProvider(memoryId -> memoryForProvider)
+                    .build();
+
+                response = agent.chat(sessionId, processedMessage);
+            } else {
+                // Simple chat without tools (for Ollama/Llama)
+                log.info("Provider " + provider.getAIGProviderType() +
+                        " doesn't support tools, using simple chat mode");
+
+                // Use SimpleAgent which has a system prompt without tool instructions
+                final ThreadAwareChatMemory memoryForProvider = memory;
+                SimpleAgent agent = AiServices.builder(SimpleAgent.class)
+                    .chatLanguageModel(model)
+                    .chatMemoryProvider(memoryId -> memoryForProvider)
+                    .build();
+
+                response = agent.chat(sessionId, processedMessage);
+            }
 
             // ================================================================
             // POST-RESPONSE GUARDRAILS
@@ -544,16 +582,11 @@ public class AIService {
             }
 
             // ================================================================
-            // STREAMING AI CALL WITH TOOLS (ADR-033)
+            // STREAMING AI CALL (ADR-033)
             // ================================================================
 
             StreamingChatLanguageModel streamingModel = getOrCreateStreamingModel(provider);
 
-            // Create streaming-aware tools with callback support
-            // StreamingERPTools wraps ERPTools and fires onToolStart/onToolComplete/onToolError
-            StreamingERPTools tools = new StreamingERPTools(provider, ctx, callback);
-
-            log.warning("[STREAM] Created StreamingERPTools with callback support");
             log.warning("[STREAM] Message preview: " + processedMessage.substring(0, Math.min(50, processedMessage.length())));
 
             // Track accumulated response for output guardrails and metrics
@@ -575,30 +608,57 @@ public class AIService {
             // Start streaming
             callback.onProgress("analyzing", "Processing your request...");
 
-            // ================================================================
-            // BUILD STREAMING AGENT WITH TOOLS
-            // Use AiServices to create ERPStreamingAgent with tool support
-            // ================================================================
-            log.warning("[STREAM] Building ERPStreamingAgent with tools...");
-            log.warning("[STREAM] Tools class: " + tools.getClass().getName());
-            log.warning("[STREAM] StreamingModel class: " + streamingModel.getClass().getName());
-
-            final ThreadAwareChatMemory memoryForProvider = memory;
-            ERPStreamingAgent agent = AiServices.builder(ERPStreamingAgent.class)
-                .streamingChatLanguageModel(streamingModel)
-                .tools(tools)
-                .chatMemoryProvider(memoryId -> memoryForProvider)
-                .build();
-
-            log.warning("[STREAM] Agent built successfully: " + agent.getClass().getName());
-
             // Build session ID for the agent
             String sessionId = chat.getCM_Chat_ID() + "-" + memory.getCurrentThreadRootId();
-            log.warning("[STREAM] Starting TokenStream with sessionId: " + sessionId);
-            log.warning("[STREAM] Memory has " + memoryForProvider.getMessageCount() + " messages before agent.chat()");
+            final ThreadAwareChatMemory memoryForProvider = memory;
 
-            // Get TokenStream from agent
-            dev.langchain4j.service.TokenStream tokenStream = agent.chat(sessionId, processedMessage);
+            // Check if provider supports tools (Ollama/Llama don't in LangChain4j 0.35.0)
+            dev.langchain4j.service.TokenStream tokenStream;
+
+            if (supportsTools(provider)) {
+                // ================================================================
+                // BUILD STREAMING AGENT WITH TOOLS (for Anthropic, OpenAI, Bedrock)
+                // ================================================================
+                log.warning("[STREAM] Building ERPStreamingAgent with tools...");
+
+                // Create streaming-aware tools with callback support
+                StreamingERPTools tools = new StreamingERPTools(provider, ctx, callback);
+                log.warning("[STREAM] Tools class: " + tools.getClass().getName());
+                log.warning("[STREAM] StreamingModel class: " + streamingModel.getClass().getName());
+
+                ERPStreamingAgent agent = AiServices.builder(ERPStreamingAgent.class)
+                    .streamingChatLanguageModel(streamingModel)
+                    .tools(tools)
+                    .chatMemoryProvider(memoryId -> memoryForProvider)
+                    .build();
+
+                log.warning("[STREAM] Agent built successfully: " + agent.getClass().getName());
+                log.warning("[STREAM] Starting TokenStream with sessionId: " + sessionId);
+                log.warning("[STREAM] Memory has " + memoryForProvider.getMessageCount() + " messages before agent.chat()");
+
+                // Get TokenStream from agent
+                tokenStream = agent.chat(sessionId, processedMessage);
+            } else {
+                // ================================================================
+                // SIMPLE STREAMING WITHOUT TOOLS (for Ollama/Llama)
+                // ================================================================
+                log.warning("[STREAM] Provider " + provider.getAIGProviderType() +
+                        " doesn't support tools, using simple streaming chat mode");
+                log.warning("[STREAM] StreamingModel class: " + streamingModel.getClass().getName());
+
+                // Build SimpleStreamingAgent (no tools, simplified system prompt)
+                SimpleStreamingAgent agent = AiServices.builder(SimpleStreamingAgent.class)
+                    .streamingChatLanguageModel(streamingModel)
+                    .chatMemoryProvider(memoryId -> memoryForProvider)
+                    .build();
+
+                log.warning("[STREAM] SimpleStreamingAgent built successfully: " + agent.getClass().getName());
+                log.warning("[STREAM] Starting TokenStream with sessionId: " + sessionId);
+                log.warning("[STREAM] Memory has " + memoryForProvider.getMessageCount() + " messages before agent.chat()");
+
+                // Get TokenStream from agent
+                tokenStream = agent.chat(sessionId, processedMessage);
+            }
 
             // Wire up TokenStream callbacks (LangChain4j 0.35.0 API)
             tokenStream
@@ -877,14 +937,29 @@ public class AIService {
             // ================================================================
 
             ChatLanguageModel model = LangChain4jProviderFactory.create(provider);
-            ERPTools tools = new ERPTools(provider, ctx);
+            String response;
 
-            ERPAgent agent = AiServices.builder(ERPAgent.class)
-                .chatLanguageModel(model)
-                .tools(tools)
-                .build();
+            // Check if provider supports tools (Ollama/Llama don't in LangChain4j 0.35.0)
+            if (supportsTools(provider)) {
+                ERPTools tools = new ERPTools(provider, ctx);
 
-            String response = agent.execute(processedGoal);
+                ERPAgent agent = AiServices.builder(ERPAgent.class)
+                    .chatLanguageModel(model)
+                    .tools(tools)
+                    .build();
+
+                response = agent.execute(processedGoal);
+            } else {
+                // Simple execution without tools for Ollama/Llama
+                log.info("Provider " + provider.getAIGProviderType() +
+                        " doesn't support tools, using SimpleAgent");
+
+                SimpleAgent agent = AiServices.builder(SimpleAgent.class)
+                    .chatLanguageModel(model)
+                    .build();
+
+                response = agent.execute(processedGoal);
+            }
 
             // ================================================================
             // POST-RESPONSE GUARDRAILS
@@ -922,13 +997,36 @@ public class AIService {
 
         // Create agent (agents are stateless, memory is per-session)
         ChatLanguageModel model = LangChain4jProviderFactory.getOrCreate(provider);
-        ERPTools tools = new ERPTools(provider, ctx);
 
-        return AiServices.builder(ERPAgent.class)
-            .chatLanguageModel(model)
-            .tools(tools)
-            .chatMemory(memory)
-            .build();
+        // Check if provider supports tools (Ollama/Llama don't in LangChain4j 0.35.0)
+        if (supportsTools(provider)) {
+            ERPTools tools = new ERPTools(provider, ctx);
+            return AiServices.builder(ERPAgent.class)
+                .chatLanguageModel(model)
+                .tools(tools)
+                .chatMemory(memory)
+                .build();
+        } else {
+            // Use SimpleAgent for Ollama/Llama (simplified system prompt, no tools)
+            log.info("Provider " + provider.getAIGProviderType() +
+                    " doesn't support tools, creating SimpleAgent");
+            // Return a wrapper that adapts SimpleAgent to ERPAgent interface
+            SimpleAgent simpleAgent = AiServices.builder(SimpleAgent.class)
+                .chatLanguageModel(model)
+                .chatMemory(memory)
+                .build();
+            // Wrap SimpleAgent in ERPAgent adapter
+            return new ERPAgent() {
+                @Override
+                public String chat(String sessionId, String userMessage) {
+                    return simpleAgent.chat(sessionId, userMessage);
+                }
+                @Override
+                public String execute(String goal) {
+                    return simpleAgent.execute(goal);
+                }
+            };
+        }
     }
 
     /**

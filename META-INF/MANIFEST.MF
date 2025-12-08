@@ -26,10 +26,13 @@ Import-Package: org.adempiere.webui.factory,
 Service-Component: OSGI-INF/*.xml
 Bundle-ActivationPolicy: lazy
 Export-Package: com.cloudempiere.ai.component,
- com.cloudempiere.ai.provider.factory,
- com.cloudempiere.ai.provider.dto,
- com.cloudempiere.ai.provider.langchain4j,
+ com.cloudempiere.ai.database,
+ com.cloudempiere.ai.guardrails,
+ com.cloudempiere.ai.guardrails.dto,
  com.cloudempiere.ai.model,
+ com.cloudempiere.ai.provider.dto,
+ com.cloudempiere.ai.provider.factory,
+ com.cloudempiere.ai.provider.langchain4j,
  com.cloudempiere.ai.service
 Bundle-ClassPath: .,
  lib/anthropic-java-client-okhttp.jar,

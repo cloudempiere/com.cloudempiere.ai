@@ -165,6 +165,15 @@ public interface I_AIG_Provider
 	  */
 	public boolean isDefault();
 
+    /** Column name ModelName */
+    public static final String COLUMNNAME_ModelName = "ModelName";
+
+	/** Set Model Name	  */
+	public void setModelName (String ModelName);
+
+	/** Get Model Name	  */
+	public String getModelName();
+
     /** Column name Name */
     public static final String COLUMNNAME_Name = "Name";
 

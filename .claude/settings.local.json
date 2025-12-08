@@ -16,7 +16,10 @@
       "WebFetch(domain:quarkus.io)",
       "WebFetch(domain:docs.quarkiverse.io)",
       "Bash(xargs:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(grep:*)",
+      "Bash(tr:*)",
+      "Bash(java -version:*)"
     ],
     "deny": [],
     "ask": []
