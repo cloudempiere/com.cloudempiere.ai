@@ -5,8 +5,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.logging.Level;
 
 import org.compiere.model.MChat;
 import org.compiere.util.CLogger;
@@ -33,21 +36,36 @@ import dev.langchain4j.service.AiServices;
 /**
  * Main entry point for ERP AI capabilities using LangChain4j.
  *
- * This service provides:
- * - Agent creation with automatic tool binding
- * - Session-scoped conversation memory
- * - Simple API for chat interactions
+ * <p>This service provides a unified streaming-first API:
+ * <ul>
+ *   <li>{@link #chatStreamingWithContext} - Core streaming method (primary)</li>
+ *   <li>{@link #chatBlocking} - Blocking wrapper using CompletableFuture</li>
+ *   <li>{@link #chat} - Legacy simple chat method</li>
+ *   <li>{@link #chatWithContext} - Legacy context-aware chat method</li>
+ * </ul>
  *
- * Replaces the complex AIConversationService with LangChain4j simplicity.
+ * <p>Streaming-First Architecture:
+ * All chat functionality is built on streaming as the foundation. Non-streaming
+ * calls use {@link CompletableFuture#join()} to block on the streaming response.
+ * This eliminates duplicate code paths and ensures consistent behavior.
  *
- * Usage:
+ * <p>Usage:
  * <pre>
  * AIService aiService = AIService.getInstance();
- * String response = aiService.chat(provider, ctx, sessionId, "Show me pending orders");
+ *
+ * // Streaming (recommended for UI)
+ * aiService.chatStreamingWithContext(provider, chat, message, context, threadId,
+ *     AIStreamCallback.builder()
+ *         .onChunk(chunk -> ui.append(chunk))
+ *         .onComplete(() -> ui.done())
+ *         .build());
+ *
+ * // Blocking (for programmatic use)
+ * ChatResult result = aiService.chatBlocking(provider, chat, message, context, threadId);
  * </pre>
  *
  * @author Cloudempiere
- * @version 0.13.0
+ * @version 0.19.0
  * @since ADR-002 LangChain4j Strategic Adoption
  */
 public class AIService {
@@ -69,22 +87,46 @@ public class AIService {
     /** Default conversation memory size */
     private static final int DEFAULT_MEMORY_SIZE = 20;
 
-    /** Provider types that support tool/function calling in LangChain4j 0.35.0 */
-    private static final java.util.Set<String> TOOL_SUPPORTED_PROVIDERS = java.util.Set.of(
+    /** Provider types that support tool/function calling (non-streaming) in LangChain4j 0.35.0 */
+    private static final Set<String> TOOL_SUPPORTED_PROVIDERS = Set.of(
+        LangChain4jProviderFactory.PROVIDER_ANTHROPIC,
+        LangChain4jProviderFactory.PROVIDER_OPENAI,
+        LangChain4jProviderFactory.PROVIDER_BEDROCK,
+        LangChain4jProviderFactory.PROVIDER_OLLAMA,
+        LangChain4jProviderFactory.PROVIDER_LLAMA
+    );
+
+    /** Provider types that support tool/function calling in STREAMING mode (LangChain4j 0.35.0) */
+    private static final Set<String> STREAMING_TOOL_SUPPORTED_PROVIDERS = Set.of(
         LangChain4jProviderFactory.PROVIDER_ANTHROPIC,
         LangChain4jProviderFactory.PROVIDER_OPENAI,
         LangChain4jProviderFactory.PROVIDER_BEDROCK
+        // Ollama/Llama streaming tools NOT supported in 0.35.0
+        // Throws: "Tools are currently not supported by this model"
+        // Requires LangChain4j 0.37.0+ (Java 17)
     );
 
     /**
-     * Check if provider supports tool calling.
-     * LangChain4j 0.35.0 doesn't support tools for Ollama/Llama.
+     * Check if provider supports tool calling (non-streaming).
+     * LangChain4j 0.35.0 supports tools for all major providers including Ollama/Llama.
      */
     private static boolean supportsTools(MAIProvider provider) {
         if (provider == null || provider.getAIGProviderType() == null) {
             return false;
         }
         return TOOL_SUPPORTED_PROVIDERS.contains(provider.getAIGProviderType());
+    }
+
+    /**
+     * Check if provider supports tool calling in streaming mode.
+     * LangChain4j 0.35.0 does NOT support streaming tools for Ollama/Llama.
+     * Streaming tool support for Ollama was added in LangChain4j 0.37.0.
+     */
+    private static boolean supportsStreamingTools(MAIProvider provider) {
+        if (provider == null || provider.getAIGProviderType() == null) {
+            return false;
+        }
+        return STREAMING_TOOL_SUPPORTED_PROVIDERS.contains(provider.getAIGProviderType());
     }
 
     // ========================================================================
@@ -349,7 +391,8 @@ public class AIService {
             String sessionId = chat.getCM_Chat_ID() + "-" + memory.getCurrentThreadRootId();
             String response;
 
-            // Check if provider supports tools (Ollama/Llama don't in LangChain4j 0.35.0)
+            // Check if provider supports tools (non-streaming mode)
+            // All major providers including Ollama/Llama support tools in LangChain4j 0.35.0
             if (supportsTools(provider)) {
                 // Use full agent with tools
                 ERPTools tools = new ERPTools(provider, ctx);
@@ -365,7 +408,7 @@ public class AIService {
 
                 response = agent.chat(sessionId, processedMessage);
             } else {
-                // Simple chat without tools (for Ollama/Llama)
+                // Simple chat without tools (fallback for unknown providers)
                 log.info("Provider " + provider.getAIGProviderType() +
                         " doesn't support tools, using simple chat mode");
 
@@ -404,7 +447,7 @@ public class AIService {
         } catch (Exception e) {
             String errorMsg = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
             // Log full stack trace to identify NPE location
-            log.log(java.util.logging.Level.SEVERE, "ChatWithContext failed: " + errorMsg, e);
+            log.log(Level.SEVERE, "ChatWithContext failed: " + errorMsg, e);
             return ChatResult.error("AI chat failed: " + errorMsg, threadRootId);
         }
     }
@@ -612,17 +655,19 @@ public class AIService {
             String sessionId = chat.getCM_Chat_ID() + "-" + memory.getCurrentThreadRootId();
             final ThreadAwareChatMemory memoryForProvider = memory;
 
-            // Check if provider supports tools (Ollama/Llama don't in LangChain4j 0.35.0)
+            // Check if provider supports streaming tools
+            // Note: Ollama/Llama support tools in non-streaming mode only (LangChain4j 0.35.0)
+            // Streaming tools for Ollama requires LangChain4j 0.37.0+
             dev.langchain4j.service.TokenStream tokenStream;
 
-            if (supportsTools(provider)) {
+            if (supportsStreamingTools(provider)) {
                 // ================================================================
                 // BUILD STREAMING AGENT WITH TOOLS (for Anthropic, OpenAI, Bedrock)
                 // ================================================================
                 log.warning("[STREAM] Building ERPStreamingAgent with tools...");
 
-                // Create streaming-aware tools with callback support
-                StreamingERPTools tools = new StreamingERPTools(provider, ctx, callback);
+                // Create tools with optional callback support (unified ERPTools)
+                ERPTools tools = new ERPTools(provider, ctx, callback);
                 log.warning("[STREAM] Tools class: " + tools.getClass().getName());
                 log.warning("[STREAM] StreamingModel class: " + streamingModel.getClass().getName());
 
@@ -771,8 +816,84 @@ public class AIService {
 
         } catch (Exception e) {
             String errorMsg = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
-            log.log(java.util.logging.Level.SEVERE, "ChatStreamingWithContext failed: " + errorMsg, e);
+            log.log(Level.SEVERE, "ChatStreamingWithContext failed: " + errorMsg, e);
             callback.onError(e);
+        }
+    }
+
+    // ========================================================================
+    // Blocking Chat (Streaming-First Wrapper)
+    // ========================================================================
+
+    /**
+     * Blocking chat method that wraps streaming using CompletableFuture.
+     *
+     * <p>This method provides a synchronous API built on top of the streaming
+     * implementation. It blocks until the streaming response is complete.
+     *
+     * <p>Use this method for:
+     * <ul>
+     *   <li>Programmatic/batch processing</li>
+     *   <li>API integrations that need the full response</li>
+     *   <li>Tests that don't need streaming</li>
+     * </ul>
+     *
+     * <p>For interactive UI, prefer {@link #chatStreamingWithContext} instead.
+     *
+     * @param provider AI Provider configuration
+     * @param chat Parent MChat for message persistence
+     * @param message User message
+     * @param contextData Optional context from window/tab (JSON)
+     * @param threadRootId Thread root ID (0 for new thread)
+     * @return ChatResult with response and thread info
+     */
+    public ChatResult chatBlocking(MAIProvider provider, MChat chat,
+                                    String message, JSONObject contextData,
+                                    int threadRootId) {
+        log.info("AIService.chatBlocking: chat=" + (chat != null ? chat.getCM_Chat_ID() : "null") +
+                ", thread=" + threadRootId);
+
+        // Use CompletableFuture to block on streaming response
+        CompletableFuture<ChatResult> future = new CompletableFuture<>();
+        StringBuilder responseAccumulator = new StringBuilder();
+        AtomicReference<String> warningRef = new AtomicReference<>();
+
+        AIStreamCallback blockingCallback = AIStreamCallback.builder()
+            .onChunk(responseAccumulator::append)
+            .onComplete(() -> {
+                String response = responseAccumulator.toString();
+                // Apply output guardrails on complete response
+                String warningMessage = null;
+                if (guardrailsEnabled && response != null && !response.isEmpty()) {
+                    GuardResult outputResult = outputGuard.validate(response);
+                    if (outputResult.isBlocked()) {
+                        future.complete(ChatResult.blocked(
+                            "I apologize, but I cannot provide that response.",
+                            threadRootId, outputResult.getViolationType()));
+                        return;
+                    }
+                    if (outputResult.wasModified()) {
+                        response = outputResult.getProcessedContent();
+                        warningMessage = "Some content was filtered for safety.";
+                    }
+                }
+                future.complete(ChatResult.success(response, threadRootId, warningMessage));
+            })
+            .onError(error -> {
+                future.completeExceptionally(error);
+            })
+            .build();
+
+        // Delegate to streaming method
+        chatStreamingWithContext(provider, chat, message, contextData, threadRootId, blockingCallback);
+
+        // Block until complete
+        try {
+            return future.join();
+        } catch (Exception e) {
+            String errorMsg = e.getCause() != null ? e.getCause().getMessage() : e.getMessage();
+            log.severe("chatBlocking failed: " + errorMsg);
+            return ChatResult.error("AI chat failed: " + errorMsg, threadRootId);
         }
     }
 
@@ -939,7 +1060,7 @@ public class AIService {
             ChatLanguageModel model = LangChain4jProviderFactory.create(provider);
             String response;
 
-            // Check if provider supports tools (Ollama/Llama don't in LangChain4j 0.35.0)
+            // Check if provider supports tools (non-streaming mode)
             if (supportsTools(provider)) {
                 ERPTools tools = new ERPTools(provider, ctx);
 
@@ -950,7 +1071,7 @@ public class AIService {
 
                 response = agent.execute(processedGoal);
             } else {
-                // Simple execution without tools for Ollama/Llama
+                // Simple execution without tools (fallback for unknown providers)
                 log.info("Provider " + provider.getAIGProviderType() +
                         " doesn't support tools, using SimpleAgent");
 
@@ -998,7 +1119,7 @@ public class AIService {
         // Create agent (agents are stateless, memory is per-session)
         ChatLanguageModel model = LangChain4jProviderFactory.getOrCreate(provider);
 
-        // Check if provider supports tools (Ollama/Llama don't in LangChain4j 0.35.0)
+        // Check if provider supports tools (non-streaming mode)
         if (supportsTools(provider)) {
             ERPTools tools = new ERPTools(provider, ctx);
             return AiServices.builder(ERPAgent.class)
@@ -1007,7 +1128,7 @@ public class AIService {
                 .chatMemory(memory)
                 .build();
         } else {
-            // Use SimpleAgent for Ollama/Llama (simplified system prompt, no tools)
+            // Use SimpleAgent (fallback for unknown providers)
             log.info("Provider " + provider.getAIGProviderType() +
                     " doesn't support tools, creating SimpleAgent");
             // Return a wrapper that adapts SimpleAgent to ERPAgent interface

@@ -206,11 +206,16 @@ public class ERPTools {
     public String getTableMetadata(
         @P("Table name (e.g., C_Order, C_BPartner, M_Product)") String tableName
     ) {
-        log.info("ERPTools.getTableMetadata: " + tableName);
+        String toolName = "getTableMetadata";
+        String args = "{\"tableName\": \"" + tableName + "\"}";
+
+        fireToolStart(toolName, args);
+        long startTime = System.currentTimeMillis();
 
         try {
             MTable table = MTable.get(ctx, tableName);
             if (table == null || table.getAD_Table_ID() == 0) {
+                fireToolError(toolName, "Table not found: " + tableName);
                 return createErrorResponse("Table not found: " + tableName);
             }
 
@@ -237,9 +242,12 @@ public class ERPTools {
                 metadata.put("columns", result.getRows());
             }
 
+            long elapsed = System.currentTimeMillis() - startTime;
+            fireToolComplete(toolName, "Metadata for " + tableName + " (" + elapsed + "ms)");
             return metadata.toString(2);
         } catch (Exception e) {
             log.severe("Metadata lookup failed: " + e.getMessage());
+            fireToolError(toolName, e.getMessage());
             return createErrorResponse(e.getMessage());
         }
     }
@@ -248,7 +256,11 @@ public class ERPTools {
     public String listTables(
         @P("Filter by table name pattern (optional, e.g., 'C_%' for client tables)") String namePattern
     ) {
-        log.info("ERPTools.listTables: pattern=" + namePattern);
+        String toolName = "listTables";
+        String args = "{\"namePattern\": \"" + (namePattern != null ? namePattern : "") + "\"}";
+
+        fireToolStart(toolName, args);
+        long startTime = System.currentTimeMillis();
 
         try {
             StringBuilder sql = new StringBuilder();
@@ -271,12 +283,16 @@ public class ERPTools {
             SecureQueryResult result = executor.executeQuery(request);
 
             if (result.isSuccess()) {
+                long elapsed = System.currentTimeMillis() - startTime;
+                fireToolComplete(toolName, "Listed tables (" + elapsed + "ms)");
                 return result.getRows().toString();
             } else {
+                fireToolError(toolName, result.getErrorMessage());
                 return createErrorResponse(result.getErrorMessage());
             }
         } catch (Exception e) {
             log.severe("List tables failed: " + e.getMessage());
+            fireToolError(toolName, e.getMessage());
             return createErrorResponse(e.getMessage());
         }
     }
@@ -289,7 +305,11 @@ public class ERPTools {
     public String getBusinessPartner(
         @P("Business Partner ID or Value (search key)") String identifier
     ) {
-        log.info("ERPTools.getBusinessPartner: " + identifier);
+        String toolName = "getBusinessPartner";
+        String args = "{\"identifier\": \"" + identifier + "\"}";
+
+        fireToolStart(toolName, args);
+        long startTime = System.currentTimeMillis();
 
         try {
             String whereClause;
@@ -314,12 +334,17 @@ public class ERPTools {
             SecureQueryResult result = executor.executeQuery(request);
 
             if (result.isSuccess()) {
-                return result.getRows().toString();
+                String resultStr = result.getRows().toString();
+                long elapsed = System.currentTimeMillis() - startTime;
+                fireToolComplete(toolName, truncate(resultStr, 200) + " (" + elapsed + "ms)");
+                return resultStr;
             } else {
+                fireToolError(toolName, result.getErrorMessage());
                 return createErrorResponse(result.getErrorMessage());
             }
         } catch (Exception e) {
             log.severe("Business Partner lookup failed: " + e.getMessage());
+            fireToolError(toolName, e.getMessage());
             return createErrorResponse(e.getMessage());
         }
     }
@@ -328,7 +353,11 @@ public class ERPTools {
     public String getProduct(
         @P("Product ID or Value (search key)") String identifier
     ) {
-        log.info("ERPTools.getProduct: " + identifier);
+        String toolName = "getProduct";
+        String args = "{\"identifier\": \"" + identifier + "\"}";
+
+        fireToolStart(toolName, args);
+        long startTime = System.currentTimeMillis();
 
         try {
             String whereClause;
@@ -353,12 +382,17 @@ public class ERPTools {
             SecureQueryResult result = executor.executeQuery(request);
 
             if (result.isSuccess()) {
-                return result.getRows().toString();
+                String resultStr = result.getRows().toString();
+                long elapsed = System.currentTimeMillis() - startTime;
+                fireToolComplete(toolName, truncate(resultStr, 200) + " (" + elapsed + "ms)");
+                return resultStr;
             } else {
+                fireToolError(toolName, result.getErrorMessage());
                 return createErrorResponse(result.getErrorMessage());
             }
         } catch (Exception e) {
             log.severe("Product lookup failed: " + e.getMessage());
+            fireToolError(toolName, e.getMessage());
             return createErrorResponse(e.getMessage());
         }
     }
@@ -367,7 +401,11 @@ public class ERPTools {
     public String getOrder(
         @P("Order ID or DocumentNo") String identifier
     ) {
-        log.info("ERPTools.getOrder: " + identifier);
+        String toolName = "getOrder";
+        String args = "{\"identifier\": \"" + identifier + "\"}";
+
+        fireToolStart(toolName, args);
+        long startTime = System.currentTimeMillis();
 
         try {
             String whereClause;
@@ -392,12 +430,17 @@ public class ERPTools {
             SecureQueryResult result = executor.executeQuery(request);
 
             if (result.isSuccess()) {
-                return result.getRows().toString();
+                String resultStr = result.getRows().toString();
+                long elapsed = System.currentTimeMillis() - startTime;
+                fireToolComplete(toolName, truncate(resultStr, 200) + " (" + elapsed + "ms)");
+                return resultStr;
             } else {
+                fireToolError(toolName, result.getErrorMessage());
                 return createErrorResponse(result.getErrorMessage());
             }
         } catch (Exception e) {
             log.severe("Order lookup failed: " + e.getMessage());
+            fireToolError(toolName, e.getMessage());
             return createErrorResponse(e.getMessage());
         }
     }
@@ -411,5 +454,56 @@ public class ERPTools {
         error.put("error", true);
         error.put("message", message);
         return error.toString();
+    }
+
+    /**
+     * Fire tool start callback if callback is configured.
+     */
+    private void fireToolStart(String toolName, String args) {
+        log.info("[TOOL] Starting: " + toolName);
+        if (callback != null) {
+            try {
+                callback.onToolStart(toolName, args);
+            } catch (Exception e) {
+                log.warning("Error in onToolStart callback: " + e.getMessage());
+            }
+        }
+    }
+
+    /**
+     * Fire tool complete callback if callback is configured.
+     */
+    private void fireToolComplete(String toolName, String result) {
+        log.info("[TOOL] Completed: " + toolName);
+        if (callback != null) {
+            try {
+                callback.onToolComplete(toolName, result);
+            } catch (Exception e) {
+                log.warning("Error in onToolComplete callback: " + e.getMessage());
+            }
+        }
+    }
+
+    /**
+     * Fire tool error callback if callback is configured.
+     */
+    private void fireToolError(String toolName, String error) {
+        log.warning("[TOOL] Error in " + toolName + ": " + error);
+        if (callback != null) {
+            try {
+                callback.onToolError(toolName, error);
+            } catch (Exception e) {
+                log.warning("Error in onToolError callback: " + e.getMessage());
+            }
+        }
+    }
+
+    /**
+     * Truncate string for logging.
+     */
+    private String truncate(String s, int maxLength) {
+        if (s == null) return "";
+        if (s.length() <= maxLength) return s;
+        return s.substring(0, maxLength) + "...";
     }
 }

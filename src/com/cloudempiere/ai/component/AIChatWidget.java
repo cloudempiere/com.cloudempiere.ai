@@ -800,6 +800,20 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 		final AIChatStreamingMessage streamingMsg = new AIChatStreamingMessage();
 		currentStreamingMessage = streamingMsg;
 
+		// Get agent name from provider's AD_User (capture for use in lambda)
+		String aiUserName = "AI Assistant";
+		try {
+			if (provider.getAD_User_ID() > 0) {
+				MUser aiUser = MUser.get(sessionCtx, provider.getAD_User_ID());
+				if (aiUser != null && aiUser.getName() != null) {
+					aiUserName = aiUser.getName();
+				}
+			}
+		} catch (Exception ex) {
+			log.fine("Could not get AI user name: " + ex.getMessage());
+		}
+		final String agentName = aiUserName;
+
 		// Insert streaming message into UI (before loading indicator)
 		Executions.schedule(desktop, e -> {
 			// Add divider before message
@@ -814,13 +828,13 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 			msgDiv.setSclass("ai-message");
 			msgDiv.setStyle("display: flex; flex-direction: column; gap: 12px; padding: 12px 18px; background: transparent;");
 
-			// Header with logo
+			// Header with logo and agent name
 			Html header = new Html();
 			String logoUrl = ThemeManager.THEME_PATH_PREFIX + ThemeManager.getTheme() + "/images/clde-logo-icon-vector.svg";
 			header.setContent(
 				"<div style='display: flex; align-items: center; gap: 8px; margin-bottom: 12px;'>" +
 				"<img src='" + Executions.encodeURL(logoUrl) + "' style='width: 18px; height: 18px;'/>" +
-				"<span style='font-family: Helvetica Neue; font-weight: 500; font-size: 12px; color: #181D27;'>AI Assistant</span>" +
+				"<span style='font-family: Helvetica Neue; font-weight: 500; font-size: 12px; color: #181D27;'>" + agentName + "</span>" +
 				"</div>"
 			);
 			msgDiv.appendChild(header);
