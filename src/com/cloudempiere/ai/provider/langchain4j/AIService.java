@@ -306,11 +306,19 @@ public class AIService {
             // ================================================================
 
             if (contextData != null && contextData.length() > 0) {
+                log.info("[CONTEXT] Context data received with keys: " + contextData.keySet());
+                log.info("[CONTEXT] Context success flag: " + contextData.optBoolean("success", false));
+
                 String contextPrompt = buildContextPrompt(contextData);
                 if (contextPrompt != null && !contextPrompt.isEmpty()) {
                     // Add context as a system-like user message prefix
                     processedMessage = contextPrompt + "\n\nUser question: " + processedMessage;
+                    log.info("[CONTEXT] Context injected into message, total length: " + processedMessage.length());
+                } else {
+                    log.warning("[CONTEXT] Context prompt was empty or null despite having context data");
                 }
+            } else {
+                log.fine("[CONTEXT] No context data provided to chatWithContext");
             }
 
             // ================================================================
@@ -521,10 +529,18 @@ public class AIService {
             // ================================================================
 
             if (contextData != null && contextData.length() > 0) {
+                log.info("[CONTEXT-STREAM] Context data received with keys: " + contextData.keySet());
+                log.info("[CONTEXT-STREAM] Context success flag: " + contextData.optBoolean("success", false));
+
                 String contextPrompt = buildContextPrompt(contextData);
                 if (contextPrompt != null && !contextPrompt.isEmpty()) {
                     processedMessage = contextPrompt + "\n\nUser question: " + processedMessage;
+                    log.info("[CONTEXT-STREAM] Context injected into message, total length: " + processedMessage.length());
+                } else {
+                    log.warning("[CONTEXT-STREAM] Context prompt was empty or null despite having context data");
                 }
+            } else {
+                log.fine("[CONTEXT-STREAM] No context data provided to chatStreamingWithContext");
             }
 
             // ================================================================
@@ -714,43 +730,98 @@ public class AIService {
     /**
      * Build context prompt from window/tab data.
      *
-     * @param contextData JSON context data
-     * @return Context prompt string or null
+     * <p>Handles the nested JSON structure produced by WindowContextProvider:
+     * <ul>
+     *   <li>user_context - user information (user_id, user_name, role_name, etc.)</li>
+     *   <li>window_metadata - window info (name, description, help)</li>
+     *   <li>tab_context - current tab info (tab_name, table_name, record_id)</li>
+     *   <li>record_data - business field values from current record</li>
+     *   <li>technical_data - technical/audit field values</li>
+     * </ul>
+     *
+     * @param contextData JSON context data from WindowContextProvider
+     * @return Context prompt string or null if context is empty/invalid
      */
     private String buildContextPrompt(JSONObject contextData) {
         if (contextData == null || contextData.length() == 0) {
+            log.fine("[CONTEXT] No context data provided");
+            return null;
+        }
+
+        // Check for successful context extraction
+        if (!contextData.optBoolean("success", false)) {
+            log.fine("[CONTEXT] Context extraction was not successful");
             return null;
         }
 
         StringBuilder sb = new StringBuilder();
-        sb.append("Context from current window:\n");
+        sb.append("Context from current iDempiere window:\n\n");
 
-        // Window name
-        if (contextData.has("windowName")) {
-            sb.append("- Window: ").append(contextData.optString("windowName")).append("\n");
+        // Window metadata (nested structure from WindowContextProvider)
+        if (contextData.has("window_metadata")) {
+            JSONObject windowMeta = contextData.getJSONObject("window_metadata");
+            sb.append("## Window Information\n");
+            sb.append("- Window: ").append(windowMeta.optString("name", "Unknown")).append("\n");
+
+            String desc = windowMeta.optString("description", "");
+            if (!desc.isEmpty()) {
+                sb.append("- Description: ").append(desc).append("\n");
+            }
+
+            String help = windowMeta.optString("help", "");
+            if (!help.isEmpty() && help.length() <= 200) {
+                sb.append("- Help: ").append(help).append("\n");
+            }
+            sb.append("\n");
         }
 
-        // Tab name
-        if (contextData.has("tabName")) {
-            sb.append("- Tab: ").append(contextData.optString("tabName")).append("\n");
+        // Tab context (nested structure from WindowContextProvider)
+        if (contextData.has("tab_context")) {
+            JSONObject tabCtx = contextData.getJSONObject("tab_context");
+            sb.append("## Current Tab\n");
+            sb.append("- Tab: ").append(tabCtx.optString("tab_name", "Unknown")).append("\n");
+            sb.append("- Table: ").append(tabCtx.optString("table_name", "Unknown")).append("\n");
+
+            int recordId = tabCtx.optInt("record_id", 0);
+            if (recordId > 0) {
+                sb.append("- Record ID: ").append(recordId).append("\n");
+            }
+
+            int selectedRecordId = tabCtx.optInt("selected_record_id", 0);
+            if (selectedRecordId > 0 && selectedRecordId != recordId) {
+                sb.append("- Selected Record ID: ").append(selectedRecordId).append("\n");
+            }
+            sb.append("\n");
         }
 
-        // Record info
-        if (contextData.has("recordId")) {
-            sb.append("- Record ID: ").append(contextData.optInt("recordId")).append("\n");
+        // Record data (business fields from WindowContextProvider)
+        if (contextData.has("record_data")) {
+            JSONObject recordData = contextData.getJSONObject("record_data");
+            if (recordData.length() > 0) {
+                sb.append("## Current Record Data\n");
+                for (String key : recordData.keySet()) {
+                    Object value = recordData.get(key);
+                    if (value != null && !value.toString().isEmpty()) {
+                        sb.append("- ").append(key).append(": ").append(value).append("\n");
+                    }
+                }
+                sb.append("\n");
+            }
         }
 
-        // Table name
-        if (contextData.has("tableName")) {
-            sb.append("- Table: ").append(contextData.optString("tableName")).append("\n");
+        // User context (for authorization awareness)
+        if (contextData.has("user_context")) {
+            JSONObject userCtx = contextData.getJSONObject("user_context");
+            sb.append("## User Context\n");
+            sb.append("- User: ").append(userCtx.optString("user_name", "Unknown")).append("\n");
+            sb.append("- Role: ").append(userCtx.optString("role_name", "Unknown")).append("\n");
+            sb.append("- Client: ").append(userCtx.optString("client_name", "Unknown")).append("\n");
+            sb.append("- Organization: ").append(userCtx.optString("org_name", "Unknown")).append("\n");
         }
 
-        // Field values (if available)
-        if (contextData.has("fields")) {
-            sb.append("- Fields: ").append(contextData.optJSONObject("fields")).append("\n");
-        }
-
-        return sb.toString();
+        String result = sb.toString();
+        log.info("[CONTEXT] Built context prompt (" + result.length() + " chars)");
+        return result;
     }
 
     /**

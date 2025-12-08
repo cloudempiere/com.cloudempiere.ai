@@ -532,6 +532,11 @@ public class AIChatStreamingMessage extends Div {
      * Render final content using marked.js for full markdown support (tables, code blocks, etc.).
      *
      * <p>This replaces the simple renderPartialMarkdown() with client-side marked.js rendering.
+     *
+     * <p><b>Implementation Note:</b> We use the existing content_[componentId] element that was
+     * created in init() rather than generating a new container ID. This ensures the DOM element
+     * already exists when the JavaScript executes, avoiding race conditions between ZK's DOM
+     * update and our script execution.
      */
     private void renderFinalMarkdown() {
         String markdownText = content.toString();
@@ -544,8 +549,9 @@ public class AIChatStreamingMessage extends Div {
         markdownText = markdownText.replaceAll("(?s)<invoke[^>]*>.*?</invoke>", "");
         markdownText = markdownText.replaceAll("(?s)<parameter[^>]*>.*?</parameter>", "");
 
-        // Generate unique ID for marked.js rendering
-        String markdownId = "final_md_" + componentId;
+        // Use the existing streamingContent element's ID (content_[componentId])
+        // This element was created in init() and already exists in the DOM
+        String contentId = "content_" + componentId;
 
         // Escape for JavaScript
         String escapedMarkdown = markdownText
@@ -555,41 +561,58 @@ public class AIChatStreamingMessage extends Div {
             .replace("\n", "\\n")
             .replace("</script>", "<\\/script>");
 
-        // Build HTML with marked.js rendering script
-        StringBuilder sb = new StringBuilder();
-        sb.append("<div id='").append(markdownId).append("' class='ai-markdown-content'></div>");
-        sb.append("<script>");
-        sb.append("(function() {");
-        sb.append("  var renderMD = function() {");
-        sb.append("    if (!window.marked) {");
-        sb.append("      setTimeout(renderMD, 100);");
-        sb.append("      return;");
-        sb.append("    }");
-        sb.append("    var container = document.getElementById('").append(markdownId).append("');");
-        sb.append("    if (!container) return;");
-        sb.append("    marked.setOptions({");
-        sb.append("      breaks: true,");
-        sb.append("      gfm: true");
-        sb.append("    });");
-        sb.append("    try {");
-        sb.append("      var html = marked.parse('").append(escapedMarkdown).append("');");
-        sb.append("      container.innerHTML = html;");
-        sb.append("    } catch (e) {");
-        sb.append("      console.error('Markdown parse error:', e);");
-        sb.append("      container.innerHTML = '").append(escapedMarkdown.replace("\\n", "<br/>")).append("';");
-        sb.append("    }");
-        // Apply Prism highlighting if available
-        sb.append("    if (window.Prism) {");
-        sb.append("      container.querySelectorAll('pre code').forEach(function(block) {");
-        sb.append("        Prism.highlightElement(block);");
-        sb.append("      });");
-        sb.append("    }");
-        sb.append("  };");
-        sb.append("  renderMD();");
-        sb.append("})();");
-        sb.append("</script>");
+        // First, set the container with a placeholder that will be filled by marked.js
+        // The container div already exists since we're using the streamingContent element
+        String placeholderHtml = "<div class='ai-markdown-content'>" +
+            renderPartialMarkdown(markdownText) + "</div>";
+        streamingContent.setContent(placeholderHtml);
 
-        streamingContent.setContent(sb.toString());
+        // Then use Clients.evalJavaScript to render with marked.js after the DOM is updated
+        // This runs AFTER ZK has processed all component updates
+        String script =
+            "(function() {" +
+            "  var renderMD = function() {" +
+            "    if (!window.marked) {" +
+            "      setTimeout(renderMD, 100);" +
+            "      return;" +
+            "    }" +
+            // Find the streamingContent element by its ZK-generated ID
+            "    var zkWidget = zk.Widget.$('$" + contentId + "');" +
+            "    var container = zkWidget ? zkWidget.$n() : document.getElementById('" + contentId + "');" +
+            "    if (!container) {" +
+            // Fallback: try to find by class within ai-streaming-message
+            "      container = document.querySelector('.ai-streaming-message .ai-markdown-content');" +
+            "    }" +
+            "    if (!container) {" +
+            "      console.warn('renderFinalMarkdown: container not found, retrying...');" +
+            "      setTimeout(renderMD, 200);" +
+            "      return;" +
+            "    }" +
+            // Find the ai-markdown-content div within the container
+            "    var mdContainer = container.querySelector('.ai-markdown-content') || container;" +
+            "    marked.setOptions({" +
+            "      breaks: true," +
+            "      gfm: true" +
+            "    });" +
+            "    try {" +
+            "      var html = marked.parse('" + escapedMarkdown + "');" +
+            "      mdContainer.innerHTML = html;" +
+            "    } catch (e) {" +
+            "      console.error('Markdown parse error:', e);" +
+            // Fallback already set via renderPartialMarkdown
+            "    }" +
+            // Apply Prism highlighting if available
+            "    if (window.Prism) {" +
+            "      mdContainer.querySelectorAll('pre code').forEach(function(block) {" +
+            "        Prism.highlightElement(block);" +
+            "      });" +
+            "    }" +
+            "  };" +
+            // Use setTimeout to ensure ZK has processed the DOM update first
+            "  setTimeout(renderMD, 50);" +
+            "})();";
+
+        org.zkoss.zk.ui.util.Clients.evalJavaScript(script);
     }
 
     /**
