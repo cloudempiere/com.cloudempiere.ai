@@ -25,6 +25,42 @@ and this project adheres to [Conventional Commits](https://conventionalcommits.o
 
 ---
 
+## [0.17.2] - 2025-12-08
+
+### Unit Test Infrastructure
+
+This patch release adds testing infrastructure for the AI plugin.
+
+#### Added
+
+- **Unit Test Runner Script** (`run-unit-tests.sh`)
+  - CLI script for running JUnit 5 tests outside of Eclipse
+  - Downloads JUnit Platform Console and AssertJ dependencies
+  - Supports test filtering by class name or pattern
+  - Verbose mode flag (`-v`) for detailed logging
+  - Classpath setup for iDempiere base classes + AI plugin libs
+
+- **Claude Agent: idempiere-junit-manager** (`.claude/agents/`)
+  - Specialized agent for JUnit test management
+  - Test creation, organization, and troubleshooting
+  - iDempiere-specific testing patterns (context, transactions, model layer)
+  - Maven/Tycho test configuration guidance
+
+- **LangChain4j Integration Documentation** (`docs/LANGCHAIN4J_FLOWS.md`)
+  - Comprehensive documentation of LangChain4j integration
+  - Architecture diagrams and data flows
+  - Provider factory, agent interfaces, ERP tools
+  - Memory management, streaming support, guardrails pipeline
+  - Configuration examples and code samples
+
+#### Removed
+
+- **AIServiceStreamingTest.java** - Removed obsolete test with LangChain4j mocking issues
+  - Test relied on internal LangChain4j classes that were difficult to mock
+  - Streaming functionality tested via integration tests instead
+
+---
+
 ## [0.17.1] - 2025-12-08
 
 ### Bug Fix: Window Context Not Passed to AI Chat

@@ -21,7 +21,8 @@ This document tracks features, implementation status, and version compatibility 
 
 | Version | Date | Key Features | Focus Area |
 |---------|------|--------------|------------|
-| **0.17.1** | 2025-12-08 | **Window Context Fix** | **Bug Fix** |
+| **0.17.2** | 2025-12-08 | **Unit Test Infrastructure** | **Testing & Docs** |
+| 0.17.1 | 2025-12-08 | Window Context Fix | Bug Fix |
 | 0.17.0 | 2025-12-07 | Streaming Tool Callbacks & Markdown | User Experience |
 | 0.16.0 | 2025-12-04 | Chat Ownership & Sharing | Multi-User Collaboration |
 | 0.15.0 | 2025-12-04 | Stop Button & Error Handling | User Experience |
