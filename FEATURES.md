@@ -120,10 +120,13 @@ This document tracks features, implementation status, and version compatibility 
 |----------|---------|--------|------------|-------------|
 | **Anthropic Claude** | 0.9.0 | ✅ Done | LangChain4j | Native integration (Sonnet 4, 3.5, 3, Opus, Haiku) |
 | **AWS Bedrock** | 0.9.0 | ✅ Done | LangChain4j | Claude, Nova, Mistral, Llama via BedrockChatModel |
-| **Ollama (Local)** | 0.9.0 | ✅ Done | LangChain4j | Local LLM support (llama3.2, mistral, etc.) |
+| **Ollama (Local)** | 0.9.0 | ✅ Done | LangChain4j | Local LLM support (llama3.2, mistral, etc.) ⚠️* |
+| **Llama (via Ollama)** | 0.18.0 | ✅ Done | LangChain4j | Llama models via Ollama backend ⚠️* |
 | **OpenAI** | 0.9.0 | ✅ Done | LangChain4j | GPT-4o, GPT-4-turbo via OpenAiChatModel |
 | **Azure OpenAI** | - | 🟡 v0.11.0 | LangChain4j | Enterprise OpenAI deployment |
 | **Custom Providers** | 0.9.0 | ✅ Done | LangChain4j | Extensible via ChatLanguageModel interface |
+
+**\*Ollama/Llama Tool Support Limitation:** Streaming mode uses `SimpleStreamingAgent` without tools due to LangChain4j 0.35.0 limitations. Full streaming+tools requires LangChain4j 0.37.0+ (Java 17). Use Anthropic/OpenAI/Bedrock for full tool support.
 
 **Legacy Providers (Deprecated in v0.9.0):**
 - ❌ Custom `AnthropicProvider` → Replaced by `AnthropicChatModel`
@@ -407,6 +410,6 @@ Based on validation reports:
 
 ---
 
-**Last Updated:** 2025-12-03
-**Current Version:** v0.13.0 (Naming Standards, Integration Wiring)
-**Next Release:** v0.14.0 - Chat Widget LangChain4j Migration (ADR-031)
+**Last Updated:** 2025-12-08
+**Current Version:** v0.18.0 (Llama Provider & Model Selection)
+**Next Release:** v0.19.0 - Streaming-First Architecture & Share Dialog

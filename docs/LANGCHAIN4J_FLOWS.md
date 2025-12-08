@@ -2,7 +2,7 @@
 
 > Comprehensive documentation of LangChain4j integration in the com.cloudempiere.ai plugin.
 
-**Version:** 0.18.0
+**Version:** 0.19.0
 **LangChain4j Version:** 0.35.0 (Java 11 compatible)
 **Last Updated:** December 2025
 
@@ -60,12 +60,15 @@ The com.cloudempiere.ai plugin integrates LangChain4j to provide AI-powered capa
                                   ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                          AIService (Singleton)                               │
-│  ┌─────────────────┐  ┌─────────────────┐  ┌──────────────────────────────┐ │
-│  │ chat()          │  │ chatWithContext │  │ chatStreamingWithContext()   │ │
-│  │ (simple)        │  │ (widget)        │  │ (real-time)                  │ │
-│  └────────┬────────┘  └────────┬────────┘  └──────────────┬───────────────┘ │
-│           │                    │                          │                  │
-│  ┌────────▼────────────────────▼──────────────────────────▼───────────────┐ │
+│                     STREAMING-FIRST ARCHITECTURE                             │
+│  ┌────────────────────────────────────────────────────────────────────────┐ │
+│  │ chatStreamingWithContext() ← Primary (streaming)                       │ │
+│  │ chatBlocking()             ← Wrapper (CompletableFuture.join())        │ │
+│  │ chatWithContext()          ← Legacy (calls streaming internally)       │ │
+│  │ chat()                     ← Legacy simple method                      │ │
+│  └────────────────────────────────┬───────────────────────────────────────┘ │
+│                                   │                                          │
+│  ┌────────────────────────────────▼───────────────────────────────────────┐ │
 │  │                      Guardrails Pipeline                                │ │
 │  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────────────┐  │ │
 │  │  │ CostGuard    │  │ InputGuard   │  │ OutputGuard                  │  │ │
@@ -93,9 +96,9 @@ The com.cloudempiere.ai plugin integrates LangChain4j to provide AI-powered capa
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    LangChain4j AiServices Framework                          │
 │  ┌─────────────────────────────────────────────────────────────────────────┐│
-│  │ AiServices.builder(ERPAgent.class / ERPStreamingAgent.class)            ││
-│  │   .chatLanguageModel(model)                                             ││
-│  │   .tools(ERPTools / StreamingERPTools)                                  ││
+│  │ AiServices.builder(ERPStreamingAgent.class)                             ││
+│  │   .streamingChatLanguageModel(model)                                    ││
+│  │   .tools(ERPTools)        // Unified tools with optional callback       ││
 │  │   .chatMemoryProvider(ThreadAwareChatMemory)                            ││
 │  │   .build()                                                              ││
 │  └─────────────────────────────────────────────────────────────────────────┘│
@@ -142,10 +145,10 @@ src/com/cloudempiere/ai/
 │       ├── LangChain4jProviderFactory.java  # Model factory
 │       ├── ERPAgent.java               # Non-streaming agent interface (with tools)
 │       ├── ERPStreamingAgent.java      # Streaming agent interface (with tools)
-│       ├── SimpleAgent.java            # Simple agent (no tools, for Ollama/Llama)
-│       ├── SimpleStreamingAgent.java   # Simple streaming agent (no tools)
+│       ├── SimpleAgent.java            # Simple agent (fallback for streaming tools)
+│       ├── SimpleStreamingAgent.java   # Simple streaming agent (Ollama/Llama streaming)
 │       ├── ERPTools.java               # @Tool annotated methods
-│       ├── StreamingERPTools.java      # Tools with callbacks
+│       │   (ERPTools now supports optional callbacks)
 │       └── ThreadAwareChatMemory.java  # Persistent chat memory
 │   └── dto/
 │       └── AIStreamCallback.java       # Streaming callback interface
@@ -194,10 +197,17 @@ Factory for creating LangChain4j model instances from iDempiere configuration.
 | Anthropic (`ANT`) | `claude-sonnet-4-20250514` | ✅ | Via Bedrock | ✅ |
 | AWS Bedrock (`BED`) | `claude-3-5-sonnet-v2` | ✅ | Titan Embed v2 | ✅ |
 | OpenAI (`OAI`) | `gpt-4o` | ✅ | `text-embedding-3-small` | ✅ |
-| Ollama (`OLL`) | `llama3.2` | ✅ | `nomic-embed-text` | ❌ |
-| Llama (`LLA`) | `llama3.2` | ✅ | `nomic-embed-text` | ❌ |
+| Ollama (`OLL`) | `llama3.2` | ✅ | `nomic-embed-text` | ⚠️* |
+| Llama (`LLA`) | `llama3.2` | ✅ | `nomic-embed-text` | ⚠️* |
 
-**Note:** Tool/function calling is not supported by Ollama/Llama in LangChain4j 0.35.0. These providers use `SimpleAgent` / `SimpleStreamingAgent` for basic chat without database access.
+**\*Ollama/Llama Tool Support Limitations (LangChain4j 0.35.0):**
+
+| Mode | Tool Support | Notes |
+|------|--------------|-------|
+| Non-streaming | ✅ Supported | Works with `ERPAgent` |
+| Streaming | ❌ Not supported | Uses `SimpleStreamingAgent` (no tools) |
+
+Streaming tool support for Ollama/Llama requires **LangChain4j 0.37.0+** which requires **Java 17**. Since we're constrained to Java 11 (iDempiere v10), Ollama/Llama streaming uses `SimpleStreamingAgent` without tool access. For full tool support with streaming, use Anthropic, OpenAI, or AWS Bedrock providers.
 
 **Model Selection:**
 
@@ -216,8 +226,8 @@ Configure the model via `AIG_Provider.ModelName` column:
 **Files:**
 - `src/com/cloudempiere/ai/provider/langchain4j/ERPAgent.java` - With tools
 - `src/com/cloudempiere/ai/provider/langchain4j/ERPStreamingAgent.java` - Streaming with tools
-- `src/com/cloudempiere/ai/provider/langchain4j/SimpleAgent.java` - No tools (Ollama/Llama)
-- `src/com/cloudempiere/ai/provider/langchain4j/SimpleStreamingAgent.java` - Streaming, no tools
+- `src/com/cloudempiere/ai/provider/langchain4j/SimpleAgent.java` - Fallback (non-streaming tools)
+- `src/com/cloudempiere/ai/provider/langchain4j/SimpleStreamingAgent.java` - Ollama/Llama streaming (tools don't work in streaming mode)
 
 LangChain4j service interfaces that define the agent contract:
 
@@ -248,9 +258,18 @@ public interface SimpleStreamingAgent {
 ```
 
 **Agent Selection (in AIService):**
-- `supportsTools(provider)` checks if provider supports function calling
-- Tool-supported providers: `ANT`, `OAI`, `BED` → use `ERPAgent`/`ERPStreamingAgent`
-- Non-tool providers: `OLL`, `LLA` → use `SimpleAgent`/`SimpleStreamingAgent`
+
+| Provider | Non-Streaming Agent | Streaming Agent |
+|----------|---------------------|-----------------|
+| Anthropic (`ANT`) | `ERPAgent` (tools) | `ERPStreamingAgent` (tools) |
+| AWS Bedrock (`BED`) | `ERPAgent` (tools) | `ERPStreamingAgent` (tools) |
+| OpenAI (`OAI`) | `ERPAgent` (tools) | `ERPStreamingAgent` (tools) |
+| Ollama (`OLL`) | `ERPAgent` (tools) | `SimpleStreamingAgent` (no tools) |
+| Llama (`LLA`) | `ERPAgent` (tools) | `SimpleStreamingAgent` (no tools) |
+
+The selection is based on two methods in `AIService`:
+- `supportsTools(provider)` - All major providers support tools in non-streaming mode
+- `supportsStreamingTools(provider)` - Only `ANT`, `OAI`, `BED` support streaming tools in LangChain4j 0.35.0
 
 **ERPAgent System Prompt Highlights:**
 - Must use tools for all data queries (never hallucinate)
@@ -262,11 +281,9 @@ public interface SimpleStreamingAgent {
 - Explains limitations when asked about specific data
 - Suggests using cloud providers for full functionality
 
-### 4. ERPTools / StreamingERPTools
+### 4. ERPTools (Unified with Optional Callbacks)
 
-**Files:**
-- `src/com/cloudempiere/ai/provider/langchain4j/ERPTools.java`
-- `src/com/cloudempiere/ai/provider/langchain4j/StreamingERPTools.java`
+**File:** `src/com/cloudempiere/ai/provider/langchain4j/ERPTools.java`
 
 `@Tool` annotated methods exposed to the AI for function calling:
 
@@ -281,10 +298,19 @@ public interface SimpleStreamingAgent {
 | `getProduct(identifier)` | Product lookup |
 | `getOrder(identifier)` | Order lookup |
 
-**StreamingERPTools** wraps ERPTools to fire callbacks:
+**ERPTools** supports optional streaming callbacks:
 - `onToolStart(toolName, args)` - Tool execution started
 - `onToolComplete(toolName, result)` - Tool completed
 - `onToolError(toolName, error)` - Tool failed
+
+**Constructor Options:**
+```java
+// Without callbacks (blocking use)
+ERPTools tools = new ERPTools(provider, ctx);
+
+// With callbacks (streaming use)
+ERPTools tools = new ERPTools(provider, ctx, callback);
+```
 
 ### 5. ThreadAwareChatMemory
 
@@ -407,8 +433,8 @@ Thread-isolated conversation memory that persists to `CM_ChatEntry`:
 │  StreamingChatLanguageModel streamingModel =                │
 │    LangChain4jProviderFactory.createStreaming(provider);    │
 │                                                             │
-│  StreamingERPTools tools = new StreamingERPTools(           │
-│    provider, ctx, callback);  // <- callback for tool events│
+│  ERPTools tools = new ERPTools(provider, ctx, callback);    │
+│    // Unified tools with optional callback for tool events  │
 │                                                             │
 │  ERPStreamingAgent agent = AiServices.builder(              │
 │      ERPStreamingAgent.class)                               │
@@ -599,7 +625,7 @@ ERPAgent agent = AiServices.builder(ERPAgent.class)
 // Streaming agent with thread-aware memory
 ERPStreamingAgent streamingAgent = AiServices.builder(ERPStreamingAgent.class)
     .streamingChatLanguageModel(streamingModel)
-    .tools(new StreamingERPTools(provider, ctx, callback))
+    .tools(new ERPTools(provider, ctx, callback))
     .chatMemoryProvider(memoryId -> threadAwareChatMemory)
     .build();
 ```
@@ -773,9 +799,9 @@ AIStreamCallback callback = AIStreamCallback.builder()
     .build();
 ```
 
-### StreamingERPTools
+### ERPTools Callback Support
 
-Wraps ERPTools to fire callback events:
+Fires callback events when callback is provided:
 
 ```java
 @Tool("Execute a read-only SQL SELECT query...")
@@ -950,7 +976,26 @@ if (result.isSuccess()) {
 }
 ```
 
-### Streaming Chat
+### Blocking Chat (Recommended for Programmatic Use)
+
+```java
+// chatBlocking() wraps streaming with CompletableFuture.join()
+// Use this for API integrations, batch processing, or tests
+ChatResult result = aiService.chatBlocking(
+    provider,
+    chat,
+    "Show me overdue invoices",
+    contextData,
+    threadRootId
+);
+
+if (result.isSuccess()) {
+    String response = result.getResponse();
+    // Process complete response
+}
+```
+
+### Streaming Chat (Recommended for UI)
 
 ```java
 AIStreamCallback callback = AIStreamCallback.builder()
@@ -1059,7 +1104,9 @@ AIService.getInstance().clearBudgetCache(clientId);
 | Version | Date | Changes |
 |---------|------|---------|
 | 0.17.1 | Dec 2025 | Initial documentation |
-| 0.17.0 | Dec 2025 | StreamingERPTools, improved markdown rendering |
+| 0.19.0 | Dec 2025 | Unified streaming-first architecture, chatBlocking(), streaming tools limitation docs |
+| 0.18.0 | Dec 2025 | Llama provider, ModelName column, SimpleStreamingAgent for Ollama/Llama |
+| 0.17.0 | Dec 2025 | Streaming tool callbacks, improved markdown rendering |
 | 0.14.0 | Nov 2025 | ThreadAwareChatMemory |
 | 0.13.0 | Nov 2025 | AIService, ERPAgent |
 | 0.9.0 | Oct 2025 | LangChain4j integration |
