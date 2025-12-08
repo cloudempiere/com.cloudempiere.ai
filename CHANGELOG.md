@@ -7,7 +7,7 @@ and this project adheres to [Conventional Commits](https://conventionalcommits.o
 
 ## [Unreleased]
 
-### Next: v0.18.0 - Share Dialog & Advanced Sharing
+### Next: v0.19.0 - Share Dialog & Advanced Sharing
 
 **Planned:**
 - Share button in AIChatWidget (OWNER only)
@@ -22,6 +22,50 @@ and this project adheres to [Conventional Commits](https://conventionalcommits.o
 - ADR-017: Chart Executive Overview
 - ADR-018: Sales Opportunity Summary
 - ADR-011: Domain Agents
+
+---
+
+## [0.18.0] - 2025-12-08
+
+### Llama Provider & Model Selection
+
+This release adds support for Meta Llama models via Ollama and introduces model selection in provider configuration.
+
+#### Added
+
+- **Llama Provider (LLA)** in `LangChain4jProviderFactory`
+  - Dedicated provider type for Meta Llama models
+  - `createLlamaModel()`, `createLlamaStreamingModel()`, `createLlamaEmbeddingModel()`
+  - Supports llama3.2, llama3.1, llama2, codellama variants
+  - Uses Ollama backend (http://localhost:11434 by default)
+
+- **SimpleAgent & SimpleStreamingAgent** interfaces
+  - For providers without tool/function calling support
+  - Simplified system prompt without tool instructions
+  - Automatic fallback in AIService for Ollama/Llama providers
+  - Clear messaging about limitations (no database queries)
+
+- **ModelName Column** in `AIG_Provider` table
+  - Configure model per provider (e.g., `llama3.2:1b`, `gpt-4o`, `claude-sonnet-4`)
+  - Empty value uses provider-specific defaults
+  - Migration scripts for PostgreSQL and Oracle (CLD-1628)
+
+- **LLA Provider Type** in reference list
+  - Added to AIGProviderType (AD_Reference)
+  - Migration scripts included
+
+#### Changed
+
+- `LangChain4jProviderFactory` reads ModelName from config
+- `AIService` detects tool support and uses appropriate agent
+- Enhanced logging shows configured model name
+
+#### Technical Notes
+
+- LangChain4j 0.35.0 Ollama integration doesn't support tools
+- Tool support limited to: Anthropic, OpenAI, AWS Bedrock
+- Local Llama models run CPU-only on Intel Macs (slow)
+- Recommended: Use smaller models (llama3.2:1b) for faster responses
 
 ---
 
