@@ -10,13 +10,12 @@
 
 ## ⚠️ Important: iDempiere Dependency
 
-**This plugin depends on the `iDempiereCLDE` branch:**
+**This plugin depends on the `iDempiereCLDE` project:**
 
-- **Repository**: `../iDempiereCLDE/`
-- **Branch**: `iDempiereCLDE`
+- **Repository**: `cloudempiere/iDempiereCLDE`
 - **Version**: iDempiere v10 (10.0.0-SNAPSHOT)
 - **Java**: Amazon Corretto 11
-- **Location**: `/Users/norbertbede/github/iDempiereCLDE`
+- **Location**: `../iDempiereCLDE/`
 
 **Before building this plugin:**
 ```bash

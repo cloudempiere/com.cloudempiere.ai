@@ -107,20 +107,20 @@ The com.cloudempiere.ai plugin integrates LangChain4j to provide AI-powered capa
               ┌────────────────────┼────────────────────┐
               ▼                    ▼                    ▼
 ┌──────────────────────┐ ┌──────────────────┐ ┌──────────────────────────────┐
-│   ERPTools           │ │ StreamingERP     │ │ ThreadAwareChatMemory        │
-│   (@Tool methods)    │ │ Tools            │ │                              │
-├──────────────────────┤ │ (with callbacks) │ │ - Load from CM_ChatEntry     │
-│ queryDatabase()      │ └────────┬─────────┘ │ - Thread filtering           │
-│ lookupRecord()       │          │           │ - Persist messages           │
-│ searchRecords()      │          │           │ - Max message window         │
-│ getTableMetadata()   │          │           └──────────────────────────────┘
-│ listTables()         │          │
-│ getBusinessPartner() │          ▼
-│ getProduct()         │ ┌──────────────────────────────────────────────────┐
-│ getOrder()           │ │              AIStreamCallback                     │
-└──────────┬───────────┘ │ onChunk() | onToolStart() | onToolComplete()     │
-           │             │ onError() | onProgress()  | onThinking()         │
-           ▼             └──────────────────────────────────────────────────┘
+│   ERPTools           │ │ AIStreamCallback │ │ ThreadAwareChatMemory        │
+│   (@Tool methods)    │ │ (optional)       │ │                              │
+├──────────────────────┤ ├──────────────────┤ │ - Load from CM_ChatEntry     │
+│ queryDatabase()      │ │ onChunk()        │ │ - Thread filtering           │
+│ lookupRecord()       │ │ onToolStart()    │ │ - Persist messages           │
+│ searchRecords()      │ │ onToolComplete() │ │ - Max message window         │
+│ getTableMetadata()   │ │ onToolError()    │ └──────────────────────────────┘
+│ listTables()         │ │ onError()        │
+│ getBusinessPartner() │ │ onProgress()     │
+│ getProduct()         │ │ onThinking()     │
+│ getOrder()           │ └──────────────────┘
+└──────────┬───────────┘
+           │
+           ▼
 ┌──────────────────────────────────────────────────────────────────────────────┐
 │                    SecureDatabaseQueryExecutor                                │
 │  - Role-based access control (AD_Role permissions)                           │
@@ -807,19 +807,33 @@ Fires callback events when callback is provided:
 @Tool("Execute a read-only SQL SELECT query...")
 public String queryDatabase(String sql, Integer maxRows, String purpose) {
     String toolName = "queryDatabase";
-    String args = "{\"sql\": \"" + truncate(sql, 100) + "\"}";
+    String args = "{\"sql\": \"" + truncate(sql, 100) + "\", \"maxRows\": " + maxRows + "}";
 
-    fireToolStart(toolName, args);  // callback.onToolStart()
+    fireToolStart(toolName, args);  // callback.onToolStart() if callback != null
     long startTime = System.currentTimeMillis();
 
     try {
-        String result = delegate.queryDatabase(sql, maxRows, purpose);
-        long elapsed = System.currentTimeMillis() - startTime;
-        fireToolComplete(toolName, result + " (" + elapsed + "ms)");
-        return result;
+        // Execute query via SecureDatabaseQueryExecutor
+        SecureQueryRequest request = new SecureQueryRequest();
+        request.setCtx(ctx);
+        request.setProviderId(provider.getAIG_Provider_ID());
+        request.setSql(sql);
+        request.setMaxRows(maxRows != null ? Math.min(maxRows, 500) : 50);
+
+        SecureQueryResult result = executor.executeQuery(request);
+
+        if (result.isSuccess()) {
+            String resultStr = result.getRows().toString();
+            long elapsed = System.currentTimeMillis() - startTime;
+            fireToolComplete(toolName, truncate(resultStr, 200) + " (" + elapsed + "ms)");
+            return resultStr;
+        } else {
+            fireToolError(toolName, result.getErrorMessage());
+            return createErrorResponse(result.getErrorMessage());
+        }
     } catch (Exception e) {
         fireToolError(toolName, e.getMessage());
-        throw e;
+        return createErrorResponse(e.getMessage());
     }
 }
 ```
