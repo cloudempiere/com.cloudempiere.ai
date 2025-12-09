@@ -13,34 +13,41 @@
  *****************************************************************************/
 package com.cloudempiere.ai.process;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.logging.Level;
 
 import org.adempiere.exceptions.AdempiereException;
 import org.compiere.process.ProcessInfoParameter;
 import org.compiere.process.SvrProcess;
-import org.compiere.util.Env;
-import org.json.JSONArray;
-import org.json.JSONObject;
 
 import com.cloudempiere.ai.database.SecureDatabaseQueryExecutor;
 import com.cloudempiere.ai.database.dto.SecureQueryRequest;
 import com.cloudempiere.ai.database.dto.SecureQueryResult;
 import com.cloudempiere.ai.model.MAIProvider;
-import com.cloudempiere.ai.provider.langchain4j.LangChain4jProviderFactory;
+import com.cloudempiere.ai.provider.AIProviderException;
+import com.cloudempiere.ai.provider.IAIProvider;
+import com.cloudempiere.ai.provider.dto.AIHealthStatus;
+import com.cloudempiere.ai.provider.dto.AIMessage;
+import com.cloudempiere.ai.provider.dto.AIModelCapabilities;
+import com.cloudempiere.ai.provider.dto.AIRequest;
+import com.cloudempiere.ai.provider.dto.AIResponse;
+import com.cloudempiere.ai.provider.factory.AIProviderFactory;
 
-import dev.langchain4j.model.chat.ChatLanguageModel;
-import dev.langchain4j.model.output.Response;
-import dev.langchain4j.data.message.AiMessage;
-import dev.langchain4j.data.message.UserMessage;
+import org.compiere.util.Env;
+import org.json.JSONArray;
+import org.json.JSONObject;
 
 /**
- * Test Process for AI Providers using LangChain4j
+ * Test Process for AI Providers (Anthropic Claude & AWS Bedrock)
  *
  * This process tests AI provider integrations by:
- * 1. Creating a ChatLanguageModel from provider configuration
+ * 1. Running a health check
  * 2. Generating a simple text response
- * 3. Displaying results and metrics (tokens, response time)
- * 4. Testing Secure Database Query Executor
+ * 3. Testing streaming (optional)
+ * 4. Displaying results and metrics (tokens, cost, response time)
+ * 5. Showing feature support
+ * 6. Testing Secure Database Query Executor (NEW)
  *    - Valid queries with access control
  *    - Multi-table JOIN queries
  *    - Security validations (INSERT/UPDATE/DELETE blocked)
@@ -48,21 +55,22 @@ import dev.langchain4j.data.message.UserMessage;
  *    - Row limit enforcement
  *    - Audit trail verification
  *
- * Works with any registered AI provider type via LangChain4j:
+ * Works with any registered AI provider type:
  * - Anthropic Claude (ANT)
  * - AWS Bedrock (ABE)
- * - OpenAI (OAI)
- * - Ollama (OLL)
- * - LLaMA (LLA)
+ * - Any future providers
  *
  * @author Cloudempiere
- * @version 3.0
+ * @version 2.1
  */
 @org.adempiere.base.annotation.Process
 public class TestAIProvider extends SvrProcess {
 
 	/** AI Provider ID Parameter */
 	private int p_AIG_Provider_ID = 0;
+
+	/** Test Model (default: claude-3-haiku-20240307) */
+	private String p_Model = "claude-3-haiku-20240307";
 
 	/** Test Prompt */
 	private String p_Prompt = "Say hello and tell me what AI model you are in one sentence.";
@@ -91,6 +99,8 @@ public class TestAIProvider extends SvrProcess {
 				;
 			} else if (name.equals("AIG_Provider_ID")) {
 				p_AIG_Provider_ID = para[i].getParameterAsInt();
+			} else if (name.equals("Model")) {
+				p_Model = para[i].getParameterAsString();
 			} else if (name.equals("Prompt")) {
 				p_Prompt = para[i].getParameterAsString();
 			} else if (name.equals("MaxTokens")) {
@@ -113,7 +123,7 @@ public class TestAIProvider extends SvrProcess {
 	}
 
 	/**
-	 * Process - Test AI Provider using LangChain4j
+	 * Process - Test AI Provider (Any Type)
 	 *
 	 * @return Summary message
 	 */
@@ -136,48 +146,84 @@ public class TestAIProvider extends SvrProcess {
 		addLog("╔═══════════════════════════════════════════════════════╗");
 		addLog("║  Testing AI Provider: " + providerConfig.getName());
 		addLog("║  Provider Type: " + providerConfig.getAIGProviderType());
-		addLog("║  Using: LangChain4j");
 		addLog("╚═══════════════════════════════════════════════════════╝");
 
 		// Get provider type name for display
 		String providerTypeName = getProviderTypeName(providerConfig.getAIGProviderType());
 		addLog("Provider Implementation: " + providerTypeName);
 
-		// Create ChatLanguageModel using LangChain4jProviderFactory
-		ChatLanguageModel chatModel;
+		// Use factory to get provider instance
+		AIProviderFactory factory = new AIProviderFactory();
+		IAIProvider provider = null;
+
 		try {
-			chatModel = LangChain4jProviderFactory.create(providerConfig);
-			addLog("✓ ChatLanguageModel created successfully");
-		} catch (Exception e) {
-			log.log(Level.SEVERE, "Failed to create ChatLanguageModel", e);
-			throw new AdempiereException("Failed to create ChatLanguageModel: " + e.getMessage(), e);
+			provider = factory.get(providerConfig);
+			addLog("✓ Provider initialized successfully");
+			addLog("  API Version: " + provider.getAPIVersion());
+		} catch (AIProviderException e) {
+			log.log(Level.SEVERE, "Failed to initialize provider", e);
+			throw new AdempiereException("Failed to initialize provider: " + e.getMessage(), e);
 		}
 
-		// Test 1: Text Generation
-		addLog("=== Test 1: Text Generation ===");
+		// Test 1: Health Check
+		addLog("=== Test 1: Health Check ===");
+		try {
+			AIHealthStatus health = provider.checkHealth();
+			if (health.isHealthy()) {
+				addLog("Health Check: PASSED");
+				addLog("Status: " + health.getStatus());
+				addLog("Response Time: " + health.getResponseTimeMs() + "ms");
+			} else {
+				addLog("Health Check: FAILED");
+				addLog("Status: " + health.getStatus());
+				addLog("Error: " + health.getMessage());
+				return "@Error@ Health check failed: " + health.getMessage();
+			}
+		} catch (Exception e) {
+			log.log(Level.SEVERE, "Health check failed", e);
+			addLog("Health Check: ERROR - " + e.getMessage());
+			throw new AdempiereException("Health check failed: " + e.getMessage(), e);
+		}
+
+		// Test 2: Text Generation
+		addLog("=== Test 2: Text Generation ===");
+		addLog("Model: " + p_Model);
 		addLog("Prompt: " + p_Prompt);
 		addLog("Max Tokens: " + p_MaxTokens);
 
 		try {
+			// Create request
+			AIRequest request = new AIRequest();
+			request.setModel(p_Model);
+			request.setMaxTokens(p_MaxTokens);
+			request.setTemperature(0.7);
+
+			// Create message
+			List<AIMessage> messages = new ArrayList<>();
+			AIMessage userMessage = new AIMessage("user", p_Prompt);
+			messages.add(userMessage);
+			request.setMessages(messages);
+
 			// Generate response
 			long startTime = System.currentTimeMillis();
-			Response<AiMessage> response = chatModel.generate(UserMessage.from(p_Prompt));
+			AIResponse response = provider.generateText(request);
 			long duration = System.currentTimeMillis() - startTime;
 
 			// Display results
-			if (response != null && response.content() != null) {
+			if (response != null && response.getContent() != null) {
 				addLog("Text Generation: SUCCESS");
-				addLog("Response: " + response.content().text());
+				addLog("Response: " + response.getContent());
+				addLog("Model Used: " + response.getModel());
 				addLog("Processing Time: " + duration + "ms");
 
-				if (response.tokenUsage() != null) {
-					addLog("Tokens Used: " + response.tokenUsage().totalTokenCount()
-							+ " (Input: " + response.tokenUsage().inputTokenCount()
-							+ ", Output: " + response.tokenUsage().outputTokenCount() + ")");
+				if (response.getTokenUsage() != null) {
+					addLog("Tokens Used: " + response.getTokenUsage().getTotalTokens()
+							+ " (Prompt: " + response.getTokenUsage().getPromptTokens()
+							+ ", Completion: " + response.getTokenUsage().getCompletionTokens() + ")");
 				}
 
-				if (response.finishReason() != null) {
-					addLog("Finish Reason: " + response.finishReason());
+				if (response.getCostUSD() > 0) {
+					addLog(String.format("Cost: $%.6f", response.getCostUSD()));
 				}
 			} else {
 				addLog("Text Generation: FAILED - No response content");
@@ -190,17 +236,64 @@ public class TestAIProvider extends SvrProcess {
 			throw new AdempiereException("Text generation failed: " + e.getMessage(), e);
 		}
 
-		// Test 2: Provider Info
-		addLog("=== Test 2: Provider Configuration ===");
-		addLog("Provider Name: " + providerConfig.getName());
-		addLog("Provider Type: " + providerTypeName);
-		addLog("Model: " + (providerConfig.getModelName() != null ? providerConfig.getModelName() : "default"));
-		addLog("Active: " + (providerConfig.isActive() ? "YES" : "NO"));
-		addLog("Default: " + (providerConfig.isDefault() ? "YES" : "NO"));
+		// Test 3: Feature Support
+		addLog("=== Test 3: Feature Support ===");
+		addLog("✓ Text Generation: " + (provider.supportsTextGeneration() ? "YES" : "NO"));
+		addLog("  Streaming: " + (provider.supportsStreaming() ? "YES" : "NO"));
+		addLog("  Function Calling: " + (provider.supportsFunctionCalling() ? "YES" : "NO"));
+		addLog("  Vision: " + (provider.supportsVision() ? "YES" : "NO"));
+		addLog("  Audio: " + (provider.supportsAudio() ? "YES" : "NO"));
+		addLog("  Embeddings: " + (provider.supportsEmbeddings() ? "YES" : "NO"));
 
-		// Test 3: Secure Database Query Executor
+		// Test 4: Supported Models
+		addLog("=== Test 4: Supported Models ===");
+		try {
+			List<String> supportedModels = provider.getSupportedModels();
+			if (supportedModels != null && !supportedModels.isEmpty()) {
+				addLog("Available Models (" + supportedModels.size() + "):");
+				int count = 0;
+				for (String model : supportedModels) {
+					addLog("  " + (++count) + ". " + model);
+					if (count >= 5) {
+						addLog("  ... and " + (supportedModels.size() - 5) + " more");
+						break;
+					}
+				}
+			} else {
+				addLog("No models listed");
+			}
+		} catch (Exception e) {
+			addLog("Error getting supported models: " + e.getMessage());
+		}
+
+		// Test 5: Model Capabilities (for the model being tested)
+		addLog("=== Test 5: Model Capabilities ===");
+		addLog("Model: " + p_Model);
+		try {
+			AIModelCapabilities caps = provider.getModelCapabilities(p_Model);
+			if (caps != null) {
+				addLog("  Max Context Length: " + caps.getMaxContextLength() + " tokens");
+				addLog("  Max Output Tokens: " + caps.getMaxOutputTokens() + " tokens");
+				addLog("  Supports Vision: " + (caps.isSupportsVision() ? "YES" : "NO"));
+				addLog("  Supports Functions: " + (caps.isSupportsFunctions() ? "YES" : "NO"));
+				addLog("  Supports Streaming: " + (caps.isSupportsStreaming() ? "YES" : "NO"));
+				addLog("  Supports JSON: " + (caps.isSupportsJSON() ? "YES" : "NO"));
+			}
+		} catch (Exception e) {
+			addLog("Error getting model capabilities: " + e.getMessage());
+		}
+
+		// Test 6: Secure Database Query Executor
 		if (p_TestDatabaseQuery) {
 			testSecureDatabaseQueryExecutor(p_AIG_Provider_ID);
+		}
+
+		// Clean up
+		try {
+			provider.shutdown();
+			addLog("✓ Provider shutdown successfully");
+		} catch (Exception e) {
+			log.warning("Error shutting down provider: " + e.getMessage());
 		}
 
 		addLog("═══════════════════════════════════════════════════════");
@@ -212,24 +305,24 @@ public class TestAIProvider extends SvrProcess {
 	 * Test Secure Database Query Executor
 	 */
 	private void testSecureDatabaseQueryExecutor(int providerId) {
-		addLog("=== Test 3: Secure Database Query Executor ===");
+		addLog("=== Test 6: Secure Database Query Executor ===");
 
 		SecureDatabaseQueryExecutor executor = new SecureDatabaseQueryExecutor();
 		int testsRun = 0;
 		int testsPassed = 0;
 
-		// Test 3.1: Valid Query - Simple SELECT
+		// Test 6.1: Valid Query - Simple SELECT
 		testsRun++;
-		addLog("--- Test 3.1: Valid Query (Simple SELECT) ---");
+		addLog("--- Test 6.1: Valid Query (Simple SELECT) ---");
 		String sql1 = p_TestSQL != null ? p_TestSQL :
 			"SELECT AD_User_ID, Name, Created FROM AD_User WHERE AD_User_ID = " + Env.getAD_User_ID(getCtx());
 		if (testQuery(executor, providerId, sql1, "Simple SELECT on AD_User", "TEST_VALID_QUERY", true)) {
 			testsPassed++;
 		}
 
-		// Test 3.2: Multiple Tables with JOIN
+		// Test 6.2: Multiple Tables with JOIN
 		testsRun++;
-		addLog("--- Test 3.2: Multiple Tables Query (JOIN) ---");
+		addLog("--- Test 6.2: Multiple Tables Query (JOIN) ---");
 		String sql2 = "SELECT AD_User.Name AS UserName, AD_Role.Name AS RoleName " +
 					  "FROM AD_User " +
 					  "INNER JOIN AD_User_Roles ON (AD_User.AD_User_ID = AD_User_Roles.AD_User_ID) " +
@@ -239,67 +332,67 @@ public class TestAIProvider extends SvrProcess {
 			testsPassed++;
 		}
 
-		// Test 3.3: Aggregate Function
+		// Test 6.3: Aggregate Function
 		testsRun++;
-		addLog("--- Test 3.3: Aggregate Function Query ---");
+		addLog("--- Test 6.3: Aggregate Function Query ---");
 		String sql3 = "SELECT COUNT(*) AS TableCount FROM AD_Table WHERE AD_Client_ID IN (0, " +
 					  Env.getAD_Client_ID(getCtx()) + ")";
 		if (testQuery(executor, providerId, sql3, "Aggregate COUNT function", "TEST_AGGREGATE", true)) {
 			testsPassed++;
 		}
 
-		// Test 3.4: Invalid SQL - Security Validation (INSERT)
+		// Test 6.4: Invalid SQL - Security Validation (INSERT)
 		testsRun++;
-		addLog("--- Test 3.4: Security Test (Forbidden INSERT) ---");
+		addLog("--- Test 6.4: Security Test (Forbidden INSERT) ---");
 		String sql4 = "INSERT INTO AD_Note (AD_Note_ID) VALUES (999999)";
 		if (testQuery(executor, providerId, sql4, "Security test - INSERT should be rejected", "TEST_SECURITY_INSERT", false)) {
 			testsPassed++;
 		}
 
-		// Test 3.5: Invalid SQL - Security Validation (UPDATE)
+		// Test 6.5: Invalid SQL - Security Validation (UPDATE)
 		testsRun++;
-		addLog("--- Test 3.5: Security Test (Forbidden UPDATE) ---");
+		addLog("--- Test 6.5: Security Test (Forbidden UPDATE) ---");
 		String sql5 = "UPDATE AD_User SET Name='Hacked' WHERE AD_User_ID=1";
 		if (testQuery(executor, providerId, sql5, "Security test - UPDATE should be rejected", "TEST_SECURITY_UPDATE", false)) {
 			testsPassed++;
 		}
 
-		// Test 3.6: Invalid SQL - Security Validation (DELETE)
+		// Test 6.6: Invalid SQL - Security Validation (DELETE)
 		testsRun++;
-		addLog("--- Test 3.6: Security Test (Forbidden DELETE) ---");
+		addLog("--- Test 6.6: Security Test (Forbidden DELETE) ---");
 		String sql6 = "DELETE FROM AD_User WHERE AD_User_ID=1";
 		if (testQuery(executor, providerId, sql6, "Security test - DELETE should be rejected", "TEST_SECURITY_DELETE", false)) {
 			testsPassed++;
 		}
 
-		// Test 3.7: Invalid SQL - SQL Injection Protection (Semicolon)
+		// Test 6.7: Invalid SQL - SQL Injection Protection (Semicolon)
 		testsRun++;
-		addLog("--- Test 3.7: SQL Injection Protection (Semicolon) ---");
+		addLog("--- Test 6.7: SQL Injection Protection (Semicolon) ---");
 		String sql7 = "SELECT * FROM AD_User; DROP TABLE AD_User";
 		if (testQuery(executor, providerId, sql7, "SQL injection - semicolon should be rejected", "TEST_SQL_INJECTION", false)) {
 			testsPassed++;
 		}
 
-		// Test 3.8: Invalid SQL - SQL Injection Protection (Comments)
+		// Test 6.8: Invalid SQL - SQL Injection Protection (Comments)
 		testsRun++;
-		addLog("--- Test 3.8: SQL Injection Protection (Comments) ---");
+		addLog("--- Test 6.8: SQL Injection Protection (Comments) ---");
 		String sql8 = "SELECT * FROM AD_User -- WHERE AD_User_ID=1";
 		if (testQuery(executor, providerId, sql8, "SQL injection - comments should be rejected", "TEST_SQL_COMMENTS", false)) {
 			testsPassed++;
 		}
 
-		// Test 3.9: Row Limit Enforcement
+		// Test 6.9: Row Limit Enforcement
 		testsRun++;
-		addLog("--- Test 3.9: Row Limit Enforcement ---");
+		addLog("--- Test 6.9: Row Limit Enforcement ---");
 		String sql9 = "SELECT AD_Table_ID, TableName FROM AD_Table WHERE AD_Client_ID IN (0, " +
 					  Env.getAD_Client_ID(getCtx()) + ")";
 		if (testQueryWithRowLimit(executor, providerId, sql9, "Row limit enforcement", p_MaxRowsToReturn)) {
 			testsPassed++;
 		}
 
-		// Test 3.10: Audit Trail Verification
+		// Test 6.10: Audit Trail Verification
 		testsRun++;
-		addLog("--- Test 3.10: Audit Trail Verification ---");
+		addLog("--- Test 6.10: Audit Trail Verification ---");
 		if (testAuditTrail(providerId)) {
 			testsPassed++;
 		}
@@ -453,6 +546,15 @@ public class TestAIProvider extends SvrProcess {
 			addLog("Audit Records Found: " + auditCount);
 
 			if (auditCount > 0) {
+				// Get latest audit record
+				String latestSQL = "SELECT Status, QueryPurpose, RowCount, ExecutionTimeMs " +
+								   "FROM AIG_QueryAudit " +
+								   "WHERE AIG_Provider_ID = ? " +
+								   "AND AD_User_ID = ? " +
+								   "ORDER BY Created DESC " +
+								   "LIMIT 1";
+
+				// Just log that auditing is working
 				addLog("✓ Audit logging is working");
 				addLog("Test Result: PASSED ✓");
 				return true;
@@ -494,8 +596,6 @@ public class TestAIProvider extends SvrProcess {
 			return "Anthropic Claude";
 		} else if (MAIProvider.AIGPROVIDERTYPE_AWSBedrock.equals(providerType)) {
 			return "AWS Bedrock";
-		} else if (MAIProvider.AIGPROVIDERTYPE_Ollama.equals(providerType)) {
-			return "Ollama";
 		}
 		return "Unknown (" + providerType + ")";
 	}

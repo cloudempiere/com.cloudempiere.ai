@@ -91,13 +91,9 @@ public class AIService {
     private static final Set<String> TOOL_SUPPORTED_PROVIDERS = Set.of(
         LangChain4jProviderFactory.PROVIDER_ANTHROPIC,
         LangChain4jProviderFactory.PROVIDER_OPENAI,
-        LangChain4jProviderFactory.PROVIDER_BEDROCK
-        // NOTE: Ollama/Llama tools depend on model capability, not just provider type.
-        // Models like qwen2:0.5b don't support tools. Only certain models like
-        // llama3.1, mistral, qwen2.5:7b support tool calling.
-        // For simplicity, disable tools for all Ollama models in this version.
-        // LangChain4jProviderFactory.PROVIDER_OLLAMA,
-        // LangChain4jProviderFactory.PROVIDER_LLAMA
+        LangChain4jProviderFactory.PROVIDER_BEDROCK,
+        LangChain4jProviderFactory.PROVIDER_OLLAMA,
+        LangChain4jProviderFactory.PROVIDER_LLAMA
     );
 
     /** Provider types that support tool/function calling in STREAMING mode (LangChain4j 0.35.0) */
@@ -131,24 +127,6 @@ public class AIService {
             return false;
         }
         return STREAMING_TOOL_SUPPORTED_PROVIDERS.contains(provider.getAIGProviderType());
-    }
-
-    /**
-     * Check if provider supports streaming at all.
-     * LangChain4j 0.35.0 has a bug in OllamaClient streaming that causes NPE.
-     * Disable streaming for Ollama/Llama until LangChain4j upgrade (requires Java 17).
-     */
-    private static boolean supportsStreaming(MAIProvider provider) {
-        if (provider == null || provider.getAIGProviderType() == null) {
-            return false;
-        }
-        String providerType = provider.getAIGProviderType();
-        // Ollama/Llama streaming is broken in LangChain4j 0.35.0 - NPE in OllamaClient
-        if (LangChain4jProviderFactory.PROVIDER_OLLAMA.equals(providerType) ||
-            LangChain4jProviderFactory.PROVIDER_LLAMA.equals(providerType)) {
-            return false;
-        }
-        return true;
     }
 
     // ========================================================================
@@ -530,15 +508,6 @@ public class AIService {
         }
         log.warning("[STREAM] Callback: OK");
 
-        // Check if provider supports streaming (Ollama/Llama has bug in LangChain4j 0.35.0)
-        if (!supportsStreaming(provider)) {
-            log.warning("[STREAM] Provider " + provider.getAIGProviderType() +
-                    " doesn't support streaming in LangChain4j 0.35.0, falling back to batch mode");
-            // Fall back to non-streaming batch mode
-            chatBatchWithStreamingCallback(provider, chat, message, contextData, threadRootId, callback);
-            return;
-        }
-
         Properties ctx = chat.getCtx();
         log.warning("[STREAM] ========================================");
         log.warning("[STREAM] AIService.chatStreamingWithContext STARTED");
@@ -848,59 +817,6 @@ public class AIService {
         } catch (Exception e) {
             String errorMsg = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
             log.log(Level.SEVERE, "ChatStreamingWithContext failed: " + errorMsg, e);
-            callback.onError(e);
-        }
-    }
-
-    /**
-     * Fallback batch chat method that emulates streaming callbacks.
-     *
-     * <p>Used when the provider doesn't support streaming (e.g., Ollama in LangChain4j 0.35.0
-     * has a bug that causes NPE during streaming). This method uses the batch API but
-     * calls the streaming callbacks to maintain UI compatibility.
-     *
-     * @param provider AI Provider configuration
-     * @param chat Parent MChat for message persistence
-     * @param message User message
-     * @param contextData Optional context from window/tab (JSON)
-     * @param threadRootId Thread root ID (0 for new thread)
-     * @param callback Streaming callback for progress updates
-     */
-    private void chatBatchWithStreamingCallback(MAIProvider provider, MChat chat,
-                                                 String message, JSONObject contextData,
-                                                 int threadRootId, AIStreamCallback callback) {
-        log.warning("[BATCH-STREAM] Using batch mode with streaming callback (provider: " +
-                provider.getAIGProviderType() + ")");
-
-        try {
-            // Signal progress
-            callback.onProgress("analyzing", "Processing your request...");
-
-            // Call the batch API
-            ChatResult result = chatWithContext(provider, chat, message, contextData, threadRootId);
-
-            if (result.isBlocked()) {
-                // Blocked by guardrails
-                callback.onError(new RuntimeException("Blocked: " + result.getViolationType()));
-                return;
-            }
-
-            if (!result.isSuccess()) {
-                callback.onError(new RuntimeException(result.getResponse()));
-                return;
-            }
-
-            // Send the complete response as a single chunk
-            String response = result.getResponse();
-            if (response != null && !response.isEmpty()) {
-                callback.onChunk(response);
-            }
-
-            // Signal completion
-            callback.onComplete();
-
-        } catch (Exception e) {
-            log.severe("[BATCH-STREAM] Error: " + e.getMessage());
             callback.onError(e);
         }
     }

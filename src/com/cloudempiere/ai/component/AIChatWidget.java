@@ -54,9 +54,11 @@ import com.cloudempiere.ai.context.IAIContextProvider;
 import com.cloudempiere.ai.model.MAIChat;
 import com.cloudempiere.ai.model.MAIChatEntry;
 import com.cloudempiere.ai.model.MAIProvider;
+import com.cloudempiere.ai.provider.dto.AIResponse;
 import com.cloudempiere.ai.provider.dto.AIStreamCallback;
 import com.cloudempiere.ai.provider.langchain4j.AIService;
 import com.cloudempiere.ai.provider.langchain4j.AIService.ChatResult;
+import com.cloudempiere.ai.service.AIConversationService;
 import com.cloudempiere.ai.service.ChatAccessService;
 import com.cloudempiere.ai.service.IChatAccessService.ChatAccess;
 import com.cloudempiere.ai.util.ZoomLinkProcessor;
@@ -123,8 +125,17 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 	/** Date formatter for timestamps */
 	private SimpleDateFormat dateFormat;
 
-	/** AI service (LangChain4j) */
+	/** AI conversation service (legacy) */
+	private AIConversationService aiService;
+
+	/** AI service (LangChain4j - new) */
 	private AIService langchainService;
+
+	/** Feature flag for service selection: "LANGCHAIN4J" or "LEGACY" */
+	private static final String SERVICE_MODE = System.getProperty("ai.chat.service", "LEGACY"); // TODO: make configurable
+
+	/** Flag indicating if LangChain4j mode is enabled */
+	private final boolean useLangChain4j = "LANGCHAIN4J".equalsIgnoreCase(SERVICE_MODE);
 
 	/** Flag indicating if streaming mode is enabled (ADR-033) */
 	private static final String STREAMING_MODE = System.getProperty("ai.chat.streaming", "true");
@@ -198,9 +209,14 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 		// Load Markdown rendering libraries (marked.js + Prism.js for syntax highlighting)
 		loadMarkdownLibraries();
 
-		// Initialize AI service (LangChain4j)
-		langchainService = AIService.getInstance();
-		log.fine("AIChatWidget initialized with LangChain4j service");
+		// Initialize AI service based on feature flag
+		if (useLangChain4j) {
+			langchainService = AIService.getInstance();
+			log.info("AIChatWidget using LangChain4j service");
+		} else {
+			aiService = new AIConversationService();
+			log.info("AIChatWidget using legacy service");
+		}
 
 		// Context indicator (if enabled)
 		if (contextEnabled) {
@@ -714,8 +730,12 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 		showLoading();
 		scrollToBottom();
 
-		// Send message using LangChain4j service
-		sendMessageLangChain4j(message);
+		// Dispatch to appropriate service
+		if (useLangChain4j) {
+			sendMessageLangChain4j(message);
+		} else {
+			sendMessageLegacy(message);
+		}
 	}
 
 	/**
@@ -1089,6 +1109,68 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 
 			} catch (Exception e) {
 				log.log(Level.SEVERE, "LangChain4j AI response failed", e);
+				handleErrorResponse(desktop, e, threadRootIdSnapshot);
+			}
+		});
+	}
+
+	/**
+	 * Send message using legacy AIConversationService.
+	 */
+	private void sendMessageLegacy(String message) {
+		final JSONObject contextSnapshot = currentContext;
+		final int threadRootIdSnapshot = currentThreadRootId;
+
+		Desktop desktop = Executions.getCurrent().getDesktop();
+		CompletableFuture.runAsync(() -> {
+			try {
+				// Get MAIChat instance (use sessionCtx to preserve language, client, etc.)
+				MAIChat aiChat = (chat instanceof MAIChat) ?
+					(MAIChat) chat :
+					new MAIChat(sessionCtx, chat.getCM_Chat_ID(), null);
+
+				// Call AI service with session context (CRITICAL: use sessionCtx not Env.getCtx()!)
+				// Pass threadRootIdSnapshot to filter conversation history to current thread only
+				AIResponse aiResponse = aiService.sendMessageWithContext(
+					sessionCtx,  // Use session context here to get correct language/client
+					aiChat,
+					message,
+					contextSnapshot,  // Pass context here
+					10,  // Include last 10 messages for conversation history
+					threadRootIdSnapshot,  // Filter history to current thread only
+					null
+				);
+
+				if (!aiResponse.isSuccess()) {
+					throw new Exception(aiResponse.getErrorMessage() != null ?
+						aiResponse.getErrorMessage() : "AI service returned error");
+				}
+
+				// Create AI chat entry with proper thread parent
+				MAIChatEntry aiEntry = MAIChatEntry.createAIResponse(aiChat, aiResponse.getContent());
+
+				// Set thread parent (AI response is child of the thread root)
+				// We only support one level: root message + children
+				if (threadRootIdSnapshot > 0) {
+					aiEntry.setCM_ChatEntryParent_ID(threadRootIdSnapshot);
+				}
+
+				aiEntry.saveEx();
+				aiChat.saveEx();
+
+				// Update UI (must happen in ZK thread)
+				Executions.schedule(desktop, e -> {
+					hideLoading();
+					renderMessage(aiEntry);
+					inputBox.setDisabled(false);
+					sendButton.setDisabled(false);
+					inputBox.focus();
+					// Scroll to bottom after AI response is rendered
+					scrollToBottom();
+				}, new Event("onAIResponse"));
+
+			} catch (Exception e) {
+				log.log(Level.SEVERE, "AI response failed", e);
 				handleErrorResponse(desktop, e, threadRootIdSnapshot);
 			}
 		});
