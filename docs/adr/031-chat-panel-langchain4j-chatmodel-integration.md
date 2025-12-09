@@ -489,7 +489,7 @@ ChatLanguageModel model = AnthropicChatModel.builder()
 | Intelligent Routing | AIConversationService | LangChain4jConversationService | Retained |
 | Query Caching (TTL) | ConversationContextManager | LangChain4jConversationService | Retained |
 | Thread Filtering | buildConversationHistory() | ThreadAwareChatMemory | Migrated |
-| System Prompt Building | buildSystemPrompt() | @SystemMessage + context injection | Migrated |
+| System Prompt Building | buildSystemPrompt() | Hybrid (see below) | Partial |
 | Function Calling | AIDatabaseFunctionHandler | ERPTools (@Tool) | Migrated (ADR-002) |
 | Cost Estimation | AIResponse.getCostUSD() | TokenUsageListener | Migrated |
 | Streaming | AIStreamCallback | StreamingChatLanguageModel | Migrated |
@@ -498,6 +498,27 @@ ChatLanguageModel model = AnthropicChatModel.builder()
 | Context Injection | contextData parameter | Memory injection | Migrated |
 | Stop/Cancel Request | Not implemented | stopButton + CompletableFuture.cancel() | New |
 | Streaming Cancellation | Not implemented | TokenStream.cancel() | New |
+
+#### System Prompt Hybrid Architecture (v0.19.0)
+
+The system prompt implementation uses a **hybrid approach**:
+
+| Component | Prompt Source | Configurable? |
+|-----------|--------------|---------------|
+| `RAGConversationService` | Database (`AIG_Prompt_Config`) | ✅ Yes - per client |
+| `ERPAgent` / `ERPStreamingAgent` | Java `@SystemMessage(SYSTEM_PROMPT)` | ❌ No - compile-time |
+| `SimpleAgent` / `SimpleStreamingAgent` | Java `@SystemMessage(SIMPLE_SYSTEM_PROMPT)` | ❌ No - compile-time |
+| `IERPAgent` | Java `@SystemMessage({...})` | ❌ No - compile-time |
+
+**Why Hybrid?**
+- LangChain4j `@SystemMessage` annotation requires compile-time String constants
+- Database prompts (`AIG_Prompt_Config`) still used by `RAGConversationService` for per-client customization
+- LangChain4j agents use hardcoded prompts in `ERPAgent.SYSTEM_PROMPT` and `SimpleAgent.SIMPLE_SYSTEM_PROMPT`
+
+**Files:**
+- Database lookup: `RAGConversationService.java:411-418`
+- Java prompts: `ERPAgent.java:39-70`, `SimpleAgent.java:26-31`, `IERPAgent.java:57-76`
+- Model: `MAIPromptConfig.java`
 
 ### Related ADRs
 
