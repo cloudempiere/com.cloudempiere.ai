@@ -12,9 +12,6 @@ import com.cloudempiere.ai.observability.AIMetricsListener;
 
 import dev.langchain4j.model.anthropic.AnthropicChatModel;
 import dev.langchain4j.model.anthropic.AnthropicStreamingChatModel;
-import dev.langchain4j.model.bedrock.BedrockAnthropicMessageChatModel;
-import dev.langchain4j.model.bedrock.BedrockAnthropicStreamingChatModel;
-import dev.langchain4j.model.bedrock.BedrockTitanEmbeddingModel;
 import dev.langchain4j.model.chat.ChatLanguageModel;
 import dev.langchain4j.model.chat.StreamingChatLanguageModel;
 import dev.langchain4j.model.embedding.EmbeddingModel;
@@ -434,22 +431,22 @@ public class LangChain4jProviderFactory {
     }
 
     private static ChatLanguageModel createBedrockModel(String modelName, String region) {
-        // Bedrock uses AWS credentials from environment/IAM role
-        // BedrockAnthropicMessageChatModel for Claude on Bedrock (0.35.0 API)
-        var builder = BedrockAnthropicMessageChatModel.builder()
+        // Use custom wrapper that explicitly creates HTTP client (OSGi workaround)
+        // LangChain4j's BedrockAnthropicMessageChatModel doesn't expose httpClient builder,
+        // so we bypass it entirely with our own implementation.
+        return BedrockChatModelWrapper.builder()
             .region(Region.of(region != null ? region : DEFAULT_BEDROCK_REGION))
             .model(modelName != null ? modelName : DEFAULT_BEDROCK_MODEL)
             .maxTokens(4096)
-            .temperature(0.7f);
-
-        // Note: 0.35.0 BedrockAnthropicMessageChatModel doesn't support listeners
-
-        return builder.build();
+            .temperature(0.7f)
+            .build();
     }
 
     private static StreamingChatLanguageModel createBedrockStreamingModel(String modelName, String region) {
-        // Bedrock streaming model uses AWS credentials from environment/IAM role
-        return BedrockAnthropicStreamingChatModel.builder()
+        // Use custom wrapper that explicitly creates HTTP client (OSGi workaround)
+        // LangChain4j's BedrockAnthropicStreamingChatModel doesn't expose httpClient builder,
+        // so we bypass it entirely with our own implementation.
+        return BedrockStreamingChatModelWrapper.builder()
             .region(Region.of(region != null ? region : DEFAULT_BEDROCK_REGION))
             .model(modelName != null ? modelName : DEFAULT_BEDROCK_MODEL)
             .maxTokens(4096)
@@ -462,8 +459,8 @@ public class LangChain4jProviderFactory {
     // ========================================================================
 
     private static EmbeddingModel createBedrockEmbeddingModel(String modelName, String region) {
-        // BedrockTitanEmbeddingModel for Amazon Titan Embeddings (0.35.0 API)
-        return BedrockTitanEmbeddingModel.builder()
+        // Use custom wrapper that explicitly creates HTTP client (OSGi workaround)
+        return BedrockEmbeddingModelWrapper.builder()
             .region(Region.of(region != null ? region : DEFAULT_BEDROCK_REGION))
             .model(modelName != null ? modelName : DEFAULT_BEDROCK_EMBEDDING_MODEL)
             .build();

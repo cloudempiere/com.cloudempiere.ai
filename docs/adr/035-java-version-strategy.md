@@ -6,7 +6,7 @@
 
 ## Date
 
-2025-12-04
+2025-12-04 (Updated: 2025-12-09)
 
 ## Deciders
 
@@ -397,6 +397,179 @@ Per [iDempiere Migration Notes](https://wiki.idempiere.org/en/Migration_Notes):
     <version>0.35.0</version>
 </artifactItem>
 ```
+
+---
+
+## LangChain4j 0.35.0 Code Workarounds
+
+This section documents all code workarounds implemented to address limitations and bugs in LangChain4j 0.35.0. **All workarounds will be removed during the Phase 2 migration to Java 17 + LangChain4j 1.x.**
+
+### Workaround 1: Ollama/Llama Streaming Disabled
+
+**Location:** `AIService.java:137-148` (`supportsStreaming()` method)
+
+**Issue:** LangChain4j 0.35.0 has a bug in `OllamaClient` that causes `NullPointerException` during streaming responses.
+
+**Workaround:**
+- Streaming is disabled for Ollama and Llama providers
+- Falls back to batch mode using `chatBatchWithStreamingCallback()`
+- Batch response is sent as a single chunk to maintain UI compatibility
+
+```java
+private static boolean supportsStreaming(MAIProvider provider) {
+    String providerType = provider.getAIGProviderType();
+    // Ollama/Llama streaming is broken in LangChain4j 0.35.0 - NPE in OllamaClient
+    if (PROVIDER_OLLAMA.equals(providerType) || PROVIDER_LLAMA.equals(providerType)) {
+        return false;
+    }
+    return true;
+}
+```
+
+**Fix available in:** LangChain4j 0.37.0+ (requires Java 17)
+
+---
+
+### Workaround 2: Ollama/Llama Tools Disabled
+
+**Location:** `AIService.java:90-101` (`TOOL_SUPPORTED_PROVIDERS` constant)
+
+**Issue:** Not all Ollama models support tool/function calling. Models like `qwen2:0.5b` throw `"does not support tools"` error. There's no reliable way to detect tool capability at runtime for arbitrary Ollama models.
+
+**Workaround:**
+- Ollama and Llama removed from `TOOL_SUPPORTED_PROVIDERS`
+- Uses `SimpleAgent` (no tools) instead of `ERPAgent` (with tools) for Ollama
+- Tool-capable models like `llama3.1`, `mistral`, `qwen2.5:7b` work but tools are disabled for all Ollama models for consistency
+
+```java
+private static final Set<String> TOOL_SUPPORTED_PROVIDERS = Set.of(
+    PROVIDER_ANTHROPIC,
+    PROVIDER_OPENAI,
+    PROVIDER_BEDROCK
+    // Ollama/Llama disabled - model-dependent tool support
+);
+```
+
+**Alternative:** Manually configure tool-capable models and enable tools per-model in a future version.
+
+**Fix available in:** LangChain4j 1.x with improved model capability detection
+
+---
+
+### Workaround 3: AWS Bedrock OSGi ServiceLoader Issue
+
+**Location:** Custom wrapper classes in `provider/langchain4j/`:
+- `BedrockStreamingChatModelWrapper.java`
+- `BedrockChatModelWrapper.java`
+- `BedrockEmbeddingModelWrapper.java`
+
+**Issue:** AWS SDK v2 uses Java `ServiceLoader` to discover HTTP client implementations. In OSGi environments, ServiceLoader cannot find the Netty or Apache HTTP client implementations due to classloader isolation, causing:
+```
+Unable to load an HTTP implementation from any provider in the chain
+```
+
+**Workaround:**
+- Created custom wrapper classes that bypass LangChain4j's internal AWS SDK client creation
+- Explicitly instantiate `NettyNioAsyncHttpClient` for async/streaming operations
+- Explicitly instantiate `ApacheHttpClient` for sync operations
+- Shared HTTP client instances (singleton pattern) for efficiency
+
+```java
+// BedrockStreamingChatModelWrapper.java
+private static SdkAsyncHttpClient getSharedHttpClient() {
+    if (sharedHttpClient == null) {
+        synchronized (httpClientLock) {
+            if (sharedHttpClient == null) {
+                // Explicitly create Netty client - bypasses ServiceLoader
+                sharedHttpClient = NettyNioAsyncHttpClient.builder()
+                    .connectionTimeout(Duration.ofSeconds(30))
+                    .readTimeout(Duration.ofSeconds(300))
+                    .maxConcurrency(50)
+                    .build();
+            }
+        }
+    }
+    return sharedHttpClient;
+}
+```
+
+**Files created:**
+- `BedrockStreamingChatModelWrapper.java` - Implements `StreamingChatLanguageModel` with tool support
+- `BedrockChatModelWrapper.java` - Implements `ChatLanguageModel` for sync operations
+- `BedrockEmbeddingModelWrapper.java` - Implements `EmbeddingModel` for Titan embeddings
+
+**Fix available in:** Potentially resolved in newer AWS SDK/LangChain4j versions with better OSGi support
+
+---
+
+### Workaround 4: Tool Parameters API Difference
+
+**Location:** `BedrockStreamingChatModelWrapper.java:335`
+
+**Issue:** LangChain4j 0.35.0 `ToolSpecification.parameters().properties()` returns `Map<String, Map<String, Object>>` instead of typed parameter objects available in later versions.
+
+**Workaround:**
+- Manual extraction of parameter schema from nested Map structure
+- Cast values to appropriate types for Anthropic tool schema format
+
+```java
+// LangChain4j 0.35.0 API
+Map<String, Map<String, Object>> params = tool.parameters().properties();
+if (params != null) {
+    for (var param : params.entrySet()) {
+        JSONObject paramObj = new JSONObject();
+        Map<String, Object> paramSpec = param.getValue();
+        Object typeVal = paramSpec.get("type");
+        paramObj.put("type", typeVal != null ? typeVal.toString() : "string");
+        Object descVal = paramSpec.get("description");
+        if (descVal != null) {
+            paramObj.put("description", descVal.toString());
+        }
+        properties.put(param.getKey(), paramObj);
+    }
+}
+```
+
+**Fix available in:** LangChain4j 1.x with typed parameter accessors
+
+---
+
+### Workaround 5: Missing Interface Methods
+
+**Location:** `BedrockStreamingChatModelWrapper.java` (methods removed)
+
+**Issue:** The `supportedCapabilities()` and `listeners()` methods were added to `StreamingChatLanguageModel` interface in LangChain4j 0.36.0+. Using `@Override` on these methods in 0.35.0 causes compilation errors.
+
+**Workaround:**
+- Removed `supportedCapabilities()` method entirely
+- Removed `listeners()` method entirely
+- These methods are not required for basic streaming functionality
+
+**Fix available in:** LangChain4j 0.36.0+ where these methods exist in the interface
+
+---
+
+### Workaround Summary Table
+
+| # | Workaround | Location | Impact | Fix Version |
+|---|------------|----------|--------|-------------|
+| 1 | Ollama streaming disabled | `AIService.java` | No real-time streaming for Ollama | 0.37.0+ |
+| 2 | Ollama tools disabled | `AIService.java` | No function calling for Ollama | 1.x |
+| 3 | Bedrock OSGi ServiceLoader | `Bedrock*Wrapper.java` | Custom wrapper classes | Unknown |
+| 4 | Tool parameters Map API | `BedrockStreamingChatModelWrapper.java` | Manual Map extraction | 1.x |
+| 5 | Missing interface methods | `BedrockStreamingChatModelWrapper.java` | Methods removed | 0.36.0+ |
+
+### Migration Checklist for Removing Workarounds
+
+When upgrading to Java 17 + LangChain4j 1.x:
+
+- [ ] **Workaround 1:** Remove Ollama/Llama from streaming exclusion list in `supportsStreaming()`
+- [ ] **Workaround 2:** Re-add Ollama/Llama to `TOOL_SUPPORTED_PROVIDERS` (verify model capability detection)
+- [ ] **Workaround 3:** Replace `Bedrock*Wrapper` classes with native LangChain4j `BedrockChatModel`
+- [ ] **Workaround 4:** Update tool parameter extraction to use typed API
+- [ ] **Workaround 5:** Re-add `supportedCapabilities()` and `listeners()` if needed
+- [ ] **General:** Run full test suite after each workaround removal
+- [ ] **General:** Update this ADR to mark workarounds as resolved
 
 ---
 
