@@ -19,8 +19,7 @@ import org.compiere.util.CLogger;
 
 import com.cloudempiere.ai.agent.AgentContext;
 import com.cloudempiere.ai.model.MAIProvider;
-import com.cloudempiere.ai.provider.IAIProvider;
-import com.cloudempiere.ai.provider.factory.AIProviderFactory;
+import com.cloudempiere.ai.provider.langchain4j.LangChain4jProviderFactory;
 
 import dev.langchain4j.model.chat.ChatLanguageModel;
 
@@ -48,7 +47,7 @@ import dev.langchain4j.model.chat.ChatLanguageModel;
  * </pre>
  *
  * @author Cloudempiere
- * @version 1.0
+ * @version 2.0
  */
 public class LangChain4jAgentFactory {
 
@@ -109,51 +108,29 @@ public class LangChain4jAgentFactory {
             throw new IllegalStateException("Provider not found: " + providerId);
         }
 
-        log.info("Creating LangChain4j agent from provider: " + provider.getName() +
-                " (type: " + provider.getAIGProviderType() + ")");
-
-        // Get the existing IAIProvider to extract configuration
-        AIProviderFactory factory = new AIProviderFactory();
-        IAIProvider aiProvider;
-        try {
-            aiProvider = factory.get(provider);
-        } catch (Exception e) {
-            throw new IllegalStateException("Could not create provider: " + providerId, e);
-        }
-        if (aiProvider == null) {
-            throw new IllegalStateException("Could not create provider: " + providerId);
-        }
-
-        // Create ChatLanguageModel based on provider type
-        ChatLanguageModel chatModel = createChatModel(provider, aiProvider);
-
-        String agentName = "agent-" + provider.getName();
-        return new LangChain4jAgent(agentName, chatModel);
+        return createFromProvider(provider);
     }
 
     /**
-     * Create ChatLanguageModel from iDempiere provider configuration
+     * Create an agent from MAIProvider configuration
      *
-     * <p>This method bridges iDempiere's provider configuration to LangChain4j.
-     * Currently supports wrapping existing IAIProvider implementations.
-     *
-     * <p>For native LangChain4j support, additional dependencies would be needed:
-     * <ul>
-     *   <li>langchain4j-anthropic for direct Claude support</li>
-     *   <li>langchain4j-open-ai for OpenAI support</li>
-     *   <li>langchain4j-bedrock for AWS Bedrock support</li>
-     * </ul>
-     *
-     * @param provider iDempiere provider model
-     * @param aiProvider initialized IAIProvider
-     * @return ChatLanguageModel instance
+     * @param provider MAIProvider configuration
+     * @return configured agent
+     * @throws IllegalStateException if provider not supported
      */
-    private static ChatLanguageModel createChatModel(MAIProvider provider, IAIProvider aiProvider) {
-        String providerType = provider.getAIGProviderType();
+    public static LangChain4jAgent createFromProvider(MAIProvider provider) {
+        if (provider == null) {
+            throw new IllegalArgumentException("Provider cannot be null");
+        }
 
-        // Create an adapter that wraps our IAIProvider as a ChatLanguageModel
-        // This allows using existing provider implementations with LangChain4j
-        return new IAIProviderChatModelAdapter(aiProvider, provider);
+        log.info("Creating LangChain4j agent from provider: " + provider.getName() +
+                " (type: " + provider.getAIGProviderType() + ")");
+
+        // Create ChatLanguageModel using LangChain4jProviderFactory
+        ChatLanguageModel chatModel = LangChain4jProviderFactory.create(provider);
+
+        String agentName = "agent-" + provider.getName();
+        return new LangChain4jAgent(agentName, chatModel);
     }
 
     /**
@@ -163,6 +140,7 @@ public class LangChain4jAgentFactory {
 
         private String name;
         private ChatLanguageModel chatModel;
+        private MAIProvider provider;
         private IAITools tools;
         private int memorySize = 20;
         private String systemPrompt;
@@ -174,6 +152,11 @@ public class LangChain4jAgentFactory {
 
         public Builder chatModel(ChatLanguageModel chatModel) {
             this.chatModel = chatModel;
+            return this;
+        }
+
+        public Builder provider(MAIProvider provider) {
+            this.provider = provider;
             return this;
         }
 
@@ -196,8 +179,14 @@ public class LangChain4jAgentFactory {
             if (name == null || name.isEmpty()) {
                 name = "langchain4j-agent";
             }
+
+            // Create chatModel from provider if not directly specified
+            if (chatModel == null && provider != null) {
+                chatModel = LangChain4jProviderFactory.create(provider);
+            }
+
             if (chatModel == null) {
-                throw new IllegalStateException("ChatLanguageModel is required");
+                throw new IllegalStateException("ChatLanguageModel is required (set via chatModel() or provider())");
             }
 
             LangChain4jAgent agent = tools != null

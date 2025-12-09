@@ -17,8 +17,10 @@ import org.adempiere.webui.factory.IAIChatWidgetFactory;
 import org.osgi.service.component.annotations.Component;
 import org.zkoss.zul.Div;
 
+import org.compiere.util.Env;
+
 import com.cloudempiere.ai.component.AIChatWidget;
-import com.cloudempiere.ai.service.AIConversationService;
+import com.cloudempiere.ai.model.MAIProvider;
 
 /**
  * OSGi Service implementation for AI Chat Widget Factory
@@ -49,8 +51,10 @@ public class AIChatWidgetFactory implements IAIChatWidgetFactory {
 
 	@Override
 	public boolean isAvailable() {
-		AIConversationService service = new AIConversationService();
-		return service.isAvailable();
+		// Check if a default AI provider is configured in the database
+		// Uses LangChain4j path which supports all provider types (ANT, ABE, OLL, OAI, LLA)
+		MAIProvider provider = MAIProvider.getDefault(Env.getCtx(), null);
+		return provider != null && provider.isActive();
 	}
 
 	@Override
