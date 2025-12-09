@@ -1,9 +1,45 @@
 # ADR-026: Vector Database Strategy for AI Infrastructure
 
-**Status:** Proposed
+**Status:** Proposed (Blocked by ADR-012 Integration)
 **Date:** 2025-12-03
+**Updated:** 2025-12-09
 **Deciders:** Cloudempiere AI Team
 **Relates to:** ADR-012 (RAG-Based Context Retrieval), ADR-006 (Data Model Architecture)
+
+---
+
+## Implementation Status (as of 2025-12-09)
+
+### Current State: NOT STARTED - Blocked
+
+This ADR is **blocked** because the prerequisite ADR-012 (RAG-Based Context Retrieval) is not yet active.
+
+| Component | Status | Notes |
+|-----------|--------|-------|
+| **pgvector Extension** | ❌ Not Enabled | Waiting for RAG integration |
+| **AIG_Embedding Table** | ❌ Not Created | Waiting for RAG integration |
+| **PgVectorEmbeddingStore** | ❌ Not Implemented | Using InMemoryEmbeddingStore in RAGContextManager |
+| **LangChain4j pgvector Dependency** | ❌ Not Added | Requires Java 17 (langchain4j-pgvector 1.0.0+) |
+
+### Blocking Issues
+
+1. **ADR-012 not active**: RAG module exists but is not integrated into conversation flow
+2. **Java 11 constraint**: LangChain4j pgvector module (1.0.0+) requires Java 17
+3. **No production usage**: Until RAG is active, vector storage is unnecessary
+
+### Current Workaround
+
+RAGContextManager uses `InMemoryEmbeddingStore` with session-based isolation:
+- ✅ Sufficient for development/testing
+- ❌ Not persistent (data lost on restart)
+- ❌ Not scalable beyond single JVM
+
+### Prerequisites to Proceed
+
+1. **Activate ADR-012**: Wire RAGConversationService into AIConversationService
+2. **Validate RAG works**: Confirm embeddings and retrieval function correctly
+3. **Migrate to Java 17**: Required for LangChain4j pgvector support (or use raw JDBC)
+4. **Enable pgvector on RDS**: Create extension and AIG_Embedding table
 
 ---
 
@@ -549,6 +585,6 @@ GRANT USAGE, SELECT ON SEQUENCE aig_embedding_aig_embedding_id_seq TO idempiere;
 
 ---
 
-**ADR-026 | Version 1.0 | 2025-12-03**
-**Status: Proposed**
-**Implementation: Phase 1 with RDS pgvector, Phase 2+ expansion options documented**
+**ADR-026 | Version 1.1 | 2025-12-09**
+**Status: Proposed (Blocked by ADR-012 Integration)**
+**Implementation: Phase 1 with RDS pgvector - NOT STARTED (waiting for RAG activation)**

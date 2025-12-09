@@ -1,10 +1,51 @@
 # ADR-012: RAG-Based Context Retrieval
 
-**Status:** Accepted
+**Status:** Accepted (Partial Implementation)
 **Date:** 2025-12-01
+**Updated:** 2025-12-09
 **Deciders:** Cloudempiere AI Team
 **Supersedes:** ADR-005 (Intelligent Data Source Routing)
 **Planned Implementation:** v0.10.0
+
+---
+
+## Implementation Status (as of 2025-12-09)
+
+### Current State: Partial Implementation - NOT ACTIVE
+
+The RAG module foundation exists but is **not yet integrated** into the main conversation flow.
+
+| Component | Status | Location | Notes |
+|-----------|--------|----------|-------|
+| **RAGContextManager** | ✅ 90% Complete | `src/com/cloudempiere/ai/rag/RAGContextManager.java` | 472 lines, provider-agnostic embeddings, session isolation, TTL management |
+| **RAGConversationService** | ✅ 80% Complete | `src/com/cloudempiere/ai/rag/RAGConversationService.java` | 587 lines, lazy init, window context storage |
+| **Integration into AIConversationService** | ❌ Not Started | - | Still uses legacy ADR-005 routing |
+| **ContentRetriever wiring** | ❌ Not Started | `LangChain4jAgent.java` | Missing `.contentRetriever(retriever)` call |
+| **Vector Database (pgvector)** | ❌ Deferred | See ADR-026 | Using InMemoryEmbeddingStore only |
+| **Test Coverage** | ❌ None | - | No RAG-specific tests |
+| **Legacy Code Removal** | ❌ Not Started | `src/com/cloudempiere/ai/routing/` | 630+ lines still active |
+
+### What's Working
+
+- ✅ RAGContextManager supports multiple embedding providers (Anthropic→Titan, Bedrock→Titan, Ollama→nomic-embed)
+- ✅ Session-based embedding store isolation
+- ✅ TTL-based cleanup (30 min default)
+- ✅ Fallback mode when embedding service unavailable
+- ✅ RAGConversationService has lazy initialization pattern
+
+### What's Blocking Activation
+
+1. **Legacy routing still active**: `AIConversationService` uses `ConversationContextManager` and `PromptAnalyzer` (ADR-005)
+2. **Agent not using RAG**: `LangChain4jAgent.java` builds AiServices without `.contentRetriever()`
+3. **No integration point**: RAGConversationService exists but is never instantiated
+
+### Next Steps to Activate RAG
+
+1. Wire `RAGConversationService.sendMessageWithContext()` into `AIConversationService`
+2. Add `.contentRetriever(retriever)` to AiServices builder in `LangChain4jAgent`
+3. Delete legacy routing code (~630 lines in `routing/` package)
+4. Add integration tests
+5. Enable pgvector for production (ADR-026)
 
 ---
 
@@ -646,25 +687,27 @@ public String sendMessageWithContext(String userMessage, JSONObject windowContex
 
 ### Development
 
-- [ ] Add LangChain4j dependencies (`langchain4j-embeddings`, `langchain4j-ollama`)
-- [ ] Install Ollama and `nomic-embed-text` model
-- [ ] Create `RAGContextManager.java` (~50 lines)
-- [ ] Modify `AIConversationService.java` to use RAG (~30 lines)
+- [x] Add LangChain4j dependencies (`langchain4j-embeddings`, `langchain4j-ollama`) ✅ In pom.xml
+- [ ] Install Ollama and `nomic-embed-text` model (optional, supports multiple providers)
+- [x] Create `RAGContextManager.java` ✅ Created (472 lines, more comprehensive than planned)
+- [x] Create `RAGConversationService.java` ✅ Created (587 lines)
+- [ ] **Modify `AIConversationService.java` to use RAG** ⚠️ NOT DONE - still uses legacy routing
+- [ ] **Wire ContentRetriever into LangChain4jAgent** ⚠️ NOT DONE - missing `.contentRetriever()` call
 - [ ] Add feature flag for backward compatibility
 - [ ] Write tests (`RAGContextManagerTest.java`)
 
 ### Cleanup
 
-- [ ] Remove `PromptAnalyzer.java` (120 lines)
-- [ ] Remove `ConversationContextManager.java` (230 lines)
-- [ ] Remove `EntityExtractor.java` (140 lines)
-- [ ] Remove `ContextEntry.java`, `DataType.java`, `TTLConfig.java`, `RoutingMetrics.java` (240 lines)
+- [ ] Remove `PromptAnalyzer.java` (~120 lines) ⚠️ Still active
+- [ ] Remove `ConversationContextManager.java` (~230 lines) ⚠️ Still active
+- [ ] Remove `EntityExtractor.java` (~140 lines) ⚠️ Still active
+- [ ] Remove other routing classes (`ContextEntry.java`, `DataType.java`, etc.) ⚠️ Still active
 - [ ] Update imports in affected classes
 
 ### Documentation
 
-- [ ] Update ADR-005 status to "Superseded by ADR-012"
-- [ ] Add ADR-012 to ADR index
+- [x] Update ADR-005 status to "Superseded by ADR-012" ✅
+- [x] Add ADR-012 to ADR index ✅
 - [ ] Update FEATURES.md with RAG implementation
 - [ ] Update CHANGELOG.md with v0.10.0 changes
 
@@ -674,6 +717,13 @@ public String sendMessageWithContext(String userMessage, JSONObject windowContex
 - [ ] Integration tests for `AIConversationService`
 - [ ] Performance benchmarks (cache hit rate, accuracy, latency)
 - [ ] Manual testing with 100 real prompts
+
+### Vector Database (ADR-026)
+
+- [ ] Enable pgvector extension on RDS
+- [ ] Create AIG_Embedding table with HNSW index
+- [ ] Update RAGContextManager to use PgVectorEmbeddingStore
+- [ ] Multi-tenant isolation via AD_Client_ID
 
 ---
 
@@ -716,6 +766,6 @@ public String sendMessageWithContext(String userMessage, JSONObject windowContex
 
 ---
 
-**ADR-012 | Version 1.0 | 2025-12-01**
-**Status: Accepted (Supersedes ADR-005)**
-**Implementation: v0.10.0 (2-week timeline)**
+**ADR-012 | Version 1.1 | 2025-12-09**
+**Status: Accepted (Partial Implementation) - Supersedes ADR-005**
+**Implementation: v0.10.0 (In Progress - Foundation complete, integration pending)**
