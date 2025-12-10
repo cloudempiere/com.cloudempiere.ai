@@ -631,6 +631,31 @@ public class AIService {
             }
 
             // ================================================================
+            // LANGUAGE DETECTION (ADR-037)
+            // Detect input language on first message or when no session override exists.
+            // Sets session language based on user's input to maintain consistency.
+            // ================================================================
+
+            int chatId = chat.getCM_Chat_ID();
+            if (!languageService.hasOverrideLanguage(chatId)) {
+                // No session language set yet - detect from input
+                java.util.Optional<String> detectedLang = languageService.detectInputLanguage(processedMessage);
+                if (detectedLang.isPresent()) {
+                    languageService.setOverrideLanguage(chatId, detectedLang.get());
+                    log.info("Session language auto-detected from input: " + detectedLang.get() +
+                            " for chat " + chatId);
+                }
+                // Also check for explicit language change request (e.g., "respond in German")
+            }
+            // Always check for explicit language change requests
+            java.util.Optional<String> requestedLang = languageService.detectLanguageChangeRequest(processedMessage);
+            if (requestedLang.isPresent()) {
+                languageService.setOverrideLanguage(chatId, requestedLang.get());
+                log.info("Session language changed by user request: " + requestedLang.get() +
+                        " for chat " + chatId);
+            }
+
+            // ================================================================
             // BUILD MEMORY WITH THREAD AWARENESS
             // ================================================================
 

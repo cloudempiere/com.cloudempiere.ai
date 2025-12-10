@@ -2,7 +2,7 @@
 
 ## Status
 
-**Proposed**
+**Implemented** (2025-12-10)
 
 ## Date
 
@@ -73,12 +73,14 @@ public ToolResult askQuestion(String question, String language) {
 ### Confirmation
 
 The decision will be confirmed when:
-- [ ] `LanguageDetectionService` extracts language from iDempiere context
-- [ ] System detects language change requests in user messages
-- [ ] Override language persists within conversation session
-- [ ] All AI services consistently use the language instruction
+- [x] `LanguageDetectionService` extracts language from iDempiere context ✓
+- [x] System detects language change requests in user messages ✓
+- [x] System auto-detects input language on first message ✓ (2025-12-10)
+- [x] Override language persists within conversation session ✓
+- [x] `AIService` integrates language detection ✓ (2025-12-10)
+- [x] `RAGConversationService` integrates language detection ✓
 - [ ] Technical terms remain in English regardless of response language
-- [ ] Language detection works for all supported iDempiere languages
+- [ ] Language detection works for all supported iDempiere languages (partial - major languages covered)
 
 ## Pros and Cons of the Options
 
@@ -429,13 +431,43 @@ For production, consider:
 
 | Test Case | Expected Result |
 |-----------|-----------------|
-| User with `de_DE` login starts chat | Responses in German |
-| User says "respond in Spanish" | Responses switch to Spanish |
-| User continues conversation | Spanish persists |
-| User says "switch to English" | Responses return to English |
-| User starts new chat | Reverts to login language (de_DE) |
+| User with `en_US` login starts chat in Slovak | Session language set to Slovak, responses in Slovak |
+| User continues conversation in Slovak | Slovak persists throughout session |
+| User switches to German mid-conversation | Session language updates to German |
+| User says "respond in Spanish" (explicit) | Responses switch to Spanish |
+| User starts new chat | Session language resets (detected from first message) |
+| User with `de_DE` login starts chat in German | German (matches both login and input) |
 | Unknown language request | Logs warning, no change |
-| User with `en_US` says "auf Deutsch" | Switches to German |
+
+### Key Design Decision: Input Language Takes Priority
+
+**Decision Date:** 2025-12-10
+
+**Problem:** Users may be logged into iDempiere with one language (e.g., Kinyarwanda) but
+write messages in a different language (e.g., English). The original design strictly followed
+the session language (`AD_Language`), causing confusing responses in unexpected languages.
+
+**Decision:** The system now detects the language of the user's **first message** and uses
+that to set the session language. This is the standard expected UX behavior.
+
+**Language Priority Order (Updated):**
+1. **Session override** - Set by explicit request ("respond in German") or auto-detected from first message
+2. **iDempiere context** - `AD_Language` from user login (only if no override)
+3. **Fallback** - `en_US`
+
+**Rationale:**
+- Users expect AI to respond in the language they write in
+- Multi-lingual environments (like Africa with 40+ languages) often have users
+  with a system language different from their preferred communication language
+- Auto-detection on first message sets the tone for the entire conversation
+- Explicit requests ("respond in X") can always override
+
+**Implementation:**
+- `LanguageDetectionService.detectInputLanguage(text)` - Detects language using character
+  scripts (Cyrillic, CJK, Arabic, etc.) and common word patterns
+- Called in `AIService.chatStreamingWithContext()` before building the system prompt
+- Only sets override if no existing override (subsequent messages don't change it)
+- Explicit requests ("respond in German") always update the override
 
 ### Implementation Phases
 
