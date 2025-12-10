@@ -1,0 +1,1 @@
+../../../idempiere-cli/docs/poc/SATELLITE-AI-POC-PROPOSAL.md
