@@ -12,7 +12,10 @@ import dev.langchain4j.data.embedding.Embedding;
 import dev.langchain4j.data.segment.TextSegment;
 import dev.langchain4j.model.embedding.EmbeddingModel;
 import dev.langchain4j.model.output.Response;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.core.SdkBytes;
 import software.amazon.awssdk.http.SdkHttpClient;
 import software.amazon.awssdk.http.apache.ApacheHttpClient;
@@ -46,10 +49,21 @@ public class BedrockEmbeddingModelWrapper implements EmbeddingModel {
     private BedrockEmbeddingModelWrapper(Builder builder) {
         this.modelId = builder.modelId;
 
+        // Determine credentials provider - use explicit if provided, else default
+        AwsCredentialsProvider credentialsProvider;
+        if (builder.accessKeyId != null && builder.secretAccessKey != null) {
+            log.info("Using explicit AWS credentials for Bedrock embeddings");
+            credentialsProvider = StaticCredentialsProvider.create(
+                AwsBasicCredentials.create(builder.accessKeyId, builder.secretAccessKey));
+        } else {
+            log.info("Using default AWS credentials provider for Bedrock embeddings");
+            credentialsProvider = DefaultCredentialsProvider.create();
+        }
+
         // Create client with explicit HTTP client (OSGi workaround)
         this.client = BedrockRuntimeClient.builder()
             .region(builder.region)
-            .credentialsProvider(DefaultCredentialsProvider.create())
+            .credentialsProvider(credentialsProvider)
             .httpClient(getSharedHttpClient())
             .build();
 
@@ -58,16 +72,28 @@ public class BedrockEmbeddingModelWrapper implements EmbeddingModel {
 
     /**
      * Get or create the shared sync HTTP client.
+     *
+     * <p>Sets the thread context classloader to ensure proper class resolution in OSGi.
      */
     private static SdkHttpClient getSharedHttpClient() {
         if (sharedHttpClient == null) {
             synchronized (httpClientLock) {
                 if (sharedHttpClient == null) {
-                    log.info("Creating shared Apache sync HTTP client for Bedrock embeddings");
-                    sharedHttpClient = ApacheHttpClient.builder()
-                        .connectionTimeout(Duration.ofSeconds(30))
-                        .socketTimeout(Duration.ofSeconds(120))
-                        .build();
+                    // Capture and set plugin classloader for OSGi compatibility
+                    ClassLoader pluginClassLoader = BedrockEmbeddingModelWrapper.class.getClassLoader();
+                    ClassLoader originalClassLoader = Thread.currentThread().getContextClassLoader();
+
+                    try {
+                        Thread.currentThread().setContextClassLoader(pluginClassLoader);
+                        log.info("Creating shared Apache sync HTTP client for Bedrock embeddings (with plugin classloader)");
+
+                        sharedHttpClient = ApacheHttpClient.builder()
+                            .connectionTimeout(Duration.ofSeconds(30))
+                            .socketTimeout(Duration.ofSeconds(120))
+                            .build();
+                    } finally {
+                        Thread.currentThread().setContextClassLoader(originalClassLoader);
+                    }
                 }
             }
         }
@@ -142,6 +168,8 @@ public class BedrockEmbeddingModelWrapper implements EmbeddingModel {
     public static class Builder {
         private Region region = Region.US_EAST_1;
         private String modelId = "amazon.titan-embed-text-v2:0";
+        private String accessKeyId;
+        private String secretAccessKey;
 
         public Builder region(Region region) {
             this.region = region;
@@ -150,6 +178,20 @@ public class BedrockEmbeddingModelWrapper implements EmbeddingModel {
 
         public Builder model(String modelId) {
             this.modelId = modelId;
+            return this;
+        }
+
+        /**
+         * Set explicit AWS credentials.
+         * If not set, DefaultCredentialsProvider will be used.
+         *
+         * @param accessKeyId AWS Access Key ID
+         * @param secretAccessKey AWS Secret Access Key
+         * @return this builder
+         */
+        public Builder credentials(String accessKeyId, String secretAccessKey) {
+            this.accessKeyId = accessKeyId;
+            this.secretAccessKey = secretAccessKey;
             return this;
         }
 

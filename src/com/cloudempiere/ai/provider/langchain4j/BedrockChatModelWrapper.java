@@ -14,7 +14,10 @@ import dev.langchain4j.data.message.SystemMessage;
 import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.model.chat.ChatLanguageModel;
 import dev.langchain4j.model.output.Response;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.core.SdkBytes;
 import software.amazon.awssdk.http.SdkHttpClient;
 import software.amazon.awssdk.http.apache.ApacheHttpClient;
@@ -52,10 +55,21 @@ public class BedrockChatModelWrapper implements ChatLanguageModel {
         this.maxTokens = builder.maxTokens;
         this.temperature = builder.temperature;
 
+        // Determine credentials provider - use explicit if provided, else default
+        AwsCredentialsProvider credentialsProvider;
+        if (builder.accessKeyId != null && builder.secretAccessKey != null) {
+            log.info("Using explicit AWS credentials for Bedrock");
+            credentialsProvider = StaticCredentialsProvider.create(
+                AwsBasicCredentials.create(builder.accessKeyId, builder.secretAccessKey));
+        } else {
+            log.info("Using default AWS credentials provider for Bedrock");
+            credentialsProvider = DefaultCredentialsProvider.create();
+        }
+
         // Create client with explicit HTTP client (OSGi workaround)
         this.client = BedrockRuntimeClient.builder()
             .region(builder.region)
-            .credentialsProvider(DefaultCredentialsProvider.create())
+            .credentialsProvider(credentialsProvider)
             .httpClient(getSharedHttpClient())
             .build();
 
@@ -65,16 +79,28 @@ public class BedrockChatModelWrapper implements ChatLanguageModel {
     /**
      * Get or create the shared sync HTTP client.
      * Explicitly creates Apache client to avoid ServiceLoader issues in OSGi.
+     *
+     * <p>Sets the thread context classloader to ensure proper class resolution.
      */
     private static SdkHttpClient getSharedHttpClient() {
         if (sharedHttpClient == null) {
             synchronized (httpClientLock) {
                 if (sharedHttpClient == null) {
-                    log.info("Creating shared Apache sync HTTP client for Bedrock");
-                    sharedHttpClient = ApacheHttpClient.builder()
-                        .connectionTimeout(Duration.ofSeconds(30))
-                        .socketTimeout(Duration.ofSeconds(300))
-                        .build();
+                    // Capture and set plugin classloader for OSGi compatibility
+                    ClassLoader pluginClassLoader = BedrockChatModelWrapper.class.getClassLoader();
+                    ClassLoader originalClassLoader = Thread.currentThread().getContextClassLoader();
+
+                    try {
+                        Thread.currentThread().setContextClassLoader(pluginClassLoader);
+                        log.info("Creating shared Apache sync HTTP client for Bedrock (with plugin classloader)");
+
+                        sharedHttpClient = ApacheHttpClient.builder()
+                            .connectionTimeout(Duration.ofSeconds(30))
+                            .socketTimeout(Duration.ofSeconds(300))
+                            .build();
+                    } finally {
+                        Thread.currentThread().setContextClassLoader(originalClassLoader);
+                    }
                 }
             }
         }
@@ -198,6 +224,8 @@ public class BedrockChatModelWrapper implements ChatLanguageModel {
         private String modelId = "anthropic.claude-3-5-sonnet-20241022-v2:0";
         private int maxTokens = 4096;
         private float temperature = 0.7f;
+        private String accessKeyId;
+        private String secretAccessKey;
 
         public Builder region(Region region) {
             this.region = region;
@@ -216,6 +244,20 @@ public class BedrockChatModelWrapper implements ChatLanguageModel {
 
         public Builder temperature(float temperature) {
             this.temperature = temperature;
+            return this;
+        }
+
+        /**
+         * Set explicit AWS credentials.
+         * If not set, DefaultCredentialsProvider will be used.
+         *
+         * @param accessKeyId AWS Access Key ID
+         * @param secretAccessKey AWS Secret Access Key
+         * @return this builder
+         */
+        public Builder credentials(String accessKeyId, String secretAccessKey) {
+            this.accessKeyId = accessKeyId;
+            this.secretAccessKey = secretAccessKey;
             return this;
         }
 

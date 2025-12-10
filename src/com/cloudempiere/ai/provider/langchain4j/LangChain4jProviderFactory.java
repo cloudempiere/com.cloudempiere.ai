@@ -116,7 +116,7 @@ public class LangChain4jProviderFactory {
             case PROVIDER_ANTHROPIC:
                 return createAnthropicModel(apiKey, modelName);
             case PROVIDER_BEDROCK:
-                return createBedrockModel(modelName, baseUrl);
+                return createBedrockModel(modelName, apiKey);
             case PROVIDER_OLLAMA:
                 return createOllamaModel(baseUrl, modelName);
             case PROVIDER_OPENAI:
@@ -168,7 +168,7 @@ public class LangChain4jProviderFactory {
             case PROVIDER_ANTHROPIC:
                 return createAnthropicStreamingModel(apiKey, modelName);
             case PROVIDER_BEDROCK:
-                return createBedrockStreamingModel(modelName, baseUrl);
+                return createBedrockStreamingModel(modelName, apiKey);
             case PROVIDER_OLLAMA:
                 return createOllamaStreamingModel(baseUrl, modelName);
             case PROVIDER_OPENAI:
@@ -250,10 +250,10 @@ public class LangChain4jProviderFactory {
             case PROVIDER_ANTHROPIC:
                 // Anthropic doesn't have embedding models - use AWS Bedrock Titan
                 log.info("Anthropic provider: using AWS Bedrock Titan Embeddings");
-                return createBedrockEmbeddingModel(modelName, baseUrl);
+                return createBedrockEmbeddingModel(modelName, apiKey);
 
             case PROVIDER_BEDROCK:
-                return createBedrockEmbeddingModel(modelName, baseUrl);
+                return createBedrockEmbeddingModel(modelName, apiKey);
 
             case PROVIDER_OLLAMA:
                 return createOllamaEmbeddingModel(baseUrl, modelName);
@@ -268,7 +268,7 @@ public class LangChain4jProviderFactory {
             default:
                 // Fallback to Bedrock Titan for unknown providers
                 log.warning("Unknown provider type: " + providerType + ", falling back to Bedrock Titan Embeddings");
-                return createBedrockEmbeddingModel(modelName, baseUrl);
+                return createBedrockEmbeddingModel(modelName, apiKey);
         }
     }
 
@@ -430,40 +430,135 @@ public class LangChain4jProviderFactory {
             .build();
     }
 
-    private static ChatLanguageModel createBedrockModel(String modelName, String region) {
+    /**
+     * Create a Bedrock ChatLanguageModel.
+     *
+     * @param modelName Model ID (e.g., "anthropic.claude-3-5-sonnet-20241022-v2:0")
+     * @param apiKey API key in format "accessKeyId:secretAccessKey:region" or null for default credentials
+     * @return ChatLanguageModel configured for Bedrock
+     */
+    private static ChatLanguageModel createBedrockModel(String modelName, String apiKey) {
+        // Parse credentials from apiKey if provided (format: accessKeyId:secretAccessKey:region)
+        String accessKeyId = null;
+        String secretAccessKey = null;
+        String region = DEFAULT_BEDROCK_REGION;
+
+        if (apiKey != null && !apiKey.isEmpty()) {
+            String[] parts = apiKey.split(":");
+            if (parts.length >= 2) {
+                accessKeyId = parts[0];
+                secretAccessKey = parts[1];
+                if (parts.length >= 3 && !parts[2].isEmpty()) {
+                    region = parts[2];
+                }
+                log.info("Bedrock: Using explicit credentials from AIG_Provider, region: " + region);
+            } else {
+                log.warning("Bedrock: Invalid API key format. Expected 'accessKeyId:secretAccessKey:region'. Using default credentials.");
+            }
+        } else {
+            log.info("Bedrock: No API key configured, using default AWS credentials provider");
+        }
+
         // Use custom wrapper that explicitly creates HTTP client (OSGi workaround)
-        // LangChain4j's BedrockAnthropicMessageChatModel doesn't expose httpClient builder,
-        // so we bypass it entirely with our own implementation.
-        return BedrockChatModelWrapper.builder()
-            .region(Region.of(region != null ? region : DEFAULT_BEDROCK_REGION))
+        var builder = BedrockChatModelWrapper.builder()
+            .region(Region.of(region))
             .model(modelName != null ? modelName : DEFAULT_BEDROCK_MODEL)
             .maxTokens(4096)
-            .temperature(0.7f)
-            .build();
+            .temperature(0.7f);
+
+        if (accessKeyId != null && secretAccessKey != null) {
+            builder.credentials(accessKeyId, secretAccessKey);
+        }
+
+        return builder.build();
     }
 
-    private static StreamingChatLanguageModel createBedrockStreamingModel(String modelName, String region) {
+    /**
+     * Create a Bedrock StreamingChatLanguageModel.
+     *
+     * @param modelName Model ID (e.g., "anthropic.claude-3-5-sonnet-20241022-v2:0")
+     * @param apiKey API key in format "accessKeyId:secretAccessKey:region" or null for default credentials
+     * @return StreamingChatLanguageModel configured for Bedrock
+     */
+    private static StreamingChatLanguageModel createBedrockStreamingModel(String modelName, String apiKey) {
+        // Parse credentials from apiKey if provided (format: accessKeyId:secretAccessKey:region)
+        String accessKeyId = null;
+        String secretAccessKey = null;
+        String region = DEFAULT_BEDROCK_REGION;
+
+        if (apiKey != null && !apiKey.isEmpty()) {
+            String[] parts = apiKey.split(":");
+            if (parts.length >= 2) {
+                accessKeyId = parts[0];
+                secretAccessKey = parts[1];
+                if (parts.length >= 3 && !parts[2].isEmpty()) {
+                    region = parts[2];
+                }
+                log.info("Bedrock streaming: Using explicit credentials from AIG_Provider, region: " + region);
+            } else {
+                log.warning("Bedrock streaming: Invalid API key format. Expected 'accessKeyId:secretAccessKey:region'. Using default credentials.");
+            }
+        } else {
+            log.info("Bedrock streaming: No API key configured, using default AWS credentials provider");
+        }
+
         // Use custom wrapper that explicitly creates HTTP client (OSGi workaround)
-        // LangChain4j's BedrockAnthropicStreamingChatModel doesn't expose httpClient builder,
-        // so we bypass it entirely with our own implementation.
-        return BedrockStreamingChatModelWrapper.builder()
-            .region(Region.of(region != null ? region : DEFAULT_BEDROCK_REGION))
+        var builder = BedrockStreamingChatModelWrapper.builder()
+            .region(Region.of(region))
             .model(modelName != null ? modelName : DEFAULT_BEDROCK_MODEL)
             .maxTokens(4096)
-            .temperature(0.7f)
-            .build();
+            .temperature(0.7f);
+
+        if (accessKeyId != null && secretAccessKey != null) {
+            builder.credentials(accessKeyId, secretAccessKey);
+        }
+
+        return builder.build();
     }
 
     // ========================================================================
     // Private embedding model factory methods
     // ========================================================================
 
-    private static EmbeddingModel createBedrockEmbeddingModel(String modelName, String region) {
+    /**
+     * Create a Bedrock EmbeddingModel.
+     *
+     * @param modelName Model ID (e.g., "amazon.titan-embed-text-v2:0")
+     * @param apiKey API key in format "accessKeyId:secretAccessKey:region" or null for default credentials
+     * @return EmbeddingModel configured for Bedrock Titan
+     */
+    private static EmbeddingModel createBedrockEmbeddingModel(String modelName, String apiKey) {
+        // Parse credentials from apiKey if provided (format: accessKeyId:secretAccessKey:region)
+        String accessKeyId = null;
+        String secretAccessKey = null;
+        String region = DEFAULT_BEDROCK_REGION;
+
+        if (apiKey != null && !apiKey.isEmpty()) {
+            String[] parts = apiKey.split(":");
+            if (parts.length >= 2) {
+                accessKeyId = parts[0];
+                secretAccessKey = parts[1];
+                if (parts.length >= 3 && !parts[2].isEmpty()) {
+                    region = parts[2];
+                }
+                log.info("Bedrock embedding: Using explicit credentials from AIG_Provider, region: " + region);
+            } else {
+                log.warning("Bedrock embedding: Invalid API key format. Expected 'accessKeyId:secretAccessKey:region'. Using default credentials.");
+            }
+        } else {
+            log.info("Bedrock embedding: No API key configured, using default AWS credentials provider");
+        }
+
         // Use custom wrapper that explicitly creates HTTP client (OSGi workaround)
-        return BedrockEmbeddingModelWrapper.builder()
-            .region(Region.of(region != null ? region : DEFAULT_BEDROCK_REGION))
-            .model(modelName != null ? modelName : DEFAULT_BEDROCK_EMBEDDING_MODEL)
-            .build();
+        var builder = BedrockEmbeddingModelWrapper.builder()
+            .region(Region.of(region))
+            .model(modelName != null ? modelName : DEFAULT_BEDROCK_EMBEDDING_MODEL);
+
+        if (accessKeyId != null && secretAccessKey != null) {
+            builder.credentials(accessKeyId, secretAccessKey);
+        }
+
+        return builder.build();
     }
 
     private static EmbeddingModel createOllamaEmbeddingModel(String baseUrl, String modelName) {
