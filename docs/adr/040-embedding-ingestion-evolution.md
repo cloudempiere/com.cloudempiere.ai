@@ -132,36 +132,105 @@ public class AIGEmbeddingInitialLoad extends SvrProcess {
 
 ---
 
-## Phase 2: Queue-Based Architecture (Next Iteration)
+## Phase 2: Queue-Based Architecture via com.cloudempiere.cache (Next Iteration)
 
 ### Architecture
 
+Leverage the existing **com.cloudempiere.cache** infrastructure for queue processing:
+
 ```
-┌──────────────────────┐      ┌──────────────────────┐
-│     iDempiere        │      │      PostgreSQL      │
-│                      │      │                      │
-│  ┌────────────────┐  │      │  ┌────────────────┐  │
-│  │ ModelValidator │  │      │  │  aig_outbox    │  │
-│  │ (non-blocking) │──┼─────►│  │  status=pending│  │
-│  └────────────────┘  │      │  └───────┬────────┘  │
-│                      │      │          │           │
-│  ┌────────────────┐  │      │          ▼           │
-│  │ Scheduler Job  │  │ poll │  ┌────────────────┐  │
-│  │ ProcessQueue   │◄─┼──────┼──│  FOR UPDATE    │  │
-│  │ (batch)        │  │      │  │  SKIP LOCKED   │  │
-│  └───────┬────────┘  │      │  └────────────────┘  │
-│          │           │      │                      │
-│          ▼           │      │  ┌────────────────┐  │
-│  ┌────────────────┐  │      │  │  aig_vector    │  │
-│  │ Embed + Store  │──┼─────►│  │  (pgvector)    │  │
-│  └────────────────┘  │      │  └────────────────┘  │
-│                      │      │                      │
-│  ┌────────────────┐  │      │  ┌────────────────┐  │
-│  │ Scheduler Job  │  │      │  │aig_ingestion   │  │
-│  │ BatchProcess   │──┼─────►│  │  _metadata     │  │
-│  │ (pull mode)    │  │      │  └────────────────┘  │
-│  └────────────────┘  │      │                      │
-└──────────────────────┘      └──────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           iDempiere                                         │
+│                                                                             │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │                    com.cloudempiere.cache                            │   │
+│  │                                                                      │   │
+│  │  ┌────────────────┐    ┌────────────────┐    ┌────────────────┐     │   │
+│  │  │ PostgreSQL     │    │ Partitioned    │    │ CacheRefresh   │     │   │
+│  │  │ LISTEN/NOTIFY  │───►│ QueueManager   │───►│ Strategy       │     │   │
+│  │  │ (<500ms)       │    │                │    │ (embedding)    │     │   │
+│  │  └────────────────┘    └────────────────┘    └───────┬────────┘     │   │
+│  │                                                      │               │   │
+│  └──────────────────────────────────────────────────────┼───────────────┘   │
+│                                                         │                   │
+│  ┌─────────────────────────────────────────────────────┐│                   │
+│  │                 com.cloudempiere.ai                  ││                   │
+│  │                                                      ▼│                   │
+│  │  ┌────────────────┐    ┌────────────────┐    ┌────────────────┐         │
+│  │  │ ModelValidator │    │ EmbeddingRefresh│    │ aig_vector     │         │
+│  │  │ (triggers      │───►│ Strategy        │───►│ (pgvector)     │         │
+│  │  │  pg_notify)    │    │ (implements     │    │                │         │
+│  │  └────────────────┘    │  ICacheRefresh) │    └────────────────┘         │
+│  │                        └────────────────┘                                │
+│  │  ┌────────────────┐                                                      │
+│  │  │ RagTools       │───► Search aig_vector                                │
+│  │  └────────────────┘                                                      │
+│  └──────────────────────────────────────────────────────────────────────────┘
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Why Use com.cloudempiere.cache?
+
+| Feature | Build from scratch | Use cache plugin |
+|---------|-------------------|------------------|
+| LISTEN/NOTIFY | Must implement | Already done |
+| Partitioned queues | Must implement | Already done |
+| FOR UPDATE SKIP LOCKED | Must implement | Already done |
+| Dead letter queue | Must implement | Already done |
+| Retry mechanism | Must implement | Already done |
+| Multi-tenant support | Must implement | Already done |
+| Monitoring/diagnostics | Must implement | Already done |
+
+### Integration Approach
+
+#### 1. Register Embedding as Cache Distribution Behavior
+
+Configure in AD_CacheDistributionBehavior:
+- **Path Pattern**: `aig_embedding`
+- **Source Tables**: `AD_Window`, `AD_Tab`, `AD_Process`, `AD_Table`
+- **Strategy**: `EmbeddingRefreshStrategy`
+
+#### 2. Implement ICacheRefreshStrategy
+
+```java
+public class EmbeddingRefreshStrategy implements ICacheRefreshStrategy {
+
+    @Override
+    public CacheRefreshResult refresh(CacheRefreshEvent event) {
+        String tableName = event.getTableName();
+        int recordId = event.getRecordId();
+        String action = event.getTriggerAction();  // INSERT, UPDATE, DELETE
+
+        if ("DELETE".equals(action)) {
+            deleteEmbedding(tableName, recordId);
+        } else {
+            // DELETE + INSERT pattern
+            deleteEmbedding(tableName, recordId);
+
+            String content = extractContent(tableName, recordId);
+            float[] embedding = embeddingService.embed(content);
+            insertEmbedding(tableName, recordId, content, embedding);
+        }
+
+        return CacheRefreshResult.success();
+    }
+
+    @Override
+    public String getStrategyName() {
+        return "EmbeddingRefreshStrategy";
+    }
+}
+```
+
+#### 3. Database Trigger (handled by cache plugin)
+
+The cache plugin already creates triggers that call `pg_notify`:
+
+```sql
+-- Trigger created by cache plugin for registered tables
+CREATE TRIGGER aig_ad_window_notify
+AFTER INSERT OR UPDATE OR DELETE ON ad_window
+FOR EACH ROW EXECUTE FUNCTION notify_cache_invalidation();
 ```
 
 ### Key Patterns (From Repository Analysis)
@@ -177,31 +246,16 @@ public class AIGEmbeddingInitialLoad extends SvrProcess {
 2. **Partitioned queues** - Prevent large workloads blocking small ones
 3. **FOR UPDATE SKIP LOCKED** - Safe concurrent processing
 4. **Dead letter queue** - Failed items don't block processing
+5. **Multi-tenant context** - AD_Client_ID in every event
+6. **Configuration-driven** - Zero Java code for new sources
 
 ### Database Tables
 
 ```sql
--- Outbox: queue of pending work
-CREATE TABLE aig_outbox (
-    aig_outbox_uu    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    ad_client_id     INTEGER NOT NULL,
-    source_type      VARCHAR(30) NOT NULL,
-    source_id        INTEGER NOT NULL,
-    action           VARCHAR(10) DEFAULT 'UPSERT',
-    payload          JSONB NOT NULL,
-    status           VARCHAR(20) DEFAULT 'pending',
-    error_message    TEXT,
-    retry_count      INTEGER DEFAULT 0,
-    created          TIMESTAMP DEFAULT now(),
-    updated          TIMESTAMP DEFAULT now(),
-    CONSTRAINT aig_outbox_status_chk
-        CHECK (status IN ('pending','processing','completed','failed','dead_letter'))
-);
+-- Vector storage (same as Phase 1)
+-- aig_vector table already exists
 
-CREATE INDEX aig_outbox_pending_idx ON aig_outbox(status, created)
-    WHERE status = 'pending';
-
--- Ingestion tracking (for pull mode)
+-- Ingestion tracking (for pull mode / initial load)
 CREATE TABLE aig_ingestion_metadata (
     aig_ingestion_metadata_uu UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     ad_client_id     INTEGER NOT NULL,
@@ -212,83 +266,47 @@ CREATE TABLE aig_ingestion_metadata (
 );
 ```
 
+**Note:** No `aig_outbox` table needed - the cache plugin handles queuing internally.
+
 ### Processing Strategies
 
-#### Push Mode (Real-time via ModelValidator)
+#### Push Mode (Real-time via Cache Plugin)
 ```
-Save → ModelValidator → INSERT aig_outbox → return immediately
+Save AD_Window → DB Trigger → pg_notify → Cache Plugin → EmbeddingRefreshStrategy
 ```
-- Non-blocking
-- Real-time event capture
-- Decoupled from embedding API
+- Near real-time (<500ms)
+- Non-blocking for user
+- Automatic retry on failure
 
-#### Pull Mode (Batch via Scheduler)
-```
-Scheduler → Scan AD tables WHERE Updated >= last_ingestion → INSERT aig_outbox
-```
-- Catches bulk imports
-- Recovery mechanism
-- Handles missed events
-
-#### Recommended: Use Both
-1. **Push** for real-time during normal operation
-2. **Pull** as scheduled backup (every 5 min) to catch missed events
-
-### Queue Processing
-
+#### Pull Mode (Initial Load / Recovery)
 ```java
-public class AIGEmbeddingProcessQueue extends SvrProcess {
-    @Override
-    protected String doIt() {
-        // 1. Claim batch with row-level locking
-        String sql = """
-            UPDATE aig_outbox SET status = 'processing', updated = now()
-            WHERE aig_outbox_uu IN (
-                SELECT aig_outbox_uu FROM aig_outbox
-                WHERE status = 'pending'
-                ORDER BY created
-                LIMIT ?
-                FOR UPDATE SKIP LOCKED
-            )
-            RETURNING *
-            """;
-
-        // 2. Process each item
-        for (OutboxItem item : batch) {
-            try {
-                // DELETE old embeddings
-                deleteBySource(item.sourceType, item.sourceId);
-
-                // Generate and INSERT new
-                float[] embedding = embeddingService.embed(item.payload);
-                insertVector(item, embedding);
-
-                // Mark completed
-                item.setStatus("completed");
-            } catch (Exception e) {
-                item.setRetryCount(item.getRetryCount() + 1);
-                if (item.getRetryCount() >= 3) {
-                    item.setStatus("dead_letter");
-                } else {
-                    item.setStatus("pending"); // Will retry
-                }
-                item.setErrorMessage(e.getMessage());
-            }
-            item.saveEx();
-        }
-
-        return "@Processed@ " + batch.size();
-    }
+public class AIGEmbeddingInitialLoad extends SvrProcess {
+    // Run once to embed all existing AD records
+    // Or run with Force=Y to re-embed everything
 }
 ```
+- For initial data population
+- For recovery after failures
+- For bulk re-processing
 
-### Future Enhancements (Phase 3+)
+### Configuration
 
-| Enhancement | Description | When |
-|-------------|-------------|------|
-| **LISTEN/NOTIFY** | Near real-time processing via PostgreSQL | When polling latency matters |
-| **Partitioned Queues** | Separate queues per source type | Performance isolation |
-| **Content Hash** | Skip unchanged content | Reduce API costs |
+Register embedding sources in Application Dictionary:
+
+| Table | AD_CacheDistributionBehavior |
+|-------|------------------------------|
+| AD_Window | path_pattern='aig_embedding', source_table='AD_Window' |
+| AD_Tab | path_pattern='aig_embedding', source_table='AD_Tab' |
+| AD_Process | path_pattern='aig_embedding', source_table='AD_Process' |
+| AD_Table | path_pattern='aig_embedding', source_table='AD_Table' |
+
+### Benefits of Cache Plugin Integration
+
+1. **Proven infrastructure** - Already running in production
+2. **No duplicate code** - Reuse queue, retry, monitoring
+3. **Consistent patterns** - Same approach as other cache invalidations
+4. **Easy to add sources** - Just register new table in AD
+5. **Built-in diagnostics** - Queue depth, processing stats
 
 ---
 
@@ -299,20 +317,21 @@ public class AIGEmbeddingProcessQueue extends SvrProcess {
 - **Negative**: Blocks saves, no retry, risky for production
 - **Mitigation**: Use for MVP, move to Phase 2 for production
 
-### Phase 2 (Queue-Based)
-- **Positive**: Non-blocking, retry support, scalable
-- **Negative**: More complex, eventual consistency
-- **Mitigation**: Short polling interval (30s) for near real-time
+### Phase 2 (Cache Plugin Integration)
+- **Positive**: Non-blocking, retry support, proven infrastructure, no duplicate code
+- **Negative**: Dependency on cache plugin, eventual consistency
+- **Mitigation**: Cache plugin already deployed; <500ms latency is acceptable
 
 ## Migration Path
 
 ```
 Phase 1 → Phase 2:
-1. Create aig_outbox, aig_ingestion_metadata tables
-2. Modify ModelValidator to INSERT outbox instead of direct embed
-3. Create ProcessQueue scheduler job
-4. Create BatchProcess scheduler job (pull mode backup)
-5. Run BatchProcess with Force=Y to re-queue all existing records
+1. Add com.cloudempiere.cache as plugin dependency
+2. Create aig_ingestion_metadata table
+3. Implement EmbeddingRefreshStrategy (ICacheRefreshStrategy)
+4. Register AD_Window, AD_Tab, AD_Process, AD_Table in AD_CacheDistributionBehavior
+5. Remove ModelValidator direct embedding logic
+6. Run AIGEmbeddingInitialLoad with Force=Y to re-embed all existing records
 ```
 
 ## Related ADRs
