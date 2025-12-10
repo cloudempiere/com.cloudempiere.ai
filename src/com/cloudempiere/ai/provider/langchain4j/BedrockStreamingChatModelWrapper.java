@@ -4,7 +4,11 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+
+import software.amazon.awssdk.http.nio.netty.SdkEventLoopGroup;
 
 import org.compiere.util.CLogger;
 import org.json.JSONArray;
@@ -19,7 +23,10 @@ import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.model.StreamingResponseHandler;
 import dev.langchain4j.model.chat.StreamingChatLanguageModel;
 import dev.langchain4j.model.output.Response;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.core.SdkBytes;
 import software.amazon.awssdk.http.async.SdkAsyncHttpClient;
 import software.amazon.awssdk.http.nio.netty.NettyNioAsyncHttpClient;
@@ -60,10 +67,21 @@ public class BedrockStreamingChatModelWrapper implements StreamingChatLanguageMo
         this.maxTokens = builder.maxTokens;
         this.temperature = builder.temperature;
 
+        // Determine credentials provider - use explicit if provided, else default
+        AwsCredentialsProvider credentialsProvider;
+        if (builder.accessKeyId != null && builder.secretAccessKey != null) {
+            log.info("Using explicit AWS credentials for Bedrock streaming");
+            credentialsProvider = StaticCredentialsProvider.create(
+                AwsBasicCredentials.create(builder.accessKeyId, builder.secretAccessKey));
+        } else {
+            log.info("Using default AWS credentials provider for Bedrock streaming");
+            credentialsProvider = DefaultCredentialsProvider.create();
+        }
+
         // Create async client with explicit HTTP client (OSGi workaround)
         this.asyncClient = BedrockRuntimeAsyncClient.builder()
             .region(builder.region)
-            .credentialsProvider(DefaultCredentialsProvider.create())
+            .credentialsProvider(credentialsProvider)
             .httpClient(getSharedHttpClient())
             .build();
 
@@ -71,15 +89,57 @@ public class BedrockStreamingChatModelWrapper implements StreamingChatLanguageMo
     }
 
     /**
+     * Custom SdkEventLoopGroup that uses the plugin's classloader.
+     */
+    private static volatile SdkEventLoopGroup sharedEventLoopGroup;
+
+    /**
      * Get or create the shared async HTTP client.
      * Explicitly creates Netty client to avoid ServiceLoader issues in OSGi.
+     *
+     * <p>IMPORTANT: Uses a custom SdkEventLoopGroup with a ThreadFactory that sets
+     * the plugin's classloader as the context classloader for all Netty threads.
+     * This ensures Netty's EventLoop threads can access classes from the plugin's
+     * embedded JARs (like eventstream.jar).
      */
     private static SdkAsyncHttpClient getSharedHttpClient() {
         if (sharedHttpClient == null) {
             synchronized (httpClientLock) {
                 if (sharedHttpClient == null) {
-                    log.info("Creating shared Netty async HTTP client for Bedrock");
+                    // Capture plugin classloader for Netty EventLoop threads
+                    final ClassLoader pluginClassLoader = BedrockStreamingChatModelWrapper.class.getClassLoader();
+
+                    log.info("Creating shared Netty async HTTP client for Bedrock with OSGi-aware classloader");
+
+                    // Create custom ThreadFactory that sets the plugin classloader
+                    ThreadFactory threadFactory = new ThreadFactory() {
+                        private final AtomicInteger threadNumber = new AtomicInteger(1);
+
+                        @Override
+                        public Thread newThread(Runnable r) {
+                            Thread thread = new Thread(() -> {
+                                // Set plugin classloader as context classloader for this thread
+                                Thread.currentThread().setContextClassLoader(pluginClassLoader);
+                                if (log.isLoggable(java.util.logging.Level.FINE)) {
+                                    log.fine("Netty thread started with classloader: " +
+                                        Thread.currentThread().getContextClassLoader());
+                                }
+                                r.run();
+                            }, "bedrock-netty-" + threadNumber.getAndIncrement());
+                            thread.setContextClassLoader(pluginClassLoader);
+                            thread.setDaemon(true);
+                            return thread;
+                        }
+                    };
+
+                    // Create custom SdkEventLoopGroup with our ThreadFactory
+                    sharedEventLoopGroup = SdkEventLoopGroup.builder()
+                        .threadFactory(threadFactory)
+                        .numberOfThreads(4)
+                        .build();
+
                     sharedHttpClient = NettyNioAsyncHttpClient.builder()
+                        .eventLoopGroup(sharedEventLoopGroup)
                         .connectionTimeout(Duration.ofSeconds(30))
                         .readTimeout(Duration.ofSeconds(300))
                         .writeTimeout(Duration.ofSeconds(30))
@@ -109,7 +169,15 @@ public class BedrockStreamingChatModelWrapper implements StreamingChatLanguageMo
     @Override
     public void generate(List<ChatMessage> messages, List<ToolSpecification> toolSpecifications,
                          StreamingResponseHandler<AiMessage> handler) {
+        // Capture plugin classloader for OSGi compatibility
+        // AWS SDK async threads need access to eventstream classes
+        final ClassLoader pluginClassLoader = this.getClass().getClassLoader();
+        final ClassLoader originalContextClassLoader = Thread.currentThread().getContextClassLoader();
+
         try {
+            // Set plugin classloader as context classloader for AWS SDK
+            Thread.currentThread().setContextClassLoader(pluginClassLoader);
+
             // Build Anthropic Messages API request body (with optional tools)
             JSONObject requestBody = buildAnthropicRequestBody(messages, toolSpecifications);
             String requestJson = requestBody.toString();
@@ -203,6 +271,9 @@ public class BedrockStreamingChatModelWrapper implements StreamingChatLanguageMo
                         } else {
                             // Build AiMessage with potential tool execution requests
                             AiMessage aiMessage;
+                            String responseText = fullResponse.toString();
+                            boolean hasText = responseText != null && !responseText.trim().isEmpty();
+
                             if (toolUseBlocks.get().length() > 0) {
                                 // Convert tool use blocks to LangChain4j format
                                 List<dev.langchain4j.agent.tool.ToolExecutionRequest> toolRequests = new ArrayList<>();
@@ -214,9 +285,19 @@ public class BedrockStreamingChatModelWrapper implements StreamingChatLanguageMo
                                         .arguments(tu.getJSONObject("input").toString())
                                         .build());
                                 }
-                                aiMessage = AiMessage.from(fullResponse.toString(), toolRequests);
+                                // Use appropriate factory: with text if present, tools-only otherwise
+                                if (hasText) {
+                                    aiMessage = AiMessage.from(responseText, toolRequests);
+                                } else {
+                                    // Tool-only response (no text) - use tool requests constructor
+                                    aiMessage = AiMessage.from(toolRequests);
+                                }
+                            } else if (hasText) {
+                                aiMessage = AiMessage.from(responseText);
                             } else {
-                                aiMessage = AiMessage.from(fullResponse.toString());
+                                // Edge case: no text and no tools - send empty acknowledgment
+                                log.warning("Bedrock streaming completed with no text and no tools");
+                                aiMessage = AiMessage.from("(No response generated)");
                             }
                             handler.onComplete(Response.from(aiMessage));
                         }
@@ -232,6 +313,9 @@ public class BedrockStreamingChatModelWrapper implements StreamingChatLanguageMo
         } catch (Exception e) {
             log.severe("Failed to start Bedrock streaming: " + e.getMessage());
             handler.onError(e);
+        } finally {
+            // Restore original classloader
+            Thread.currentThread().setContextClassLoader(originalContextClassLoader);
         }
     }
 
@@ -376,6 +460,24 @@ public class BedrockStreamingChatModelWrapper implements StreamingChatLanguageMo
         }
     }
 
+    /**
+     * Reset the shared HTTP client and EventLoopGroup.
+     * Call this if the client needs to be recreated (e.g., after classloader issues).
+     */
+    public static void resetSharedHttpClient() {
+        synchronized (httpClientLock) {
+            if (sharedHttpClient != null) {
+                sharedHttpClient.close();
+                sharedHttpClient = null;
+            }
+            if (sharedEventLoopGroup != null) {
+                sharedEventLoopGroup.eventLoopGroup().shutdownGracefully();
+                sharedEventLoopGroup = null;
+            }
+            log.info("Shared Netty HTTP client and EventLoopGroup reset");
+        }
+    }
+
 
     /**
      * Builder for BedrockStreamingChatModelWrapper.
@@ -389,6 +491,8 @@ public class BedrockStreamingChatModelWrapper implements StreamingChatLanguageMo
         private String modelId = "anthropic.claude-3-5-sonnet-20241022-v2:0";
         private int maxTokens = 4096;
         private float temperature = 0.7f;
+        private String accessKeyId;
+        private String secretAccessKey;
 
         public Builder region(Region region) {
             this.region = region;
@@ -407,6 +511,20 @@ public class BedrockStreamingChatModelWrapper implements StreamingChatLanguageMo
 
         public Builder temperature(float temperature) {
             this.temperature = temperature;
+            return this;
+        }
+
+        /**
+         * Set explicit AWS credentials.
+         * If not set, DefaultCredentialsProvider will be used.
+         *
+         * @param accessKeyId AWS Access Key ID
+         * @param secretAccessKey AWS Secret Access Key
+         * @return this builder
+         */
+        public Builder credentials(String accessKeyId, String secretAccessKey) {
+            this.accessKeyId = accessKeyId;
+            this.secretAccessKey = secretAccessKey;
             return this;
         }
 
