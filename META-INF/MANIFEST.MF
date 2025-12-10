@@ -22,7 +22,8 @@ Import-Package: org.adempiere.webui.factory,
  org.zkoss.zk.ui,
  org.zkoss.zk.ui.event,
  org.zkoss.zk.ui.util,
- org.zkoss.zul
+ org.zkoss.zul,
+ software.amazon.eventstream
 Service-Component: OSGI-INF/*.xml
 Bundle-ActivationPolicy: lazy
 Export-Package: com.cloudempiere.ai.component,
@@ -78,7 +79,6 @@ Bundle-ClassPath: .,
  lib/apache-client.jar,
  lib/netty-nio-client.jar,
  lib/annotations.jar,
- lib/eventstream.jar,
  lib/httpclient.jar,
  lib/httpcore.jar,
  lib/netty-codec-http.jar,

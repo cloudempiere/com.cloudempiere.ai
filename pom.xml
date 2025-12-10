@@ -260,11 +260,6 @@
 								</artifactItem>
 								<!-- AWS SDK third-party dependencies -->
 								<artifactItem>
-								    <groupId>software.amazon.eventstream</groupId>
-								    <artifactId>eventstream</artifactId>
-								    <version>1.0.1</version>
-								</artifactItem>
-								<artifactItem>
 								    <groupId>org.apache.httpcomponents</groupId>
 								    <artifactId>httpclient</artifactId>
 								    <version>4.5.14</version>
