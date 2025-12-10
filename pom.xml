@@ -357,6 +357,12 @@
 								    <artifactId>gson</artifactId>
 								    <version>2.10.1</version>
 								</artifactItem>
+								<!-- LangChain4j PgVector for persistent embedding storage (P1 Context Layer) -->
+								<artifactItem>
+								    <groupId>dev.langchain4j</groupId>
+								    <artifactId>langchain4j-pgvector</artifactId>
+								    <version>0.35.0</version>
+								</artifactItem>
 							</artifactItems>
 							<outputDirectory>lib</outputDirectory>
 							<stripVersion>true</stripVersion>

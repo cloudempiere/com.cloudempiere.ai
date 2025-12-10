@@ -15,6 +15,10 @@ import org.compiere.model.MChat;
 import org.compiere.util.CLogger;
 import org.compiere.util.Env;
 import org.json.JSONObject;
+import org.osgi.framework.Bundle;
+import org.osgi.framework.BundleContext;
+import org.osgi.framework.FrameworkUtil;
+import org.osgi.framework.ServiceReference;
 
 import com.cloudempiere.ai.guardrails.InputGuard;
 import com.cloudempiere.ai.guardrails.OutputGuard;
@@ -23,6 +27,8 @@ import com.cloudempiere.ai.model.MAIProvider;
 import com.cloudempiere.ai.model.MAIUsageMetrics;
 import com.cloudempiere.ai.observability.CostGuard;
 import com.cloudempiere.ai.provider.dto.AIStreamCallback;
+import com.cloudempiere.ai.provider.langchain4j.tools.RagTools;
+import com.cloudempiere.ai.rag.IRagService;
 import com.cloudempiere.ai.service.LanguageDetectionService;
 
 import dev.langchain4j.data.message.AiMessage;
@@ -104,6 +110,12 @@ public class AIService {
 
     /** Language detection service (ADR-037) */
     private final LanguageDetectionService languageService = LanguageDetectionService.getInstance();
+
+    /** Cached RAG service (P1 Context Layer) */
+    private volatile IRagService ragService;
+
+    /** Lock for RAG service initialization */
+    private final Object ragServiceLock = new Object();
 
     /** Default conversation memory size */
     private static final int DEFAULT_MEMORY_SIZE = 20;
@@ -438,14 +450,26 @@ public class AIService {
             // All major providers including Ollama/Llama support tools in LangChain4j 0.35.0
             if (supportsTools(provider)) {
                 // Use full agent with tools
-                ERPTools tools = new ERPTools(provider, ctx);
+                ERPTools erpTools = new ERPTools(provider, ctx);
+
+                // Build tools list - include RAG tools if available (P1 Context Layer)
+                Object[] toolsList;
+                IRagService rag = getRagService();
+                if (rag != null && rag.isAvailable()) {
+                    RagTools ragTools = new RagTools(rag, ctx);
+                    toolsList = new Object[] { erpTools, ragTools };
+                    log.fine("Agent created with ERPTools + RagTools");
+                } else {
+                    toolsList = new Object[] { erpTools };
+                    log.fine("Agent created with ERPTools only (RAG not available)");
+                }
 
                 // Use chatMemoryProvider for @MemoryId support in ERPAgent
                 // The provider returns our thread-aware memory for any session ID
                 final ThreadAwareChatMemory memoryForProvider = memory;
                 ERPAgent agent = AiServices.builder(ERPAgent.class)
                     .chatLanguageModel(model)
-                    .tools(tools)
+                    .tools(toolsList)
                     .chatMemoryProvider(memoryId -> memoryForProvider)
                     .build();
 
@@ -719,9 +743,21 @@ public class AIService {
                 log.warning("[STREAM] Building ERPStreamingAgent with tools...");
 
                 // Create tools with optional callback support (unified ERPTools)
-                ERPTools tools = new ERPTools(provider, ctx, callback);
-                log.warning("[STREAM] Tools class: " + tools.getClass().getName());
+                ERPTools erpTools = new ERPTools(provider, ctx, callback);
+                log.warning("[STREAM] ERPTools class: " + erpTools.getClass().getName());
                 log.warning("[STREAM] StreamingModel class: " + streamingModel.getClass().getName());
+
+                // Build tools list - include RAG tools if available (P1 Context Layer)
+                Object[] toolsList;
+                IRagService rag = getRagService();
+                if (rag != null && rag.isAvailable()) {
+                    RagTools ragTools = new RagTools(rag, ctx);
+                    toolsList = new Object[] { erpTools, ragTools };
+                    log.warning("[STREAM] Agent created with ERPTools + RagTools");
+                } else {
+                    toolsList = new Object[] { erpTools };
+                    log.warning("[STREAM] Agent created with ERPTools only (RAG not available)");
+                }
 
                 // Build system prompt with language instruction (ADR-037)
                 final String systemPrompt = buildSystemPromptWithLanguage(ctx, chat.getCM_Chat_ID(), true);
@@ -729,7 +765,7 @@ public class AIService {
 
                 ERPStreamingAgent agent = AiServices.builder(ERPStreamingAgent.class)
                     .streamingChatLanguageModel(streamingModel)
-                    .tools(tools)
+                    .tools(toolsList)
                     .chatMemoryProvider(memoryId -> memoryForProvider)
                     .systemMessageProvider(memoryId -> systemPrompt)
                     .build();
@@ -1210,11 +1246,23 @@ public class AIService {
 
             // Check if provider supports tools (non-streaming mode)
             if (supportsTools(provider)) {
-                ERPTools tools = new ERPTools(provider, ctx);
+                ERPTools erpTools = new ERPTools(provider, ctx);
+
+                // Build tools list - include RAG tools if available (P1 Context Layer)
+                Object[] toolsList;
+                IRagService rag = getRagService();
+                if (rag != null && rag.isAvailable()) {
+                    RagTools ragTools = new RagTools(rag, ctx);
+                    toolsList = new Object[] { erpTools, ragTools };
+                    log.fine("Execute: Agent created with ERPTools + RagTools");
+                } else {
+                    toolsList = new Object[] { erpTools };
+                    log.fine("Execute: Agent created with ERPTools only (RAG not available)");
+                }
 
                 ERPAgent agent = AiServices.builder(ERPAgent.class)
                     .chatLanguageModel(model)
-                    .tools(tools)
+                    .tools(toolsList)
                     .build();
 
                 response = agent.execute(processedGoal);
@@ -1269,10 +1317,23 @@ public class AIService {
 
         // Check if provider supports tools (non-streaming mode)
         if (supportsTools(provider)) {
-            ERPTools tools = new ERPTools(provider, ctx);
+            ERPTools erpTools = new ERPTools(provider, ctx);
+
+            // Build tools list - include RAG tools if available (P1 Context Layer)
+            Object[] toolsList;
+            IRagService rag = getRagService();
+            if (rag != null && rag.isAvailable()) {
+                RagTools ragTools = new RagTools(rag, ctx);
+                toolsList = new Object[] { erpTools, ragTools };
+                log.fine("getOrCreateAgent: Agent created with ERPTools + RagTools");
+            } else {
+                toolsList = new Object[] { erpTools };
+                log.fine("getOrCreateAgent: Agent created with ERPTools only (RAG not available)");
+            }
+
             return AiServices.builder(ERPAgent.class)
                 .chatLanguageModel(model)
-                .tools(tools)
+                .tools(toolsList)
                 .chatMemory(memory)
                 .build();
         } else {
@@ -1355,6 +1416,58 @@ public class AIService {
      */
     public boolean isGuardrailsEnabled() {
         return guardrailsEnabled;
+    }
+
+    // ========================================================================
+    // RAG Service Access (P1 Context Layer)
+    // ========================================================================
+
+    /**
+     * Get the RAG service for knowledge retrieval.
+     *
+     * <p>Uses lazy initialization with OSGi service lookup.
+     * Returns null if RAG service is not available.
+     *
+     * @return IRagService instance or null
+     */
+    private IRagService getRagService() {
+        if (ragService != null) {
+            return ragService;
+        }
+
+        synchronized (ragServiceLock) {
+            if (ragService == null) {
+                try {
+                    Bundle bundle = FrameworkUtil.getBundle(AIService.class);
+                    if (bundle != null) {
+                        BundleContext context = bundle.getBundleContext();
+                        if (context != null) {
+                            ServiceReference<IRagService> ref = context.getServiceReference(IRagService.class);
+                            if (ref != null) {
+                                ragService = context.getService(ref);
+                                if (ragService != null) {
+                                    log.info("RAG service initialized: available=" + ragService.isAvailable());
+                                }
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    log.warning("Failed to get RAG service: " + e.getMessage());
+                }
+            }
+        }
+
+        return ragService;
+    }
+
+    /**
+     * Check if RAG service is available.
+     *
+     * @return true if RAG service is available and configured
+     */
+    public boolean isRagAvailable() {
+        IRagService rag = getRagService();
+        return rag != null && rag.isAvailable();
     }
 
     /**

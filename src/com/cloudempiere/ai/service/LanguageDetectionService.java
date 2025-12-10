@@ -342,11 +342,15 @@ public class LanguageDetectionService {
         }
 
         return "## LANGUAGE REQUIREMENT (CRITICAL)\n" +
-               "You MUST respond ENTIRELY in **" + language.getName() + "** (" + language.getLanguageCode() + ").\n" +
+               "**PRIMARY RULE: MATCH THE USER'S INPUT LANGUAGE.**\n" +
+               "- If the user writes in English, respond in English.\n" +
+               "- If the user writes in German, respond in German.\n" +
+               "- If the user writes in any other language, respond in THAT language.\n" +
+               "- The user's session default is " + language.getName() + " (" + language.getLanguageCode() + "), " +
+               "but ALWAYS match the language of each message.\n\n" +
                "This applies to ALL parts of your response - explanations, summaries, questions, and suggestions.\n" +
                "Exception: Keep technical terms (table names, column names, SQL keywords, " +
-               "process names, window names) in English for accuracy.\n" +
-               "DO NOT switch to English mid-response. Maintain " + language.getName() + " throughout.";
+               "process names, window names) in English for accuracy.";
     }
 
     /**
