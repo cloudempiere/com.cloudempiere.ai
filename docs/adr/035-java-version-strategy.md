@@ -6,7 +6,7 @@
 
 ## Date
 
-2025-12-04 (Updated: 2025-12-09)
+2025-12-04 (Updated: 2025-12-10)
 
 ## Deciders
 
@@ -549,6 +549,61 @@ if (params != null) {
 
 ---
 
+### Workaround 6: AWS SDK Version Mismatch Between Bundles
+
+**Location:** `pom.xml`, `META-INF/MANIFEST.MF`
+
+**Issue:** The `org.adempiere.base` bundle includes AWS SDK v2.31.11, while `com.cloudempiere.ai` requires AWS SDK v2.20.162 (the version LangChain4j 0.35.0 was compiled against). According to [AWS SDK Java v2 Versioning Policy](https://github.com/aws/aws-sdk-java-v2/blob/master/VERSIONING.md):
+
+> "Always use the same version across all AWS SDK dependencies. **Mixed versions can cause runtime exceptions or compile time errors**."
+
+The AWS SDK does NOT follow semantic versioning - minor version changes MAY contain backward-incompatible changes.
+
+**Risk Assessment:**
+| Scenario | Risk | Consequence |
+|----------|------|-------------|
+| Use base's 2.31.11 for all | Medium | LangChain4j 0.35.0 may break (compiled against 2.20.162) |
+| Keep duplicates in AI plugin | Low | Version isolation, slight JAR bloat |
+| Mixed versions (partial dedup) | High | Runtime exceptions, class conflicts |
+
+**Workaround:**
+- Keep ALL AWS SDK artifacts duplicated in `com.cloudempiere.ai` at version 2.20.162
+- Do NOT remove duplicates to use `org.adempiere.base`'s 2.31.11 versions
+- This ensures version consistency within the AI plugin's classloader
+
+**AWS SDK Artifacts in `com.cloudempiere.ai` (v2.20.162):**
+```
+bedrockruntime      - Bedrock-specific (not in base)
+bedrock             - Bedrock-specific (not in base)
+netty-nio-client    - Async HTTP client (not in base)
+annotations         - SDK annotations (not in base)
+sdk-core            - Duplicate (base has 2.31.11)
+auth                - Duplicate (base has 2.31.11)
+regions             - Duplicate (base has 2.31.11)
+utils               - Duplicate (base has 2.31.11)
+http-client-spi     - Duplicate (base has 2.31.11)
+aws-core            - Duplicate (base has 2.31.11)
+protocol-core       - Duplicate (base has 2.31.11)
+json-utils          - Duplicate (base has 2.31.11)
+profiles            - Duplicate (base has 2.31.11)
+metrics-spi         - Duplicate (base has 2.31.11)
+endpoints-spi       - Duplicate (base has 2.31.11)
+aws-json-protocol   - Duplicate (base has 2.31.11)
+apache-client       - Duplicate (base has 2.31.11)
+```
+
+**Note:** The `software.amazon.eventstream` package is imported from `org.adempiere.base` (added in 2025-12-10 fix) because this package is required by the AWS SDK's eventstream handling code that lives in base's `aws-core.jar`. This is the one exception where the AI plugin depends on base's AWS exports.
+
+**Future Plan:**
+- Extract ALL AWS dependencies into a separate OSGi fragment bundle
+- Single version management point
+- Clean separation from both `org.adempiere.base` and `com.cloudempiere.ai`
+- Consider version upgrade when migrating to Java 17 + LangChain4j 1.x
+
+**Fix available in:** Phase 2 (Java 17 migration) - consolidate AWS SDK versions when upgrading LangChain4j
+
+---
+
 ### Workaround Summary Table
 
 | # | Workaround | Location | Impact | Fix Version |
@@ -558,6 +613,7 @@ if (params != null) {
 | 3 | Bedrock OSGi ServiceLoader | `Bedrock*Wrapper.java` | Custom wrapper classes | Unknown |
 | 4 | Tool parameters Map API | `BedrockStreamingChatModelWrapper.java` | Manual Map extraction | 1.x |
 | 5 | Missing interface methods | `BedrockStreamingChatModelWrapper.java` | Methods removed | 0.36.0+ |
+| 6 | AWS SDK version mismatch | `pom.xml`, `MANIFEST.MF` | Duplicate JARs (~5MB) | Phase 2 |
 
 ### Migration Checklist for Removing Workarounds
 
@@ -568,6 +624,12 @@ When upgrading to Java 17 + LangChain4j 1.x:
 - [ ] **Workaround 3:** Replace `Bedrock*Wrapper` classes with native LangChain4j `BedrockChatModel`
 - [ ] **Workaround 4:** Update tool parameter extraction to use typed API
 - [ ] **Workaround 5:** Re-add `supportedCapabilities()` and `listeners()` if needed
+- [ ] **Workaround 6:** Consolidate AWS SDK versions:
+  - [ ] Decide on single AWS SDK version (align with LangChain4j 1.x requirements)
+  - [ ] Extract AWS dependencies to separate OSGi fragment (optional)
+  - [ ] Remove duplicate AWS JARs from `com.cloudempiere.ai`
+  - [ ] Update `Import-Package` to use consolidated AWS exports
+  - [ ] Test Bedrock streaming thoroughly after version change
 - [ ] **General:** Run full test suite after each workaround removal
 - [ ] **General:** Update this ADR to mark workarounds as resolved
 
