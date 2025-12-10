@@ -2,8 +2,9 @@
 
 **Status:** Accepted
 **Date:** 2025-12-03
+**Updated:** 2025-12-10
 **Deciders:** Cloudempiere AI Team
-**Context:** LangChain4j Foundation → Business Case Validation
+**Context:** LangChain4j Foundation → Context-First Architecture
 
 ---
 
@@ -16,29 +17,41 @@ We have 26 ADRs covering technical infrastructure and business use cases. Withou
 - Business cases may fail due to missing infrastructure
 - No validation path to prove technical ADRs work in practice
 
-### Solution: Foundation-First, Business-Validated Approach
+### Solution: Context-First, Business-Validated Approach
+
+> **2025-12-10 Update:** Priority order revised based on insight that Vector/RAG is the core
+> context service that enables meaningful AI responses. Without context, AI gives generic answers.
+> Observability and guardrails can be added later, but context is foundational.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────┐
-│                           IMPLEMENTATION PHILOSOPHY                               │
+│                    IMPLEMENTATION PHILOSOPHY (Revised)                           │
 ├─────────────────────────────────────────────────────────────────────────────────┤
 │                                                                                 │
-│   Phase 1: FOUNDATION (Technical ADRs)                                          │
+│   Phase 1: FOUNDATION (Core Framework)                                          │
 │   ────────────────────────────────────                                          │
-│   Build solid LangChain4j base that ALL business cases depend on                │
-│                                                                                 │
-│                              ↓ validates ↓                                      │
-│                                                                                 │
-│   Phase 2: MVP BUSINESS CASES (Business ADRs)                                   │
-│   ────────────────────────────────────────────                                  │
-│   Implement first business cases that PROVE technical foundation works          │
-│   If business case fails → technical ADR needs revision                         │
+│   LangChain4j base + Agent Framework ✓ DONE                                     │
 │                                                                                 │
 │                              ↓ enables ↓                                        │
 │                                                                                 │
-│   Phase 3: ADVANCED FEATURES (Technical + Business)                             │
-│   ───────────────────────────────────────────────                               │
-│   Build on proven foundation with more complex capabilities                     │
+│   Phase 2: CONTEXT LAYER (Vector DB + RAG + Knowledge)  ◄── NEW PRIORITY        │
+│   ──────────────────────────────────────────────────────                        │
+│   Without context, AI responses are generic and unhelpful                       │
+│   - Vector DB for embedding storage                                             │
+│   - RAG for semantic retrieval                                                  │
+│   - Knowledge Base for glossary, naming conventions, customer data              │
+│                                                                                 │
+│                              ↓ validates ↓                                      │
+│                                                                                 │
+│   Phase 3: SAFETY LAYER (Observability + Guardrails)                            │
+│   ──────────────────────────────────────────────────                            │
+│   Add metrics, cost tracking, input/output guards                               │
+│                                                                                 │
+│                              ↓ enables ↓                                        │
+│                                                                                 │
+│   Phase 4: DOMAIN AGENTS (Boundaries + Specialized Agents)                      │
+│   ─────────────────────────────────────────────────────                         │
+│   Build domain-specific agents with proper security                             │
 │                                                                                 │
 └─────────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -47,28 +60,96 @@ We have 26 ADRs covering technical infrastructure and business use cases. Withou
 
 ## Decision
 
-### Implementation Priority Matrix
+### Implementation Priority Matrix (Revised 2025-12-10)
 
 | Priority | Type | ADR | Status | Validates/Enables |
 |----------|------|-----|--------|-------------------|
 | **P0** | Foundation | ADR-002 (LangChain4j) | 70% Done | ALL business cases |
 | **P0** | Foundation | ADR-004 (Agent Framework) | Done | ALL agents |
-| **P1** | Foundation | ADR-013 (Observability) | Not Started | Cost tracking, production readiness |
-| **P1** | Foundation | ADR-014 (Guardrails) | Not Started | Production safety |
-| **P2** | Foundation | ADR-012 (RAG) | Not Started | ADR-016, ADR-017, ADR-018 |
-| **P2** | Foundation | ADR-026 (Vector DB) | Not Started | ADR-012 persistence |
-| **P2** | Foundation | ADR-036 (Chat Ownership) | Accepted | Team collaboration, shared chats |
-| **P3** | Foundation | ADR-009 (Boundaries) | 20% Done | ALL domain agents |
-| **P3** | Foundation | ADR-011 (Specialized Agents) | Not Started | ADR-018, ADR-019 |
+| **P1** | Context | ADR-026 (Vector DB) | Not Started | Embedding storage, semantic search |
+| **P1** | Context | ADR-012 (RAG) | Not Started | Knowledge retrieval, chained context |
+| **P1** | Context | ADR-016 (Knowledge Base) | Partial | Glossary, naming conventions, customer data |
+| **P2** | Safety | ADR-013 (Observability) | Not Started | Cost tracking, production readiness |
+| **P2** | Safety | ADR-014 (Guardrails) | Not Started | Production safety |
+| **P2** | Safety | ADR-036 (Chat Ownership) | Accepted | Team collaboration, shared chats |
+| **P3** | Agents | ADR-009 (Boundaries) | 20% Done | ALL domain agents |
+| **P3** | Agents | ADR-011 (Specialized Agents) | Not Started | ADR-018, ADR-019 |
 | **V1** | Business MVP | ADR-017 (Chart Overview) | Not Started | Validates P0, P1 |
-| **V1** | Business MVP | ADR-018 (Sales Summary) | Not Started | Validates P0, P1, P2 |
+| **V1** | Business MVP | ADR-018 (Sales Summary) | Not Started | Validates P0, P1 |
 | **V1** | Business MVP | ADR-019 (Ticket Classification) | Not Started | Validates P0, P1, P3 |
-| **V2** | Business | ADR-016 (Knowledge Base) | Partial | Validates P2 (RAG) |
 | **V2** | Business | ADR-020 (Email Gateway) | Not Started | Validates P3 |
 
 **Legend:**
-- **P0-P3**: Priority levels for technical foundation
+- **P0**: Core framework (complete)
+- **P1**: Context layer (Vector DB + RAG + Knowledge Base) - **NEW PRIORITY**
+- **P2**: Safety layer (Observability + Guardrails)
+- **P3**: Domain boundaries and specialized agents
 - **V1-V2**: Validation phases using business cases
+
+### Rationale for Priority Change
+
+```
+OLD ORDER                          NEW ORDER (Context-First)
+──────────────────────────────     ──────────────────────────────
+P0: LangChain4j, Agent Framework   P0: LangChain4j, Agent Framework
+P1: Observability, Guardrails      P1: Vector DB, RAG, Knowledge Base ◄── MOVED UP
+P2: Vector DB, RAG                 P2: Observability, Guardrails
+P3: Domain Boundaries              P3: Domain Boundaries
+```
+
+**Why Context First:**
+
+1. **Context is king** - Without relevant context, AI responses are generic and unhelpful
+2. **Chained queries need embeddings** - "Ask about partner" requires knowing where to look
+3. **Knowledge base foundation** - Glossary, naming conventions, customer data need vector storage
+4. **Observability can wait** - Metrics are important but can be added after core functionality works
+5. **Reference validated** - idempiere-cli RAG architecture proves this approach works
+
+### Reference Implementation: idempiere-cli
+
+The idempiere-cli project (Quarkus + LangChain4j) provides a proven RAG architecture:
+
+```
+┌────────────────────────────────────────────────────────────────────────────┐
+│                      IDEMPIERE-CLI RAG STACK (Reference)                   │
+├────────────────────────────────────────────────────────────────────────────┤
+│                                                                            │
+│  Layer 1: AGENT INTERFACE                                                  │
+│  • CliRouterAgent - @RegisterAiService with system prompt                  │
+│  • Tools: RagTools, RegistryTools, TableTools, GeneratorTools              │
+│                                                                            │
+│  Layer 2: RAG TOOLS (LLM-accessible)                                       │
+│  • searchKnowledge(query, sourceFilter) - semantic search                  │
+│  • findADEntity(entityName, entityType) - AD lookup                        │
+│  • lookupDevelopmentDocs(topic) - dev docs search                          │
+│                                                                            │
+│  Layer 3: RAG SERVICE (Core)                                               │
+│  • search() - semantic + hybrid (RRF fusion)                               │
+│  • ingest() - load knowledge from sources                                  │
+│  • getContentRetriever() - for agent augmentation                          │
+│                                                                            │
+│  Layer 4: EMBEDDING STORE                                                  │
+│  • pgvector (PostgreSQL extension)                                         │
+│  • Metadata filtering (source_type, language)                              │
+│  • Hybrid search (semantic + keyword with RRF)                             │
+│                                                                            │
+│  Layer 5: KNOWLEDGE INGESTORS                                              │
+│  • WikiIngestor - iDempiere Wiki                                           │
+│  • KEntryIngestor - K_Entry table (internal KB)                           │
+│  • ADMetadataIngestor - AD_Window, AD_Process, AD_Tab, AD_Field...        │
+│                                                                            │
+└────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Adaptation for OSGi (com.cloudempiere.ai)
+
+| Component | idempiere-cli (Quarkus) | com.cloudempiere.ai (OSGi) |
+|-----------|------------------------|---------------------------|
+| **DI Framework** | CDI `@Inject` | OSGi `@Reference` |
+| **Embedding Store** | Quarkus auto-inject | Manual pgvector setup |
+| **LangChain4j** | Latest 1.x | **0.35.0** (Java 11 constraint) |
+| **Config** | `application.properties` | OSGi ConfigAdmin |
+| **Agent** | `@RegisterAiService` | `AiServices.builder()` |
 
 ---
 
@@ -591,6 +672,15 @@ Foundation Proven:
 
 ---
 
-**ADR-027 | Version 1.0 | 2025-12-03**
+**ADR-027 | Version 1.1 | 2025-12-10**
 **Status: Accepted**
-**Philosophy: Foundation First, Business Validated**
+**Philosophy: Context First, Business Validated**
+
+---
+
+## Revision History
+
+| Version | Date | Changes |
+|---------|------|---------|
+| 1.0 | 2025-12-03 | Initial version with Observability/Guardrails as P1 |
+| 1.1 | 2025-12-10 | Revised priority: Vector DB + RAG + Knowledge Base moved to P1 (Context-First approach). Added idempiere-cli reference architecture. |
