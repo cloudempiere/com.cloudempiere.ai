@@ -363,6 +363,30 @@
 								    <artifactId>langchain4j-pgvector</artifactId>
 								    <version>0.35.0</version>
 								</artifactItem>
+								<!-- OpenAI4j - required by langchain4j-open-ai (used for Satellite provider) -->
+								<artifactItem>
+								    <groupId>dev.ai4j</groupId>
+								    <artifactId>openai4j</artifactId>
+								    <version>0.22.0</version>
+								</artifactItem>
+								<!-- SLF4J API - required by LangChain4j and OpenAI4j -->
+								<artifactItem>
+								    <groupId>org.slf4j</groupId>
+								    <artifactId>slf4j-api</artifactId>
+								    <version>2.0.9</version>
+								</artifactItem>
+								<!-- SLF4J NOP (no-operation) - prevent "no binding" warnings in tests -->
+								<artifactItem>
+								    <groupId>org.slf4j</groupId>
+								    <artifactId>slf4j-nop</artifactId>
+								    <version>2.0.9</version>
+								</artifactItem>
+								<!-- JTokkit - tokenizer library required by langchain4j-open-ai -->
+								<artifactItem>
+								    <groupId>com.knuddels</groupId>
+								    <artifactId>jtokkit</artifactId>
+								    <version>1.0.0</version>
+								</artifactItem>
 							</artifactItems>
 							<outputDirectory>lib</outputDirectory>
 							<stripVersion>true</stripVersion>

@@ -158,6 +158,8 @@ public class X_AIG_Provider extends PO implements I_AIG_Provider, I_Persistent
 	public static final String AIGPROVIDERTYPE_AnthropicClaude = "ANT";
 	/** Ollama = OLL */
 	public static final String AIGPROVIDERTYPE_Ollama = "OLL";
+	/** Quarkus Satellite = SAT */
+	public static final String AIGPROVIDERTYPE_QuarkusSatellite = "SAT";
 	/** Set Provider Type.
 		@param AIGProviderType The type of the AI Provider
 	*/
@@ -188,6 +190,24 @@ public class X_AIG_Provider extends PO implements I_AIG_Provider, I_Persistent
 	public String getAPIKey()
 	{
 		return (String)get_Value(COLUMNNAME_APIKey);
+	}
+
+    /** Column name Endpoint */
+    public static final String COLUMNNAME_Endpoint = "Endpoint";
+
+	/** Set Endpoint.
+		@param Endpoint Service endpoint URL
+	*/
+	public void setEndpoint (String Endpoint)
+	{
+		set_Value (COLUMNNAME_Endpoint, Endpoint);
+	}
+
+	/** Get Endpoint.
+		@return Service endpoint URL	  */
+	public String getEndpoint()
+	{
+		return (String)get_Value(COLUMNNAME_Endpoint);
 	}
 
 	/** Set Default.
