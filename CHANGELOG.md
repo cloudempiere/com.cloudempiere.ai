@@ -7,7 +7,7 @@ and this project adheres to [Conventional Commits](https://conventionalcommits.o
 
 ## [Unreleased]
 
-### Next: v0.22.0 - Share Dialog & Advanced Sharing
+### v0.22.0-SNAPSHOT - Share Dialog & Advanced Sharing
 
 **Planned:**
 - Share button in AIChatWidget (OWNER only)
