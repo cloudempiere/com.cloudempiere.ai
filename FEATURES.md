@@ -8,10 +8,10 @@ This document tracks features, implementation status, and version compatibility 
 
 ---
 
-## Current Version: v0.20.0
+## Current Version: v0.21.0
 
-**Status:** ✅ Language Detection & User-Friendly Error Handling
-**Next:** v0.21.0 - Share Dialog & Advanced Sharing
+**Status:** ✅ Real-Time Streaming Improvements (Tables & Emojis)
+**Next:** v0.22.0 - Share Dialog & Advanced Sharing
 
 **Strategic Focus:** The Chat Widget is our primary AI implementation. All features will be integrated and tested through the chat widget before other use cases (charts, reports, etc.).
 
@@ -21,7 +21,8 @@ This document tracks features, implementation status, and version compatibility 
 
 | Version | Date | Key Features | Focus Area |
 |---------|------|--------------|------------|
-| **0.20.0** | 2025-12-10 | **Language Detection & User-Friendly Error Handling** | **UX & i18n** |
+| **0.21.0** | 2025-12-10 | **Real-Time Streaming Improvements (Tables & Emojis)** | **UX** |
+| 0.20.0 | 2025-12-10 | Language Detection & User-Friendly Error Handling | UX & i18n |
 | 0.19.0 | 2025-12-08 | Streaming-First Architecture & Tool Support | Architecture |
 | 0.18.0 | 2025-12-08 | Llama Provider & Model Selection | Multi-Provider |
 | 0.17.2 | 2025-12-08 | Unit Test Infrastructure | Testing & Docs |
@@ -413,5 +414,5 @@ Based on validation reports:
 ---
 
 **Last Updated:** 2025-12-10
-**Current Version:** v0.20.0 (Language Detection & User-Friendly Error Handling)
-**Next Release:** v0.21.0 - Share Dialog & Advanced Sharing
+**Current Version:** v0.21.0 (Real-Time Streaming Improvements)
+**Next Release:** v0.22.0 - Share Dialog & Advanced Sharing

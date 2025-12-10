@@ -7,7 +7,7 @@ and this project adheres to [Conventional Commits](https://conventionalcommits.o
 
 ## [Unreleased]
 
-### Next: v0.21.0 - Share Dialog & Advanced Sharing
+### Next: v0.22.0 - Share Dialog & Advanced Sharing
 
 **Planned:**
 - Share button in AIChatWidget (OWNER only)
@@ -22,6 +22,54 @@ and this project adheres to [Conventional Commits](https://conventionalcommits.o
 - ADR-017: Chart Executive Overview
 - ADR-018: Sales Opportunity Summary
 - ADR-011: Domain Agents
+
+---
+
+## [0.21.0] - 2025-12-10
+
+### Real-Time Streaming Improvements (Tables & Emojis)
+
+This release improves the streaming user experience with real-time markdown table rendering and proper emoji handling.
+
+#### Added
+
+- **StreamingTextBuffer** (`util/StreamingTextBuffer.java`)
+  - UTF-16 surrogate pair handling for emojis during streaming
+  - Buffers incomplete surrogates to prevent unknown character display (�)
+  - Properly handles emojis like 📖 (U+1F4D6) split across streaming chunks
+  - Thread-safe design for concurrent streaming sessions
+
+- **MarkdownTableRenderer** (`util/MarkdownTableRenderer.java`)
+  - Real-time GFM (GitHub Flavored Markdown) pipe table rendering
+  - Tables render during streaming, not just after completion
+  - **Auto-detection of numeric columns** with right alignment (best practice)
+  - **Locale-aware number formatting** (e.g., 1,234.56 in US vs 1.234,56 in German)
+  - Support for explicit alignment via `:---|:---:|---:`
+  - Partial table rendering during streaming
+
+- **ADR-039: Async Embedding Queue Architecture** (renamed from Satellite AI Queue)
+  - Updated architecture for embedding queue processing
+
+- **ADR-040: Embedding Ingestion Evolution**
+  - Future roadmap for embedding pipeline improvements
+
+- **Unit Tests**
+  - `StreamingTextBufferTest` - 18 tests for surrogate handling
+  - `MarkdownTableRendererTest` - 39 tests for table rendering
+
+#### Changed
+
+- **AIChatStreamingMessage** - Enhanced streaming display
+  - Uses `StreamingTextBuffer` instead of `StringBuilder`
+  - Renders tables BEFORE HTML escaping (critical fix for table detection)
+  - Added `escapeNonTableContent()` for XSS protection while preserving tables
+  - Added `setLocale()` method for locale-aware number formatting
+  - Fixed table rendering during streaming (previously showed raw markdown)
+
+#### Fixed
+
+- **Tables not rendering during streaming** - Root cause was HTML escaping pipe characters (`|`) before table detection. Fixed by reordering operations.
+- **Emojis showing as unknown characters** - UTF-16 surrogate pairs split across streaming chunks now handled correctly.
 
 ---
 
@@ -1184,15 +1232,16 @@ This release implements critical P1 infrastructure for production readiness.
 | 18 | v0.18.0 | 2025-12-08 | Llama Provider & Model Selection |
 | 19 | v0.19.0 | 2025-12-08 | Streaming-First Architecture & Tool Support Separation |
 | 20 | v0.20.0 | 2025-12-10 | Language Detection & User-Friendly Error Handling |
+| 21 | v0.21.0 | 2025-12-10 | Real-Time Streaming Improvements (Tables & Emojis) |
 
 ## Upcoming Phases
 
 | Phase | Version | Target | Milestone |
 |-------|---------|--------|-----------|
-| 21 | v0.21.0 | Q1 2026 | Share Dialog & Advanced Sharing |
-| 22 | v0.22.0 | Q1 2026 | Chart Executive Overview (First Business Case) |
-| 23 | v0.23.0 | Q1 2026 | Domain Agents (Inventory, Sales, Purchasing) |
-| 24 | v1.0.0 | Q2 2026 | Production Release |
+| 22 | v0.22.0 | Q1 2026 | Share Dialog & Advanced Sharing |
+| 23 | v0.23.0 | Q1 2026 | Chart Executive Overview (First Business Case) |
+| 24 | v0.24.0 | Q1 2026 | Domain Agents (Inventory, Sales, Purchasing) |
+| 25 | v1.0.0 | Q2 2026 | Production Release |
 
 ## iDempiere Compatibility
 

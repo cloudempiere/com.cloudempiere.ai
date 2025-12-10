@@ -319,7 +319,6 @@ Phase 1 → Phase 2:
 
 - ADR-012: RAG-Based Context Retrieval
 - ADR-026: Vector Database Strategy
-- ADR-039: Async Embedding Queue Architecture (Phase 2 design)
 
 ## References
 
