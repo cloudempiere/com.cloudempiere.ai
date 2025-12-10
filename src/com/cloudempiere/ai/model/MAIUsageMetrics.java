@@ -110,8 +110,16 @@ public class MAIUsageMetrics extends X_AIG_UsageMetrics {
             String modelName, int inputTokens, int outputTokens, int costUSD,
             int latencyMs, String trxName) {
 
+        // Validate userId - AD_User_ID is NOT NULL in the database
+        // Use fallback to System user (100) if no user context is available
+        int effectiveUserId = userId;
+        if (userId <= 0) {
+            effectiveUserId = 100; // System user as fallback
+            log.fine("No user context for metrics, using System user (100) for agent=" + agentName);
+        }
+
         MAIUsageMetrics metrics = new MAIUsageMetrics(ctx, 0, trxName);
-        metrics.setAD_User_ID(userId);
+        metrics.setAD_User_ID(effectiveUserId);
         metrics.setAgentName(agentName);
         metrics.setModelName(modelName);
         metrics.setInputTokens(inputTokens);
@@ -149,8 +157,17 @@ public class MAIUsageMetrics extends X_AIG_UsageMetrics {
             int inputTokens, int outputTokens, int costUSD, int latencyMs,
             String sessionId, String requestType, String trxName) {
 
+        // Validate userId - AD_User_ID is NOT NULL in the database
+        // Use fallback to System user (100) if no user context is available
+        int effectiveUserId = userId;
+        if (userId <= 0) {
+            effectiveUserId = 100; // System user as fallback
+            log.fine("No user context for metrics, using System user (100) for agent=" +
+                agentName + ", session=" + sessionId);
+        }
+
         MAIUsageMetrics metrics = new MAIUsageMetrics(ctx, 0, trxName);
-        metrics.setAD_User_ID(userId);
+        metrics.setAD_User_ID(effectiveUserId);
         if (roleId > 0) {
             metrics.setAD_Role_ID(roleId);
         }
@@ -193,8 +210,17 @@ public class MAIUsageMetrics extends X_AIG_UsageMetrics {
     public static MAIUsageMetrics recordError(Properties ctx, int userId, String agentName,
             String modelName, String errorMessage, int latencyMs, String trxName) {
 
+        // Validate userId - AD_User_ID is NOT NULL in the database
+        // Use fallback to System user (100) if no user context is available
+        int effectiveUserId = userId;
+        if (userId <= 0) {
+            effectiveUserId = 100; // System user as fallback
+            log.fine("No user context for error metrics, using System user (100) for agent=" +
+                agentName);
+        }
+
         MAIUsageMetrics metrics = new MAIUsageMetrics(ctx, 0, trxName);
-        metrics.setAD_User_ID(userId);
+        metrics.setAD_User_ID(effectiveUserId);
         metrics.setAgentName(agentName);
         metrics.setModelName(modelName);
         metrics.setLatencyMs(latencyMs);

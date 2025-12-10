@@ -70,6 +70,15 @@ SELECT 800106, 0, 0, 'Y', NOW(), 100, NOW(), 100,
     'CLDE', generate_uuid()
 WHERE NOT EXISTS (SELECT 1 FROM AD_Message WHERE Value = 'AIG_Error_Generic');
 
+-- Session/Context Error (800107)
+INSERT INTO AD_Message (AD_Message_ID, AD_Client_ID, AD_Org_ID, IsActive, Created, CreatedBy, Updated, UpdatedBy,
+    Value, MsgType, MsgText, EntityType, AD_Message_UU)
+SELECT 800107, 0, 0, 'Y', NOW(), 100, NOW(), 100,
+    'AIG_Error_SessionContext', 'E',
+    'Your session context could not be verified. What you can do: Please log out and log back in, then try again.',
+    'CLDE', generate_uuid()
+WHERE NOT EXISTS (SELECT 1 FROM AD_Message WHERE Value = 'AIG_Error_SessionContext');
+
 -- Verification: Display created messages
 SELECT AD_Message_ID, Value, MsgType, MsgText
 FROM AD_Message
