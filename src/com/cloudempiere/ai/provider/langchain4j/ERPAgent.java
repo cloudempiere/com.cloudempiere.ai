@@ -72,16 +72,20 @@ public interface ERPAgent {
     /**
      * Main chat method for conversational interaction.
      *
+     * <p>Note: System message is provided dynamically via systemMessageProvider()
+     * in AiServices builder to support language detection (ADR-037).
+     * Do NOT add @SystemMessage annotation here - it would override the dynamic prompt.
+     *
      * @param sessionId Unique session identifier for conversation memory
      * @param userMessage The user's message or question
      * @return AI response with any relevant data
      */
-    @SystemMessage(SYSTEM_PROMPT)
     String chat(@MemoryId String sessionId, @UserMessage String userMessage);
 
     /**
      * Execute a specific task/goal without conversation context.
+     *
+     * <p>Note: System message is provided dynamically via systemMessageProvider().
      */
-    @SystemMessage(SYSTEM_PROMPT)
     String execute(@UserMessage String goal);
 }

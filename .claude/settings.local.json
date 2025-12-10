@@ -21,7 +21,8 @@
       "Bash(tr:*)",
       "Bash(java -version:*)",
       "WebFetch(domain:docs.anthropic.com)",
-      "WebFetch(domain:docs.claude.com)"
+      "WebFetch(domain:docs.claude.com)",
+      "Bash(sort -u grep -A1 groupId)"
     ],
     "deny": [],
     "ask": []

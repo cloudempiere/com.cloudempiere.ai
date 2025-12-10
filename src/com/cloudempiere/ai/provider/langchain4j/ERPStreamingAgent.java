@@ -50,19 +50,23 @@ public interface ERPStreamingAgent {
      * <p>Returns a {@link TokenStream} that can be used to process
      * response tokens as they arrive from the model.
      *
+     * <p>Note: System message is provided dynamically via systemMessageProvider()
+     * in AiServices builder to support language detection (ADR-037).
+     * Do NOT add @SystemMessage annotation here - it would override the dynamic prompt.
+     *
      * @param sessionId Unique session identifier for conversation memory
      * @param userMessage The user's message or question
      * @return TokenStream for streaming response handling
      */
-    @SystemMessage(SYSTEM_PROMPT)
     TokenStream chat(@MemoryId String sessionId, @UserMessage String userMessage);
 
     /**
      * Execute a specific task/goal without conversation context (streaming).
      *
+     * <p>Note: System message is provided dynamically via systemMessageProvider().
+     *
      * @param goal Task/goal to execute
      * @return TokenStream for streaming response handling
      */
-    @SystemMessage(SYSTEM_PROMPT)
     TokenStream execute(@UserMessage String goal);
 }

@@ -52,6 +52,17 @@
   <build>
 		<testSourceDirectory>src/test/java</testSourceDirectory>
 		<plugins>
+			<!-- Tycho Compiler Plugin - exclude test directory from OSGi compilation -->
+			<plugin>
+				<groupId>org.eclipse.tycho</groupId>
+				<artifactId>tycho-compiler-plugin</artifactId>
+				<version>${tycho.version}</version>
+				<configuration>
+					<testExcludes>
+						<testExclude>**/test/**/*.java</testExclude>
+					</testExcludes>
+				</configuration>
+			</plugin>
 		    <plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-dependency-plugin</artifactId>

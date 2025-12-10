@@ -440,6 +440,8 @@ Follow [Conventional Commits](https://conventionalcommits.org/):
 - [ADR-032](docs/adr/032-testing-strategy.md) - Testing Strategy
 - [ADR-033](docs/adr/033-streaming-thinking-timeline-ux.md) - Streaming Responses and Thinking Timeline UX
 - [ADR-036](docs/adr/036-chat-ownership-and-sharing-model.md) - Chat Ownership and Sharing Model
+- [ADR-037](docs/adr/037-language-detection-session-management.md) - Language Detection and Session Language Management
+- [ADR-038](docs/adr/038-user-friendly-error-handling.md) - User-Friendly Error Handling and Issue Tracking
 
 ### Use Cases - Phase 1 (MVP)
 - [ADR-017](docs/adr/017-chart-executive-overview.md) - Chart Executive Overview

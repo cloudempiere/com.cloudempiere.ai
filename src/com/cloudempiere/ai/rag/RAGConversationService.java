@@ -16,6 +16,7 @@ package com.cloudempiere.ai.rag;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.logging.Level;
 
@@ -25,6 +26,8 @@ import org.compiere.util.Env;
 import org.compiere.util.Language;
 import org.json.JSONArray;
 import org.json.JSONObject;
+
+import com.cloudempiere.ai.service.LanguageDetectionService;
 
 import com.cloudempiere.ai.model.MAIChat;
 import com.cloudempiere.ai.model.MAIChatEntry;
@@ -46,6 +49,24 @@ import dev.langchain4j.service.AiServices;
 
 /**
  * RAG-based AI Conversation Service (ADR-012).
+ *
+ * <p><strong>STATUS: NOT YET WIRED</strong> - This class is implemented but not currently
+ * used in production. The actual chat flow uses {@link com.cloudempiere.ai.provider.langchain4j.AIService}
+ * which is called by AIChatWidget.
+ *
+ * <p><strong>Current Production Flow:</strong>
+ * <pre>
+ * AIChatWidget → AIService → ERPStreamingAgent/SimpleStreamingAgent
+ * </pre>
+ *
+ * <p><strong>Planned Future Flow (when RAG is wired):</strong>
+ * <pre>
+ * AIChatWidget → RAGConversationService → RAGContextManager → ERPAgent
+ * </pre>
+ *
+ * <p>See CLAUDE/CLD-LANGCHAIN-CHAT/IMPLEMENTATION_PLAN.md for wiring status.
+ *
+ * <hr>
  *
  * <p>This service replaces the custom routing logic from ADR-005 with
  * LangChain4j's RAG (Retrieval-Augmented Generation) pattern.
@@ -76,6 +97,7 @@ import dev.langchain4j.service.AiServices;
  * @author Cloudempiere AI Team
  * @version ADR-012
  * @since v0.10.0
+ * @see com.cloudempiere.ai.provider.langchain4j.AIService AIService (currently active)
  */
 public class RAGConversationService {
 
@@ -90,6 +112,9 @@ public class RAGConversationService {
     /** RAG context manager for semantic search */
     private RAGContextManager ragContextManager;
 
+    /** Language detection service (ADR-037) */
+    private final LanguageDetectionService languageService;
+
     /** Metrics tracking */
     private final RAGMetrics metrics;
 
@@ -100,6 +125,7 @@ public class RAGConversationService {
      * using the provider configuration from the database.
      */
     public RAGConversationService() {
+        this.languageService = LanguageDetectionService.getInstance();
         this.metrics = new RAGMetrics();
         log.info("RAGConversationService created (RAG will be initialized on first use)");
     }
@@ -111,6 +137,7 @@ public class RAGConversationService {
      */
     public RAGConversationService(RAGContextManager ragContextManager) {
         this.ragContextManager = ragContextManager;
+        this.languageService = LanguageDetectionService.getInstance();
         this.metrics = new RAGMetrics();
 
         log.info("RAGConversationService initialized: " +
@@ -178,18 +205,22 @@ public class RAGConversationService {
 
         long startTime = System.currentTimeMillis();
         String sessionId = getSessionId(chat);
+        int chatId = chat != null ? chat.getCM_Chat_ID() : 0;
 
         try {
             // Ensure RAG context manager is initialized
             RAGContextManager ragManager = getOrCreateRAGContextManager(ctx, trxName);
+
+            // 0. Check for language change request (ADR-037)
+            String languageAcknowledgment = processLanguageChangeRequest(userMessage, chatId);
 
             // 1. Store window context in RAG (if provided)
             if (windowContext != null) {
                 storeWindowContext(sessionId, windowContext, ragManager);
             }
 
-            // 2. Create RAG-enabled agent
-            ERPAgent agent = createRAGAgent(ctx, sessionId, trxName, ragManager);
+            // 2. Create RAG-enabled agent with current session language
+            ERPAgent agent = createRAGAgent(ctx, chatId, sessionId, trxName, ragManager);
 
             // 3. Build conversation with history
             String enhancedMessage = buildEnhancedMessage(ctx, userMessage, windowContext);
@@ -201,15 +232,21 @@ public class RAGConversationService {
             //    - Manages conversation memory
             String response = agent.chat(sessionId, enhancedMessage);
 
-            // 5. Store the interaction in RAG for future reference
+            // 5. Prepend language acknowledgment if language was changed
+            if (languageAcknowledgment != null) {
+                response = languageAcknowledgment + "\n\n" + response;
+            }
+
+            // 6. Store the interaction in RAG for future reference
             storeInteraction(sessionId, userMessage, response, ragManager);
 
-            // 6. Track metrics
+            // 7. Track metrics
             long responseTime = System.currentTimeMillis() - startTime;
             metrics.recordSuccess(responseTime);
 
             log.fine("RAG response generated: session=" + sessionId +
-                    ", time=" + responseTime + "ms");
+                    ", time=" + responseTime + "ms" +
+                    ", language=" + languageService.getSessionLanguage(ctx, chatId));
 
             return response;
 
@@ -223,15 +260,40 @@ public class RAGConversationService {
     }
 
     /**
+     * Process language change request from user message (ADR-037).
+     *
+     * <p>Detects patterns like "respond in German" and sets the session language override.</p>
+     *
+     * @param userMessage User's message
+     * @param chatId Chat ID for session storage
+     * @return Acknowledgment message if language changed, null otherwise
+     */
+    private String processLanguageChangeRequest(String userMessage, int chatId) {
+        if (chatId <= 0) {
+            return null;
+        }
+
+        Optional<String> requestedLang = languageService.detectLanguageChangeRequest(userMessage);
+        if (requestedLang.isPresent()) {
+            String langCode = requestedLang.get();
+            languageService.setOverrideLanguage(chatId, langCode);
+            return languageService.getLanguageChangeAcknowledgment(langCode);
+        }
+
+        return null;
+    }
+
+    /**
      * Create a RAG-enabled agent using LangChain4j AiServices
      *
      * @param ctx iDempiere context
+     * @param chatId Chat ID for language detection
      * @param sessionId Session identifier
      * @param trxName Transaction name
      * @param ragManager RAG context manager
      * @return Configured ERPAgent
      */
-    private ERPAgent createRAGAgent(Properties ctx, String sessionId, String trxName,
+    private ERPAgent createRAGAgent(Properties ctx, int chatId, String sessionId, String trxName,
                                           RAGContextManager ragManager) {
         // Get provider for chat model and tools
         MAIProvider provider = MAIProvider.get(ctx, DEFAULT_PROVIDER_ID, trxName);
@@ -251,8 +313,8 @@ public class RAGConversationService {
         // Get content retriever for RAG
         ContentRetriever retriever = ragManager.getRetriever(sessionId);
 
-        // Build system prompt
-        String systemPrompt = buildSystemPrompt(ctx);
+        // Build system prompt with session language (ADR-037)
+        String systemPrompt = buildSystemPrompt(ctx, chatId);
 
         // Create agent with RAG integration
         return AiServices.builder(ERPAgent.class)
@@ -343,64 +405,34 @@ public class RAGConversationService {
      * Build system prompt for the agent
      *
      * @param ctx iDempiere context
+     * @param chatId Chat ID for language detection
      * @return System prompt string
      */
-    private String buildSystemPrompt(Properties ctx) {
+    private String buildSystemPrompt(Properties ctx, int chatId) {
         // Try to load from database first
         String dbPrompt = loadSystemPromptFromDatabase();
 
-        if (dbPrompt != null && !dbPrompt.trim().isEmpty()) {
-            return dbPrompt + buildLanguageInstruction(ctx);
+        // Get language instruction using the language service (ADR-037)
+        // Place at BEGINNING for stronger compliance
+        String languageInstruction = languageService.getLanguageInstruction(ctx, chatId);
+
+        StringBuilder sb = new StringBuilder();
+
+        // Language instruction FIRST for maximum compliance (ADR-037)
+        if (!languageInstruction.isEmpty()) {
+            sb.append(languageInstruction.trim());
+            sb.append("\n\n");
         }
 
-        // Fallback to hardcoded prompt
-        StringBuilder sb = new StringBuilder();
-        sb.append("You are a helpful AI assistant for iDempiere ERP system.\n\n");
+        if (dbPrompt != null && !dbPrompt.trim().isEmpty()) {
+            sb.append(dbPrompt);
+            return sb.toString();
+        }
 
-        sb.append("## Capabilities\n");
-        sb.append("You have access to tools that allow you to:\n");
-        sb.append("- Query the database for business data (orders, products, partners, etc.)\n");
-        sb.append("- Look up specific records by ID or search key\n");
-        sb.append("- Get metadata about tables and columns\n\n");
-
-        sb.append("## Context Awareness\n");
-        sb.append("Relevant context from the conversation and current window will be ");
-        sb.append("automatically provided to help you answer questions. Use this context ");
-        sb.append("when available instead of querying the database.\n\n");
-
-        sb.append("## Guidelines\n");
-        sb.append("- Be concise and helpful\n");
-        sb.append("- Format data clearly (use tables or lists)\n");
-        sb.append("- Create clickable links for records: [[TableName:RecordID|Display Text]]\n");
-        sb.append("- If data is not found, suggest alternatives\n");
-
-        sb.append(buildLanguageInstruction(ctx));
+        // Use ERPAgent.SYSTEM_PROMPT as base (includes tool instructions, security rules, etc.)
+        sb.append(ERPAgent.SYSTEM_PROMPT);
 
         return sb.toString();
-    }
-
-    /**
-     * Build language instruction based on user's session language
-     *
-     * @param ctx iDempiere context
-     * @return Language instruction text
-     */
-    private String buildLanguageInstruction(Properties ctx) {
-        try {
-            String langCode = Env.getAD_Language(ctx);
-            Language language = Language.getLanguage(langCode);
-
-            if (language == null) {
-                return "";
-            }
-
-            return "\n\n## Language\n" +
-                   "Respond in **" + language.getName() + "** (" + language.getLanguageCode() + "). " +
-                   "Keep technical terms (table names, SQL) in English.";
-
-        } catch (Exception e) {
-            return "";
-        }
     }
 
     /**
@@ -527,6 +559,45 @@ public class RAGConversationService {
             ragContextManager.clearSession(sessionId);
             log.fine("Cleared RAG session: " + sessionId);
         }
+    }
+
+    /**
+     * Clear session context and language override for a chat.
+     *
+     * @param chat Chat instance
+     */
+    public void clearSession(MAIChat chat) {
+        if (chat != null) {
+            String sessionId = getSessionId(chat);
+            clearSession(sessionId);
+
+            // Also clear language override (ADR-037)
+            int chatId = chat.getCM_Chat_ID();
+            if (chatId > 0) {
+                languageService.clearOverrideLanguage(chatId);
+                log.fine("Cleared language override for chat: " + chatId);
+            }
+        }
+    }
+
+    /**
+     * Get language detection service (ADR-037).
+     *
+     * @return LanguageDetectionService instance
+     */
+    public LanguageDetectionService getLanguageService() {
+        return languageService;
+    }
+
+    /**
+     * Get the current session language for a chat.
+     *
+     * @param ctx iDempiere context
+     * @param chatId Chat ID
+     * @return Current language code (e.g., "de_DE")
+     */
+    public String getSessionLanguage(Properties ctx, int chatId) {
+        return languageService.getSessionLanguage(ctx, chatId);
     }
 
     /**

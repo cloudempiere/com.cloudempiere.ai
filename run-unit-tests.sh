@@ -101,6 +101,14 @@ else
     fi
 fi
 
+# Add iDempiere base lib jars (JSON, etc.)
+IDEMPIERE_BASE_LIB="$IDEMPIERE_DIR/org.adempiere.base/lib"
+if [ -d "$IDEMPIERE_BASE_LIB" ]; then
+    for jar in "$IDEMPIERE_BASE_LIB"/*.jar; do
+        [ -f "$jar" ] && CLASSPATH="$CLASSPATH:$jar"
+    done
+fi
+
 # Add test lib jars
 for jar in "$TEST_LIB_DIR"/*.jar; do
     [ -f "$jar" ] && CLASSPATH="$CLASSPATH:$jar"
@@ -116,14 +124,15 @@ fi
 echo "Compiling tests..."
 
 # Find all Java files in test dir (including utilities like TestLogger)
-ALL_JAVA_FILES=$(find "$TEST_DIR" -name "*.java" 2>/dev/null || true)
+# Exclude tests that require iDempiere context (AbstractTestCase) - they need full OSGi setup
+ALL_JAVA_FILES=$(find "$TEST_DIR" -name "*.java" 2>/dev/null | grep -v "AIProviderAuthorizationTest.java" || true)
 
 if [ -z "$ALL_JAVA_FILES" ]; then
     echo "No Java files found in $TEST_DIR"
     exit 1
 fi
 
-echo "Found Java files:"
+echo "Found Java files (standalone tests only):"
 echo "$ALL_JAVA_FILES" | while read f; do echo "  - $(basename $f)"; done
 echo ""
 

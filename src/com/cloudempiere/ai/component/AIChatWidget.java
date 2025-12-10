@@ -53,6 +53,8 @@ import com.cloudempiere.ai.context.ContextParameters;
 import com.cloudempiere.ai.context.IAIContextProvider;
 import com.cloudempiere.ai.model.MAIChat;
 import com.cloudempiere.ai.model.MAIChatEntry;
+import com.cloudempiere.ai.error.AIErrorHandler;
+import com.cloudempiere.ai.error.AIErrorHandler.AIErrorResult;
 import com.cloudempiere.ai.model.MAIProvider;
 import com.cloudempiere.ai.provider.dto.AIStreamCallback;
 import com.cloudempiere.ai.provider.langchain4j.AIService;
@@ -772,7 +774,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 			log.log(Level.SEVERE, "Failed to initialize streaming", e);
 			streamingInProgress = false;
 			showSendButton();
-			handleErrorResponse(desktop, e, threadRootIdSnapshot);
+			handleErrorResponse(desktop, e, threadRootIdSnapshot, null, message);
 			return;
 		}
 
@@ -943,8 +945,14 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 				log.severe("[UI-STREAM] onError: " + error.getMessage());
 				error.printStackTrace();
 				try {
-					// Parse user-friendly error message
-					final String userFriendlyError = parseErrorMessage(error);
+					// Use AIErrorHandler for user-friendly error handling and AD_Issue creation
+					final AIErrorResult errorResult = AIErrorHandler.handleError(
+						sessionCtx,
+						error,
+						provider != null ? provider.getName() : "Unknown",
+						message,
+						aiChat != null ? aiChat.getCM_Chat_ID() : 0
+					);
 
 					Executions.schedule(desktop, e -> {
 						// Skip if request was cancelled (cancellation triggers error callback)
@@ -953,12 +961,16 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 							return;
 						}
 
-						// Show user-friendly error in streaming message
-						streamingMsg.appendChunk("\n\n**Error:** " + userFriendlyError);
+						// Show user-friendly error in streaming message with debug tooltip
+						// Format: friendly message + warning emoji with tooltip
+						String errorDisplay = "\n\n" + errorResult.getUserMessage() +
+							" <span class=\"ai-error-ref\" title=\"" + errorResult.getDebugTooltip() +
+							"\" style=\"cursor:help; opacity:0.6; font-size:0.8em;\">\u26A0\uFE0F</span>";
+						streamingMsg.appendChunk(errorDisplay);
 						streamingMsg.complete();
 
 						// Persist partial response with error to database
-						persistErrorResponse(streamingMsg.getContent(), userFriendlyError, threadRootIdSnapshot);
+						persistErrorResponse(streamingMsg.getContent(), errorResult.getUserMessage(), threadRootIdSnapshot);
 
 						// Re-enable input and show send button
 						streamingInProgress = false;
@@ -966,6 +978,10 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 						currentStreamingMessage = null;
 						inputBox.setDisabled(false);
 						sendButton.setDisabled(false);
+
+						log.info("[UI-STREAM] Error handled: ref=" + errorResult.getErrorReference() +
+								", category=" + errorResult.getCategory() +
+								", issueId=" + errorResult.getAD_Issue_ID());
 					}, new Event("onError"));
 				} catch (Exception ex) {
 					log.severe("[UI-STREAM] Failed to schedule onError: " + ex.getMessage());
@@ -1020,6 +1036,8 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 			int threadRootIdSnapshot, Desktop desktop) {
 
 		CompletableFuture.runAsync(() -> {
+			// Declare provider outside try block for access in catch block
+			MAIProvider provider = null;
 			try {
 				// Get MAIChat instance
 				MAIChat aiChat = (chat instanceof MAIChat) ?
@@ -1027,7 +1045,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 					new MAIChat(sessionCtx, chat.getCM_Chat_ID(), null);
 
 				// Get default provider
-				MAIProvider provider = MAIProvider.getDefault(sessionCtx, null);
+				provider = MAIProvider.getDefault(sessionCtx, null);
 				if (provider == null) {
 					throw new Exception("No AI provider configured. Please configure an AI provider in the system.");
 				}
@@ -1089,7 +1107,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 
 			} catch (Exception e) {
 				log.log(Level.SEVERE, "LangChain4j AI response failed", e);
-				handleErrorResponse(desktop, e, threadRootIdSnapshot);
+				handleErrorResponse(desktop, e, threadRootIdSnapshot, provider, message);
 			}
 		});
 	}
@@ -1122,15 +1140,35 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 	}
 
 	/**
-	 * Handle error response.
+	 * Handle error response with user-friendly message and AD_Issue logging.
+	 *
+	 * @param desktop ZK desktop for UI scheduling
+	 * @param e the exception that occurred
+	 * @param threadRootIdSnapshot the thread root ID
+	 * @param provider the AI provider (can be null)
+	 * @param userMessage the original user message (can be null)
 	 */
-	private void handleErrorResponse(Desktop desktop, Exception e, int threadRootIdSnapshot) {
+	private void handleErrorResponse(Desktop desktop, Exception e, int threadRootIdSnapshot,
+			MAIProvider provider, String userMessage) {
+
+		// Handle error outside of UI thread to create AD_Issue
+		AIErrorResult errorResult = AIErrorHandler.handleError(
+			sessionCtx,
+			e,
+			provider != null ? provider.getName() : "Unknown",
+			userMessage,
+			chat != null ? chat.getCM_Chat_ID() : 0
+		);
+
 		Executions.schedule(desktop, ev -> {
 			hideLoading();
 
+			// Build user-friendly error display with debug tooltip
 			String errorMsg = "<div style='color: #d32f2f; padding: 8px; " +
 				"background: #ffebee; border-radius: 4px; border-left: 3px solid #d32f2f;'>" +
-				"<strong>Error:</strong> " + Util.maskHTML(e.getMessage(), true) + "</div>";
+				Util.maskHTML(errorResult.getUserMessage(), true) +
+				" <span class=\"ai-error-ref\" title=\"" + errorResult.getDebugTooltip() +
+				"\" style=\"cursor:help; opacity:0.6;\">\u26A0\uFE0F</span></div>";
 
 			MChatEntry errorEntry = MAIChatEntry.createAIResponse(chat, errorMsg);
 
@@ -1143,6 +1181,10 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 			renderMessage(errorEntry);
 			inputBox.setDisabled(false);
 			sendButton.setDisabled(false);
+
+			log.info("Error handled: ref=" + errorResult.getErrorReference() +
+					", category=" + errorResult.getCategory() +
+					", issueId=" + errorResult.getAD_Issue_ID());
 		}, new Event("onAIError"));
 	}
 
@@ -1839,95 +1881,9 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 		currentStreamingMessage = null;
 	}
 
-	/**
-	 * Parse error message to extract user-friendly text from API errors.
-	 * Handles JSON error responses from Anthropic and other providers.
-	 *
-	 * @param error the exception to parse
-	 * @return user-friendly error message
-	 */
-	private String parseErrorMessage(Throwable error) {
-		String message = error.getMessage();
-		if (message == null) {
-			return "An unexpected error occurred";
-		}
-
-		// Try to parse JSON error response
-		if (message.contains("{") && message.contains("}")) {
-			try {
-				JSONObject json = new JSONObject(message);
-
-				// Anthropic error format: {"type":"error","error":{"message":"..."}}
-				if (json.has("error")) {
-					Object errorObj = json.get("error");
-					if (errorObj instanceof JSONObject) {
-						JSONObject errorJson = (JSONObject) errorObj;
-						String errorMessage = errorJson.optString("message", null);
-						if (errorMessage != null && !errorMessage.isEmpty()) {
-							return formatKnownError(errorMessage);
-						}
-					}
-				}
-
-				// Generic error format: {"message":"..."}
-				String errorMessage = json.optString("message", null);
-				if (errorMessage != null && !errorMessage.isEmpty()) {
-					return formatKnownError(errorMessage);
-				}
-			} catch (Exception e) {
-				// JSON parsing failed, fall through to raw message handling
-				log.fine("Failed to parse error JSON: " + e.getMessage());
-			}
-		}
-
-		// Return cleaned up message for common error patterns
-		return formatKnownError(message);
-	}
-
-	/**
-	 * Format known error messages to be more user-friendly.
-	 *
-	 * @param message the error message
-	 * @return formatted user-friendly message
-	 */
-	private String formatKnownError(String message) {
-		// Content filtering
-		if (message.contains("blocked by content filtering")) {
-			return "The response was blocked by content safety filters. Please try rephrasing your question.";
-		}
-
-		// Rate limiting
-		if (message.contains("rate_limit") || message.contains("rate limit")) {
-			return "Too many requests. Please wait a moment and try again.";
-		}
-
-		// Authentication
-		if (message.contains("authentication") || message.contains("api_key") || message.contains("unauthorized")) {
-			return "Authentication error. Please check the AI provider configuration.";
-		}
-
-		// Timeout
-		if (message.contains("timeout") || message.contains("timed out")) {
-			return "The request timed out. Please try again.";
-		}
-
-		// Context length
-		if (message.contains("context_length") || message.contains("too long") || message.contains("max_tokens")) {
-			return "The conversation is too long. Please start a new thread.";
-		}
-
-		// Server errors
-		if (message.contains("internal_error") || message.contains("server_error") || message.contains("500")) {
-			return "The AI service is temporarily unavailable. Please try again later.";
-		}
-
-		// Return the original message if no known pattern matches
-		// Truncate if too long
-		if (message.length() > 200) {
-			return message.substring(0, 197) + "...";
-		}
-		return message;
-	}
+	// Note: parseErrorMessage and formatKnownError methods have been moved to
+	// com.cloudempiere.ai.error.AIErrorHandler for better separation of concerns
+	// and to enable AD_Issue creation with error tracking.
 
 	/**
 	 * Persist the cancelled/partial AI response to the database.

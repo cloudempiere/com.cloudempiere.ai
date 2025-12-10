@@ -7,7 +7,7 @@ and this project adheres to [Conventional Commits](https://conventionalcommits.o
 
 ## [Unreleased]
 
-### Next: v0.20.0 - Share Dialog & Advanced Sharing
+### Next: v0.21.0 - Share Dialog & Advanced Sharing
 
 **Planned:**
 - Share button in AIChatWidget (OWNER only)
@@ -22,6 +22,56 @@ and this project adheres to [Conventional Commits](https://conventionalcommits.o
 - ADR-017: Chart Executive Overview
 - ADR-018: Sales Opportunity Summary
 - ADR-011: Domain Agents
+
+---
+
+## [0.20.0] - 2025-12-10
+
+### Language Detection & User-Friendly Error Handling (ADR-037, ADR-038)
+
+This release adds automatic language detection for multilingual responses and comprehensive user-friendly error handling.
+
+#### Added
+
+- **Language Detection Service** (ADR-037)
+  - `LanguageDetectionService` - Detects user's language from input
+  - AI responses now match user's language automatically
+  - Session-level language persistence
+  - Support for 15+ languages with high confidence detection
+  - Fallback to client default language
+
+- **User-Friendly Error Handling** (ADR-038)
+  - `AIErrorHandler` - Converts technical errors to user-friendly messages
+  - 7 error categories: RATE_LIMIT, TIMEOUT, CONTENT_FILTER, CONFIGURATION, CONTEXT_LENGTH, SERVICE_UNAVAILABLE, GENERIC
+  - AD_Message integration for translatable error messages
+  - AD_Issue integration for technical error tracking
+  - Error reference codes (format: AIG-{timestamp}-{random4})
+  - Debug tooltip with error details for support
+  - JSON error parsing for API responses
+
+- **Migration Scripts** (CLD-1601)
+  - PostgreSQL and Oracle scripts for 7 AD_Message entries
+  - Idempotent INSERT with NOT EXISTS checks
+  - Messages: AIG_Error_RateLimit, AIG_Error_Timeout, AIG_Error_ContentFilter, AIG_Error_Configuration, AIG_Error_ContextLength, AIG_Error_ServiceUnavailable, AIG_Error_Generic
+
+- **Unit Tests**
+  - `AIErrorHandlerTest` - 47 tests for error categorization
+  - Updated `run-unit-tests.sh` to include iDempiere base lib jars
+
+#### Changed
+
+- **AIChatWidget** - Uses AIErrorHandler for error display
+  - Error messages now user-friendly with actionable hints
+  - Debug emoji (⚠️) with tooltip for error reference
+  - No more raw technical errors shown to users
+
+- **RAGConversationService** - Enhanced language handling
+  - Detects and stores user language in session
+  - Passes language context to AI agents
+
+- **Agent System Prompts** - Language awareness
+  - ERPAgent, ERPStreamingAgent, SimpleStreamingAgent updated
+  - Agents respond in detected user language
 
 ---
 
@@ -1133,15 +1183,16 @@ This release implements critical P1 infrastructure for production readiness.
 | 17 | v0.17.0 | 2025-12-07 | Streaming Tool Callbacks & Markdown Rendering |
 | 18 | v0.18.0 | 2025-12-08 | Llama Provider & Model Selection |
 | 19 | v0.19.0 | 2025-12-08 | Streaming-First Architecture & Tool Support Separation |
+| 20 | v0.20.0 | 2025-12-10 | Language Detection & User-Friendly Error Handling |
 
 ## Upcoming Phases
 
 | Phase | Version | Target | Milestone |
 |-------|---------|--------|-----------|
-| 20 | v0.20.0 | Q1 2026 | Share Dialog & Advanced Sharing |
-| 21 | v0.21.0 | Q1 2026 | Chart Executive Overview (First Business Case) |
-| 22 | v0.22.0 | Q1 2026 | Domain Agents (Inventory, Sales, Purchasing) |
-| 23 | v1.0.0 | Q2 2026 | Production Release |
+| 21 | v0.21.0 | Q1 2026 | Share Dialog & Advanced Sharing |
+| 22 | v0.22.0 | Q1 2026 | Chart Executive Overview (First Business Case) |
+| 23 | v0.23.0 | Q1 2026 | Domain Agents (Inventory, Sales, Purchasing) |
+| 24 | v1.0.0 | Q2 2026 | Production Release |
 
 ## iDempiere Compatibility
 

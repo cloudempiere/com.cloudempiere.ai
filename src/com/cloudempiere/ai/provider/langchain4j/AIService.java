@@ -23,6 +23,7 @@ import com.cloudempiere.ai.model.MAIProvider;
 import com.cloudempiere.ai.model.MAIUsageMetrics;
 import com.cloudempiere.ai.observability.CostGuard;
 import com.cloudempiere.ai.provider.dto.AIStreamCallback;
+import com.cloudempiere.ai.service.LanguageDetectionService;
 
 import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.data.message.ChatMessage;
@@ -36,6 +37,18 @@ import dev.langchain4j.service.AiServices;
 /**
  * Main entry point for ERP AI capabilities using LangChain4j.
  *
+ * <p><strong>STATUS: ACTIVE - This is the production chat service.</strong>
+ *
+ * <p><strong>Production Flow:</strong>
+ * <pre>
+ * AIChatWidget → AIService → ERPStreamingAgent/SimpleStreamingAgent
+ * </pre>
+ *
+ * <p><strong>Note:</strong> {@link com.cloudempiere.ai.rag.RAGConversationService} exists
+ * but is NOT yet wired. This class (AIService) handles all chat functionality.
+ *
+ * <hr>
+ *
  * <p>This service provides a unified streaming-first API:
  * <ul>
  *   <li>{@link #chatStreamingWithContext} - Core streaming method (primary)</li>
@@ -48,6 +61,10 @@ import dev.langchain4j.service.AiServices;
  * All chat functionality is built on streaming as the foundation. Non-streaming
  * calls use {@link CompletableFuture#join()} to block on the streaming response.
  * This eliminates duplicate code paths and ensures consistent behavior.
+ *
+ * <p>Language Detection (ADR-037):
+ * Uses {@link LanguageDetectionService} to respect user's iDempiere login language
+ * and handle session-level language change requests (e.g., "respond in German").
  *
  * <p>Usage:
  * <pre>
@@ -67,6 +84,7 @@ import dev.langchain4j.service.AiServices;
  * @author Cloudempiere
  * @version 0.19.0
  * @since ADR-002 LangChain4j Strategic Adoption
+ * @see com.cloudempiere.ai.rag.RAGConversationService RAGConversationService (not yet wired)
  */
 public class AIService {
 
@@ -83,6 +101,9 @@ public class AIService {
 
     /** Streaming model cache by provider ID */
     private final Map<Integer, StreamingChatLanguageModel> streamingModelCache = new ConcurrentHashMap<>();
+
+    /** Language detection service (ADR-037) */
+    private final LanguageDetectionService languageService = LanguageDetectionService.getInstance();
 
     /** Default conversation memory size */
     private static final int DEFAULT_MEMORY_SIZE = 20;
@@ -702,10 +723,15 @@ public class AIService {
                 log.warning("[STREAM] Tools class: " + tools.getClass().getName());
                 log.warning("[STREAM] StreamingModel class: " + streamingModel.getClass().getName());
 
+                // Build system prompt with language instruction (ADR-037)
+                final String systemPrompt = buildSystemPromptWithLanguage(ctx, chat.getCM_Chat_ID(), true);
+                log.warning("[STREAM] System prompt built, length=" + systemPrompt.length());
+
                 ERPStreamingAgent agent = AiServices.builder(ERPStreamingAgent.class)
                     .streamingChatLanguageModel(streamingModel)
                     .tools(tools)
                     .chatMemoryProvider(memoryId -> memoryForProvider)
+                    .systemMessageProvider(memoryId -> systemPrompt)
                     .build();
 
                 log.warning("[STREAM] Agent built successfully: " + agent.getClass().getName());
@@ -722,10 +748,15 @@ public class AIService {
                         " doesn't support tools, using simple streaming chat mode");
                 log.warning("[STREAM] StreamingModel class: " + streamingModel.getClass().getName());
 
+                // Build system prompt with language instruction (ADR-037) - no tools
+                final String systemPrompt = buildSystemPromptWithLanguage(ctx, chat.getCM_Chat_ID(), false);
+                log.warning("[STREAM] System prompt built (no tools), length=" + systemPrompt.length());
+
                 // Build SimpleStreamingAgent (no tools, simplified system prompt)
                 SimpleStreamingAgent agent = AiServices.builder(SimpleStreamingAgent.class)
                     .streamingChatLanguageModel(streamingModel)
                     .chatMemoryProvider(memoryId -> memoryForProvider)
+                    .systemMessageProvider(memoryId -> systemPrompt)
                     .build();
 
                 log.warning("[STREAM] SimpleStreamingAgent built successfully: " + agent.getClass().getName());
@@ -1087,6 +1118,39 @@ public class AIService {
         String result = sb.toString();
         log.info("[CONTEXT] Built context prompt (" + result.length() + " chars)");
         return result;
+    }
+
+    /**
+     * Build system prompt with language instruction prepended.
+     *
+     * <p>This method combines the language instruction (from LanguageDetectionService)
+     * with the appropriate base system prompt (ERPStreamingAgent or SimpleStreamingAgent).
+     *
+     * <p>The language instruction is placed FIRST in the system prompt to ensure
+     * the AI prioritizes language compliance. This implements ADR-037.
+     *
+     * @param ctx iDempiere context (contains AD_Language from user login)
+     * @param chatId Chat ID for session override lookup
+     * @param withTools true for ERPStreamingAgent (tool support), false for SimpleStreamingAgent
+     * @return Complete system prompt with language instruction
+     */
+    private String buildSystemPromptWithLanguage(Properties ctx, int chatId, boolean withTools) {
+        // Get language instruction based on session language (override > context > fallback)
+        String languageInstruction = languageService.getLanguageInstruction(ctx, chatId);
+
+        // Get base system prompt based on tool support
+        String basePrompt = withTools
+            ? ERPStreamingAgent.SYSTEM_PROMPT
+            : SimpleStreamingAgent.SIMPLE_SYSTEM_PROMPT;
+
+        // If no language instruction, just return the base prompt
+        if (languageInstruction == null || languageInstruction.isEmpty()) {
+            return basePrompt;
+        }
+
+        // Combine: language instruction FIRST, then base prompt
+        // This ensures language compliance is prioritized
+        return languageInstruction + "\n\n" + basePrompt;
     }
 
     /**

@@ -29,6 +29,7 @@ Bundle-ActivationPolicy: lazy
 Export-Package: com.cloudempiere.ai.component,
  com.cloudempiere.ai.context,
  com.cloudempiere.ai.database,
+ com.cloudempiere.ai.error,
  com.cloudempiere.ai.guardrails,
  com.cloudempiere.ai.guardrails.dto,
  com.cloudempiere.ai.model,

@@ -16,6 +16,7 @@ This directory contains architecture decisions for the Cloudempiere AI plugin.
 | [004](004-java-agent-framework.md) | Java Agent Framework Selection | Accepted | 2025-11-26 |
 | [034](034-google-gemini-provider-integration.md) | Google Gemini Provider Integration | Proposed | 2025-12-03 |
 | [035](035-java-version-strategy.md) | Java Version Strategy and Migration Path | Accepted | 2025-12-04 |
+| [038](038-quarkus-satellite-ai-service.md) | Quarkus Satellite AI Service Architecture | Research | 2025-12-10 |
 
 ### Data & Intelligence
 
@@ -49,6 +50,8 @@ This directory contains architecture decisions for the Cloudempiere AI plugin.
 | [031](031-chat-panel-langchain4j-chatmodel-integration.md) | Chat Panel LangChain4j ChatModel Integration | Proposed | 2025-12-03 |
 | [032](032-testing-strategy.md) | Testing Strategy | Proposed | 2025-12-03 |
 | [033](033-streaming-thinking-timeline-ux.md) | Streaming Responses and Thinking Timeline UX | Proposed | 2025-12-03 |
+| [037](037-language-detection-session-management.md) | Language Detection and Session Language Management | Proposed | 2025-12-10 |
+| [038](038-user-friendly-error-handling.md) | User-Friendly Error Handling and Issue Tracking | Accepted | 2025-12-10 |
 
 ### Use Cases - Phase 1 (MVP)
 
@@ -260,6 +263,21 @@ Each ADR includes:
 - Tool timeline display ("Querying database...", "✓ Complete")
 - Collapsible thinking section for extended thinking models
 - ZK thread safety with Executions.schedule()
+
+**ADR-037: Language Detection and Session Language Management**
+- Automatic language detection from iDempiere user context (`AD_Language`)
+- Session-level language override via natural language requests ("respond in German")
+- Pattern detection for language change requests across multiple languages
+- Priority order: session override > iDempiere language > fallback (en_US)
+- Technical terms (table names, SQL) remain in English regardless of response language
+
+**ADR-038: User-Friendly Error Handling and Issue Tracking**
+- Never show raw technical errors to users
+- Error categorization: RATE_LIMIT, TIMEOUT, CONTENT_FILTER, CONFIGURATION, CONTEXT_LENGTH, SERVICE_UNAVAILABLE, GENERIC
+- AD_Message integration for translatable error messages (AIG_Error_* keys)
+- AD_Issue creation with full context for support debugging
+- Error reference codes (AIG-{timestamp}-{random}) link user reports to technical details
+- Actionable hints guide users on what to do next
 
 ### Use Cases - Phase 1 (MVP)
 

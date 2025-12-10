@@ -1,0 +1,2 @@
+- allways put tests into org.idempiere.test plugin
+- use bash script for start testing @run-unit-tests.sh
