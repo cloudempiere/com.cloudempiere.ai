@@ -15,6 +15,7 @@ package com.cloudempiere.ai.component;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 import org.compiere.util.Util;
 import org.zkoss.zk.ui.event.Event;
@@ -22,6 +23,9 @@ import org.zkoss.zk.ui.event.EventListener;
 import org.zkoss.zk.ui.event.Events;
 import org.zkoss.zul.Div;
 import org.zkoss.zul.Html;
+
+import com.cloudempiere.ai.util.MarkdownTableRenderer;
+import com.cloudempiere.ai.util.StreamingTextBuffer;
 
 /**
  * ZK component for rendering streaming AI responses with tool timeline and thinking.
@@ -72,8 +76,8 @@ public class AIChatStreamingMessage extends Div {
 
     // ============= State =============
 
-    /** Accumulated response content */
-    private StringBuilder content = new StringBuilder();
+    /** Accumulated response content with proper UTF-16 surrogate handling */
+    private StreamingTextBuffer content = new StreamingTextBuffer();
 
     /** Accumulated thinking content */
     private StringBuilder thinking = new StringBuilder();
@@ -95,6 +99,9 @@ public class AIChatStreamingMessage extends Div {
 
     /** Flag to track if CSS has been injected */
     private static boolean cssInjected = false;
+
+    /** Locale for number formatting in tables */
+    private Locale locale = Locale.getDefault();
 
     /**
      * Create a new streaming message component.
@@ -345,10 +352,13 @@ public class AIChatStreamingMessage extends Div {
     /**
      * Get the complete content for persistence.
      *
+     * <p>Flushes the buffer to ensure all characters (including any
+     * pending surrogates) are included in the output.
+     *
      * @return accumulated response content
      */
     public String getContent() {
-        return content.toString();
+        return content.flush();
     }
 
     /**
@@ -379,6 +389,27 @@ public class AIChatStreamingMessage extends Div {
     }
 
     /**
+     * Set the locale for number formatting in tables.
+     *
+     * <p>Numbers in markdown tables will be formatted according to this locale.
+     * For example, in German locale, 1234.56 becomes 1.234,56.
+     *
+     * @param locale the locale to use (if null, uses system default)
+     */
+    public void setLocale(Locale locale) {
+        this.locale = locale != null ? locale : Locale.getDefault();
+    }
+
+    /**
+     * Get the current locale for number formatting.
+     *
+     * @return the current locale
+     */
+    public Locale getLocale() {
+        return locale;
+    }
+
+    /**
      * Mark this streaming message as cancelled by user.
      *
      * <p>Appends "AI request cancelled" and stops accepting new chunks.
@@ -391,7 +422,7 @@ public class AIChatStreamingMessage extends Div {
         isComplete = true;
 
         // Update display to remove cursor and show termination notice on new line
-        String html = renderPartialMarkdown(content.toString());
+        String html = renderPartialMarkdown(content.getDisplayableText());
         String terminatedHtml = "<div style='margin-top: 12px; color: #888; font-style: italic;'>AI request cancelled</div>";
         streamingContent.setContent("<div class='ai-markdown-content'>" + html + "</div>" + terminatedHtml);
 
@@ -413,7 +444,8 @@ public class AIChatStreamingMessage extends Div {
      * Update the main content display.
      */
     private void updateContentDisplay() {
-        String html = renderPartialMarkdown(content.toString());
+        // Use getDisplayableText() to avoid incomplete surrogates
+        String html = renderPartialMarkdown(content.getDisplayableText());
         if (!isComplete) {
             html += "<span class='streaming-cursor'>|</span>";
         }
@@ -539,7 +571,7 @@ public class AIChatStreamingMessage extends Div {
      * update and our script execution.
      */
     private void renderFinalMarkdown() {
-        String markdownText = content.toString();
+        String markdownText = content.flush();
 
         // Remove hallucinated function call XML blocks
         markdownText = markdownText.replaceAll("(?s)<function_calls>.*?</function_calls>", "");
@@ -634,7 +666,7 @@ public class AIChatStreamingMessage extends Div {
             "if(!btn)return;" +
             "btn.onclick=function(){" +
             "var orig=this.innerHTML;" +
-            "var text=" + escapeForJavaScript(content.toString()) + ";" +
+            "var text=" + escapeForJavaScript(content.getDisplayableText()) + ";" +
             "navigator.clipboard.writeText(text).then(function(){" +
             "btn.innerHTML='<span style=\"font-size:10.5px;color:#4CAF50;\">Copied!</span>';" +
             "setTimeout(function(){btn.innerHTML=orig;},2000);" +
@@ -652,6 +684,14 @@ public class AIChatStreamingMessage extends Div {
      * Render partial markdown (simple implementation for streaming).
      *
      * <p>For full markdown rendering, the final content uses marked.js on the client.
+     * This method provides real-time rendering during streaming for:
+     * <ul>
+     *   <li>Headings (h1-h4)</li>
+     *   <li>Bold and italic text</li>
+     *   <li>Inline code</li>
+     *   <li>Lists</li>
+     *   <li>Tables (GFM pipe tables)</li>
+     * </ul>
      */
     private String renderPartialMarkdown(String text) {
         if (text == null || text.isEmpty()) {
@@ -669,42 +709,106 @@ public class AIChatStreamingMessage extends Div {
         cleaned = cleaned.replaceAll("(?s)<invoke[^>]*>.*?</invoke>", "");
         cleaned = cleaned.replaceAll("(?s)<parameter[^>]*>.*?</parameter>", "");
 
-        // Basic HTML escaping
-        String escaped = Util.maskHTML(cleaned, true);
+        // IMPORTANT: Tables must be rendered BEFORE HTML escaping because the table
+        // detection relies on pipe characters (|) which get escaped by maskHTML().
+        // The MarkdownTableRenderer handles cell content escaping internally.
+        String result = cleaned;
+        if (MarkdownTableRenderer.containsTable(cleaned)) {
+            MarkdownTableRenderer.setLocale(locale);
+            try {
+                result = MarkdownTableRenderer.renderTables(cleaned);
+            } finally {
+                MarkdownTableRenderer.clearLocale();
+            }
+        }
+
+        // Now escape non-table content. We need to be careful here:
+        // If tables were rendered, they contain HTML tags that shouldn't be escaped.
+        // Split by table tags and only escape non-table parts.
+        if (result.contains("<table")) {
+            result = escapeNonTableContent(result);
+        } else {
+            // No tables - escape everything
+            result = Util.maskHTML(result, true);
+        }
 
         // Simple markdown transformations for streaming display
 
         // Headings: # text, ## text, ### text (must be at start of line)
         // Process headings before line breaks to preserve newline matching
-        escaped = escaped.replaceAll("(?m)^### (.+)$", "<h4 style='font-size: 14px; font-weight: 600; margin: 12px 0 8px 0;'>$1</h4>");
-        escaped = escaped.replaceAll("(?m)^## (.+)$", "<h3 style='font-size: 15px; font-weight: 600; margin: 14px 0 8px 0;'>$1</h3>");
-        escaped = escaped.replaceAll("(?m)^# (.+)$", "<h2 style='font-size: 16px; font-weight: 600; margin: 16px 0 10px 0;'>$1</h2>");
+        result = result.replaceAll("(?m)^### (.+)$", "<h4 style='font-size: 14px; font-weight: 600; margin: 12px 0 8px 0;'>$1</h4>");
+        result = result.replaceAll("(?m)^## (.+)$", "<h3 style='font-size: 15px; font-weight: 600; margin: 14px 0 8px 0;'>$1</h3>");
+        result = result.replaceAll("(?m)^# (.+)$", "<h2 style='font-size: 16px; font-weight: 600; margin: 16px 0 10px 0;'>$1</h2>");
 
         // Bold: **text** or __text__
-        escaped = escaped.replaceAll("\\*\\*(.+?)\\*\\*", "<strong>$1</strong>");
-        escaped = escaped.replaceAll("__(.+?)__", "<strong>$1</strong>");
+        result = result.replaceAll("\\*\\*(.+?)\\*\\*", "<strong>$1</strong>");
+        result = result.replaceAll("__(.+?)__", "<strong>$1</strong>");
 
         // Italic: *text* or _text_
-        escaped = escaped.replaceAll("(?<!\\*)\\*(?!\\*)(.+?)(?<!\\*)\\*(?!\\*)", "<em>$1</em>");
-        escaped = escaped.replaceAll("(?<!_)_(?!_)(.+?)(?<!_)_(?!_)", "<em>$1</em>");
+        result = result.replaceAll("(?<!\\*)\\*(?!\\*)(.+?)(?<!\\*)\\*(?!\\*)", "<em>$1</em>");
+        result = result.replaceAll("(?<!_)_(?!_)(.+?)(?<!_)_(?!_)", "<em>$1</em>");
 
         // Code: `text`
-        escaped = escaped.replaceAll("`([^`]+)`", "<code style='background: #f5f5f5; padding: 2px 6px; border-radius: 3px; font-family: monospace; font-size: 0.9em;'>$1</code>");
+        result = result.replaceAll("`([^`]+)`", "<code style='background: #f5f5f5; padding: 2px 6px; border-radius: 3px; font-family: monospace; font-size: 0.9em;'>$1</code>");
 
         // Lists: - item or * item (basic support)
-        escaped = escaped.replaceAll("(?m)^- (.+)$", "<li style='margin-left: 16px; list-style-type: disc;'>$1</li>");
-        escaped = escaped.replaceAll("(?m)^\\* (.+)$", "<li style='margin-left: 16px; list-style-type: disc;'>$1</li>");
+        result = result.replaceAll("(?m)^- (.+)$", "<li style='margin-left: 16px; list-style-type: disc;'>$1</li>");
+        result = result.replaceAll("(?m)^\\* (.+)$", "<li style='margin-left: 16px; list-style-type: disc;'>$1</li>");
 
         // Line breaks (after all other line-based processing)
-        escaped = escaped.replace("\n", "<br/>");
+        result = result.replace("\n", "<br/>");
 
         // Clean up extra <br/> after block elements
-        escaped = escaped.replaceAll("</h2><br/>", "</h2>");
-        escaped = escaped.replaceAll("</h3><br/>", "</h3>");
-        escaped = escaped.replaceAll("</h4><br/>", "</h4>");
-        escaped = escaped.replaceAll("</li><br/>", "</li>");
+        result = result.replaceAll("</h2><br/>", "</h2>");
+        result = result.replaceAll("</h3><br/>", "</h3>");
+        result = result.replaceAll("</h4><br/>", "</h4>");
+        result = result.replaceAll("</li><br/>", "</li>");
+        result = result.replaceAll("</table><br/>", "</table>");
+        result = result.replaceAll("</tr><br/>", "</tr>");
+        result = result.replaceAll("</th><br/>", "</th>");
+        result = result.replaceAll("</td><br/>", "</td>");
 
-        return escaped;
+        return result;
+    }
+
+    /**
+     * Escape HTML in non-table content while preserving table HTML tags.
+     *
+     * <p>This splits the content by table tags, escapes the non-table parts,
+     * and reassembles them.
+     */
+    private String escapeNonTableContent(String content) {
+        StringBuilder result = new StringBuilder();
+        int pos = 0;
+
+        while (pos < content.length()) {
+            int tableStart = content.indexOf("<table", pos);
+            if (tableStart == -1) {
+                // No more tables - escape the rest
+                result.append(Util.maskHTML(content.substring(pos), true));
+                break;
+            }
+
+            // Escape content before the table
+            if (tableStart > pos) {
+                result.append(Util.maskHTML(content.substring(pos, tableStart), true));
+            }
+
+            // Find the end of the table
+            int tableEnd = content.indexOf("</table>", tableStart);
+            if (tableEnd == -1) {
+                // Incomplete table - keep as is (will be completed in next chunk)
+                result.append(content.substring(tableStart));
+                break;
+            }
+            tableEnd += "</table>".length();
+
+            // Append table as-is (already has escaped cell content)
+            result.append(content.substring(tableStart, tableEnd));
+            pos = tableEnd;
+        }
+
+        return result.toString();
     }
 
     /**

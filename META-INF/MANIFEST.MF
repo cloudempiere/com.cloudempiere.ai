@@ -42,7 +42,9 @@ Export-Package: com.cloudempiere.ai.component,
  com.cloudempiere.ai.rag.ingest,
  com.cloudempiere.ai.routing,
  com.cloudempiere.ai.service,
- dev.langchain4j.model.chat
+ com.cloudempiere.ai.util,
+ dev.langchain4j.model.chat,
+ dev.langchain4j.rag.content.retriever
 Bundle-ClassPath: .,
  lib/anthropic-java-client-okhttp.jar,
  lib/anthropic-java-core.jar,
