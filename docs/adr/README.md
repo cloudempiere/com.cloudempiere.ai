@@ -52,7 +52,7 @@ This directory contains architecture decisions for the Cloudempiere AI plugin.
 | [033](033-streaming-thinking-timeline-ux.md) | Streaming Responses and Thinking Timeline UX | Proposed | 2025-12-03 |
 | [037](037-language-detection-session-management.md) | Language Detection and Session Language Management | Proposed | 2025-12-10 |
 | [038](038-user-friendly-error-handling.md) | User-Friendly Error Handling and Issue Tracking | Accepted | 2025-12-10 |
-| [039](039-chat-panel-record-zoom-drill.md) | Chat Panel Record Zoom and Drill Integration | Proposed | 2025-12-10 |
+| [039](039-chat-panel-record-zoom-drill.md) | Chat Panel Record Zoom and Drill Integration | Implemented v0.22.0 | 2025-12-11 |
 
 ### Use Cases - Phase 1 (MVP)
 

@@ -7,7 +7,7 @@ and this project adheres to [Conventional Commits](https://conventionalcommits.o
 
 ## [Unreleased]
 
-### v0.22.0-SNAPSHOT - Share Dialog & Advanced Sharing
+### v0.23.0-SNAPSHOT - Share Dialog & Advanced Sharing
 
 **Planned:**
 - Share button in AIChatWidget (OWNER only)
@@ -22,6 +22,74 @@ and this project adheres to [Conventional Commits](https://conventionalcommits.o
 - ADR-017: Chart Executive Overview
 - ADR-018: Sales Opportunity Summary
 - ADR-011: Domain Agents
+
+---
+
+## [0.22.0] - 2025-12-11
+
+### Clickable Record Links in Chat with Table Support (ADR-039)
+
+This release implements clickable record references in AI chat responses, enabling users to drill down into records by clicking links. Zoom links work in both plain text and table cells, during streaming and after refresh.
+
+#### Added
+
+- **Zoom Link Infrastructure** (ADR-039 Phase 1)
+  - `ZoomLinkProcessor` - Converts `[[Table:ID|Display]]` syntax to clickable HTML links
+  - `RecordReference` DTO - Structured record metadata (tableName, recordId, displayText, columnName)
+  - `ChatRecordLinkRenderer` - Pattern-based link extraction (deferred to Phase 2)
+  - `RecordReferenceExtractor` - DocumentNo pattern matching (deferred to Phase 2)
+  - Dynamic widget lookup for re-rendered messages (survives chat refresh)
+  - Dual-strategy widget discovery: ID first, then DOM class search
+
+- **Table Cell Zoom Support**
+  - `MarkdownTableRenderer` - ThreadLocal context for zoom link processing
+  - Bracket-aware cell parsing - Preserves `[[...|...]]` syntax without splitting on `|`
+  - Smart HTML escaping - Detects and preserves zoom link HTML while escaping other content
+  - Server-side table rendering before markdown processing
+
+- **Chat Widget Enhancements**
+  - `zoomToRecord(MQuery)` - Direct MQuery-based zoom (same as ChartRendererServiceImpl pattern)
+  - `zoomToRecord(tableName, recordId)` - Convenience method
+  - `handleZoomEvent()` - Supports MQuery, JSON, and legacy formats
+  - `renderMarkdownPreservingHTML()` - Processes markdown without corrupting HTML
+
+#### Changed
+
+- **AIChatWidget** (`component/AIChatWidget.java`)
+  - Updated `formatMessage()` to pre-render tables with zoom links before markdown
+  - Added `renderMarkdownPreservingHTML()` to avoid `_` → `<em>` corruption in `C_Order_ID`
+  - Enhanced `handleZoomEvent()` with MQuery support (same pattern as chart zoom)
+
+- **AIChatStreamingMessage** (`component/AIChatStreamingMessage.java`)
+  - Pre-render tables in `renderFinalMarkdown()` before passing to marked.js
+  - Added `processMarkdownPreservingHTML()` to split HTML/markdown content
+  - Removed marked.js table parsing extension (tables are HTML now, not markdown)
+  - Process zoom links in table cells during streaming
+
+- **MarkdownTableRenderer** (`util/MarkdownTableRenderer.java`)
+  - Added `setContext()`, `setWidgetId()`, `clearZoomContext()` for zoom processing
+  - Process `ZoomLinkProcessor` on each cell before HTML escaping
+  - Added `containsZoomLink()` detection to skip escaping for zoom link HTML
+  - Fixed `parseCells()` to handle `[[...|...]]` without splitting on internal `|`
+
+- **ZoomLinkProcessor** (`util/ZoomLinkProcessor.java`)
+  - Dynamic widget lookup: tries hardcoded ID first, then searches by `ai-chat-widget` class
+  - Supports iframe/parent window contexts
+  - Comprehensive logging for debugging widget discovery
+
+- **ERPAgent** (`provider/langchain4j/ERPAgent.java`)
+  - Updated system prompt to instruct LLM to format record references as `[[Table:ID|Display]]`
+
+#### Technical Notes
+
+- **Zoom Link Lifecycle**: Works during streaming, after completion, and after chat refresh
+- **Current Implementation**: LLM-instructed format `[[C_Order:5678|SO-5678]]` (Phase 1)
+- **Future Phase 2**: Pattern-based extraction `SO-1234` → zoom link (requires vector DB for fast table lookup)
+- **Widget Discovery**: Uses dual strategy to handle widget UUID changes after re-render
+
+#### ADR Status
+
+- ✅ **ADR-039**: Chat Panel Record Zoom & Drill-Down - Phase 1 Complete
 
 ---
 
