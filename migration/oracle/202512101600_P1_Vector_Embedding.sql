@@ -1,9 +1,12 @@
--- Migration: P1 Context Layer - Vector Embedding Storage
+-- CLD-1601: P1 Context Layer - Vector Embedding Storage
 -- Description: Add vector support for RAG-based AI context retrieval
 -- Author: Claude Code
 -- Date: 2025-12-10
--- Ticket: ADR-026, ADR-012 (P1 Context Layer)
+-- Ticket: https://cloudempiereai.atlassian.net/browse/CLD-1601
+-- Reference: ADR-026, ADR-012 (P1 Context Layer)
 -- Note: Oracle 23ai has native VECTOR type, older versions need workaround
+
+SELECT register_migration_script('202512101600_P1_Vector_Embedding.sql') FROM dual;
 
 -- ============================================================================
 -- IMPORTANT: This migration requires Oracle 23ai for native VECTOR type

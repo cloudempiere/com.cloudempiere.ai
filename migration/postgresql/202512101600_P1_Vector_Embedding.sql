@@ -1,9 +1,12 @@
--- Migration: P1 Context Layer - Vector Embedding Storage
+-- CLD-1601: P1 Context Layer - Vector Embedding Storage
 -- Description: Add pgvector support for RAG-based AI context retrieval
 -- Author: Claude Code
 -- Date: 2025-12-10
--- Ticket: ADR-026, ADR-012 (P1 Context Layer)
+-- Ticket: https://cloudempiereai.atlassian.net/browse/CLD-1601
+-- Reference: ADR-026, ADR-012 (P1 Context Layer)
 -- Depends on: pgvector extension must be installed
+
+SELECT register_migration_script('202512101600_P1_Vector_Embedding.sql') FROM dual;
 
 -- ============================================================================
 -- IMPORTANT: pgvector extension must be installed on the PostgreSQL server
