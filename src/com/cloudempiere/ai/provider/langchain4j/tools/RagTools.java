@@ -155,7 +155,7 @@ public class RagTools {
      * Look up glossary term or naming convention.
      *
      * <p>Use this tool to understand business terminology, naming conventions,
-     * or CloudEmpiere-specific concepts.
+     * or Cloudempiere-specific concepts.
      *
      * @param term Term or concept to look up
      * @return Definition, usage examples, and related terms

@@ -218,7 +218,7 @@ public class IdempiereSecurityService {
 
 **Solution Options:**
 1. **Drop extensions** - Pure OpenAI compatible, context in headers only
-2. **Custom protocol** - Use CloudEmpiere AI Protocol v1 (already designed)
+2. **Custom protocol** - Use Cloudempiere AI Protocol v1 (already designed)
 3. **Hybrid** - Internal custom protocol, external OpenAI adapter
 
 **Recommendation:** Option 3 (Hybrid)
@@ -402,7 +402,7 @@ test/java/org/idempiere/cli/satellite/
 
 ## 📋 Comparison Matrix
 
-| Feature | satelite-noro | CloudEmpiere Protocol v1 | OpenAI API |
+| Feature | satelite-noro | Cloudempiere Protocol v1 | OpenAI API |
 |---------|---------------|--------------------------|------------|
 | **Multi-tenancy** | ⚠️ Headers only | ✅ First-class | ❌ None |
 | **RBAC Enforcement** | ❌ Missing | ✅ Specified | ❌ None |
@@ -418,7 +418,7 @@ test/java/org/idempiere/cli/satellite/
 
 **Verdict:**
 - **satelite-noro** has better **implementation** of security features
-- **CloudEmpiere Protocol v1** has better **architectural design** for iDempiere integration
+- **Cloudempiere Protocol v1** has better **architectural design** for iDempiere integration
 - **Hybrid approach** combines best of both
 
 ---
@@ -476,8 +476,8 @@ public class JwtValidator {
 - Move all context to JWT + headers
 - Pure OpenAI compatibility
 
-**Option B: Migrate to CloudEmpiere Protocol (Better)**
-- Implement CloudEmpiere AI Protocol v1
+**Option B: Migrate to Cloudempiere Protocol (Better)**
+- Implement Cloudempiere AI Protocol v1
 - Add adapter layer for OpenAI clients
 - Full iDempiere integration
 
@@ -525,11 +525,11 @@ public class JwtValidator {
 
 ### 3. Protocol Choice
 
-**Q:** OpenAI-compatible or custom CloudEmpiere protocol?
+**Q:** OpenAI-compatible or custom Cloudempiere protocol?
 
 **Options:**
 - **A)** Pure OpenAI (drop all extensions)
-- **B)** Custom CloudEmpiere protocol
+- **B)** Custom Cloudempiere protocol
 - **C)** Hybrid (both supported)
 
 **Recommendation:** B (Custom) - better fit for iDempiere
@@ -585,7 +585,7 @@ public class JwtValidator {
 
 ### Immediate (This Week)
 
-1. **Decision Meeting:** Protocol choice (OpenAI vs CloudEmpiere)
+1. **Decision Meeting:** Protocol choice (OpenAI vs Cloudempiere)
 2. **Design:** Database access architecture
 3. **Spike:** iDempiere JDBC connection from Quarkus
 
@@ -598,7 +598,7 @@ public class JwtValidator {
 
 ### Week 3-4: Protocol Implementation
 
-1. Implement chosen protocol (CloudEmpiere recommended)
+1. Implement chosen protocol (Cloudempiere recommended)
 2. Update request/response DTOs
 3. Add protocol versioning
 4. Migration guide
@@ -628,7 +628,7 @@ public class JwtValidator {
 
 **Recommendation:**
 1. **Fix critical gaps** (2-3 weeks)
-2. **Migrate to CloudEmpiere AI Protocol v1** (better iDempiere fit)
+2. **Migrate to Cloudempiere AI Protocol v1** (better iDempiere fit)
 3. **Keep excellent security features** from satelite-noro
 4. **Hybrid architecture** = Best of both worlds
 

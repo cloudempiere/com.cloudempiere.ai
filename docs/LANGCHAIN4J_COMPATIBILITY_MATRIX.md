@@ -13,7 +13,7 @@
 - **Satellite Service:** Java 17+ → **LangChain4j 0.36+ or 1.x** (requires Java 17)
 - **Risk:** Version mismatch could cause protocol incompatibilities and feature gaps
 
-**Mitigation:** Use CloudEmpiere Protocol v1 as abstraction layer + LangChain4j native clients in Satellite only.
+**Mitigation:** Use Cloudempiere Protocol v1 as abstraction layer + LangChain4j native clients in Satellite only.
 
 ---
 
@@ -180,7 +180,7 @@ public String search(@P("query") String query) { ... }
 │  ┌──────────────────────────────────────────────────────────────────┐    │
 │  │ 3. SatelliteClient.java (Pure HTTP - NO LangChain4j!)             │    │
 │  │                                                                    │    │
-│  │    CloudEmpiereRequest request = CloudEmpiereRequest.builder()    │    │
+│  │    CloudempiereRequest request = CloudempiereRequest.builder()    │    │
 │  │        .security(SecurityContext.fromCtx(ctx))                    │    │
 │  │        .provider("anthropic", "claude-sonnet-4")                  │    │
 │  │        .conversation(messages)                                    │    │
@@ -235,7 +235,7 @@ public String search(@P("query") String query) { ... }
 │  │                                                                    │    │
 │  │    @POST                                                          │    │
 │  │    @Path("/v1/chat")                                              │    │
-│  │    public Response chat(CloudEmpiereRequest request) {            │    │
+│  │    public Response chat(CloudempiereRequest request) {            │    │
 │  │        // Parse plain JSON - no LangChain4j types                 │    │
 │  └──────────────────────────────────────────────────────────────────┘    │
 │                                    │                                       │
@@ -271,7 +271,7 @@ public String search(@P("query") String query) { ... }
 │                                    │                                       │
 │                                    ↓                                       │
 │  ┌──────────────────────────────────────────────────────────────────┐    │
-│  │ 8. Convert CloudEmpiere messages to LangChain4j 1.x format        │    │
+│  │ 8. Convert Cloudempiere messages to LangChain4j 1.x format        │    │
 │  │                                                                    │    │
 │  │    List<ChatMessage> langChainMessages = request                  │    │
 │  │        .conversation()                                            │    │
@@ -291,10 +291,10 @@ public String search(@P("query") String query) { ... }
 │                                    │                                       │
 │                                    ↓                                       │
 │  ┌──────────────────────────────────────────────────────────────────┐    │
-│  │ 10. Convert LangChain4j 1.x response back to CloudEmpiere format  │    │
+│  │ 10. Convert LangChain4j 1.x response back to Cloudempiere format  │    │
 │  │                                                                    │    │
-│  │     CloudEmpiereResponse response =                               │    │
-│  │         CloudEmpiereResponse.builder()                            │    │
+│  │     CloudempiereResponse response =                               │    │
+│  │         CloudempiereResponse.builder()                            │    │
 │  │             .result(llmResponse.content().text())                 │    │
 │  │             .usage(TokenUsage.from(llmResponse.tokenUsage()))     │    │
 │  │             .provider(provider)                                   │    │
@@ -337,9 +337,9 @@ public String search(@P("query") String query) { ... }
 │  │ 12. Receive HTTP response                                         │    │
 │  │     SatelliteClient.java                                          │    │
 │  │                                                                    │    │
-│  │     CloudEmpiereResponse response =                               │    │
+│  │     CloudempiereResponse response =                               │    │
 │  │         gson.fromJson(httpResponse.body(),                        │    │
-│  │                       CloudEmpiereResponse.class);                │    │
+│  │                       CloudempiereResponse.class);                │    │
 │  └──────────────────────────────────────────────────────────────────┘    │
 │                                    │                                       │
 │                                    ↓                                       │
@@ -361,7 +361,7 @@ KEY POINTS:
    - gson.toJson() / gson.fromJson()
    - No LangChain4j classes cross the network!
 
-3. ✅ Satellite receives plain JSON (CloudEmpiere Protocol v1)
+3. ✅ Satellite receives plain JSON (Cloudempiere Protocol v1)
    - No knowledge of iDempiere's LangChain4j version
 
 4. ✅ Satellite uses LangChain4j 1.x INTERNALLY ONLY
@@ -397,7 +397,7 @@ iDempiere (0.35.0)                        Satellite (1.x)
 
 iDempiere (0.35.0)                        Satellite (1.x)
      │                                         │
-     │  CloudEmpiereRequest req = ...          │
+     │  CloudempiereRequest req = ...          │
      │  String json = gson.toJson(req)         │
      │  // Plain JSON, no LangChain4j          │
      │                                         │
@@ -405,7 +405,7 @@ iDempiere (0.35.0)                        Satellite (1.x)
      │     {"role": "user",                    │
      │      "content": "Hello"}                │
      │                                         │
-     │                              CloudEmpiereRequest req = gson.fromJson()
+     │                              CloudempiereRequest req = gson.fromJson()
      │                              UserMessage msg = UserMessage.from(req.content)
      │                              ✅ WORKS! No version coupling!
 ```
@@ -413,7 +413,7 @@ iDempiere (0.35.0)                        Satellite (1.x)
 ### Why This Architecture Works
 
 **✅ Protocol Abstraction:**
-- iDempiere sends CloudEmpiere Protocol v1 (custom JSON)
+- iDempiere sends Cloudempiere Protocol v1 (custom JSON)
 - Satellite translates to LangChain4j calls
 - **No direct version dependency between iDempiere and Satellite**
 
@@ -426,7 +426,7 @@ iDempiere (0.35.0)                        Satellite (1.x)
 ```java
 // iDempiere Plugin - NO LangChain4j calls to Satellite
 public class SatelliteClient {
-    public CloudEmpiereResponse chat(CloudEmpiereRequest request) {
+    public CloudempiereResponse chat(CloudempiereRequest request) {
         // Pure HTTP client - no LangChain4j
         String json = toJson(request);
 
@@ -436,7 +436,7 @@ public class SatelliteClient {
             headers
         );
 
-        return fromJson(response.body(), CloudEmpiereResponse.class);
+        return fromJson(response.body(), CloudempiereResponse.class);
     }
 }
 ```
@@ -446,7 +446,7 @@ public class SatelliteClient {
 // Satellite Service - Uses LangChain4j 1.x
 @POST
 @Path("/v1/chat")
-public Response chat(CloudEmpiereRequest request) {
+public Response chat(CloudempiereRequest request) {
     // 1. Extract provider from request
     String provider = request.provider().type();
     String model = request.provider().model();
@@ -464,14 +464,14 @@ public Response chat(CloudEmpiereRequest request) {
         default -> throw new IllegalArgumentException("Unknown provider");
     };
 
-    // 3. Convert CloudEmpiere messages to LangChain4j messages
+    // 3. Convert Cloudempiere messages to LangChain4j messages
     List<ChatMessage> messages = convertMessages(request.conversation().messages());
 
     // 4. Call LLM
     Response<AiMessage> llmResponse = langChainModel.generate(messages);
 
-    // 5. Convert back to CloudEmpiere format
-    return Response.ok(toCloudEmpiereResponse(llmResponse, request)).build();
+    // 5. Convert back to Cloudempiere format
+    return Response.ok(toCloudempiereResponse(llmResponse, request)).build();
 }
 ```
 
@@ -512,12 +512,12 @@ UserMessage msg = UserMessage.from("Hello");  // Record instance
 
 ---
 
-### Scenario 3: Version Mismatch with CloudEmpiere Protocol v1 (WORKS ✅)
+### Scenario 3: Version Mismatch with Cloudempiere Protocol v1 (WORKS ✅)
 
 | Component | Version | Protocol | Status |
 |-----------|---------|----------|--------|
-| iDempiere | LangChain4j 0.35.0 | CloudEmpiere v1 | ✅ |
-| Satellite | LangChain4j 1.x | CloudEmpiere v1 | ✅ |
+| iDempiere | LangChain4j 0.35.0 | Cloudempiere v1 | ✅ |
+| Satellite | LangChain4j 1.x | Cloudempiere v1 | ✅ |
 | **Compatibility** | **Version-agnostic** | **✅ WORKS** | No coupling |
 
 **Why It Works:**
@@ -533,10 +533,10 @@ UserMessage msg = UserMessage.from("Hello");  // Record instance
 }
 
 // Satellite receives and converts:
-// 1. Parse CloudEmpiere JSON (no LangChain4j types)
+// 1. Parse Cloudempiere JSON (no LangChain4j types)
 // 2. Create LangChain4j 1.x objects internally
 // 3. Call LLM
-// 4. Convert response back to CloudEmpiere JSON
+// 4. Convert response back to Cloudempiere JSON
 
 // iDempiere receives (version-agnostic JSON):
 {
@@ -578,8 +578,8 @@ ChatLanguageModel model = AnthropicChatModel.builder()
 
 Response<AiMessage> response = model.generate(messages);
 
-// Convert to CloudEmpiere format with thinking data
-CloudEmpiereResponse ceResponse = CloudEmpiereResponse.builder()
+// Convert to Cloudempiere format with thinking data
+CloudempiereResponse ceResponse = CloudempiereResponse.builder()
     .result(response.content().text())
     .metadata(Map.of(
         "thinking_process", response.metadata().get("thinking"),
@@ -599,11 +599,11 @@ CloudEmpiereResponse ceResponse = CloudEmpiereResponse.builder()
 
 | Risk | Probability | Impact | Mitigation |
 |------|-------------|--------|------------|
-| Binary incompatibility | High | High | ✅ Use CloudEmpiere Protocol v1 |
+| Binary incompatibility | High | High | ✅ Use Cloudempiere Protocol v1 |
 | Serialization errors | High | High | ✅ Use version-agnostic JSON |
 | Breaking API changes | High | Medium | ✅ Protocol abstraction |
 
-### Low Risk (With CloudEmpiere Protocol) ✅
+### Low Risk (With Cloudempiere Protocol) ✅
 
 | Risk | Probability | Impact | Mitigation |
 |------|-------------|--------|------------|
@@ -617,13 +617,13 @@ CloudEmpiereResponse ceResponse = CloudEmpiereResponse.builder()
 
 ### Phase 1: Current (2025-Q1) ✅
 
-**Status:** MVP with CloudEmpiere Protocol v1
+**Status:** MVP with Cloudempiere Protocol v1
 
 | Component | Version | Java | Status |
 |-----------|---------|------|--------|
 | iDempiere Plugin | LangChain4j 0.35.0 | 11 | ✅ Production |
 | Satellite Service | LangChain4j 0.36+ | 17 | ✅ Production |
-| Protocol | CloudEmpiere v1 | N/A | ✅ Stable |
+| Protocol | Cloudempiere v1 | N/A | ✅ Stable |
 
 **Decision:** Accept version mismatch, rely on protocol abstraction.
 
@@ -637,7 +637,7 @@ CloudEmpiereResponse ceResponse = CloudEmpiereResponse.builder()
 |-----------|---------|------|--------|
 | iDempiere Plugin | LangChain4j 1.x | 17 | 🔄 Future |
 | Satellite Service | LangChain4j 1.x | 17 | ✅ Production |
-| Protocol | CloudEmpiere v1 | N/A | ✅ Stable |
+| Protocol | Cloudempiere v1 | N/A | ✅ Stable |
 
 **Benefits:**
 - Both systems on LangChain4j 1.x
@@ -656,7 +656,7 @@ CloudEmpiereResponse ceResponse = CloudEmpiereResponse.builder()
 
 ### ✅ DO (Recommended Approach)
 
-1. **Use CloudEmpiere Protocol v1 as abstraction layer**
+1. **Use Cloudempiere Protocol v1 as abstraction layer**
    - iDempiere → Satellite communication uses custom JSON
    - No LangChain4j types cross network boundary
    - Version-agnostic
@@ -695,7 +695,7 @@ CloudEmpiereResponse ceResponse = CloudEmpiereResponse.builder()
 1. **Don't expose LangChain4j types in protocol**
    ```java
    // ❌ BAD - Version coupling
-   public CloudEmpiereResponse chat(dev.langchain4j.data.message.ChatMessage message) {
+   public CloudempiereResponse chat(dev.langchain4j.data.message.ChatMessage message) {
        // Now coupled to LangChain4j version!
    }
    ```
@@ -710,7 +710,7 @@ CloudEmpiereResponse ceResponse = CloudEmpiereResponse.builder()
    iDempiere → (LangChain4j types over HTTP) → Satellite
 
    // ✅ GOOD - Protocol abstraction
-   iDempiere → (CloudEmpiere JSON) → Satellite → (LangChain4j) → LLM
+   iDempiere → (Cloudempiere JSON) → Satellite → (LangChain4j) → LLM
    ```
 
 ---
@@ -723,7 +723,7 @@ CloudEmpiereResponse ceResponse = CloudEmpiereResponse.builder()
 @Test
 public void testProtocolVersionIndependence() {
     // iDempiere (0.35.0) creates request
-    CloudEmpiereRequest request = CloudEmpiereRequest.builder()
+    CloudempiereRequest request = CloudempiereRequest.builder()
         .security(SecurityContext.fromCtx(ctx))
         .provider("anthropic", "claude-sonnet-4")
         .userMessage("Hello")
@@ -733,7 +733,7 @@ public void testProtocolVersionIndependence() {
     String json = toJson(request);
 
     // Satellite (1.x) receives and parses
-    CloudEmpiereRequest parsed = fromJson(json, CloudEmpiereRequest.class);
+    CloudempiereRequest parsed = fromJson(json, CloudempiereRequest.class);
 
     // Should work regardless of LangChain4j versions
     assertEquals("anthropic", parsed.provider().type());
@@ -769,12 +769,12 @@ public void testFeatureNegotiation() {
 | **Feature Availability** | Satellite can use 1.x features | ✅ Good |
 | **iDempiere Limitations** | Stuck on 0.35.0 until Release-11 | ⚠️ Acceptable |
 | **Migration Path** | Clear upgrade to 1.x when Java 17 available | ✅ Planned |
-| **Protocol Stability** | CloudEmpiere v1 is version-agnostic | ✅ Stable |
+| **Protocol Stability** | Cloudempiere v1 is version-agnostic | ✅ Stable |
 
 ### Key Insights
 
 1. **Version mismatch is NOT a problem** because:
-   - CloudEmpiere Protocol v1 abstracts LangChain4j types
+   - Cloudempiere Protocol v1 abstracts LangChain4j types
    - No binary compatibility issues
    - Features exposed via protocol extensions
 
@@ -795,7 +795,7 @@ public void testFeatureNegotiation() {
 
 ### Final Verdict
 
-✅ **CloudEmpiere Protocol v1 + LangChain4j native clients = Version mismatch is NOT a weak point**
+✅ **Cloudempiere Protocol v1 + LangChain4j native clients = Version mismatch is NOT a weak point**
 
 The hybrid protocol architecture successfully decouples iDempiere (Java 11, LangChain4j 0.35.0) from Satellite (Java 17, LangChain4j 1.x), allowing independent evolution while maintaining compatibility.
 
@@ -806,7 +806,7 @@ The hybrid protocol architecture successfully decouples iDempiere (Java 11, Lang
 - [LangChain4j GitHub](https://github.com/langchain4j/langchain4j)
 - [LangChain4j 0.35.0 Release Notes](https://github.com/langchain4j/langchain4j/releases/tag/0.35.0)
 - [LangChain4j 1.0.0 Migration Guide](https://docs.langchain4j.dev/tutorials/migration-guide)
-- [CloudEmpiere AI Protocol v1](./CLOUDEMPIERE_AI_PROTOCOL_V1.md)
+- [Cloudempiere AI Protocol v1](./CLOUDEMPIERE_AI_PROTOCOL_V1.md)
 - [Protocol Decision Document](./PROTOCOL_DECISION.md)
 
 ---

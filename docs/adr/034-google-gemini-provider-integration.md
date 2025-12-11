@@ -10,11 +10,11 @@ Proposed
 
 ## Deciders
 
-CloudEmpiere AI Team
+Cloudempiere AI Team
 
 ## Context and Problem Statement
 
-The CloudEmpiere AI plugin currently supports Anthropic Claude, AWS Bedrock, OpenAI, and Ollama providers through LangChain4j (ADR-002). Google Gemini offers competitive pricing, multimodal capabilities, and unique features like native code execution that could benefit iDempiere users. How should we integrate Google Gemini as an additional AI provider while maintaining architectural consistency?
+The Cloudempiere AI plugin currently supports Anthropic Claude, AWS Bedrock, OpenAI, and Ollama providers through LangChain4j (ADR-002). Google Gemini offers competitive pricing, multimodal capabilities, and unique features like native code execution that could benefit iDempiere users. How should we integrate Google Gemini as an additional AI provider while maintaining architectural consistency?
 
 ## Decision Drivers
 

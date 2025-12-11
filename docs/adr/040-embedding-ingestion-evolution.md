@@ -8,7 +8,7 @@ Accepted
 
 ## Context
 
-This ADR documents the evolution strategy for embedding ingestion in the CloudEmpiere AI plugin. Based on analysis of:
+This ADR documents the evolution strategy for embedding ingestion in the Cloudempiere AI plugin. Based on analysis of:
 - **idempiere-cli** - RAG architecture with timestamp-based change detection, DELETE+INSERT pattern
 - **com.cloudempiere.cache** - PostgreSQL LISTEN/NOTIFY, partitioned queues, event-driven invalidation
 

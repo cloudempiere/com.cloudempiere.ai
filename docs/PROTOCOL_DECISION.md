@@ -8,7 +8,7 @@
 
 ## TL;DR
 
-- **iDempiere → Satellite:** CloudEmpiere AI Protocol v1 (custom)
+- **iDempiere → Satellite:** Cloudempiere AI Protocol v1 (custom)
 - **Satellite → LLMs:** OpenAI-Compatible API (industry standard)
 - **Rationale:** Use standards where they fit, extend where iDempiere needs more
 
@@ -86,7 +86,7 @@
 
 ### **Layer 1: iDempiere → Satellite**
 
-**Protocol:** CloudEmpiere AI Protocol v1 (custom)
+**Protocol:** Cloudempiere AI Protocol v1 (custom)
 
 **Endpoint:** `POST /ai/v1/chat`
 
@@ -153,7 +153,7 @@
 **Implementation:**
 ```java
 // In Satellite Service
-public AIResponse chat(CloudEmpiereRequest request) {
+public AIResponse chat(CloudempiereRequest request) {
     // 1. Validate security context
     validateContext(request.security());
 
@@ -181,8 +181,8 @@ public AIResponse chat(CloudEmpiereRequest request) {
     // 5. Execute with OpenAI-compatible client
     Response response = model.generate(openaiReq.messages());
 
-    // 6. Convert back to CloudEmpiere format
-    return toCloudEmpiereFormat(response, request);
+    // 6. Convert back to Cloudempiere format
+    return toCloudempiereFormat(response, request);
 }
 ```
 
@@ -199,7 +199,7 @@ public AIResponse chat(CloudEmpiereRequest request) {
 
 ```
 ┌──────────────────────────────────────┐
-│   CloudEmpiere Protocol v1           │
+│   Cloudempiere Protocol v1           │
 │                                      │
 │   {                                  │
 │     "security": {...},               │
@@ -248,7 +248,7 @@ public AIResponse chat(CloudEmpiereRequest request) {
 
 | Layer | Protocol | Benefit |
 |-------|----------|---------|
-| iDempiere → Satellite | Custom (CloudEmpiere) | Full iDempiere features |
+| iDempiere → Satellite | Custom (Cloudempiere) | Full iDempiere features |
 | Satellite → LLMs | Standard (OpenAI) | Ecosystem & LangChain4j |
 
 ### 2. Clean Separation
@@ -267,13 +267,13 @@ public AIResponse chat(CloudEmpiereRequest request) {
 **iDempiere Plugin Developer:**
 ```java
 // Works with iDempiere concepts
-CloudEmpiereRequest request = CloudEmpiereRequest.builder()
+CloudempiereRequest request = CloudempiereRequest.builder()
     .security(SecurityContext.fromEnv(ctx))  // Env.getCtx()
     .provider("anthropic", "claude-sonnet-4")
     .userMessage("Show me open orders")
     .build();
 
-CloudEmpiereResponse response = satelliteClient.chat(request);
+CloudempiereResponse response = satelliteClient.chat(request);
 ```
 
 **Satellite Developer:**
@@ -289,7 +289,7 @@ var model = OpenAiChatModel.builder()
 
 ## Implementation Phases
 
-### Phase 1: Define CloudEmpiere Protocol v1 (Done ✅)
+### Phase 1: Define Cloudempiere Protocol v1 (Done ✅)
 
 - [x] Request/response format
 - [x] Security model
@@ -305,22 +305,22 @@ var model = OpenAiChatModel.builder()
 ### Phase 2: Implement Satellite Service (2 weeks)
 
 **Week 1: Core Protocol Handler**
-1. ✅ Accept CloudEmpiere Protocol v1 requests
+1. ✅ Accept Cloudempiere Protocol v1 requests
 2. ✅ Validate security context against iDempiere DB
 3. ✅ Enforce RBAC via AD_Role lookups
 4. ✅ Implement protocol adapter
 
 **Week 2: Provider Integration**
-1. ✅ Convert CloudEmpiere → OpenAI format
+1. ✅ Convert Cloudempiere → OpenAI format
 2. ✅ Use LangChain4j OpenAiChatModel
-3. ✅ Convert OpenAI → CloudEmpiere format
+3. ✅ Convert OpenAI → Cloudempiere format
 4. ✅ Add observability (audit, cost, metrics)
 
 ---
 
 ### Phase 3: Update iDempiere Plugin (1 week)
 
-1. ✅ Create CloudEmpiereClient (HTTP client for v1 protocol)
+1. ✅ Create CloudempiereClient (HTTP client for v1 protocol)
 2. ✅ Replace OpenAI-compatible requests with v1 protocol
 3. ✅ Update AIService to use new client
 4. ✅ Add security context from Env.getCtx()
@@ -372,7 +372,7 @@ var model = OpenAiChatModel.builder()
 
 **Example:**
 ```json
-// CloudEmpiere Protocol v1 (iDempiere → Satellite)
+// Cloudempiere Protocol v1 (iDempiere → Satellite)
 {
   "version": "1.0",
   "security": {
@@ -448,12 +448,12 @@ var model = OpenAiChatModel.builder()
 ```java
 @Path("/ai/v1")
 @Produces(MediaType.APPLICATION_JSON)
-public class CloudEmpiereAIResource {
+public class CloudempiereAIResource {
 
     @POST
     @Path("/chat")
-    public Response chat(CloudEmpiereRequest request) {
-        // 1. Validate CloudEmpiere protocol
+    public Response chat(CloudempiereRequest request) {
+        // 1. Validate Cloudempiere protocol
         validate(request);
 
         // 2. Security & RBAC
@@ -471,8 +471,8 @@ public class CloudEmpiereAIResource {
         var model = createLangChain4jModel(provider);
         var response = model.generate(openaiReq.messages());
 
-        // 6. Convert back to CloudEmpiere format
-        CloudEmpiereResponse ceResponse = adaptFromOpenAI(response, request);
+        // 6. Convert back to Cloudempiere format
+        CloudempiereResponse ceResponse = adaptFromOpenAI(response, request);
 
         // 7. Audit
         audit(request, ceResponse);
@@ -488,19 +488,19 @@ public class CloudEmpiereAIResource {
 // In your iDempiere process/form/window
 Properties ctx = Env.getCtx();
 
-CloudEmpiereClient client = CloudEmpiereClient.builder()
+CloudempiereClient client = CloudempiereClient.builder()
     .baseUrl("http://satellite:8090")
     .sessionToken(getSessionToken(ctx))
     .build();
 
-CloudEmpiereRequest request = CloudEmpiereRequest.builder()
+CloudempiereRequest request = CloudempiereRequest.builder()
     .security(SecurityContext.fromCtx(ctx))  // Auto-extracts AD_Client_ID, etc.
     .provider("anthropic", "claude-sonnet-4")
     .userMessage("Show me open sales orders")
     .withDatabaseAccess()
     .build();
 
-CloudEmpiereResponse response = client.chat(request);
+CloudempiereResponse response = client.chat(request);
 ```
 
 ---
@@ -509,7 +509,7 @@ CloudEmpiereResponse response = client.chat(request);
 
 **Decision: Use Hybrid Protocol Architecture**
 
-- **iDempiere → Satellite:** CloudEmpiere AI Protocol v1
+- **iDempiere → Satellite:** Cloudempiere AI Protocol v1
 - **Satellite → LLMs:** OpenAI-Compatible API
 
 **Rationale:**

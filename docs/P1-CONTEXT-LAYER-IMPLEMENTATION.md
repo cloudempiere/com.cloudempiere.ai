@@ -299,7 +299,7 @@ public class KnowledgeEntryIngestor implements IKnowledgeIngestor {
 }
 ```
 
-#### 1.2.4 Glossary Ingestor (CloudEmpiere-specific)
+#### 1.2.4 Glossary Ingestor (Cloudempiere-specific)
 
 ```java
 /**

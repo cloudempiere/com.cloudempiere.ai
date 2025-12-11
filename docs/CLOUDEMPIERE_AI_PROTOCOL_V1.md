@@ -1,14 +1,14 @@
-# CloudEmpiere AI Protocol Specification v1.0
+# Cloudempiere AI Protocol Specification v1.0
 
 **Status:** DRAFT
 **Date:** 2025-12-11
-**Authors:** CloudEmpiere AI Team
+**Authors:** Cloudempiere AI Team
 
 ---
 
 ## Overview
 
-The **CloudEmpiere AI Protocol** is a RESTful API specification designed for AI-powered ERP systems. Unlike generic LLM APIs (OpenAI, Anthropic), this protocol is purpose-built for:
+The **Cloudempiere AI Protocol** is a RESTful API specification designed for AI-powered ERP systems. Unlike generic LLM APIs (OpenAI, Anthropic), this protocol is purpose-built for:
 
 1. **Multi-tenant ERP environments** with role-based access control
 2. **Dynamic provider routing** across multiple LLM providers
@@ -546,9 +546,9 @@ The Quarkus service should:
 
 ---
 
-## Comparison: CloudEmpiere vs OpenAI API
+## Comparison: Cloudempiere vs OpenAI API
 
-| Feature | CloudEmpiere AI | OpenAI API |
+| Feature | Cloudempiere AI | OpenAI API |
 |---------|-----------------|------------|
 | **Multi-tenancy** | First-class (client_id, org_id) | Not supported |
 | **Role-based access** | Built-in | Not supported |
@@ -568,9 +568,9 @@ For services currently using OpenAI format:
 ### Adapter Layer
 
 ```java
-public class OpenAIToCloudEmpiereAdapter {
-    public CloudEmpiereRequest adapt(OpenAIRequest openAI, Ctx ctx) {
-        return CloudEmpiereRequest.builder()
+public class OpenAIToCloudempiereAdapter {
+    public CloudempiereRequest adapt(OpenAIRequest openAI, Ctx ctx) {
+        return CloudempiereRequest.builder()
             .security(extractSecurity(ctx))
             .provider(mapProvider(openAI.getModel()))
             .conversation(mapMessages(openAI.getMessages()))
@@ -582,8 +582,8 @@ public class OpenAIToCloudEmpiereAdapter {
 
 ### Gradual Migration
 
-1. Phase 1: Satellite accepts both protocols (CloudEmpiere + OpenAI)
-2. Phase 2: iDempiere plugin migrates to CloudEmpiere protocol
+1. Phase 1: Satellite accepts both protocols (Cloudempiere + OpenAI)
+2. Phase 2: iDempiere plugin migrates to Cloudempiere protocol
 3. Phase 3: OpenAI compatibility deprecated after 12 months
 4. Phase 4: Remove OpenAI compatibility
 
@@ -598,4 +598,4 @@ public class OpenAIToCloudEmpiereAdapter {
 
 ---
 
-*CloudEmpiere AI Protocol v1.0 | 2025-12-11*
+*Cloudempiere AI Protocol v1.0 | 2025-12-11*
