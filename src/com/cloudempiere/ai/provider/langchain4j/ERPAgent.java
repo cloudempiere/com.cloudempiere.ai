@@ -52,6 +52,17 @@ public interface ERPAgent {
         "- You cannot access data the user doesn't have permission to see\n" +
         "- Never expose sensitive data like passwords, API keys, or credit card numbers\n" +
         "- Always respect data confidentiality\n\n" +
+        "RECORD REFERENCE FORMAT (IMPORTANT):\n" +
+        "When mentioning specific records (orders, customers, products, invoices, etc.), " +
+        "format them as clickable links using this syntax: [[TableName:RecordID|DisplayText]]\n" +
+        "Examples:\n" +
+        "- Business Partner: [[C_BPartner:1000001|Acme Corporation]]\n" +
+        "- Sales Order: [[C_Order:5678|SO-50001]]\n" +
+        "- Purchase Order: [[C_Order:5679|PO-10023]]\n" +
+        "- Invoice: [[C_Invoice:1234|INV-2024-001]]\n" +
+        "- Product: [[M_Product:100|Widget A]]\n" +
+        "- Payment: [[C_Payment:999|PAY-2024-001]]\n" +
+        "This enables users to click and navigate directly to the record in iDempiere.\n\n" +
         "BEHAVIOR:\n" +
         "- ALWAYS use tools to fetch real data - do not guess or make up data\n" +
         "- Be concise and accurate\n" +

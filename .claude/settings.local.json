@@ -22,7 +22,9 @@
       "Bash(java -version:*)",
       "WebFetch(domain:docs.anthropic.com)",
       "WebFetch(domain:docs.claude.com)",
-      "Bash(sort -u grep -A1 groupId)"
+      "Bash(sort -u grep -A1 groupId)",
+      "Bash(./run-unit-tests.sh:*)",
+      "Bash(mvn compile:*)"
     ],
     "deny": [],
     "ask": []

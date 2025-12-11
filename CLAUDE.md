@@ -1,2 +1,3 @@
 - allways put tests into org.idempiere.test plugin
 - use bash script for start testing @run-unit-tests.sh
+- do not run mvn compile automatically to check for compilation errors, the developer will do that by refreshing the eclipse project
