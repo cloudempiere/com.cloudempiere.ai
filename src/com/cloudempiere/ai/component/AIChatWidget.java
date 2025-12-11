@@ -64,6 +64,7 @@ import com.cloudempiere.ai.provider.langchain4j.AIService;
 import com.cloudempiere.ai.provider.langchain4j.AIService.ChatResult;
 import com.cloudempiere.ai.service.ChatAccessService;
 import com.cloudempiere.ai.service.IChatAccessService.ChatAccess;
+import com.cloudempiere.ai.util.MarkdownTableRenderer;
 import com.cloudempiere.ai.util.ZoomLinkProcessor;
 
 /**
@@ -506,20 +507,30 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 				// This matches the approach in AIChatStreamingMessage.renderFinalMarkdown() (ADR-039)
 
 				String processedText = messageText;
+				log.warning("[ZOOM-DEBUG] Original message text: " + messageText.substring(0, Math.min(200, messageText.length())));
 
 				// Step 1: Pre-render tables (with zoom links in cells)
-				if (com.cloudempiere.ai.util.MarkdownTableRenderer.containsTable(processedText)) {
-					com.cloudempiere.ai.util.MarkdownTableRenderer.setContext(sessionCtx);
-					com.cloudempiere.ai.util.MarkdownTableRenderer.setWidgetId(getUuid());
+				if (MarkdownTableRenderer.containsTable(processedText)) {
+					log.warning("[ZOOM-DEBUG] Table detected, rendering...");
+					MarkdownTableRenderer.setContext(sessionCtx);
+					MarkdownTableRenderer.setWidgetId(getUuid());
 					try {
-						processedText = com.cloudempiere.ai.util.MarkdownTableRenderer.renderTables(processedText);
+						processedText = MarkdownTableRenderer.renderTables(processedText);
+						log.warning("[ZOOM-DEBUG] After table rendering: " + processedText.substring(0, Math.min(200, processedText.length())));
 					} finally {
-						com.cloudempiere.ai.util.MarkdownTableRenderer.clearZoomContext();
+						MarkdownTableRenderer.clearZoomContext();
 					}
 				}
 
 				// Step 2: Process zoom links outside tables
+				String beforeZoomProcessing = processedText;
 				processedText = ZoomLinkProcessor.processZoomLinks(processedText, sessionCtx, getUuid());
+				if (!processedText.equals(beforeZoomProcessing)) {
+					log.warning("[ZOOM-DEBUG] Zoom links processed - text changed");
+					log.warning("[ZOOM-DEBUG] After zoom processing: " + processedText.substring(0, Math.min(200, processedText.length())));
+				} else {
+					log.warning("[ZOOM-DEBUG] No zoom links found or processed");
+				}
 
 				// FUTURE (ADR-039): Pattern-based extraction for natural references like "SO-1234", "Invoice 5678"
 				// Currently bypassed - requires vector DB for fast lookup across 2000+ tables/AD elements.
@@ -1169,7 +1180,9 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 
 						// Show user-friendly error in streaming message with debug tooltip
 						// Format: friendly message + warning emoji with tooltip
-						String errorDisplay = "\n\n" + errorResult.getUserMessage() +
+						// Only add separator if there's existing content (partial AI response)
+						String separator = streamingMsg.getContent().trim().isEmpty() ? "" : "\n\n";
+						String errorDisplay = separator + errorResult.getUserMessage() +
 							" <span class=\"ai-error-ref\" title=\"" + errorResult.getDebugTooltip() +
 							"\" style=\"cursor:help; opacity:0.6; font-size:0.8em;\">\u26A0\uFE0F</span>";
 						streamingMsg.appendChunk(errorDisplay);

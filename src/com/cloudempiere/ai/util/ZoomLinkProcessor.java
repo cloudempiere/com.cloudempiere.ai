@@ -67,10 +67,17 @@ public class ZoomLinkProcessor {
 			return text;
 		}
 
+		// Debug: Log the text being processed
+		log.warning("[ZOOM-PROCESSOR] Processing text: " + text.substring(0, Math.min(100, text.length())));
+		log.warning("[ZOOM-PROCESSOR] Pattern: " + ZOOM_LINK_PATTERN.pattern());
+
 		StringBuffer result = new StringBuffer();
 		Matcher matcher = ZOOM_LINK_PATTERN.matcher(text);
 
+		int matchCount = 0;
 		while (matcher.find()) {
+			matchCount++;
+			log.warning("[ZOOM-PROCESSOR] Match #" + matchCount + " found: " + matcher.group(0));
 			String tableName = matcher.group(1);
 			String recordIdStr = matcher.group(2);
 			String displayText = matcher.group(3);
@@ -100,6 +107,13 @@ public class ZoomLinkProcessor {
 		}
 
 		matcher.appendTail(result);
+
+		if (matchCount == 0) {
+			log.warning("[ZOOM-PROCESSOR] No zoom links found in text");
+		} else {
+			log.warning("[ZOOM-PROCESSOR] Processed " + matchCount + " zoom link(s)");
+		}
+
 		return result.toString();
 	}
 

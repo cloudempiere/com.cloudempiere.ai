@@ -641,14 +641,6 @@ public class AIChatStreamingMessage extends Div {
         // This element was created in init() and already exists in the DOM
         String contentId = "content_" + componentId;
 
-        // Escape for JavaScript
-        String escapedMarkdown = markdownText
-            .replace("\\", "\\\\")
-            .replace("'", "\\'")
-            .replace("\r", "")
-            .replace("\n", "\\n")
-            .replace("</script>", "<\\/script>");
-
         // At this point, markdownText contains:
         // - Pre-rendered HTML tables (with zoom links)
         // - HTML zoom links outside tables
@@ -657,6 +649,8 @@ public class AIChatStreamingMessage extends Div {
         // We need to process the remaining markdown WITHOUT corrupting the HTML we've already generated.
         // Solution: Process markdown ONLY on non-HTML parts
         String finalHtml = processMarkdownPreservingHTML(markdownText);
+
+        // Set the final HTML content directly (no JavaScript escaping needed for setContent)
         streamingContent.setContent("<div class='ai-markdown-content'>" + finalHtml + "</div>");
 
         // Apply syntax highlighting if available (via JavaScript)

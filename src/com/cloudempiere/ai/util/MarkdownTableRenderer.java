@@ -20,6 +20,8 @@ import java.util.Locale;
 import java.util.Properties;
 import java.util.regex.Pattern;
 
+import org.compiere.util.CLogger;
+
 /**
  * Renders markdown tables to HTML for streaming display.
  *
@@ -65,6 +67,8 @@ import java.util.regex.Pattern;
  * @since CLD-1601
  */
 public class MarkdownTableRenderer {
+
+    private static final CLogger log = CLogger.getCLogger(MarkdownTableRenderer.class);
 
     /** Pattern to match a potential table row (pipe-separated) */
     private static final Pattern TABLE_ROW_PATTERN = Pattern.compile(
@@ -590,8 +594,15 @@ public class MarkdownTableRenderer {
                 Properties ctx = currentCtx.get();
                 String widgetId = currentWidgetId.get();
                 if (ctx != null && widgetId != null) {
+                    String beforeZoom = displayContent;
                     displayContent = com.cloudempiere.ai.util.ZoomLinkProcessor.processZoomLinks(
                         displayContent, ctx, widgetId);
+                    if (!displayContent.equals(beforeZoom)) {
+                        log.warning("[TABLE-ZOOM] Processed zoom link in cell: " + beforeZoom.substring(0, Math.min(50, beforeZoom.length())));
+                        log.warning("[TABLE-ZOOM] Result: " + displayContent.substring(0, Math.min(100, displayContent.length())));
+                    }
+                } else {
+                    log.warning("[TABLE-ZOOM] Context or widgetId is null - cannot process zoom links");
                 }
 
                 // HTML-escape cell content to prevent XSS
