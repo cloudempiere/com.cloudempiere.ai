@@ -31,7 +31,7 @@ public class X_AIG_Provider extends PO implements I_AIG_Provider, I_Persistent
 	/**
 	 *
 	 */
-	private static final long serialVersionUID = 20251208L;
+	private static final long serialVersionUID = 20251211L;
 
     /** Standard Constructor */
     public X_AIG_Provider (Properties ctx, int AIG_Provider_ID, String trxName)
@@ -192,24 +192,6 @@ public class X_AIG_Provider extends PO implements I_AIG_Provider, I_Persistent
 		return (String)get_Value(COLUMNNAME_APIKey);
 	}
 
-    /** Column name Endpoint */
-    public static final String COLUMNNAME_Endpoint = "Endpoint";
-
-	/** Set Endpoint.
-		@param Endpoint Service endpoint URL
-	*/
-	public void setEndpoint (String Endpoint)
-	{
-		set_Value (COLUMNNAME_Endpoint, Endpoint);
-	}
-
-	/** Get Endpoint.
-		@return Service endpoint URL	  */
-	public String getEndpoint()
-	{
-		return (String)get_Value(COLUMNNAME_Endpoint);
-	}
-
 	/** Set Default.
 		@param IsDefault Default value
 	*/
@@ -262,5 +244,21 @@ public class X_AIG_Provider extends PO implements I_AIG_Provider, I_Persistent
 	public String getName()
 	{
 		return (String)get_Value(COLUMNNAME_Name);
+	}
+
+	/** Set URL.
+		@param URL URL
+	*/
+	public void setURL (String URL)
+	{
+		set_Value (COLUMNNAME_URL, URL);
+	}
+
+	/** Get URL.
+		@return URL
+	  */
+	public String getURL()
+	{
+		return (String)get_Value(COLUMNNAME_URL);
 	}
 }

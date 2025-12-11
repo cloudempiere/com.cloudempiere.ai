@@ -123,19 +123,6 @@ public interface I_AIG_Provider
 	/** Get API Key	  */
 	public String getAPIKey();
 
-    /** Column name Endpoint */
-    public static final String COLUMNNAME_Endpoint = "Endpoint";
-
-	/** Set Endpoint.
-	  * Service endpoint URL
-	  */
-	public void setEndpoint (String Endpoint);
-
-	/** Get Endpoint.
-	  * Service endpoint URL
-	  */
-	public String getEndpoint();
-
     /** Column name Created */
     public static final String COLUMNNAME_Created = "Created";
 
@@ -215,4 +202,17 @@ public interface I_AIG_Provider
 	  * User who updated this records
 	  */
 	public int getUpdatedBy();
+
+    /** Column name URL */
+    public static final String COLUMNNAME_URL = "URL";
+
+	/** Set URL.
+	  * URL
+	  */
+	public void setURL (String URL);
+
+	/** Get URL.
+	  * URL
+	  */
+	public String getURL();
 }

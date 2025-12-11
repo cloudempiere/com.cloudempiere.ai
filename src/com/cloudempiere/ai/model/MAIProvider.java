@@ -112,4 +112,9 @@ public class MAIProvider extends X_AIG_Provider implements IAIProviderConfig {
 	public static void clearCache() {
 		s_cache.reset();
 	}
+
+	@Override
+	public String getEndpoint() {
+		return getURL();
+	}
 }
