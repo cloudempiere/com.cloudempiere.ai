@@ -2,11 +2,12 @@
 
 ## Status
 
-Proposed
+Accepted
 
 ## Date
 
-2025-12-10
+2025-12-10 (Proposed)
+2025-12-11 (Accepted - Database schema implemented)
 
 ## Deciders
 
@@ -68,7 +69,7 @@ ADR-038 proposed a Quarkus Satellite AI Service that runs Java 17+ with full Lan
 │  ┌───────────────────────────────────────────────────────────────────────┐ │
 │  │                    AIG_Provider Table                                  │ │
 │  │                                                                        │ │
-│  │  ID │ Name          │ Type │ Endpoint                    │ APIKey     │ │
+│  │  ID │ Name          │ Type │ URL                         │ APIKey     │ │
 │  │  ───┼───────────────┼──────┼─────────────────────────────┼──────────  │ │
 │  │  1  │ Claude Direct │ ANT  │ (not used)                  │ sk-ant-... │ │
 │  │  2  │ Bedrock       │ BED  │ (not used)                  │ key:sec:rg │ │
@@ -197,7 +198,7 @@ Add to `LangChain4jProviderFactory.java`:
  * Satellite provider type - routes requests to Quarkus Satellite Service.
  *
  * Configuration in AIG_Provider:
- * - Endpoint: Satellite service URL (e.g., http://satellite:8080)
+ * - URL: Satellite service URL (e.g., http://satellite:8080)
  * - APIKey: Bearer token for authentication
  * - ModelName: Target model (routed by satellite to upstream provider)
  */
@@ -237,10 +238,10 @@ Add reference list value for satellite provider:
  * @return ChatLanguageModel proxying through satellite
  */
 private static ChatLanguageModel createSatelliteModel(MAIProvider config) {
-    String endpoint = config.getEndpoint();
-    if (endpoint == null || endpoint.isEmpty()) {
+    String url = config.getURL();
+    if (url == null || url.isEmpty()) {
         throw new IllegalArgumentException(
-            "Satellite endpoint not configured. Set Endpoint in AIG_Provider.");
+            "Satellite URL not configured. Set URL in AIG_Provider.");
     }
 
     String apiKey = config.getAPIKey();
@@ -284,10 +285,10 @@ private static ChatLanguageModel createSatelliteModel(MAIProvider config) {
  * Create a StreamingChatLanguageModel through satellite.
  */
 private static StreamingChatLanguageModel createSatelliteStreamingModel(MAIProvider config) {
-    String endpoint = config.getEndpoint();
-    if (endpoint == null || endpoint.isEmpty()) {
+    String url = config.getURL();
+    if (url == null || url.isEmpty()) {
         throw new IllegalArgumentException(
-            "Satellite endpoint not configured. Set Endpoint in AIG_Provider.");
+            "Satellite URL not configured. Set URL in AIG_Provider.");
     }
 
     String apiKey = config.getAPIKey();
@@ -319,10 +320,10 @@ private static StreamingChatLanguageModel createSatelliteStreamingModel(MAIProvi
  * Create an EmbeddingModel through satellite.
  */
 private static EmbeddingModel createSatelliteEmbeddingModel(MAIProvider config) {
-    String endpoint = config.getEndpoint();
-    if (endpoint == null || endpoint.isEmpty()) {
+    String url = config.getURL();
+    if (url == null || url.isEmpty()) {
         throw new IllegalArgumentException(
-            "Satellite endpoint not configured. Set Endpoint in AIG_Provider.");
+            "Satellite URL not configured. Set URL in AIG_Provider.");
     }
 
     String apiKey = config.getAPIKey();
@@ -378,8 +379,8 @@ public static boolean isSatelliteHealthy(MAIProvider config) {
         return true;  // Not a satellite provider
     }
 
-    String endpoint = config.getEndpoint();
-    if (endpoint == null || endpoint.isEmpty()) {
+    String url = config.getURL();
+    if (url == null || url.isEmpty()) {
         return false;
     }
 
