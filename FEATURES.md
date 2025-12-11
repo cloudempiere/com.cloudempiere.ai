@@ -8,10 +8,10 @@ This document tracks features, implementation status, and version compatibility 
 
 ---
 
-## Current Version: v0.21.0
+## Current Version: v0.22.0-SNAPSHOT
 
-**Status:** ✅ Real-Time Streaming Improvements (Tables & Emojis)
-**Next:** v0.22.0 - Share Dialog & Advanced Sharing
+**Status:** 🚧 In Progress - Satellite Provider & Advanced Sharing
+**Previous:** v0.21.0 - Real-Time Streaming Improvements (Tables & Emojis)
 
 **Strategic Focus:** The Chat Widget is our primary AI implementation. All features will be integrated and tested through the chat widget before other use cases (charts, reports, etc.).
 
@@ -21,7 +21,8 @@ This document tracks features, implementation status, and version compatibility 
 
 | Version | Date | Key Features | Focus Area |
 |---------|------|--------------|------------|
-| **0.21.0** | 2025-12-10 | **Real-Time Streaming Improvements (Tables & Emojis)** | **UX** |
+| **0.22.0** | TBD | **Satellite Provider & Advanced Sharing (In Progress)** | **Multi-Provider & Collaboration** |
+| 0.21.0 | 2025-12-10 | Real-Time Streaming Improvements (Tables & Emojis) | UX |
 | 0.20.0 | 2025-12-10 | Language Detection & User-Friendly Error Handling | UX & i18n |
 | 0.19.0 | 2025-12-08 | Streaming-First Architecture & Tool Support | Architecture |
 | 0.18.0 | 2025-12-08 | Llama Provider & Model Selection | Multi-Provider |
@@ -126,10 +127,22 @@ This document tracks features, implementation status, and version compatibility 
 | **Ollama (Local)** | 0.9.0 | ✅ Done | LangChain4j | Local LLM support (llama3.2, mistral, etc.) ⚠️* |
 | **Llama (via Ollama)** | 0.18.0 | ✅ Done | LangChain4j | Llama models via Ollama backend ⚠️* |
 | **OpenAI** | 0.9.0 | ✅ Done | LangChain4j | GPT-4o, GPT-4-turbo via OpenAiChatModel |
+| **Quarkus Satellite** | 0.22.0 | 🚧 In Progress | REST API | AI requests routed through Quarkus Satellite Service (Java 17+, LangChain4j 1.x) 🚀 |
 | **Azure OpenAI** | - | 🟡 v0.11.0 | LangChain4j | Enterprise OpenAI deployment |
 | **Custom Providers** | 0.9.0 | ✅ Done | LangChain4j | Extensible via ChatLanguageModel interface |
 
 **\*Ollama/Llama Tool Support Limitation:** Streaming mode uses `SimpleStreamingAgent` without tools due to LangChain4j 0.35.0 limitations. Full streaming+tools requires LangChain4j 0.37.0+ (Java 17). Use Anthropic/OpenAI/Bedrock for full tool support.
+
+**🚀 Satellite Provider Benefits (ADR-042):**
+The Quarkus Satellite Service enables iDempiere v10 (Java 11) to access advanced AI features from LangChain4j 1.x (Java 17+):
+- **Extended Thinking/Reasoning Timeline** - Display AI reasoning process in real-time
+- **MCP (Model Context Protocol)** Support - Connect to external knowledge sources
+- **System/Tool Message Caching** - Reduce costs by caching prompts (Anthropic/OpenAI)
+- **Enhanced Observability** - Advanced listeners and metrics
+- **Google Gemini Streaming** - Stream responses from Google's Gemini models
+- **LangChain4j 1.x Features** - Access latest framework capabilities without upgrading iDempiere to Java 17
+
+The Satellite architecture decouples AI provider versions from iDempiere runtime, enabling progressive enhancement.
 
 **Legacy Providers (Deprecated in v0.9.0):**
 - ❌ Custom `AnthropicProvider` → Replaced by `AnthropicChatModel`

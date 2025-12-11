@@ -2,11 +2,12 @@
 
 ## Status
 
-Proposed
+Accepted
 
 ## Date
 
-2025-12-10
+2025-12-10 (Proposed)
+2025-12-11 (Accepted - Database schema implemented)
 
 ## Deciders
 
