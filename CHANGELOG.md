@@ -11,9 +11,10 @@ and this project adheres to [Conventional Commits](https://conventionalcommits.o
 
 **Added:**
 - **ADR-042: Satellite AI Provider Integration**
-  - Endpoint column in AIG_Provider for satellite service URL configuration
+  - URL column in AIG_Provider for satellite service endpoint configuration
+  - Uses existing iDempiere URL element (AD_Element_ID=983) for consistency
   - SAT provider type in AIGProviderType reference list
-  - Conditional display logic for Endpoint field (@AIGProviderType@=SAT)
+  - Conditional display logic for URL field (@AIGProviderType@=SAT)
   - Migration scripts standardized to iDempiere format (CLD-1601)
   - Supports Quarkus Satellite Service integration (Java 17+, LangChain4j 1.x)
 
