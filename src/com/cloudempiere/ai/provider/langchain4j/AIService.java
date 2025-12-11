@@ -124,7 +124,8 @@ public class AIService {
     private static final Set<String> TOOL_SUPPORTED_PROVIDERS = Set.of(
         LangChain4jProviderFactory.PROVIDER_ANTHROPIC,
         LangChain4jProviderFactory.PROVIDER_OPENAI,
-        LangChain4jProviderFactory.PROVIDER_BEDROCK
+        LangChain4jProviderFactory.PROVIDER_BEDROCK,
+        LangChain4jProviderFactory.PROVIDER_SATELLITE  // OpenAI-compatible, supports tools
         // NOTE: Ollama/Llama tools depend on model capability, not just provider type.
         // Models like qwen2:0.5b don't support tools. Only certain models like
         // llama3.1, mistral, qwen2.5:7b support tool calling.
@@ -137,7 +138,8 @@ public class AIService {
     private static final Set<String> STREAMING_TOOL_SUPPORTED_PROVIDERS = Set.of(
         LangChain4jProviderFactory.PROVIDER_ANTHROPIC,
         LangChain4jProviderFactory.PROVIDER_OPENAI,
-        LangChain4jProviderFactory.PROVIDER_BEDROCK
+        LangChain4jProviderFactory.PROVIDER_BEDROCK,
+        LangChain4jProviderFactory.PROVIDER_SATELLITE  // OpenAI-compatible, supports streaming tools
         // Ollama/Llama streaming tools NOT supported in 0.35.0
         // Throws: "Tools are currently not supported by this model"
         // Requires LangChain4j 0.37.0+ (Java 17)
@@ -637,23 +639,139 @@ public class AIService {
             // ================================================================
 
             int chatId = chat.getCM_Chat_ID();
-            if (!languageService.hasOverrideLanguage(chatId)) {
+            // clientId and userId already declared above for guardrails
+            int roleId = Env.getAD_Role_ID(ctx);
+            int orgId = Env.getAD_Org_ID(ctx);
+
+            // Get user and role names for logging
+            String userName = Env.getContext(ctx, "#AD_User_Name");
+            String roleName = Env.getContext(ctx, "#AD_Role_Name");
+            String clientName = Env.getContext(ctx, "#AD_Client_Name");
+            String orgName = Env.getContext(ctx, "#AD_Org_Name");
+
+            log.warning("[LANGUAGE] ========================================");
+            log.warning("[LANGUAGE] LANGUAGE DETECTION for chat " + chatId);
+            log.warning("[LANGUAGE] Tenant: " + clientName + " (ID=" + clientId + ")");
+            log.warning("[LANGUAGE] User: " + userName + " (ID=" + userId + ")");
+            log.warning("[LANGUAGE] Role: " + roleName + " (ID=" + roleId + ")");
+            log.warning("[LANGUAGE] Org: " + orgName + " (ID=" + orgId + ")");
+            log.warning("[LANGUAGE] ========================================");
+
+            // Get login/system language from iDempiere context
+            String loginLanguage = Env.getAD_Language(ctx);
+            org.compiere.util.Language loginLangObj = org.compiere.util.Language.getLanguage(loginLanguage);
+            String loginLangName = loginLangObj != null ? loginLangObj.getName() : loginLanguage;
+            log.warning("[LANGUAGE] Login/System language: " + loginLangName + " (" + loginLanguage + ")");
+
+            // Get current session language state (before any changes)
+            String currentLang = languageService.getSessionLanguage(ctx, chatId);
+            org.compiere.util.Language currentLangObj = org.compiere.util.Language.getLanguage(currentLang);
+            String currentLangName = currentLangObj != null ? currentLangObj.getName() : currentLang;
+            boolean hasOverride = languageService.hasOverrideLanguage(chatId);
+            log.warning("[LANGUAGE] Current session language: " + currentLangName + " (" + currentLang + ")");
+            log.warning("[LANGUAGE] Has override: " + hasOverride);
+
+            // Check if current differs from login
+            if (!currentLang.equals(loginLanguage)) {
+                log.warning("[LANGUAGE] ⚠ LANGUAGE MISMATCH: Session (" + currentLang + ") != Login (" + loginLanguage + ")");
+                if (hasOverride) {
+                    log.warning("[LANGUAGE] ⚠ Reason: Session override is active");
+                } else {
+                    log.warning("[LANGUAGE] ⚠ Reason: Unknown - this should not happen!");
+                }
+            }
+
+            if (!hasOverride) {
                 // No session language set yet - detect from input
+                log.warning("[LANGUAGE] No override set - attempting auto-detection from message");
+                log.warning("[LANGUAGE] Message preview: " + processedMessage.substring(0, Math.min(200, processedMessage.length())));
+
                 java.util.Optional<String> detectedLang = languageService.detectInputLanguage(processedMessage);
                 if (detectedLang.isPresent()) {
-                    languageService.setOverrideLanguage(chatId, detectedLang.get());
-                    log.info("Session language auto-detected from input: " + detectedLang.get() +
-                            " for chat " + chatId);
+                    String detected = detectedLang.get();
+                    org.compiere.util.Language detectedLangObj = org.compiere.util.Language.getLanguage(detected);
+                    String detectedLangName = detectedLangObj != null ? detectedLangObj.getName() : detected;
+
+                    log.warning("[LANGUAGE] ✓ Auto-detected: " + detectedLangName + " (" + detected + ")");
+
+                    // Check if detected differs from login
+                    if (!detected.equals(loginLanguage)) {
+                        log.warning("[LANGUAGE] ⚠ CHANGE: Auto-detected (" + detected + ") != Login (" + loginLanguage + ")");
+                        log.warning("[LANGUAGE] ⚠ This will override the user's login language!");
+                    } else {
+                        log.warning("[LANGUAGE] ✓ Auto-detected matches login language");
+                    }
+
+                    // setOverrideLanguage will log the language switch if there was a previous one
+                    languageService.setOverrideLanguage(chatId, detected);
+                    callback.onProgress("language", "Language detected: " + detectedLangName);
+                } else {
+                    log.warning("[LANGUAGE] ✗ Could not auto-detect language from input");
+                    log.warning("[LANGUAGE] ✓ Will use login language: " + loginLangName);
                 }
-                // Also check for explicit language change request (e.g., "respond in German")
+            } else {
+                log.warning("[LANGUAGE] Override already exists - checking for explicit language change requests");
             }
+
             // Always check for explicit language change requests
             java.util.Optional<String> requestedLang = languageService.detectLanguageChangeRequest(processedMessage);
             if (requestedLang.isPresent()) {
-                languageService.setOverrideLanguage(chatId, requestedLang.get());
-                log.info("Session language changed by user request: " + requestedLang.get() +
-                        " for chat " + chatId);
+                String requested = requestedLang.get();
+                org.compiere.util.Language requestedLangObj = org.compiere.util.Language.getLanguage(requested);
+                String requestedLangName = requestedLangObj != null ? requestedLangObj.getName() : requested;
+
+                log.warning("[LANGUAGE] ✓ User explicitly requested: " + requestedLangName + " (" + requested + ")");
+
+                // Check if requested differs from current session language
+                String previousSessionLang = languageService.getSessionLanguage(ctx, chatId);
+                if (!requested.equals(previousSessionLang)) {
+                    log.warning("[LANGUAGE] ⚠ USER INITIATED SWITCH: " + previousSessionLang + " → " + requested);
+                } else {
+                    log.warning("[LANGUAGE] ✓ User requested matches current session language (no change)");
+                }
+
+                // Check if requested differs from login
+                if (!requested.equals(loginLanguage)) {
+                    log.warning("[LANGUAGE] ⚠ Requested language (" + requested + ") != Login (" + loginLanguage + ")");
+                } else {
+                    log.warning("[LANGUAGE] ✓ User requested matches login language");
+                }
+
+                // setOverrideLanguage will log the language switch detection
+                languageService.setOverrideLanguage(chatId, requested);
+                callback.onProgress("language", "Switching to: " + requestedLangName);
             }
+
+            // Final language state - show complete trace
+            String finalLang = languageService.getSessionLanguage(ctx, chatId);
+            org.compiere.util.Language finalLangObj = org.compiere.util.Language.getLanguage(finalLang);
+            String finalLangName = finalLangObj != null ? finalLangObj.getName() : finalLang;
+
+            log.warning("[LANGUAGE] ========================================");
+            log.warning("[LANGUAGE] LANGUAGE TRACE SUMMARY:");
+            log.warning("[LANGUAGE]   Login/System: " + loginLangName + " (" + loginLanguage + ")");
+            log.warning("[LANGUAGE]   Final/Active: " + finalLangName + " (" + finalLang + ")");
+
+            if (!finalLang.equals(loginLanguage)) {
+                log.warning("[LANGUAGE]   ⚠ CHANGED FROM LOGIN LANGUAGE!");
+                if (requestedLang.isPresent()) {
+                    log.warning("[LANGUAGE]   Reason: User explicitly requested");
+                } else if (languageService.hasOverrideLanguage(chatId)) {
+                    log.warning("[LANGUAGE]   Reason: Auto-detected from input");
+                } else {
+                    log.warning("[LANGUAGE]   Reason: UNKNOWN - INVESTIGATE!");
+                }
+            } else {
+                log.warning("[LANGUAGE]   ✓ Using login language");
+            }
+
+            // Validate final language
+            if (finalLangObj == null) {
+                log.warning("[LANGUAGE]   ⚠⚠⚠ ERROR: Unknown language code: " + finalLang);
+                log.warning("[LANGUAGE]   ⚠⚠⚠ This may cause response issues!");
+            }
+
+            log.warning("[LANGUAGE] ========================================");
 
             // ================================================================
             // BUILD MEMORY WITH THREAD AWARENESS
@@ -1199,15 +1317,34 @@ public class AIService {
         // Get language instruction based on session language (override > context > fallback)
         String languageInstruction = languageService.getLanguageInstruction(ctx, chatId);
 
-        // Get base system prompt based on tool support
+        // Detect and log database type
+        String dbType = "Unknown";
+        if (org.compiere.util.DB.isPostgreSQL()) {
+            dbType = "PostgreSQL";
+        } else if (org.compiere.util.DB.isOracle()) {
+            dbType = "Oracle";
+        }
+        log.warning("[DATABASE] Detected database type: " + dbType);
+
+        // Get base system prompt with database-specific SQL syntax guidance
         String basePrompt = withTools
-            ? ERPStreamingAgent.SYSTEM_PROMPT
+            ? DatabaseSyntaxHelper.appendDatabaseGuidance(ERPAgent.SYSTEM_PROMPT)
             : SimpleStreamingAgent.SIMPLE_SYSTEM_PROMPT;
 
         // If no language instruction, just return the base prompt
         if (languageInstruction == null || languageInstruction.isEmpty()) {
+            log.warning("[LANGUAGE] No language instruction - using base prompt only");
+            log.warning("[DATABASE] System prompt includes " + dbType + "-specific SQL syntax guidance");
             return basePrompt;
         }
+
+        // Log the language instruction being used
+        String sessionLang = languageService.getSessionLanguage(ctx, chatId);
+        org.compiere.util.Language langObj = org.compiere.util.Language.getLanguage(sessionLang);
+        String langName = langObj != null ? langObj.getName() : sessionLang;
+        log.warning("[LANGUAGE] System prompt language: " + langName + " (" + sessionLang + ")");
+        log.warning("[LANGUAGE] Language instruction length: " + languageInstruction.length() + " chars");
+        log.warning("[DATABASE] System prompt includes " + dbType + "-specific SQL syntax guidance");
 
         // Combine: language instruction FIRST, then base prompt
         // This ensures language compliance is prioritized
