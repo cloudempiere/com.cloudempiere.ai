@@ -659,7 +659,8 @@ public class LangChain4jProviderFactory {
             modelName = DEFAULT_SATELLITE_MODEL;
         }
 
-        log.info("Creating Satellite proxy model: endpoint=" + endpoint + ", model=" + modelName);
+        log.warning("Creating Satellite proxy model: endpoint=" + endpoint + ", model=" + modelName);
+        log.warning("Satellite baseUrl: " + baseUrl);
 
         // Use OpenAI-compatible client (satellite exposes /v1/chat/completions)
         var builder = OpenAiChatModel.builder()
@@ -707,13 +708,16 @@ public class LangChain4jProviderFactory {
             modelName = DEFAULT_SATELLITE_MODEL;
         }
 
-        log.info("Creating Satellite streaming model: endpoint=" + endpoint + ", model=" + modelName);
+        log.warning("Creating Satellite streaming model: endpoint=" + endpoint + ", model=" + modelName);
+        log.warning("Satellite streaming baseUrl: " + baseUrl);
 
         return OpenAiStreamingChatModel.builder()
             .baseUrl(baseUrl)
             .apiKey(apiKey)
             .modelName(modelName)
             .temperature(0.7)
+            .logRequests(true)
+            .logResponses(true)
             .build();
     }
 

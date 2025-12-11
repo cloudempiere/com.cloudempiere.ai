@@ -540,8 +540,8 @@ public class MockSatelliteServer {
             }
         }
 
-        // Extract stream flag
-        result.put("stream", json.contains("\"stream\":true"));
+        // Extract stream flag (handle both "stream":true and "stream": true with space)
+        result.put("stream", json.contains("\"stream\":true") || json.contains("\"stream\": true"));
 
         return result;
     }
