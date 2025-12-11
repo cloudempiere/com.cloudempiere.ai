@@ -7,7 +7,24 @@ and this project adheres to [Conventional Commits](https://conventionalcommits.o
 
 ## [Unreleased]
 
-### v0.22.0-SNAPSHOT - Share Dialog & Advanced Sharing
+### v0.22.0-SNAPSHOT - Satellite Provider & Advanced Sharing
+
+**Added:**
+- **ADR-042: Satellite AI Provider Integration**
+  - Endpoint column in AIG_Provider for satellite service URL configuration
+  - SAT provider type in AIGProviderType reference list
+  - Conditional display logic for Endpoint field (@AIGProviderType@=SAT)
+  - Migration scripts standardized to iDempiere format (CLD-1601)
+  - Supports Quarkus Satellite Service integration (Java 17+, LangChain4j 1.x)
+
+**Changed:**
+- **Migration Script Standards**
+  - Standardized PostgreSQL and Oracle migration scripts
+  - Added CLD-1601 ticket reference as primary identifier
+  - Replaced NOW()/SYSDATE with TO_TIMESTAMP() for timestamp consistency
+  - Replaced hardcoded user ID with toRecordId() function
+  - Added timestamp comments before each SQL statement
+  - Added Oracle-specific directives (SET SQLBLANKLINES ON, SET DEFINE OFF)
 
 **Planned:**
 - Share button in AIChatWidget (OWNER only)
