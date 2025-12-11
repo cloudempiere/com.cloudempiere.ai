@@ -52,6 +52,7 @@ This directory contains architecture decisions for the Cloudempiere AI plugin.
 | [033](033-streaming-thinking-timeline-ux.md) | Streaming Responses and Thinking Timeline UX | Proposed | 2025-12-03 |
 | [037](037-language-detection-session-management.md) | Language Detection and Session Language Management | Proposed | 2025-12-10 |
 | [038](038-user-friendly-error-handling.md) | User-Friendly Error Handling and Issue Tracking | Accepted | 2025-12-10 |
+| [039](039-chat-panel-record-zoom-drill.md) | Chat Panel Record Zoom and Drill Integration | Implemented v0.22.0 | 2025-12-11 |
 
 ### Use Cases - Phase 1 (MVP)
 
@@ -278,6 +279,16 @@ Each ADR includes:
 - AD_Issue creation with full context for support debugging
 - Error reference codes (AIG-{timestamp}-{random}) link user reports to technical details
 - Actionable hints guide users on what to do next
+
+**ADR-039: Chat Panel Record Zoom and Drill Integration**
+- Clickable record references in AI chat responses (SO-1234 → opens Sales Order window)
+- Native iDempiere zoom integration via `AEnv.zoom()` and `MQuery`
+- `RecordReference` DTO captures table/record/display metadata
+- `ChatRecordLinkRenderer` renders clickable ZK components
+- Zoom-across support via `WZoomAcross` for multi-target records
+- LLM-provided structured references (preferred) with pattern-matching fallback
+- Role-based access validation before navigation
+- Drill-down support for chart segments (ADR-017 integration)
 
 ### Use Cases - Phase 1 (MVP)
 

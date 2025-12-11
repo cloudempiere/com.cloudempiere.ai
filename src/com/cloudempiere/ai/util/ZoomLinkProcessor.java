@@ -109,39 +109,82 @@ public class ZoomLinkProcessor {
 	 * <p>Creates an anchor tag with:
 	 * <ul>
 	 *   <li>Styled as a link (blue, underlined, pointer cursor)</li>
-	 *   <li>onclick handler that fires ZK custom event</li>
+	 *   <li>onclick handler that fires ZK onZoom event using iDempiere pattern</li>
 	 *   <li>Data attributes for table ID and record ID</li>
 	 *   <li>Escaped display text for security</li>
 	 * </ul>
 	 *
+	 * <p>Uses the standard iDempiere zoom pattern from report.js:
+	 * {@code zk.Widget.$(componentId) + zAu.send(new zk.Event(...))}
+	 *
 	 * @param tableId AD_Table_ID
 	 * @param recordId Record_ID
 	 * @param displayText text to display as link
-	 * @param widgetId ZK widget ID to target for event
+	 * @param widgetId ZK widget UUID to target for event
 	 * @return HTML anchor element
 	 */
 	private static String generateZoomLinkHtml(int tableId, int recordId, String displayText, String widgetId) {
 		// Escape display text for HTML security
 		String escapedText = Util.maskHTML(displayText, true);
 
+		// Get table name for column name construction
+		MTable table = MTable.get(tableId);
+		String tableName = table != null ? table.getTableName() : "Record";
+		String columnName = tableName + "_ID";
+
 		StringBuilder html = new StringBuilder();
-		html.append("<a href='#' ");
-		html.append("class='ai-zoom-link' ");
-		html.append("data-table-id='").append(tableId).append("' ");
-		html.append("data-record-id='").append(recordId).append("' ");
+		html.append("<a href=\"javascript:void(0)\" ");
+		html.append("class=\"ai-zoom-link\" ");
+		html.append("data-table-id=\"").append(tableId).append("\" ");
+		html.append("data-record-id=\"").append(recordId).append("\" ");
 		html.append("onclick=\"");
 
-		// Generate ZK event firing code
-		// This fires a custom 'onZoom' event with table and record data
-		html.append("var widget = zk.Widget.$('#").append(widgetId).append("');");
-		html.append("if (widget) {");
-		html.append("widget.fire('onZoom', {tableId: ").append(tableId)
-			.append(", recordId: ").append(recordId).append("});");
+		// Use iDempiere standard zoom pattern (same as report.js):
+		// 1. Get widget by UUID using zk.Widget.$()
+		// 2. Create event with data array [columnName, recordId]
+		// 3. Send via zAu.send() for proper server-side processing
+		//
+		// Note: Html component content runs in iframe/isolated context, so we need to:
+		// - Try window.zk first (same window)
+		// - Fall back to parent.zk (parent frame)
+		// - Use self-contained function to avoid scope issues
+		html.append("(function(){");
+		html.append("try{");
+		html.append("var zkObj=window.zk||parent.zk;");
+		html.append("var auObj=window.zAu||parent.zAu;");
+		html.append("if(!zkObj){console.error('[Zoom] ZK not found');return;}");
+		html.append("if(!auObj){console.error('[Zoom] zAu not found');return;}");
+		// Find widget dynamically (handles both new and re-rendered messages)
+		// Strategy 1: Try by hardcoded ID (works for new messages)
+		html.append("var w=zkObj.Widget.$('").append(widgetId).append("');");
+		html.append("if(!w){");
+		// Strategy 2: Search document for ai-chat-widget class
+		html.append("console.log('[Zoom] ID not found, searching by class');");
+		html.append("var chatElems=document.querySelectorAll('.ai-chat-widget');");
+		html.append("if(!chatElems||chatElems.length===0){");
+		html.append("chatElems=(parent&&parent.document)?parent.document.querySelectorAll('.ai-chat-widget'):[];");
 		html.append("}");
+		html.append("console.log('[Zoom] Found '+chatElems.length+' chat widgets');");
+		html.append("for(var i=0;i<chatElems.length&&!w;i++){");
+		html.append("var candidate=zkObj.Widget.$(chatElems[i]);");
+		html.append("if(candidate){");
+		html.append("w=candidate.length?candidate[0]:candidate;");
+		html.append("console.log('[Zoom] Using widget: '+w.uuid);");
+		html.append("}");
+		html.append("}");
+		html.append("}");
+		html.append("if(!w){console.error('[Zoom] Widget not found');return;}");
+		html.append("var evt=new zkObj.Event(w,'onZoom',");
+		html.append("{data:['").append(columnName).append("','").append(recordId).append("']},");
+		html.append("{toServer:true});");
+		html.append("auObj.send(evt);");
+		html.append("console.log('[Zoom] Event sent');");
+		html.append("}catch(e){console.error('[Zoom] Error:',e);}");
+		html.append("})();");
 		html.append("return false;\" ");
 
 		// Styling - blue link with underline
-		html.append("style='color: #1976D2; text-decoration: underline; cursor: pointer;'>");
+		html.append("style=\"color: #1976D2; text-decoration: underline; cursor: pointer;\">");
 		html.append(escapedText);
 		html.append("</a>");
 

@@ -8,10 +8,10 @@ This document tracks features, implementation status, and version compatibility 
 
 ---
 
-## Current Version: v0.22.0-SNAPSHOT
+## Current Version: v0.23.0-SNAPSHOT
 
 **Status:** 🚧 In Progress - Satellite Provider & Advanced Sharing
-**Previous:** v0.21.0 - Real-Time Streaming Improvements (Tables & Emojis)
+**Previous:** v0.22.0 - Clickable Record Links in Chat with Table Support (ADR-039)
 
 **Strategic Focus:** The Chat Widget is our primary AI implementation. All features will be integrated and tested through the chat widget before other use cases (charts, reports, etc.).
 
@@ -21,7 +21,8 @@ This document tracks features, implementation status, and version compatibility 
 
 | Version | Date | Key Features | Focus Area |
 |---------|------|--------------|------------|
-| **0.22.0** | TBD | **Satellite Provider & Advanced Sharing (In Progress)** | **Multi-Provider & Collaboration** |
+| **0.23.0** | TBD | **Satellite Provider & Advanced Sharing (In Progress)** | **Multi-Provider & Collaboration** |
+| 0.22.0 | 2025-12-11 | Clickable Record Links in Chat with Table Support (ADR-039) | UX & Navigation |
 | 0.21.0 | 2025-12-10 | Real-Time Streaming Improvements (Tables & Emojis) | UX |
 | 0.20.0 | 2025-12-10 | Language Detection & User-Friendly Error Handling | UX & i18n |
 | 0.19.0 | 2025-12-08 | Streaming-First Architecture & Tool Support | Architecture |
@@ -83,7 +84,8 @@ This document tracks features, implementation status, and version compatibility 
 | **Business Object Shortcuts** | 0.9.0 | ✅ Done | getBusinessPartner, getProduct, getOrder |
 | **Conversation Memory** | 0.6.0 | ✅ Done | Session-based chat history (20 messages) |
 | **Streaming Responses** | 0.9.0 | ✅ Done | Real-time token streaming for better UX |
-| **Zoom Link Support** | 0.4.0 | ✅ Done | Clickable links to records |
+| **Zoom Link Support** | 0.22.0 | ✅ Done | Clickable record links in chat (ADR-039 Phase 1) |
+| **Table Cell Zoom Links** | 0.22.0 | ✅ Done | Zoom links work in markdown table cells |
 | **RAG (Context Retrieval)** | 0.10.0 | 🚧 In Progress | ADR-012: LangChain4j ContentRetriever with semantic search |
 | **Share Dialog** | - | 🔜 v0.17.0 | Share button with user/role picker (ADR-036 Phase 3) |
 | **Structured Outputs** | - | 🔴 v0.10.0 | OrderSummary, InventoryReport records |
@@ -127,7 +129,7 @@ This document tracks features, implementation status, and version compatibility 
 | **Ollama (Local)** | 0.9.0 | ✅ Done | LangChain4j | Local LLM support (llama3.2, mistral, etc.) ⚠️* |
 | **Llama (via Ollama)** | 0.18.0 | ✅ Done | LangChain4j | Llama models via Ollama backend ⚠️* |
 | **OpenAI** | 0.9.0 | ✅ Done | LangChain4j | GPT-4o, GPT-4-turbo via OpenAiChatModel |
-| **Quarkus Satellite** | 0.22.0 | 🚧 In Progress | REST API | AI requests routed through Quarkus Satellite Service (Java 17+, LangChain4j 1.x) 🚀 |
+| **Quarkus Satellite** | 0.23.0 | 🚧 In Progress | REST API | AI requests routed through Quarkus Satellite Service (Java 17+, LangChain4j 1.x) 🚀 |
 | **Azure OpenAI** | - | 🟡 v0.11.0 | LangChain4j | Enterprise OpenAI deployment |
 | **Custom Providers** | 0.9.0 | ✅ Done | LangChain4j | Extensible via ChatLanguageModel interface |
 

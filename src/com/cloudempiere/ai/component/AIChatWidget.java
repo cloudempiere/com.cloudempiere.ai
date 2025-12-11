@@ -21,17 +21,20 @@ import java.util.concurrent.CompletableFuture;
 import java.util.logging.Level;
 import java.util.stream.Collectors;
 
+import org.adempiere.webui.apps.AEnv;
 import org.adempiere.webui.component.Combobox;
 import org.adempiere.webui.theme.ThemeManager;
 import org.adempiere.webui.util.ZKUpdateUtil;
 import org.compiere.model.MChat;
 import org.compiere.model.MChatEntry;
+import org.compiere.model.MQuery;
 import org.compiere.model.MUser;
 import org.compiere.util.CLogger;
 import org.compiere.util.DisplayType;
 import org.compiere.util.Env;
 import org.compiere.util.Msg;
 import org.compiere.util.Util;
+import org.json.JSONArray;
 import org.json.JSONObject;
 import org.zkoss.zk.ui.Component;
 import org.zkoss.zk.ui.Desktop;
@@ -51,10 +54,10 @@ import org.zkoss.zul.Vlayout;
 import com.cloudempiere.ai.context.AIContextProviderRegistry;
 import com.cloudempiere.ai.context.ContextParameters;
 import com.cloudempiere.ai.context.IAIContextProvider;
-import com.cloudempiere.ai.model.MAIChat;
-import com.cloudempiere.ai.model.MAIChatEntry;
 import com.cloudempiere.ai.error.AIErrorHandler;
 import com.cloudempiere.ai.error.AIErrorHandler.AIErrorResult;
+import com.cloudempiere.ai.model.MAIChat;
+import com.cloudempiere.ai.model.MAIChatEntry;
 import com.cloudempiere.ai.model.MAIProvider;
 import com.cloudempiere.ai.provider.dto.AIStreamCallback;
 import com.cloudempiere.ai.provider.langchain4j.AIService;
@@ -62,8 +65,6 @@ import com.cloudempiere.ai.provider.langchain4j.AIService.ChatResult;
 import com.cloudempiere.ai.service.ChatAccessService;
 import com.cloudempiere.ai.service.IChatAccessService.ChatAccess;
 import com.cloudempiere.ai.util.ZoomLinkProcessor;
-
-import org.adempiere.webui.apps.AEnv;
 
 /**
  * AI Chat Widget Component
@@ -453,9 +454,9 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 		msgDiv.setSclass(isAI ? "ai-message" : "user-message");
 
 		// Updated styling based on Figma design screenshot (scaled to 12px base font)
-		String baseStyle = "display: flex; flex-direction: column; gap: 12px; ";
+		String baseStyle = "display: flex; flex-direction: column; gap: 12px; max-width: 100%; ";
 		if (isAI) {
-			msgDiv.setStyle(baseStyle + "padding: 12px 18px; background: transparent; border-radius: 0;");
+			msgDiv.setStyle(baseStyle + "padding: 12px 18px; background: transparent; border-radius: 0; width: 100%;");
 		} else {
 			// User message: gray bubble, more compact
 			msgDiv.setStyle(baseStyle + "padding: 12px 15px; background: #E9EAEB; border-radius: 15px; " +
@@ -501,9 +502,33 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 		String messageText = entry.getCharacterData();
 		if (messageText != null) {
 			if (isAI) {
-				// AI messages: Process zoom links first, then render as Markdown
-				String processedText = ZoomLinkProcessor.processZoomLinks(messageText, sessionCtx, getUuid());
-				sb.append(renderMarkdown(processedText));
+				// AI messages: Pre-render tables with zoom links, then process remaining zoom links
+				// This matches the approach in AIChatStreamingMessage.renderFinalMarkdown() (ADR-039)
+
+				String processedText = messageText;
+
+				// Step 1: Pre-render tables (with zoom links in cells)
+				if (com.cloudempiere.ai.util.MarkdownTableRenderer.containsTable(processedText)) {
+					com.cloudempiere.ai.util.MarkdownTableRenderer.setContext(sessionCtx);
+					com.cloudempiere.ai.util.MarkdownTableRenderer.setWidgetId(getUuid());
+					try {
+						processedText = com.cloudempiere.ai.util.MarkdownTableRenderer.renderTables(processedText);
+					} finally {
+						com.cloudempiere.ai.util.MarkdownTableRenderer.clearZoomContext();
+					}
+				}
+
+				// Step 2: Process zoom links outside tables
+				processedText = ZoomLinkProcessor.processZoomLinks(processedText, sessionCtx, getUuid());
+
+				// FUTURE (ADR-039): Pattern-based extraction for natural references like "SO-1234", "Invoice 5678"
+				// Currently bypassed - requires vector DB for fast lookup across 2000+ tables/AD elements.
+				// See RecordReferenceExtractor and ChatRecordLinkRenderer for the implementation.
+				// Uncomment when vector DB caching is available:
+				// processedText = ChatRecordLinkRenderer.extractAndRender(processedText, sessionCtx, getUuid());
+
+				// Step 3: Render markdown while preserving HTML (tables and zoom links)
+				sb.append(renderMarkdownPreservingHTML(processedText));
 			} else {
 				// User messages: Escape HTML for security, but preserve line breaks
 				String escaped = Util.maskHTML(messageText, true);
@@ -634,33 +659,213 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 	}
 
 	/**
-	 * Handle zoom event from clickable record links
-	 * @param event zoom event containing tableId and recordId
+	 * Handle zoom event from clickable record links.
+	 *
+	 * <p>Supports three formats (in order of preference):
+	 * <ol>
+	 *   <li><b>Pre-built MQuery</b> (most efficient): Direct MQuery object passed as event data.
+	 *       Same pattern as ChartRendererServiceImpl. No parsing required, immediate zoom.</li>
+	 *   <li><b>iDempiere standard format</b>: JSONObject with "data" array [columnName, recordId].
+	 *       Matches report.js / ZoomCommand pattern. Requires MQuery construction.</li>
+	 *   <li><b>Legacy format</b>: JSONObject with tableId and recordId properties.
+	 *       Backward compatibility only.</li>
+	 * </ol>
+	 *
+	 * <p>The MQuery format enables pre-building queries (like charts do) for better performance
+	 * and more control over zoom behavior (e.g., pre-set zoom window ID, additional restrictions).
+	 *
+	 * <p>Uses same logic as {@code ZoomCommand} and {@code ChartRendererServiceImpl.ZoomListener}.
+	 *
+	 * @param event zoom event containing MQuery, JSON data, or legacy format
 	 */
 	private void handleZoomEvent(Event event) {
 		try {
-			// Extract table ID and record ID from event data
-			Object data = event.getData();
-			if (data instanceof JSONObject) {
-				JSONObject jsonData = (JSONObject) data;
-				Integer tableId = (Integer) jsonData.get("tableId");
-				Integer recordId = (Integer) jsonData.get("recordId");
+			Object eventData = event.getData();
+			log.warning("[Zoom Handler] Event received, data type: " +
+				(eventData != null ? eventData.getClass().getName() : "null"));
 
-				if (tableId != null && recordId != null && tableId > 0 && recordId > 0) {
-					log.fine("Zoom request: tableId=" + tableId + ", recordId=" + recordId);
-					// Call AEnv.zoom to open the record window
-					AEnv.zoom(tableId, recordId);
+			// Option 1: Direct MQuery object (same as ChartRendererServiceImpl pattern)
+			// Pre-built query passed directly from event - most efficient approach
+			//
+			// Usage example:
+			//   MQuery query = new MQuery("C_Order");
+			//   query.addRestriction("C_Order_ID", MQuery.EQUAL, 5678);
+			//   query.setRecordCount(1);
+			//   query.setZoomTableName("C_Order");
+			//   query.setZoomColumnName("C_Order_ID");
+			//   query.setZoomValue(5678);
+			//   Events.sendEvent(new Event(ON_ZOOM, this, query));
+			//
+			// This is the same pattern used by ChartRendererServiceImpl.ZoomListener
+			// and enables pre-building queries for better performance.
+			if (eventData instanceof MQuery) {
+				MQuery query = (MQuery) eventData;
+				log.warning("[Zoom Handler] Received pre-built MQuery: " + query.toString());
+
+				// Validate query has required data
+				if (query.getTableName() != null && !query.getTableName().isEmpty()) {
+					log.warning("[Zoom Handler] Calling AEnv.zoom() with MQuery for table: " +
+						query.getTableName());
+					AEnv.zoom(query);
+					log.warning("[Zoom Handler] AEnv.zoom() completed");
+					return;
 				} else {
-					log.warning("Invalid zoom event data: tableId=" + tableId + ", recordId=" + recordId);
+					log.warning("Invalid MQuery - no table name specified");
+					return;
 				}
+			}
+
+			// Option 2: Standard iDempiere format: {data: [columnName, recordId]}
+			// This matches report.js / ZoomCommand pattern
+			if (eventData instanceof JSONObject) {
+				JSONObject jsonData = (JSONObject) eventData;
+				log.warning("[Zoom Handler] JSON data: " + jsonData.toString());
+
+				// Check for standard iDempiere format first
+				if (jsonData.has("data")) {
+					Object dataObj = jsonData.get("data");
+					JSONArray data = null;
+
+					if (dataObj instanceof JSONArray) {
+						data = (JSONArray) dataObj;
+					} else if (dataObj instanceof String) {
+						// Parse if it came as string
+						data = new JSONArray((String) dataObj);
+					}
+
+					if (data != null && data.length() >= 2) {
+						String columnName = data.getString(0);  // e.g., "C_Order_ID"
+						String valueStr = data.getString(1);    // e.g., "1234"
+						log.warning("[Zoom Handler] columnName=" + columnName + ", valueStr=" + valueStr);
+
+						// Derive table name from column name (same as MQuery.getZoomTableName)
+						String tableName = MQuery.getZoomTableName(columnName);
+						log.warning("[Zoom Handler] Resolved tableName=" + tableName);
+
+						// Parse record ID
+						int recordId = 0;
+						try {
+							recordId = Integer.parseInt(valueStr);
+						} catch (NumberFormatException e) {
+							log.warning("Cannot parse recordId: " + valueStr);
+							return;
+						}
+
+						if (recordId > 0) {
+							log.warning("[Zoom Handler] Calling AEnv.zoom() for " + tableName + "#" + recordId);
+
+							// Create MQuery and zoom (same pattern as ZoomCommand)
+							MQuery query = new MQuery(tableName);
+							query.addRestriction(columnName, MQuery.EQUAL, recordId);
+							query.setRecordCount(1);
+							query.setZoomTableName(tableName);
+							query.setZoomColumnName(columnName);
+							query.setZoomValue(recordId);
+
+							AEnv.zoom(query);
+							log.warning("[Zoom Handler] AEnv.zoom() completed");
+							return;
+						}
+					}
+				}
+
+				// Legacy format: {tableId: X, recordId: Y}
+				if (jsonData.has("tableId") && jsonData.has("recordId")) {
+					int tableId = jsonData.optInt("tableId", 0);
+					int recordId = jsonData.optInt("recordId", 0);
+
+					if (tableId > 0 && recordId > 0) {
+						log.fine("Zoom request (legacy format): tableId=" + tableId + ", recordId=" + recordId);
+						AEnv.zoom(tableId, recordId);
+						return;
+					}
+				}
+
+				log.warning("Invalid zoom event data format: " + jsonData.toString());
 			} else {
-				log.warning("Zoom event data is not a JSON object: " + (data != null ? data.getClass().getName() : "null"));
+				log.warning("Zoom event data is not a JSON object: " +
+					(eventData != null ? eventData.getClass().getName() : "null"));
 			}
 		} catch (Exception e) {
 			log.log(Level.SEVERE, "Failed to handle zoom event", e);
 			Clients.showNotification(Msg.getMsg(Env.getCtx(), "Error") + ": " + e.getMessage(),
 				"error", this, null, -1);
 		}
+	}
+
+	/**
+	 * Zoom to a record using a pre-built MQuery.
+	 * This is the most efficient zoom method as it requires no parsing or query construction.
+	 *
+	 * <p><b>Usage Example:</b>
+	 * <pre>
+	 * // Create query for specific order
+	 * MQuery query = new MQuery("C_Order");
+	 * query.addRestriction("C_Order_ID", MQuery.EQUAL, 5678);
+	 * query.setRecordCount(1);
+	 * query.setZoomTableName("C_Order");
+	 * query.setZoomColumnName("C_Order_ID");
+	 * query.setZoomValue(5678);
+	 *
+	 * // Zoom to the record
+	 * chatWidget.zoomToRecord(query);
+	 * </pre>
+	 *
+	 * <p>This is the same pattern used by ChartRendererServiceImpl for chart drill-down.
+	 *
+	 * @param query pre-built MQuery with all restrictions and zoom metadata
+	 * @see org.idempiere.zk.billboard.chart.ChartRendererServiceImpl.ZoomListener
+	 */
+	public void zoomToRecord(MQuery query) {
+		if (query == null) {
+			log.warning("Cannot zoom: MQuery is null");
+			return;
+		}
+
+		if (query.getTableName() == null || query.getTableName().isEmpty()) {
+			log.warning("Cannot zoom: MQuery has no table name");
+			return;
+		}
+
+		// Fire zoom event with MQuery
+		Events.sendEvent(new Event(ON_ZOOM, this, query));
+	}
+
+	/**
+	 * Zoom to a record by table and record ID.
+	 * Convenience method that builds an MQuery and calls zoomToRecord().
+	 *
+	 * <p><b>Usage Example:</b>
+	 * <pre>
+	 * chatWidget.zoomToRecord("C_Order", 5678);
+	 * </pre>
+	 *
+	 * @param tableName table name (e.g., "C_Order")
+	 * @param recordId record ID
+	 */
+	public void zoomToRecord(String tableName, int recordId) {
+		if (tableName == null || tableName.isEmpty()) {
+			log.warning("Cannot zoom: table name is empty");
+			return;
+		}
+
+		if (recordId <= 0) {
+			log.warning("Cannot zoom: invalid record ID: " + recordId);
+			return;
+		}
+
+		// Build column name from table name (standard iDempiere convention)
+		String columnName = tableName + "_ID";
+
+		// Create MQuery using standard pattern
+		MQuery query = new MQuery(tableName);
+		query.addRestriction(columnName, MQuery.EQUAL, recordId);
+		query.setRecordCount(1);
+		query.setZoomTableName(tableName);
+		query.setZoomColumnName(columnName);
+		query.setZoomValue(recordId);
+
+		zoomToRecord(query);
 	}
 
 	/**
@@ -779,7 +984,8 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 		}
 
 		// Create streaming message component and store reference for cancellation
-		final AIChatStreamingMessage streamingMsg = new AIChatStreamingMessage();
+		// Pass context and widget ID for zoom link processing (ADR-039)
+		final AIChatStreamingMessage streamingMsg = new AIChatStreamingMessage(sessionCtx, getUuid());
 		currentStreamingMessage = streamingMsg;
 
 		// Get agent name from provider's AD_User (capture for use in lambda)
@@ -808,7 +1014,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 			// Add AI message header
 			Div msgDiv = new Div();
 			msgDiv.setSclass("ai-message");
-			msgDiv.setStyle("display: flex; flex-direction: column; gap: 12px; padding: 12px 18px; background: transparent;");
+			msgDiv.setStyle("display: flex; flex-direction: column; gap: 12px; max-width: 100%; width: 100%; padding: 12px 18px; background: transparent;");
 
 			// Header with logo and agent name
 			Html header = new Html();
@@ -1798,6 +2004,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 		sb.append("    if (!container) return;");
 
 		// Configure marked to use Prism for code highlighting
+		// IMPORTANT: sanitize must be false to allow HTML zoom links (ADR-039)
 		sb.append("    marked.setOptions({");
 		sb.append("      highlight: function(code, lang) {");
 		sb.append("        if (lang && Prism.languages[lang]) {");
@@ -1806,7 +2013,8 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 		sb.append("        return code;");
 		sb.append("      },");
 		sb.append("      breaks: true,");
-		sb.append("      gfm: true");
+		sb.append("      gfm: true,");
+		sb.append("      sanitize: false");  // Allow HTML for zoom links
 		sb.append("    });");
 
 		sb.append("    var html = marked.parse('").append(escapedMarkdown).append("');");
@@ -1824,6 +2032,81 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 		sb.append("</script>");
 
 		return sb.toString();
+	}
+
+	/**
+	 * Render markdown while preserving existing HTML (tables and zoom links).
+	 * Simplified version of AIChatStreamingMessage.processMarkdownPreservingHTML()
+	 */
+	private String renderMarkdownPreservingHTML(String text) {
+		if (text == null || text.isEmpty()) return "";
+
+		StringBuilder result = new StringBuilder();
+		int pos = 0;
+
+		while (pos < text.length()) {
+			int tagStart = text.indexOf('<', pos);
+			if (tagStart == -1) {
+				result.append(renderSimpleMarkdown(text.substring(pos)));
+				break;
+			}
+			if (tagStart > pos) {
+				result.append(renderSimpleMarkdown(text.substring(pos, tagStart)));
+			}
+			int tagEnd = text.indexOf('>', tagStart);
+			if (tagEnd == -1) {
+				result.append(text.substring(tagStart));
+				break;
+			}
+			String tag = text.substring(tagStart, tagEnd + 1);
+			result.append(tag);
+			String tagName = extractTagName(tag);
+			if (tagName != null && !tag.endsWith("/>") && !isSelfClosingTag(tagName)) {
+				String closingTag = "</" + tagName + ">";
+				int closingPos = text.indexOf(closingTag, tagEnd + 1);
+				if (closingPos != -1) {
+					result.append(text.substring(tagEnd + 1, closingPos + closingTag.length()));
+					pos = closingPos + closingTag.length();
+					continue;
+				}
+			}
+			pos = tagEnd + 1;
+		}
+		return result.toString();
+	}
+
+	private String extractTagName(String tag) {
+		if (tag == null || tag.length() < 3) return null;
+		String content = tag.substring(1, tag.length() - 1).trim();
+		if (content.startsWith("/")) content = content.substring(1).trim();
+		if (content.endsWith("/")) content = content.substring(0, content.length() - 1).trim();
+		int spacePos = content.indexOf(' ');
+		if (spacePos > 0) content = content.substring(0, spacePos);
+		return content.toLowerCase();
+	}
+
+	private boolean isSelfClosingTag(String tagName) {
+		return tagName.equals("br") || tagName.equals("hr") || tagName.equals("img") || tagName.equals("input");
+	}
+
+	private String renderSimpleMarkdown(String text) {
+		if (text == null || text.isEmpty()) return "";
+		String result = Util.maskHTML(text, true);
+		result = result.replaceAll("(?m)^### (.+)$", "<h4 style='font-size: 14px; font-weight: 600; margin: 12px 0 8px 0;'>$1</h4>");
+		result = result.replaceAll("(?m)^## (.+)$", "<h3 style='font-size: 15px; font-weight: 600; margin: 14px 0 8px 0;'>$1</h3>");
+		result = result.replaceAll("(?m)^# (.+)$", "<h2 style='font-size: 16px; font-weight: 600; margin: 16px 0 10px 0;'>$1</h2>");
+		result = result.replaceAll("\\*\\*(.+?)\\*\\*", "<strong>$1</strong>");
+		result = result.replaceAll("__(.+?)__", "<strong>$1</strong>");
+		result = result.replaceAll("(?<!\\*)\\*(?!\\*)(.+?)(?<!\\*)\\*(?!\\*)", "<em>$1</em>");
+		result = result.replaceAll("`([^`]+)`", "<code style='background: #f5f5f5; padding: 2px 6px; border-radius: 3px; font-family: monospace; font-size: 0.9em;'>$1</code>");
+		result = result.replaceAll("(?m)^- (.+)$", "<li style='margin-left: 16px; list-style-type: disc;'>$1</li>");
+		result = result.replaceAll("(?m)^\\* (.+)$", "<li style='margin-left: 16px; list-style-type: disc;'>$1</li>");
+		result = result.replace("\n", "<br/>");
+		result = result.replaceAll("</h2><br/>", "</h2>");
+		result = result.replaceAll("</h3><br/>", "</h3>");
+		result = result.replaceAll("</h4><br/>", "</h4>");
+		result = result.replaceAll("</li><br/>", "</li>");
+		return result;
 	}
 
 	// ========================================================================

@@ -17,6 +17,7 @@ import java.text.NumberFormat;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Properties;
 import java.util.regex.Pattern;
 
 /**
@@ -106,6 +107,12 @@ public class MarkdownTableRenderer {
     /** Thread-local locale for number formatting (can be set per-request) */
     private static final ThreadLocal<Locale> currentLocale = ThreadLocal.withInitial(() -> Locale.getDefault());
 
+    /** Thread-local context for zoom link processing (ADR-039) */
+    private static final ThreadLocal<Properties> currentCtx = new ThreadLocal<>();
+
+    /** Thread-local widget ID for zoom link processing (ADR-039) */
+    private static final ThreadLocal<String> currentWidgetId = new ThreadLocal<>();
+
     /** CSS styles for rendered tables */
     private static final String TABLE_STYLE =
         "border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 12px;";
@@ -143,6 +150,37 @@ public class MarkdownTableRenderer {
      */
     public static void clearLocale() {
         currentLocale.remove();
+    }
+
+    /**
+     * Set the context for zoom link processing (ADR-039).
+     *
+     * <p>This enables zoom links in table cells by providing the context
+     * needed for ZoomLinkProcessor to generate clickable links.
+     *
+     * @param ctx iDempiere context (Properties)
+     */
+    public static void setContext(Properties ctx) {
+        currentCtx.set(ctx);
+    }
+
+    /**
+     * Set the widget ID for zoom link processing (ADR-039).
+     *
+     * <p>This is the ZK widget UUID used as the event target for zoom actions.
+     *
+     * @param widgetId ZK widget UUID
+     */
+    public static void setWidgetId(String widgetId) {
+        currentWidgetId.set(widgetId);
+    }
+
+    /**
+     * Clear thread-local zoom link context (call at end of request).
+     */
+    public static void clearZoomContext() {
+        currentCtx.remove();
+        currentWidgetId.remove();
     }
 
     /**
@@ -404,9 +442,12 @@ public class MarkdownTableRenderer {
 
     /**
      * Parse cell contents from a table row.
+     *
+     * <p>Handles zoom link syntax [[Table:ID|Display]] correctly by not splitting
+     * on pipes inside [[...]] brackets (ADR-039).
      */
     private static String[] parseCells(String line) {
-        // Remove leading/trailing pipes and split
+        // Remove leading/trailing pipes
         String content = line.trim();
         if (content.startsWith("|")) {
             content = content.substring(1);
@@ -415,11 +456,44 @@ public class MarkdownTableRenderer {
             content = content.substring(0, content.length() - 1);
         }
 
-        String[] cells = content.split("\\|", -1);
-        for (int i = 0; i < cells.length; i++) {
-            cells[i] = cells[i].trim();
+        // Split on pipes, but ignore pipes inside [[...]] zoom link syntax
+        List<String> cells = new ArrayList<>();
+        StringBuilder currentCell = new StringBuilder();
+        int bracketDepth = 0;  // Track [[...]] nesting
+
+        for (int i = 0; i < content.length(); i++) {
+            char ch = content.charAt(i);
+
+            // Check for [[ opening
+            if (ch == '[' && i + 1 < content.length() && content.charAt(i + 1) == '[') {
+                bracketDepth++;
+                currentCell.append("[[");
+                i++; // Skip next [
+                continue;
+            }
+
+            // Check for ]] closing
+            if (ch == ']' && i + 1 < content.length() && content.charAt(i + 1) == ']') {
+                bracketDepth--;
+                currentCell.append("]]");
+                i++; // Skip next ]
+                continue;
+            }
+
+            // Pipe character - only split if not inside [[...]]
+            if (ch == '|' && bracketDepth == 0) {
+                // Cell separator - add current cell and start new one
+                cells.add(currentCell.toString().trim());
+                currentCell = new StringBuilder();
+            } else {
+                currentCell.append(ch);
+            }
         }
-        return cells;
+
+        // Add the last cell
+        cells.add(currentCell.toString().trim());
+
+        return cells.toArray(new String[0]);
     }
 
     /**
@@ -511,8 +585,25 @@ public class MarkdownTableRenderer {
                     displayContent = formatNumber(cellContent);
                 }
 
+                // Process zoom links BEFORE escaping (ADR-039)
+                // This converts [[TableName:RecordID|Display]] to clickable HTML links
+                Properties ctx = currentCtx.get();
+                String widgetId = currentWidgetId.get();
+                if (ctx != null && widgetId != null) {
+                    displayContent = com.cloudempiere.ai.util.ZoomLinkProcessor.processZoomLinks(
+                        displayContent, ctx, widgetId);
+                }
+
                 // HTML-escape cell content to prevent XSS
-                String safeContent = escapeHtml(displayContent);
+                // EXCEPTION: Preserve zoom link HTML that was just generated above
+                String safeContent;
+                if (containsZoomLink(displayContent)) {
+                    // Cell contains zoom link HTML - preserve it
+                    safeContent = displayContent;
+                } else {
+                    // Normal cell - escape for security
+                    safeContent = escapeHtml(displayContent);
+                }
 
                 if (isFirstRow) {
                     // Header row - also right-align headers for numeric columns
@@ -560,6 +651,30 @@ public class MarkdownTableRenderer {
             .replace(">", "&gt;")
             .replace("\"", "&quot;")
             .replace("'", "&#39;");
+    }
+
+    /**
+     * Check if text contains zoom link HTML generated by ZoomLinkProcessor.
+     *
+     * <p>Zoom links are identified by the presence of:
+     * <ul>
+     *   <li>class="ai-zoom-link" (from ZoomLinkProcessor)</li>
+     *   <li>class="ai-record-link" (from ChatRecordLinkRenderer)</li>
+     * </ul>
+     *
+     * <p>These links are safe to preserve without escaping because they're
+     * generated server-side with proper security measures (ADR-039).
+     *
+     * @param text text to check
+     * @return true if text contains zoom link HTML
+     */
+    private static boolean containsZoomLink(String text) {
+        if (text == null || text.isEmpty()) {
+            return false;
+        }
+        // Check for zoom link markers from ZoomLinkProcessor and ChatRecordLinkRenderer
+        return text.contains("class=\"ai-zoom-link\"") ||
+               text.contains("class=\"ai-record-link\"");
     }
 
     /**

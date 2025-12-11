@@ -16,7 +16,9 @@ package com.cloudempiere.ai.component;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Properties;
 
+import org.compiere.util.Env;
 import org.compiere.util.Util;
 import org.zkoss.zk.ui.event.Event;
 import org.zkoss.zk.ui.event.EventListener;
@@ -24,8 +26,10 @@ import org.zkoss.zk.ui.event.Events;
 import org.zkoss.zul.Div;
 import org.zkoss.zul.Html;
 
+import com.cloudempiere.ai.util.ChatRecordLinkRenderer;
 import com.cloudempiere.ai.util.MarkdownTableRenderer;
 import com.cloudempiere.ai.util.StreamingTextBuffer;
+import com.cloudempiere.ai.util.ZoomLinkProcessor;
 
 /**
  * ZK component for rendering streaming AI responses with tool timeline and thinking.
@@ -103,12 +107,30 @@ public class AIChatStreamingMessage extends Div {
     /** Locale for number formatting in tables */
     private Locale locale = Locale.getDefault();
 
+    /** iDempiere context for zoom link processing */
+    private Properties ctx;
+
+    /** Parent widget ID for zoom event targeting */
+    private String parentWidgetId;
+
     /**
      * Create a new streaming message component.
      */
     public AIChatStreamingMessage() {
+        this(Env.getCtx(), null);
+    }
+
+    /**
+     * Create a new streaming message component with context for zoom links.
+     *
+     * @param ctx iDempiere context for database access
+     * @param parentWidgetId parent widget ID for zoom event targeting (fires onZoom)
+     */
+    public AIChatStreamingMessage(Properties ctx, String parentWidgetId) {
         super();
         this.componentId = "stream_" + System.currentTimeMillis() + "_" + (int)(Math.random() * 10000);
+        this.ctx = ctx != null ? ctx : Env.getCtx();
+        this.parentWidgetId = parentWidgetId;
         injectCSS();
         init();
     }
@@ -124,7 +146,13 @@ public class AIChatStreamingMessage extends Div {
 
         String css =
             // Streaming message container
-            ".ai-streaming-message { display: flex; flex-direction: column; gap: 12px; padding: 12px 18px; }" +
+            ".ai-streaming-message { display: flex; flex-direction: column; gap: 12px; padding: 12px 18px; max-width: 100%; }" +
+
+            // Content section
+            ".ai-content-section { max-width: 100%; word-wrap: break-word; overflow-wrap: break-word; white-space: normal; }" +
+            ".ai-markdown-content { max-width: 100%; overflow-x: auto; }" +
+            ".ai-markdown-content table { max-width: 100%; table-layout: auto; word-wrap: break-word; }" +
+            ".ai-markdown-content td, .ai-markdown-content th { word-wrap: break-word; overflow-wrap: break-word; max-width: 300px; }" +
 
             // Thinking section (collapsible)
             ".ai-thinking-section { border: 1px solid #E8E8E8; border-radius: 8px; background: #FAFAFA; overflow: hidden; }" +
@@ -224,7 +252,8 @@ public class AIChatStreamingMessage extends Div {
         contentSection = new Div();
         contentSection.setSclass("ai-content-section");
         contentSection.setStyle("font-family: 'Helvetica Neue', sans-serif; font-weight: 400; " +
-            "font-size: 12px; line-height: 18px; color: #181D27;");
+            "font-size: 12px; line-height: 18px; color: #181D27; " +
+            "max-width: 100%; word-wrap: break-word; overflow-wrap: break-word; white-space: normal;");
 
         streamingContent = new Html();
         streamingContent.setId("content_" + componentId);
@@ -581,6 +610,33 @@ public class AIChatStreamingMessage extends Div {
         markdownText = markdownText.replaceAll("(?s)<invoke[^>]*>.*?</invoke>", "");
         markdownText = markdownText.replaceAll("(?s)<parameter[^>]*>.*?</parameter>", "");
 
+        // Pre-render tables BEFORE passing to marked.js (ADR-039)
+        // This ensures zoom links in table cells are processed correctly
+        if (MarkdownTableRenderer.containsTable(markdownText)) {
+            MarkdownTableRenderer.setLocale(locale);
+            MarkdownTableRenderer.setContext(ctx);
+            MarkdownTableRenderer.setWidgetId(parentWidgetId);
+            try {
+                markdownText = MarkdownTableRenderer.renderTables(markdownText);
+            } finally {
+                MarkdownTableRenderer.clearLocale();
+                MarkdownTableRenderer.clearZoomContext();
+            }
+        }
+
+        // Process zoom links if parent widget ID is available (ADR-039)
+        // Uses explicit syntax [[Table:ID|Display]] - AI is instructed to format references this way.
+        // Note: This processes links OUTSIDE tables. Links inside tables are handled above.
+        if (parentWidgetId != null) {
+            markdownText = ZoomLinkProcessor.processZoomLinks(markdownText, ctx, parentWidgetId);
+
+            // FUTURE (ADR-039): Pattern-based extraction for natural references like "SO-1234"
+            // Currently bypassed - requires vector DB for fast lookup across 2000+ tables.
+            // See RecordReferenceExtractor and ChatRecordLinkRenderer for implementation.
+            // Uncomment when vector DB caching is available:
+            // markdownText = ChatRecordLinkRenderer.extractAndRender(markdownText, ctx, parentWidgetId);
+        }
+
         // Use the existing streamingContent element's ID (content_[componentId])
         // This element was created in init() and already exists in the DOM
         String contentId = "content_" + componentId;
@@ -593,55 +649,36 @@ public class AIChatStreamingMessage extends Div {
             .replace("\n", "\\n")
             .replace("</script>", "<\\/script>");
 
-        // First, set the container with a placeholder that will be filled by marked.js
-        // The container div already exists since we're using the streamingContent element
-        String placeholderHtml = "<div class='ai-markdown-content'>" +
-            renderPartialMarkdown(markdownText) + "</div>";
-        streamingContent.setContent(placeholderHtml);
+        // At this point, markdownText contains:
+        // - Pre-rendered HTML tables (with zoom links)
+        // - HTML zoom links outside tables
+        // - Raw markdown for everything else (headings, bold, lists, etc.)
+        //
+        // We need to process the remaining markdown WITHOUT corrupting the HTML we've already generated.
+        // Solution: Process markdown ONLY on non-HTML parts
+        String finalHtml = processMarkdownPreservingHTML(markdownText);
+        streamingContent.setContent("<div class='ai-markdown-content'>" + finalHtml + "</div>");
 
-        // Then use Clients.evalJavaScript to render with marked.js after the DOM is updated
-        // This runs AFTER ZK has processed all component updates
+        // Apply syntax highlighting if available (via JavaScript)
         String script =
             "(function() {" +
-            "  var renderMD = function() {" +
-            "    if (!window.marked) {" +
-            "      setTimeout(renderMD, 100);" +
-            "      return;" +
-            "    }" +
+            "  var applyHighlight = function() {" +
+            "    if (!window.Prism) return;" +
             // Find the streamingContent element by its ZK-generated ID
             "    var zkWidget = zk.Widget.$('$" + contentId + "');" +
             "    var container = zkWidget ? zkWidget.$n() : document.getElementById('" + contentId + "');" +
             "    if (!container) {" +
-            // Fallback: try to find by class within ai-streaming-message
             "      container = document.querySelector('.ai-streaming-message .ai-markdown-content');" +
             "    }" +
-            "    if (!container) {" +
-            "      console.warn('renderFinalMarkdown: container not found, retrying...');" +
-            "      setTimeout(renderMD, 200);" +
-            "      return;" +
-            "    }" +
-            // Find the ai-markdown-content div within the container
+            "    if (!container) return;" +
             "    var mdContainer = container.querySelector('.ai-markdown-content') || container;" +
-            "    marked.setOptions({" +
-            "      breaks: true," +
-            "      gfm: true" +
+            // Apply Prism highlighting
+            "    mdContainer.querySelectorAll('pre code').forEach(function(block) {" +
+            "      Prism.highlightElement(block);" +
             "    });" +
-            "    try {" +
-            "      var html = marked.parse('" + escapedMarkdown + "');" +
-            "      mdContainer.innerHTML = html;" +
-            "    } catch (e) {" +
-            "      console.error('Markdown parse error:', e);" +
-            // Fallback already set via renderPartialMarkdown
-            "    }" +
-            // Apply Prism highlighting if available
-            "    if (window.Prism) {" +
-            "      mdContainer.querySelectorAll('pre code').forEach(function(block) {" +
-            "        Prism.highlightElement(block);" +
-            "      });" +
-            "    }" +
             "  };" +
             // Use setTimeout to ensure ZK has processed the DOM update first
-            "  setTimeout(renderMD, 50);" +
+            "  setTimeout(applyHighlight, 50);" +
             "})();";
 
         org.zkoss.zk.ui.util.Clients.evalJavaScript(script);
@@ -715,10 +752,14 @@ public class AIChatStreamingMessage extends Div {
         String result = cleaned;
         if (MarkdownTableRenderer.containsTable(cleaned)) {
             MarkdownTableRenderer.setLocale(locale);
+            // Set context for zoom link processing in table cells (ADR-039)
+            MarkdownTableRenderer.setContext(ctx);
+            MarkdownTableRenderer.setWidgetId(parentWidgetId);
             try {
                 result = MarkdownTableRenderer.renderTables(cleaned);
             } finally {
                 MarkdownTableRenderer.clearLocale();
+                MarkdownTableRenderer.clearZoomContext();
             }
         }
 
@@ -809,6 +850,90 @@ public class AIChatStreamingMessage extends Div {
         }
 
         return result.toString();
+    }
+
+    /**
+     * Process markdown while preserving existing HTML (tables and zoom links).
+     */
+    private String processMarkdownPreservingHTML(String text) {
+        if (text == null || text.isEmpty()) {
+            return "";
+        }
+
+        StringBuilder result = new StringBuilder();
+        int pos = 0;
+
+        while (pos < text.length()) {
+            int tagStart = text.indexOf('<', pos);
+
+            if (tagStart == -1) {
+                result.append(processSimpleMarkdown(text.substring(pos)));
+                break;
+            }
+
+            if (tagStart > pos) {
+                result.append(processSimpleMarkdown(text.substring(pos, tagStart)));
+            }
+
+            int tagEnd = text.indexOf('>', tagStart);
+            if (tagEnd == -1) {
+                result.append(text.substring(tagStart));
+                break;
+            }
+
+            String tag = text.substring(tagStart, tagEnd + 1);
+            result.append(tag);
+            String tagName = extractTagName(tag);
+
+            if (tagName != null && !tag.endsWith("/>") && !isSelfClosingTag(tagName)) {
+                String closingTag = "</" + tagName + ">";
+                int closingPos = text.indexOf(closingTag, tagEnd + 1);
+                if (closingPos != -1) {
+                    result.append(text.substring(tagEnd + 1, closingPos + closingTag.length()));
+                    pos = closingPos + closingTag.length();
+                    continue;
+                }
+            }
+
+            pos = tagEnd + 1;
+        }
+
+        return result.toString();
+    }
+
+    private String extractTagName(String tag) {
+        if (tag == null || tag.length() < 3) return null;
+        String content = tag.substring(1, tag.length() - 1).trim();
+        if (content.startsWith("/")) content = content.substring(1).trim();
+        if (content.endsWith("/")) content = content.substring(0, content.length() - 1).trim();
+        int spacePos = content.indexOf(' ');
+        if (spacePos > 0) content = content.substring(0, spacePos);
+        return content.toLowerCase();
+    }
+
+    private boolean isSelfClosingTag(String tagName) {
+        return tagName.equals("br") || tagName.equals("hr") ||
+               tagName.equals("img") || tagName.equals("input");
+    }
+
+    private String processSimpleMarkdown(String text) {
+        if (text == null || text.isEmpty()) return "";
+        String result = Util.maskHTML(text, true);
+        result = result.replaceAll("(?m)^### (.+)$", "<h4 style='font-size: 14px; font-weight: 600; margin: 12px 0 8px 0;'>$1</h4>");
+        result = result.replaceAll("(?m)^## (.+)$", "<h3 style='font-size: 15px; font-weight: 600; margin: 14px 0 8px 0;'>$1</h3>");
+        result = result.replaceAll("(?m)^# (.+)$", "<h2 style='font-size: 16px; font-weight: 600; margin: 16px 0 10px 0;'>$1</h2>");
+        result = result.replaceAll("\\*\\*(.+?)\\*\\*", "<strong>$1</strong>");
+        result = result.replaceAll("__(.+?)__", "<strong>$1</strong>");
+        result = result.replaceAll("(?<!\\*)\\*(?!\\*)(.+?)(?<!\\*)\\*(?!\\*)", "<em>$1</em>");
+        result = result.replaceAll("`([^`]+)`", "<code style='background: #f5f5f5; padding: 2px 6px; border-radius: 3px; font-family: monospace; font-size: 0.9em;'>$1</code>");
+        result = result.replaceAll("(?m)^- (.+)$", "<li style='margin-left: 16px; list-style-type: disc;'>$1</li>");
+        result = result.replaceAll("(?m)^\\* (.+)$", "<li style='margin-left: 16px; list-style-type: disc;'>$1</li>");
+        result = result.replace("\n", "<br/>");
+        result = result.replaceAll("</h2><br/>", "</h2>");
+        result = result.replaceAll("</h3><br/>", "</h3>");
+        result = result.replaceAll("</h4><br/>", "</h4>");
+        result = result.replaceAll("</li><br/>", "</li>");
+        return result;
     }
 
     /**
