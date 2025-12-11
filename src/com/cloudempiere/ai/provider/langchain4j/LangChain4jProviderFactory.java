@@ -44,9 +44,11 @@ public class LangChain4jProviderFactory {
     /** Provider type constants matching AD_Ref_List values */
     public static final String PROVIDER_ANTHROPIC = X_AIG_Provider.AIGPROVIDERTYPE_AnthropicClaude;
     public static final String PROVIDER_BEDROCK = X_AIG_Provider.AIGPROVIDERTYPE_AWSBedrock;
-    public static final String PROVIDER_OLLAMA = "OLL";    // To be added to AD_Ref_List
+    public static final String PROVIDER_OLLAMA = X_AIG_Provider.AIGPROVIDERTYPE_Ollama;
     public static final String PROVIDER_OPENAI = "OAI";    // To be added to AD_Ref_List
     public static final String PROVIDER_LLAMA = "LLA";     // Meta Llama via Ollama - To be added to AD_Ref_List
+    /** Satellite provider type - routes requests to Quarkus Satellite Service (ADR-042) */
+    public static final String PROVIDER_SATELLITE = X_AIG_Provider.AIGPROVIDERTYPE_QuarkusSatellite;
 
     /** Default model names per provider */
     private static final String DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-4-20250514";
@@ -62,6 +64,11 @@ public class LangChain4jProviderFactory {
     private static final String DEFAULT_OLLAMA_EMBEDDING_MODEL = "nomic-embed-text";
     private static final String DEFAULT_OPENAI_EMBEDDING_MODEL = "text-embedding-3-small";
 
+    /** Default satellite configuration */
+    private static final String DEFAULT_SATELLITE_URL = "http://localhost:8090";
+    private static final String DEFAULT_SATELLITE_MODEL = "claude-sonnet-4";
+    private static final int DEFAULT_SATELLITE_TIMEOUT_SECONDS = 120;
+
     /** Cache for model instances by provider ID */
     private static final Map<Integer, ChatLanguageModel> modelCache = new ConcurrentHashMap<>();
     private static final Map<Integer, StreamingChatLanguageModel> streamingModelCache = new ConcurrentHashMap<>();
@@ -71,16 +78,16 @@ public class LangChain4jProviderFactory {
     private static boolean metricsEnabled = true;
 
     /**
-     * Create a ChatLanguageModel from MAIProvider configuration.
+     * Create a ChatLanguageModel from provider configuration.
      *
      * <p>Uses the ModelName from the provider configuration if set,
      * otherwise falls back to provider-specific defaults.
      *
-     * @param config MAIProvider database configuration
+     * @param config Provider configuration (MAIProvider or IAIProviderConfig implementation)
      * @return ChatLanguageModel instance
      * @throws IllegalArgumentException if provider type is unknown
      */
-    public static ChatLanguageModel create(MAIProvider config) {
+    public static ChatLanguageModel create(IAIProviderConfig config) {
         // Use ModelName from config if set, otherwise null (will use defaults)
         String modelName = config.getModelName();
         if (modelName != null && modelName.trim().isEmpty()) {
@@ -92,12 +99,12 @@ public class LangChain4jProviderFactory {
     /**
      * Create a ChatLanguageModel with optional model name override.
      *
-     * @param config MAIProvider database configuration
+     * @param config Provider configuration (MAIProvider or IAIProviderConfig implementation)
      * @param modelName Optional model name (uses config.getModelName() or default if null)
      * @param baseUrl Optional base URL for Ollama (uses default if null)
      * @return ChatLanguageModel instance
      */
-    public static ChatLanguageModel create(MAIProvider config, String modelName, String baseUrl) {
+    public static ChatLanguageModel create(IAIProviderConfig config, String modelName, String baseUrl) {
         String providerType = config.getAIGProviderType();
         String apiKey = config.getAPIKey();
 
@@ -123,6 +130,8 @@ public class LangChain4jProviderFactory {
                 return createOpenAiModel(apiKey, modelName);
             case PROVIDER_LLAMA:
                 return createLlamaModel(baseUrl, modelName);
+            case PROVIDER_SATELLITE:
+                return createSatelliteModel(config);
             default:
                 throw new IllegalArgumentException("Unknown provider type: " + providerType);
         }
@@ -134,10 +143,10 @@ public class LangChain4jProviderFactory {
      * <p>Uses the ModelName from the provider configuration if set,
      * otherwise falls back to provider-specific defaults.
      *
-     * @param config MAIProvider database configuration
+     * @param config Provider configuration (MAIProvider or IAIProviderConfig implementation)
      * @return StreamingChatLanguageModel instance
      */
-    public static StreamingChatLanguageModel createStreaming(MAIProvider config) {
+    public static StreamingChatLanguageModel createStreaming(IAIProviderConfig config) {
         // Use ModelName from config if set, otherwise null (will use defaults)
         String modelName = config.getModelName();
         if (modelName != null && modelName.trim().isEmpty()) {
@@ -149,7 +158,7 @@ public class LangChain4jProviderFactory {
     /**
      * Create a StreamingChatLanguageModel with optional model name override.
      */
-    public static StreamingChatLanguageModel createStreaming(MAIProvider config, String modelName, String baseUrl) {
+    public static StreamingChatLanguageModel createStreaming(IAIProviderConfig config, String modelName, String baseUrl) {
         String providerType = config.getAIGProviderType();
         String apiKey = config.getAPIKey();
 
@@ -175,6 +184,8 @@ public class LangChain4jProviderFactory {
                 return createOpenAiStreamingModel(apiKey, modelName);
             case PROVIDER_LLAMA:
                 return createLlamaStreamingModel(baseUrl, modelName);
+            case PROVIDER_SATELLITE:
+                return createSatelliteStreamingModel(config);
             default:
                 throw new IllegalArgumentException("Streaming not supported for provider: " + providerType);
         }
@@ -183,7 +194,7 @@ public class LangChain4jProviderFactory {
     /**
      * Get or create a cached ChatLanguageModel instance.
      */
-    public static ChatLanguageModel getOrCreate(MAIProvider config) {
+    public static ChatLanguageModel getOrCreate(IAIProviderConfig config) {
         return modelCache.computeIfAbsent(config.getAIG_Provider_ID(),
             id -> create(config));
     }
@@ -224,23 +235,23 @@ public class LangChain4jProviderFactory {
      *   <li>OpenAI → text-embedding-3-small</li>
      * </ul>
      *
-     * @param config MAIProvider database configuration
+     * @param config Provider configuration (MAIProvider or IAIProviderConfig implementation)
      * @return EmbeddingModel instance
      * @throws IllegalArgumentException if provider type is unknown
      */
-    public static EmbeddingModel createEmbeddingModel(MAIProvider config) {
+    public static EmbeddingModel createEmbeddingModel(IAIProviderConfig config) {
         return createEmbeddingModel(config, null, null);
     }
 
     /**
      * Create an EmbeddingModel with optional model name override.
      *
-     * @param config MAIProvider database configuration
+     * @param config Provider configuration (MAIProvider or IAIProviderConfig implementation)
      * @param modelName Optional model name (uses default if null)
      * @param baseUrl Optional base URL for Ollama (uses default if null)
      * @return EmbeddingModel instance
      */
-    public static EmbeddingModel createEmbeddingModel(MAIProvider config, String modelName, String baseUrl) {
+    public static EmbeddingModel createEmbeddingModel(IAIProviderConfig config, String modelName, String baseUrl) {
         String providerType = config.getAIGProviderType();
         String apiKey = config.getAPIKey();
 
@@ -265,6 +276,9 @@ public class LangChain4jProviderFactory {
                 // Llama uses Ollama for embeddings with nomic-embed-text or similar
                 return createLlamaEmbeddingModel(baseUrl, modelName);
 
+            case PROVIDER_SATELLITE:
+                return createSatelliteEmbeddingModel(config);
+
             default:
                 // Fallback to Bedrock Titan for unknown providers
                 log.warning("Unknown provider type: " + providerType + ", falling back to Bedrock Titan Embeddings");
@@ -275,10 +289,10 @@ public class LangChain4jProviderFactory {
     /**
      * Get or create a cached EmbeddingModel instance.
      *
-     * @param config MAIProvider configuration
+     * @param config Provider configuration (MAIProvider or IAIProviderConfig implementation)
      * @return Cached or newly created EmbeddingModel
      */
-    public static EmbeddingModel getOrCreateEmbeddingModel(MAIProvider config) {
+    public static EmbeddingModel getOrCreateEmbeddingModel(IAIProviderConfig config) {
         return embeddingModelCache.computeIfAbsent(config.getAIG_Provider_ID(),
             id -> createEmbeddingModel(config));
     }
@@ -294,7 +308,8 @@ public class LangChain4jProviderFactory {
         return PROVIDER_BEDROCK.equals(providerType) ||
                PROVIDER_OLLAMA.equals(providerType) ||
                PROVIDER_OPENAI.equals(providerType) ||
-               PROVIDER_LLAMA.equals(providerType);
+               PROVIDER_LLAMA.equals(providerType) ||
+               PROVIDER_SATELLITE.equals(providerType);
     }
 
     // ========================================================================
@@ -597,6 +612,173 @@ public class LangChain4jProviderFactory {
             .apiKey(apiKey)
             .modelName(modelName != null ? modelName : DEFAULT_OPENAI_EMBEDDING_MODEL)
             .build();
+    }
+
+    // ========================================================================
+    // Satellite Provider Methods (ADR-042)
+    // ========================================================================
+
+    /**
+     * Create a ChatLanguageModel that routes through Quarkus Satellite Service.
+     *
+     * <p>The satellite service exposes an OpenAI-compatible REST API, so we use
+     * OpenAiChatModel with custom baseUrl pointing to the satellite.
+     *
+     * <p>Benefits of satellite routing:
+     * <ul>
+     *   <li>Access to LangChain4j 1.x features (MCP, extended thinking)</li>
+     *   <li>Centralized AI processing and cost management</li>
+     *   <li>Advanced observability and caching</li>
+     *   <li>Multi-tenant support with context isolation</li>
+     * </ul>
+     *
+     * @param config Provider configuration with satellite endpoint and auth token
+     * @return ChatLanguageModel proxying through satellite
+     */
+    private static ChatLanguageModel createSatelliteModel(IAIProviderConfig config) {
+        String endpoint = config.getEndpoint();
+        if (endpoint == null || endpoint.isEmpty()) {
+            endpoint = DEFAULT_SATELLITE_URL;
+            log.info("Satellite endpoint not configured, using default: " + endpoint);
+        }
+
+        String apiKey = config.getAPIKey();
+        if (apiKey == null || apiKey.isEmpty()) {
+            apiKey = "mock-token";  // Allow mock mode for development
+            log.warning("Satellite API key not configured, using mock token for development");
+        }
+
+        // Normalize endpoint URL
+        if (!endpoint.endsWith("/")) {
+            endpoint = endpoint + "/";
+        }
+        String baseUrl = endpoint + "v1";
+
+        String modelName = config.getModelName();
+        if (modelName == null || modelName.isEmpty()) {
+            modelName = DEFAULT_SATELLITE_MODEL;
+        }
+
+        log.info("Creating Satellite proxy model: endpoint=" + endpoint + ", model=" + modelName);
+
+        // Use OpenAI-compatible client (satellite exposes /v1/chat/completions)
+        var builder = OpenAiChatModel.builder()
+            .baseUrl(baseUrl)
+            .apiKey(apiKey)
+            .modelName(modelName)
+            .temperature(0.7)
+            .logRequests(true)
+            .logResponses(true);
+
+        // Add observability listener
+        if (metricsEnabled) {
+            builder.listeners(List.of(createMetricsListener("satellite")));
+        }
+
+        return builder.build();
+    }
+
+    /**
+     * Create a StreamingChatLanguageModel through satellite.
+     *
+     * @param config Provider configuration with satellite endpoint and auth token
+     * @return StreamingChatLanguageModel proxying through satellite
+     */
+    private static StreamingChatLanguageModel createSatelliteStreamingModel(IAIProviderConfig config) {
+        String endpoint = config.getEndpoint();
+        if (endpoint == null || endpoint.isEmpty()) {
+            endpoint = DEFAULT_SATELLITE_URL;
+            log.info("Satellite streaming endpoint not configured, using default: " + endpoint);
+        }
+
+        String apiKey = config.getAPIKey();
+        if (apiKey == null || apiKey.isEmpty()) {
+            apiKey = "mock-token";
+            log.warning("Satellite streaming API key not configured, using mock token for development");
+        }
+
+        if (!endpoint.endsWith("/")) {
+            endpoint = endpoint + "/";
+        }
+        String baseUrl = endpoint + "v1";
+
+        String modelName = config.getModelName();
+        if (modelName == null || modelName.isEmpty()) {
+            modelName = DEFAULT_SATELLITE_MODEL;
+        }
+
+        log.info("Creating Satellite streaming model: endpoint=" + endpoint + ", model=" + modelName);
+
+        return OpenAiStreamingChatModel.builder()
+            .baseUrl(baseUrl)
+            .apiKey(apiKey)
+            .modelName(modelName)
+            .temperature(0.7)
+            .build();
+    }
+
+    /**
+     * Create an EmbeddingModel through satellite.
+     *
+     * @param config Provider configuration with satellite endpoint and auth token
+     * @return EmbeddingModel proxying through satellite
+     */
+    private static EmbeddingModel createSatelliteEmbeddingModel(IAIProviderConfig config) {
+        String endpoint = config.getEndpoint();
+        if (endpoint == null || endpoint.isEmpty()) {
+            endpoint = DEFAULT_SATELLITE_URL;
+            log.info("Satellite embedding endpoint not configured, using default: " + endpoint);
+        }
+
+        String apiKey = config.getAPIKey();
+        if (apiKey == null || apiKey.isEmpty()) {
+            apiKey = "mock-token";
+            log.warning("Satellite embedding API key not configured, using mock token for development");
+        }
+
+        if (!endpoint.endsWith("/")) {
+            endpoint = endpoint + "/";
+        }
+        String baseUrl = endpoint + "v1";
+
+        log.info("Creating Satellite embedding model: endpoint=" + endpoint);
+
+        return OpenAiEmbeddingModel.builder()
+            .baseUrl(baseUrl)
+            .apiKey(apiKey)
+            .modelName("text-embedding-3-small")  // Satellite routes appropriately
+            .build();
+    }
+
+    /**
+     * Check if satellite service is available.
+     *
+     * @param config Provider configuration with satellite endpoint
+     * @return true if satellite responds to health check
+     */
+    public static boolean isSatelliteHealthy(IAIProviderConfig config) {
+        if (!PROVIDER_SATELLITE.equals(config.getAIGProviderType())) {
+            return true;  // Not a satellite provider
+        }
+
+        String endpoint = config.getEndpoint();
+        if (endpoint == null || endpoint.isEmpty()) {
+            endpoint = DEFAULT_SATELLITE_URL;
+        }
+
+        try {
+            java.net.URL healthUrl = new java.net.URL(endpoint + "/health");
+            java.net.HttpURLConnection conn = (java.net.HttpURLConnection) healthUrl.openConnection();
+            conn.setRequestMethod("GET");
+            conn.setConnectTimeout(5000);
+            conn.setReadTimeout(5000);
+
+            int status = conn.getResponseCode();
+            return status == 200;
+        } catch (Exception e) {
+            log.warning("Satellite health check failed: " + e.getMessage());
+            return false;
+        }
     }
 
     // ========================================================================

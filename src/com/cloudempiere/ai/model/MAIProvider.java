@@ -9,13 +9,15 @@ import org.compiere.model.Query;
 import org.compiere.util.CCache;
 import org.compiere.util.Env;
 
+import com.cloudempiere.ai.provider.langchain4j.IAIProviderConfig;
+
 /**
  * Model class for AIG_Provider
  *
  * <p>Provides access to AI provider configuration stored in the AIG_Provider table.
  * Supports caching for performance.
  */
-public class MAIProvider extends X_AIG_Provider {
+public class MAIProvider extends X_AIG_Provider implements IAIProviderConfig {
 
 	private static final long serialVersionUID = -8293759018862021378L;
 

@@ -1,0 +1,1 @@
+../../../idempiere-cli/docs/adr/045-idempiere-cli-integration-architecture.md
