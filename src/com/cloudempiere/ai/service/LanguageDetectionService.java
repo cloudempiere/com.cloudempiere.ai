@@ -23,6 +23,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.compiere.model.MClient;
 import org.compiere.util.CLogger;
 import org.compiere.util.Env;
 import org.compiere.util.Language;
@@ -79,8 +80,8 @@ public class LanguageDetectionService {
         Pattern.compile("(?i)\\b(?:respond|answer|reply|speak|write)\\s+(?:to me\\s+)?in\\s+(\\w+)"),
         Pattern.compile("(?i)\\b(?:switch|change)\\s+(?:to|the\\s+language\\s+to)\\s+(\\w+)"),
         Pattern.compile("(?i)\\buse\\s+(\\w+)\\s*(?:language)?\\b"),
-        Pattern.compile("(?i)\\bin\\s+(\\w+)\\s+(?:please|bitte|por favor|s'il vous pla[iî]t)$"),
-        Pattern.compile("(?i)\\b(\\w+)\\s+(?:please|bitte|por favor|s'il vous pla[iî]t)$"),
+        Pattern.compile("(?i)\\bin\\s+(\\w+)\\s+(?:please|bitte|por favor|s'il vous pla[iî]t|prosím|kérem)$"),
+        Pattern.compile("(?i)\\b(\\w+)\\s+(?:please|bitte|por favor|s'il vous pla[iî]t|prosím|kérem)$"),
         // German patterns
         Pattern.compile("(?i)\\bauf\\s+(deutsch|englisch|spanisch|franz[oö]sisch|italienisch)\\b"),
         Pattern.compile("(?i)\\bantworte?\\s+(?:mir\\s+)?(?:auf|in)\\s+(\\w+)"),
@@ -89,7 +90,21 @@ public class LanguageDetectionService {
         Pattern.compile("(?i)\\bresponde?\\s+en\\s+(\\w+)"),
         // French patterns
         Pattern.compile("(?i)\\ben\\s+(fran[cç]ais|anglais|espagnol|allemand|italien)\\b"),
-        Pattern.compile("(?i)\\br[eé]ponds?\\s+en\\s+(\\w+)")
+        Pattern.compile("(?i)\\br[eé]ponds?\\s+en\\s+(\\w+)"),
+        // Slovak patterns
+        Pattern.compile("(?i)\\b(?:prepni|prepnime|prepnite|prejdi|prejdime)\\s+(?:do|na)\\s+(\\w+)"),
+        Pattern.compile("(?i)\\b(?:odpovedaj|odpovedajte)\\s+(?:v|po)\\s+(\\w+)"),
+        Pattern.compile("(?i)\\b(?:po|v)\\s+(sloven[sč]ky|[cč]esky|anglicky|nemecky|maďarsky|poľsky)\\b"),
+        // Czech patterns
+        Pattern.compile("(?i)\\b(?:přepni|přepněte|přejdi|přejděte)\\s+(?:do|na)\\s+(\\w+)"),
+        Pattern.compile("(?i)\\b(?:odpovídej|odpovídejte)\\s+(?:v|česky|anglicky|německy|maďarsky|polsky)"),
+        Pattern.compile("(?i)\\b(?:v|po)\\s+(česky|anglicky|slovensky|německy|maďarsky|polsky)\\b"),
+        // Hungarian patterns
+        Pattern.compile("(?i)\\b(?:válaszolj|válaszoljunk|válts|váltsunk)\\s+(?:magyarul|angolul|németül|franciául|spanyolul|szlovákul|csehül)\\b"),
+        Pattern.compile("(?i)\\bmagyarul\\s+kérem\\b"),
+        // Polish patterns
+        Pattern.compile("(?i)\\b(?:przełącz|przejdź|odpowiadaj)\\s+(?:na|po)\\s+(\\w+)"),
+        Pattern.compile("(?i)\\b(?:po|w)\\s+(polsku|angielsku|niemiecku|francusku|hiszpańsku)\\b")
     );
 
     /** Language name to code mapping (lowercase name -> AD_Language code) */
@@ -141,6 +156,7 @@ public class LanguageDetectionService {
         LANGUAGE_MAP.put("português", "pt_BR");
         LANGUAGE_MAP.put("portugues", "pt_BR");
         LANGUAGE_MAP.put("polski", "pl_PL");
+        LANGUAGE_MAP.put("polsku", "pl_PL");
         LANGUAGE_MAP.put("русский", "ru_RU");
         LANGUAGE_MAP.put("中文", "zh_CN");
         LANGUAGE_MAP.put("日本語", "ja_JP");
@@ -149,9 +165,14 @@ public class LanguageDetectionService {
         LANGUAGE_MAP.put("עברית", "he_IL");
         LANGUAGE_MAP.put("türkçe", "tr_TR");
         LANGUAGE_MAP.put("čeština", "cs_CZ");
+        LANGUAGE_MAP.put("česky", "cs_CZ");
+        LANGUAGE_MAP.put("cesky", "cs_CZ");
         LANGUAGE_MAP.put("slovenčina", "sk_SK");
         LANGUAGE_MAP.put("slovenský", "sk_SK");
+        LANGUAGE_MAP.put("slovensky", "sk_SK");
+        LANGUAGE_MAP.put("slovenciny", "sk_SK"); // genitive form
         LANGUAGE_MAP.put("magyar", "hu_HU");
+        LANGUAGE_MAP.put("magyarul", "hu_HU");
         LANGUAGE_MAP.put("română", "ro_RO");
         LANGUAGE_MAP.put("български", "bg_BG");
         LANGUAGE_MAP.put("hrvatski", "hr_HR");
@@ -167,6 +188,31 @@ public class LanguageDetectionService {
         LANGUAGE_MAP.put("französisch", "fr_FR");
         LANGUAGE_MAP.put("franzosisch", "fr_FR");
         LANGUAGE_MAP.put("italienisch", "it_IT");
+
+        // Slovak language names (used in patterns)
+        LANGUAGE_MAP.put("anglicky", "en_US");
+        LANGUAGE_MAP.put("nemecky", "de_DE");
+        LANGUAGE_MAP.put("maďarsky", "hu_HU");
+        LANGUAGE_MAP.put("poľsky", "pl_PL");
+
+        // Czech language names (used in patterns)
+        LANGUAGE_MAP.put("německy", "de_DE");
+        LANGUAGE_MAP.put("maďarsky", "hu_HU");
+        LANGUAGE_MAP.put("polsky", "pl_PL");
+
+        // Hungarian language names (used in patterns)
+        LANGUAGE_MAP.put("angolul", "en_US");
+        LANGUAGE_MAP.put("németül", "de_DE");
+        LANGUAGE_MAP.put("franciául", "fr_FR");
+        LANGUAGE_MAP.put("spanyolul", "es_ES");
+        LANGUAGE_MAP.put("szlovákul", "sk_SK");
+        LANGUAGE_MAP.put("csehül", "cs_CZ");
+
+        // Polish language names (used in patterns)
+        LANGUAGE_MAP.put("angielsku", "en_US");
+        LANGUAGE_MAP.put("niemiecku", "de_DE");
+        LANGUAGE_MAP.put("francusku", "fr_FR");
+        LANGUAGE_MAP.put("hiszpańsku", "es_ES");
 
         // Spanish language names
         LANGUAGE_MAP.put("inglés", "en_US");
@@ -213,6 +259,7 @@ public class LanguageDetectionService {
      * <ol>
      *   <li>Session override (user explicitly requested)</li>
      *   <li>iDempiere user language (AD_Language from context)</li>
+     *   <li>Tenant/Client language (AD_Client → AD_Language)</li>
      *   <li>Fallback: en_US</li>
      * </ol>
      *
@@ -221,24 +268,61 @@ public class LanguageDetectionService {
      * @return Effective language code (e.g., "de_DE")
      */
     public String getSessionLanguage(Properties ctx, int chatId) {
+        log.warning("[LANGUAGE] getSessionLanguage called for chat " + chatId);
+
         // 1. Check session override first
         String override = sessionOverrides.get(chatId);
         if (override != null && !override.isBlank()) {
-            log.fine("Using session override language for chat " + chatId + ": " + override);
+            Language lang = Language.getLanguage(override);
+            String langName = lang != null ? lang.getName() : override;
+            log.warning("[LANGUAGE] ✓ Priority 1: Session override → " + langName + " (" + override + ")");
             return override;
+        } else {
+            log.warning("[LANGUAGE] ✗ Priority 1: No session override found");
         }
 
-        // 2. Use iDempiere context language
+        // 2. Use iDempiere context language (user login language)
         if (ctx != null) {
             String adLanguage = Env.getAD_Language(ctx);
             if (adLanguage != null && !adLanguage.isBlank()) {
-                log.fine("Using iDempiere context language: " + adLanguage);
+                Language lang = Language.getLanguage(adLanguage);
+                String langName = lang != null ? lang.getName() : adLanguage;
+                log.warning("[LANGUAGE] ✓ Priority 2: User login language → " + langName + " (" + adLanguage + ")");
                 return adLanguage;
+            } else {
+                log.warning("[LANGUAGE] ✗ Priority 2: User login language is null/blank");
             }
+
+            // 3. Use tenant/client language
+            int clientId = Env.getAD_Client_ID(ctx);
+            if (clientId > 0) {
+                try {
+                    MClient client = MClient.get(ctx, clientId);
+                    if (client != null) {
+                        String clientLang = client.getAD_Language();
+                        if (clientLang != null && !clientLang.isBlank()) {
+                            Language lang = Language.getLanguage(clientLang);
+                            String langName = lang != null ? lang.getName() : clientLang;
+                            log.warning("[LANGUAGE] ✓ Priority 3: Tenant/Client language → " + langName + " (" + clientLang + ")");
+                            return clientLang;
+                        } else {
+                            log.warning("[LANGUAGE] ✗ Priority 3: Client language is null/blank for client " + clientId);
+                        }
+                    } else {
+                        log.warning("[LANGUAGE] ✗ Priority 3: Client not found for ID " + clientId);
+                    }
+                } catch (Exception e) {
+                    log.warning("[LANGUAGE] ✗ Priority 3: Error loading client " + clientId + ": " + e.getMessage());
+                }
+            } else {
+                log.warning("[LANGUAGE] ✗ Priority 3: Client ID is 0 or negative");
+            }
+        } else {
+            log.warning("[LANGUAGE] ✗ Priority 2-3: Context is null");
         }
 
-        // 3. Fallback to English
-        log.fine("Using default language: " + DEFAULT_LANGUAGE);
+        // 4. Final fallback to English
+        log.warning("[LANGUAGE] ✓ Priority 4: Final fallback → English (" + DEFAULT_LANGUAGE + ")");
         return DEFAULT_LANGUAGE;
     }
 
@@ -268,10 +352,10 @@ public class LanguageDetectionService {
                 String languageName = matcher.group(1).toLowerCase();
                 String langCode = LANGUAGE_MAP.get(languageName);
                 if (langCode != null) {
-                    log.info("Detected language change request: '" + languageName + "' -> " + langCode);
+                    log.warning("[LANGUAGE] Detected language change request: '" + languageName + "' -> " + langCode);
                     return Optional.of(langCode);
                 } else {
-                    log.fine("Unrecognized language name in request: " + languageName);
+                    log.warning("[LANGUAGE] Unrecognized language name in request: " + languageName);
                 }
             }
         }
@@ -298,6 +382,7 @@ public class LanguageDetectionService {
             return Optional.empty();
         }
 
+        log.warning("[LANGUAGE] Detecting input language from text: " + text.substring(0, Math.min(100, text.length())));
         String normalized = text.toLowerCase().trim();
 
         // 1. Script-based detection (non-Latin scripts are distinctive)
@@ -410,8 +495,10 @@ public class LanguageDetectionService {
             return Optional.of("da_DK");
         }
 
-        // Finnish-specific patterns (lots of double vowels, ä, ö)
-        if (normalized.matches(".*\\b(minä|sinä|hän|me|te|he|olen|on|olemme|kiitos|hei|miten|mitä|missä|milloin|miksi)\\b.*")) {
+        // Finnish-specific patterns (lots of double vowels, ä, ö, and distinctive endings)
+        if (normalized.matches(".*\\b(minä|sinä|hän|me|te|he|olen|on|olemme|kiitos|hei|miten|mitä|missä|milloin|miksi|" +
+                "yli|ylivoimaisesti|miljoonan|euron|myynnillä|tilauksella|lähes|asiakas|suurin)\\b.*")) {
+            log.warning("[LANGUAGE] Detected Finnish from word patterns");
             return Optional.of("fi_FI");
         }
 
@@ -434,21 +521,29 @@ public class LanguageDetectionService {
 
         // English - check common words as fallback
         if (normalized.matches(".*\\b(the|is|are|was|were|have|has|had|do|does|did|will|would|could|should|can|may|must|i|you|he|she|it|we|they|what|where|when|why|how|hello|hi|please|thank|thanks)\\b.*")) {
+            log.warning("[LANGUAGE] Detected English from text patterns");
             return Optional.of("en_US");
         }
 
-        // Cannot determine - return empty
+        // Cannot determine - log error and return empty
+        log.severe("[LANGUAGE] ⚠ ERROR: Cannot auto-detect language from text: " + normalized.substring(0, Math.min(100, normalized.length())));
+        log.severe("[LANGUAGE] ⚠ ERROR: No distinctive patterns found (scripts, diacritics, or common words)");
+        log.severe("[LANGUAGE] ⚠ ERROR: Will fall back to user login or tenant language");
         return Optional.empty();
     }
 
     // Helper methods for script detection
 
     private boolean containsCyrillic(String text) {
-        return text.matches(".*[\\u0400-\\u04FF].*");
+        boolean result = text.matches(".*[\\u0400-\\u04FF].*");
+        if (result) log.warning("[LANGUAGE] Detected Cyrillic script -> ru_RU");
+        return result;
     }
 
     private boolean containsCJK(String text) {
-        return text.matches(".*[\\u4E00-\\u9FFF\\u3400-\\u4DBF].*");
+        boolean result = text.matches(".*[\\u4E00-\\u9FFF\\u3400-\\u4DBF].*");
+        if (result) log.warning("[LANGUAGE] Detected CJK script -> zh_CN");
+        return result;
     }
 
     private boolean containsArabic(String text) {
@@ -483,8 +578,31 @@ public class LanguageDetectionService {
      */
     public void setOverrideLanguage(int chatId, String languageCode) {
         if (languageCode != null && !languageCode.isBlank()) {
+            // Check if there was a previous override
+            String previousOverride = sessionOverrides.get(chatId);
+
             sessionOverrides.put(chatId, languageCode);
-            log.info("Language override set for chat " + chatId + ": " + languageCode);
+            Language lang = Language.getLanguage(languageCode);
+            String langName = lang != null ? lang.getName() : languageCode;
+
+            if (previousOverride != null && !previousOverride.equals(languageCode)) {
+                // Language switch detected!
+                Language prevLang = Language.getLanguage(previousOverride);
+                String prevLangName = prevLang != null ? prevLang.getName() : previousOverride;
+
+                log.warning("[LANGUAGE] ========================================");
+                log.warning("[LANGUAGE] ⚠ LANGUAGE SWITCH DETECTED");
+                log.warning("[LANGUAGE] Chat ID: " + chatId);
+                log.warning("[LANGUAGE] Previous: " + prevLangName + " (" + previousOverride + ")");
+                log.warning("[LANGUAGE] Current:  " + langName + " (" + languageCode + ")");
+                log.warning("[LANGUAGE] ========================================");
+            } else if (previousOverride == null) {
+                // First time setting override
+                log.warning("[LANGUAGE] ✓ Override set for chat " + chatId + ": " + languageCode + " (" + langName + ")");
+            } else {
+                // Same language, no change
+                log.warning("[LANGUAGE] ✓ Override confirmed for chat " + chatId + ": " + languageCode + " (" + langName + ")");
+            }
         }
     }
 
@@ -537,12 +655,13 @@ public class LanguageDetectionService {
             return "";
         }
 
-        return "## LANGUAGE REQUIREMENT (CRITICAL)\n" +
-               "You MUST respond ENTIRELY in **" + language.getName() + "** (" + language.getLanguageCode() + ").\n" +
+        return "## LANGUAGE REQUIREMENT\n" +
+               "Respond ENTIRELY in **" + language.getName() + "** (" + language.getLanguageCode() + ").\n" +
                "This applies to ALL parts of your response - explanations, summaries, questions, and suggestions.\n" +
                "Exception: Keep technical terms (table names, column names, SQL keywords, " +
-               "process names, window names) in English for accuracy.\n" +
-               "DO NOT switch to another language mid-response. Maintain " + language.getName() + " throughout.";
+               "process names, window names) in English for accuracy.\n\n" +
+               "IMPORTANT: If the user requests a language change (e.g., \"respond in German\", \"switch to Spanish\"), " +
+               "HONOR that request immediately. The system will update your language setting automatically.";
     }
 
     /**
@@ -636,5 +755,31 @@ public class LanguageDetectionService {
      */
     public int getActiveOverrideCount() {
         return sessionOverrides.size();
+    }
+
+    /**
+     * Log all active session overrides for debugging.
+     * Useful for troubleshooting language issues.
+     */
+    public void logActiveOverrides() {
+        if (sessionOverrides.isEmpty()) {
+            log.warning("[LANGUAGE] No active session overrides");
+            return;
+        }
+
+        log.warning("[LANGUAGE] ========================================");
+        log.warning("[LANGUAGE] ACTIVE SESSION OVERRIDES: " + sessionOverrides.size());
+        log.warning("[LANGUAGE] ========================================");
+
+        for (Map.Entry<Integer, String> entry : sessionOverrides.entrySet()) {
+            int chatId = entry.getKey();
+            String langCode = entry.getValue();
+            Language lang = Language.getLanguage(langCode);
+            String langName = lang != null ? lang.getName() : langCode;
+
+            log.warning("[LANGUAGE]   Chat " + chatId + ": " + langName + " (" + langCode + ")");
+        }
+
+        log.warning("[LANGUAGE] ========================================");
     }
 }

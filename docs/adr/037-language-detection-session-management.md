@@ -2,11 +2,12 @@
 
 ## Status
 
-**Implemented** (2025-12-10)
+**Enhanced** (2025-12-11)
 
 ## Date
 
-2025-12-10
+2025-12-10 (Initial Implementation)
+2025-12-11 (Enhancement: Tenant Language Fallback + Slavic Language Support)
 
 ## Deciders
 
@@ -173,18 +174,61 @@ Store AI language preference in a new `AIG_UserPreference` table.
 
 ### Language Change Detection Patterns
 
-The system should detect explicit language change requests:
+The system detects explicit language change requests in multiple languages:
 
-| Pattern | Language | Example |
-|---------|----------|---------|
-| `respond in {language}` | Any | "respond in German" |
-| `switch to {language}` | Any | "switch to Spanish" |
-| `answer in {language}` | Any | "answer in French" |
-| `use {language}` | Any | "use Italian" |
-| `{language} please` | Any | "German please" |
-| `auf Deutsch` | German | "Erkläre das auf Deutsch" |
-| `en español` | Spanish | "responde en español" |
-| `en français` | French | "réponds en français" |
+**English Patterns:**
+| Pattern | Example |
+|---------|---------|
+| `respond in {language}` | "respond in German" |
+| `switch to {language}` | "switch to Spanish" |
+| `answer in {language}` | "answer in French" |
+| `use {language}` | "use Italian" |
+| `{language} please` | "German please" |
+
+**German Patterns:**
+| Pattern | Example |
+|---------|---------|
+| `auf {language}` | "auf Deutsch" |
+| `antworte auf {language}` | "antworte auf Englisch" |
+
+**Spanish Patterns:**
+| Pattern | Example |
+|---------|---------|
+| `en {language}` | "en español" |
+| `responde en {language}` | "responde en francés" |
+
+**French Patterns:**
+| Pattern | Example |
+|---------|---------|
+| `en {language}` | "en français" |
+| `réponds en {language}` | "réponds en anglais" |
+
+**Slovak Patterns (NEW: 2025-12-11):**
+| Pattern | Example |
+|---------|---------|
+| `prepnime do {language}` | "prepnime do slovenciny" |
+| `po {language}` | "po slovensky" |
+| `odpovedaj v {language}` | "odpovedaj v anglicky" |
+
+**Czech Patterns (NEW: 2025-12-11):**
+| Pattern | Example |
+|---------|---------|
+| `přepni do {language}` | "přepni do češtiny" |
+| `v {language}` | "v česky" |
+| `odpovídej {language}` | "odpovídej česky" |
+
+**Hungarian Patterns (NEW: 2025-12-11):**
+| Pattern | Example |
+|---------|---------|
+| `válaszolj {language}` | "válaszolj magyarul" |
+| `{language} kérem` | "magyarul kérem" |
+
+**Polish Patterns (NEW: 2025-12-11):**
+| Pattern | Example |
+|---------|---------|
+| `przełącz na {language}` | "przełącz na polski" |
+| `po {language}` | "po polsku" |
+| `odpowiadaj {language}` | "odpowiadaj po angielsku" |
 
 ### Implementation
 
@@ -450,10 +494,11 @@ the session language (`AD_Language`), causing confusing responses in unexpected 
 **Decision:** The system now detects the language of the user's **first message** and uses
 that to set the session language. This is the standard expected UX behavior.
 
-**Language Priority Order (Updated):**
+**Language Priority Order (Updated 2025-12-11):**
 1. **Session override** - Set by explicit request ("respond in German") or auto-detected from first message
 2. **iDempiere context** - `AD_Language` from user login (only if no override)
-3. **Fallback** - `en_US`
+3. **Tenant/Client language** - `AD_Client` → `AD_Language` (NEW: 2025-12-11)
+4. **Fallback** - `en_US`
 
 **Rationale:**
 - Users expect AI to respond in the language they write in
@@ -493,6 +538,75 @@ that to set the session language. This is the standard expected UX behavior.
 - [ADR-015](015-conversational-ux-patterns.md) - Response formatting guidelines apply regardless of language
 - [ADR-031](031-chat-panel-langchain4j-chatmodel-integration.md) - Chat integration architecture
 - [ADR-036](036-chat-ownership-and-sharing-model.md) - Chat session management
+
+### Recent Enhancements (2025-12-11)
+
+#### 1. Tenant/Client Language Fallback
+
+**Problem:** Users without configured login language fell back to hardcoded English, ignoring tenant configuration.
+
+**Solution:** Added Priority 3 fallback to tenant/client language:
+```java
+// 3. Use tenant/client language
+int clientId = Env.getAD_Client_ID(ctx);
+if (clientId > 0) {
+    MClient client = MClient.get(ctx, clientId);
+    if (client != null) {
+        String clientLang = client.getAD_Language();
+        if (clientLang != null && !clientLang.isBlank()) {
+            return clientLang;
+        }
+    }
+}
+```
+
+**Impact:** Multi-tenant deployments now respect each tenant's default language configuration.
+
+#### 2. Enhanced Slavic Language Support
+
+**Problem:** Users writing in Slovak, Czech, Hungarian, or Polish had their language change requests ignored.
+
+**Solution:** Added comprehensive pattern detection for Slavic languages:
+- **Slovak:** `prepnime do slovenciny`, `po slovensky`, `odpovedaj v anglicky`
+- **Czech:** `přepni do češtiny`, `v česky`, `odpovídej česky`
+- **Hungarian:** `válaszolj magyarul`, `magyarul kérem`
+- **Polish:** `przełącz na polski`, `po polsku`
+
+**Language Name Mappings Added:**
+- Slovak forms: `slovenciny` (genitive), `slovensky`, `anglicky`, `nemecky`, `maďarsky`
+- Czech forms: `česky`, `cesky`, `německy`, `maďarsky`
+- Hungarian forms: `magyarul`, `angolul`, `németül`, `szlovákul`
+- Polish forms: `polsku`, `angielsku`, `niemiecku`
+
+#### 3. Improved System Prompt for Language Switching
+
+**Problem:** AI refused to switch languages when requested, citing strict "DO NOT switch" instruction.
+
+**Before:**
+```
+"DO NOT switch to another language mid-response. Maintain {language} throughout."
+```
+
+**After:**
+```
+"IMPORTANT: If the user requests a language change (e.g., 'respond in German', 'switch to Spanish'),
+HONOR that request immediately. The system will update your language setting automatically."
+```
+
+**Impact:** AI now immediately honors language change requests instead of refusing them.
+
+#### 4. Enhanced Error Logging
+
+**Problem:** Auto-detection failures were logged as warnings, making debugging difficult.
+
+**Solution:** Changed to `log.severe()` with detailed error messages:
+```java
+log.severe("[LANGUAGE] ⚠ ERROR: Cannot auto-detect language from text: " + text);
+log.severe("[LANGUAGE] ⚠ ERROR: No distinctive patterns found (scripts, diacritics, or common words)");
+log.severe("[LANGUAGE] ⚠ ERROR: Will fall back to user login or tenant language");
+```
+
+**Impact:** Detection failures are now clearly visible in production logs for troubleshooting.
 
 ### References
 
