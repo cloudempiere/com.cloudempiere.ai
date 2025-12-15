@@ -7,16 +7,16 @@ and this project adheres to [Conventional Commits](https://conventionalcommits.o
 
 ## [Unreleased]
 
-### v0.23.0-SNAPSHOT - Satellite Provider & Advanced Sharing
+### v0.23.0-SNAPSHOT - AI Hub Provider & Advanced Sharing
 
 **Added:**
-- **ADR-042: Satellite AI Provider Integration**
-  - URL column in AIG_Provider for satellite service endpoint configuration
+- **ADR-042: AI Hub Provider Integration**
+  - URL column in AIG_Provider for AI Hub service endpoint configuration
   - Uses existing iDempiere URL element (AD_Element_ID=983) for consistency
   - SAT provider type in AIGProviderType reference list
   - Conditional display logic for URL field (@AIGProviderType@=SAT)
   - Migration scripts standardized to iDempiere format (CLD-1601)
-  - Supports Quarkus Satellite Service integration (Java 17+, LangChain4j 1.x)
+  - Supports iDempiere AI Hub Service integration (Java 17+, LangChain4j 1.x)
 
 **Changed:**
 - **Migration Script Standards**
@@ -133,7 +133,7 @@ This release improves the streaming user experience with real-time markdown tabl
   - Support for explicit alignment via `:---|:---:|---:`
   - Partial table rendering during streaming
 
-- **ADR-039: Async Embedding Queue Architecture** (renamed from Satellite AI Queue)
+- **ADR-039: Async Embedding Queue Architecture** (renamed from AI Hub Queue)
   - Updated architecture for embedding queue processing
 
 - **ADR-040: Embedding Ingestion Evolution**

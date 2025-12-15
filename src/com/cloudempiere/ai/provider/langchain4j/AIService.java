@@ -125,7 +125,7 @@ public class AIService {
         LangChain4jProviderFactory.PROVIDER_ANTHROPIC,
         LangChain4jProviderFactory.PROVIDER_OPENAI,
         LangChain4jProviderFactory.PROVIDER_BEDROCK,
-        LangChain4jProviderFactory.PROVIDER_SATELLITE  // OpenAI-compatible, supports tools
+        LangChain4jProviderFactory.PROVIDER_AI_HUB  // OpenAI-compatible, supports tools
         // NOTE: Ollama/Llama tools depend on model capability, not just provider type.
         // Models like qwen2:0.5b don't support tools. Only certain models like
         // llama3.1, mistral, qwen2.5:7b support tool calling.
@@ -139,7 +139,7 @@ public class AIService {
         LangChain4jProviderFactory.PROVIDER_ANTHROPIC,
         LangChain4jProviderFactory.PROVIDER_OPENAI,
         LangChain4jProviderFactory.PROVIDER_BEDROCK,
-        LangChain4jProviderFactory.PROVIDER_SATELLITE  // OpenAI-compatible, supports streaming tools
+        LangChain4jProviderFactory.PROVIDER_AI_HUB  // OpenAI-compatible, supports streaming tools
         // Ollama/Llama streaming tools NOT supported in 0.35.0
         // Throws: "Tools are currently not supported by this model"
         // Requires LangChain4j 0.37.0+ (Java 17)

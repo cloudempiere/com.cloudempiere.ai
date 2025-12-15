@@ -156,6 +156,8 @@ public class X_AIG_Provider extends PO implements I_AIG_Provider, I_Persistent
 	public static final String AIGPROVIDERTYPE_AWSBedrock = "ABE";
 	/** Anthropic Claude = ANT */
 	public static final String AIGPROVIDERTYPE_AnthropicClaude = "ANT";
+	/** Mock AI Hub = MOA */
+	public static final String AIGPROVIDERTYPE_MockAIHub = "MOA";
 	/** Ollama = OLL */
 	public static final String AIGPROVIDERTYPE_Ollama = "OLL";
 	/** Quarkus Satellite = SAT */

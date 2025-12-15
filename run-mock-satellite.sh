@@ -1,8 +1,8 @@
 #!/bin/bash
-# Run Mock Satellite Server for development and testing
+# Run Mock AI Hub Server for development and testing
 #
 # This script starts a lightweight HTTP server that simulates the
-# Quarkus Satellite AI Service (ADR-042).
+# iDempiere AI Hub Service (ADR-042).
 #
 # Usage:
 #   ./run-mock-satellite.sh              # Start on default port 8090
@@ -17,7 +17,7 @@
 #   GET  /info                 - Server information
 #
 # Configure iDempiere AIG_Provider:
-#   - Type: SAT (Quarkus Satellite)
+#   - Type: SAT (iDempiere AI Hub)
 #   - Endpoint: http://localhost:8090
 #   - APIKey: mock-token (any value works)
 #   - ModelName: claude-sonnet-4 (or any model name)
@@ -34,7 +34,7 @@ MODE="${2:-MOCK}"
 # Java home
 export JAVA_HOME="${JAVA_HOME:-/Library/Java/JavaVirtualMachines/amazon-corretto-11.jdk/Contents/Home}"
 
-echo "=== Mock Satellite Server ==="
+echo "=== Mock AI Hub Server ==="
 echo "Java: $JAVA_HOME"
 echo ""
 
@@ -48,7 +48,7 @@ if [ ! -d "$CLASSES_DIR" ] || [ -z "$(ls -A $CLASSES_DIR 2>/dev/null)" ]; then
 fi
 
 # Run the mock server
-echo "Starting Mock Satellite Server..."
+echo "Starting Mock AI Hub Server..."
 echo "  Port: $PORT"
 echo "  Mode: $MODE"
 echo ""
