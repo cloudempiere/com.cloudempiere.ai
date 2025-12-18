@@ -8,10 +8,10 @@ This document tracks features, implementation status, and version compatibility 
 
 ---
 
-## Current Version: v0.30.0
+## Current Version: v0.31.0-SNAPSHOT
 
-**Status:** ✅ Released - Cell-by-Cell Streaming Table Rendering
-**Date:** 2025-12-18
+**Status:** 🚧 In Progress - TBD
+**Previous:** v0.30.0 - Cell-by-Cell Streaming Table Rendering
 
 **Strategic Focus:** The Chat Widget is our primary AI implementation. All features will be integrated and tested through the chat widget before other use cases (charts, reports, etc.).
 
