@@ -655,13 +655,21 @@ public class LanguageDetectionService {
             return "";
         }
 
-        return "## LANGUAGE REQUIREMENT\n" +
-               "Respond ENTIRELY in **" + language.getName() + "** (" + language.getLanguageCode() + ").\n" +
-               "This applies to ALL parts of your response - explanations, summaries, questions, and suggestions.\n" +
-               "Exception: Keep technical terms (table names, column names, SQL keywords, " +
-               "process names, window names) in English for accuracy.\n\n" +
-               "IMPORTANT: If the user requests a language change (e.g., \"respond in German\", \"switch to Spanish\"), " +
-               "HONOR that request immediately. The system will update your language setting automatically.";
+        return "## CRITICAL LANGUAGE REQUIREMENT - HIGHEST PRIORITY\n\n" +
+               "🔴 **MANDATORY:** You MUST respond EXCLUSIVELY and COMPLETELY in **" + language.getName() + "** (" + language.getLanguageCode() + ").\n\n" +
+               "This is NON-NEGOTIABLE and applies to:\n" +
+               "- ✅ ALL explanations and descriptions\n" +
+               "- ✅ ALL questions you ask the user\n" +
+               "- ✅ ALL suggestions and recommendations\n" +
+               "- ✅ ALL data summaries and analysis\n" +
+               "- ✅ ALL error messages and warnings\n" +
+               "- ✅ ALL introductory and concluding statements\n\n" +
+               "ONLY EXCEPTION: Technical identifiers (table names like 'C_Order', column names like 'DocumentNo', " +
+               "SQL keywords, ERP process names, window names) remain in English for technical accuracy.\n\n" +
+               "❌ DO NOT mix languages - user speaks " + language.getName() + ", you respond in " + language.getName() + ".\n" +
+               "❌ DO NOT default to English - this is explicitly forbidden.\n" +
+               "❌ DO NOT explain in English - everything in " + language.getName() + ".\n\n" +
+               "If user requests language change, acknowledge and switch immediately.";
     }
 
     /**
