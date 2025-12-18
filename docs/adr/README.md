@@ -16,7 +16,7 @@ This directory contains architecture decisions for the Cloudempiere AI plugin.
 | [004](004-java-agent-framework.md) | Java Agent Framework Selection | Accepted | 2025-11-26 |
 | [034](034-google-gemini-provider-integration.md) | Google Gemini Provider Integration | Proposed | 2025-12-03 |
 | [035](035-java-version-strategy.md) | Java Version Strategy and Migration Path | Accepted | 2025-12-04 |
-| [038](038-quarkus-satellite-ai-service.md) | Quarkus Satellite AI Service Architecture | Research | 2025-12-10 |
+| [038](038-quarkus-AI Hub-ai-service.md) | iDempiere AI Hub AI Service Architecture | Research | 2025-12-10 |
 
 ### Data & Intelligence
 

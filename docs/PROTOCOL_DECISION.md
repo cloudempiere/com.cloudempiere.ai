@@ -8,8 +8,8 @@
 
 ## TL;DR
 
-- **iDempiere → Satellite:** Cloudempiere AI Protocol v1 (custom)
-- **Satellite → LLMs:** OpenAI-Compatible API (industry standard)
+- **iDempiere → AI Hub:** Cloudempiere AI Protocol v1 (custom)
+- **AI Hub → LLMs:** OpenAI-Compatible API (industry standard)
 - **Rationale:** Use standards where they fit, extend where iDempiere needs more
 
 ---
@@ -84,7 +84,7 @@
 
 ## ✅ Solution: Hybrid Protocol Architecture
 
-### **Layer 1: iDempiere → Satellite**
+### **Layer 1: iDempiere → AI Hub**
 
 **Protocol:** Cloudempiere AI Protocol v1 (custom)
 
@@ -146,13 +146,13 @@
 
 ---
 
-### **Layer 2: Satellite → LLM Providers**
+### **Layer 2: AI Hub → LLM Providers**
 
 **Protocol:** OpenAI-Compatible API (industry standard)
 
 **Implementation:**
 ```java
-// In Satellite Service
+// In AI Hub Service
 public AIResponse chat(CloudempiereRequest request) {
     // 1. Validate security context
     validateContext(request.security());
@@ -248,12 +248,12 @@ public AIResponse chat(CloudempiereRequest request) {
 
 | Layer | Protocol | Benefit |
 |-------|----------|---------|
-| iDempiere → Satellite | Custom (Cloudempiere) | Full iDempiere features |
-| Satellite → LLMs | Standard (OpenAI) | Ecosystem & LangChain4j |
+| iDempiere → AI Hub | Custom (Cloudempiere) | Full iDempiere features |
+| AI Hub → LLMs | Standard (OpenAI) | Ecosystem & LangChain4j |
 
 ### 2. Clean Separation
 
-- **Business Logic** (security, RBAC, audit) → Satellite (custom protocol)
+- **Business Logic** (security, RBAC, audit) → AI Hub (custom protocol)
 - **Technical Integration** (HTTP, providers) → LangChain4j (OpenAI protocol)
 
 ### 3. Future-Proof
@@ -273,10 +273,10 @@ CloudempiereRequest request = CloudempiereRequest.builder()
     .userMessage("Show me open orders")
     .build();
 
-CloudempiereResponse response = satelliteClient.chat(request);
+CloudempiereResponse response = AI HubClient.chat(request);
 ```
 
-**Satellite Developer:**
+**AI Hub Developer:**
 ```java
 // Works with standard LangChain4j
 var model = OpenAiChatModel.builder()
@@ -302,7 +302,7 @@ var model = OpenAiChatModel.builder()
 
 ---
 
-### Phase 2: Implement Satellite Service (2 weeks)
+### Phase 2: Implement AI Hub Service (2 weeks)
 
 **Week 1: Core Protocol Handler**
 1. ✅ Accept Cloudempiere Protocol v1 requests
@@ -329,7 +329,7 @@ var model = OpenAiChatModel.builder()
 
 ### Phase 4: Testing & Migration (1 week)
 
-1. ✅ Integration tests (iDempiere → Satellite → LLM)
+1. ✅ Integration tests (iDempiere → AI Hub → LLM)
 2. ✅ RBAC enforcement tests
 3. ✅ Provider routing tests
 4. ✅ Performance testing
@@ -368,11 +368,11 @@ var model = OpenAiChatModel.builder()
 - ✅ iDempiere features first-class (not hacked in)
 - ✅ LangChain4j integration clean
 - ✅ Can use ecosystem tools at LLM layer
-- ✅ RBAC clearly enforced at Satellite
+- ✅ RBAC clearly enforced at AI Hub
 
 **Example:**
 ```json
-// Cloudempiere Protocol v1 (iDempiere → Satellite)
+// Cloudempiere Protocol v1 (iDempiere → AI Hub)
 {
   "version": "1.0",
   "security": {
@@ -388,7 +388,7 @@ var model = OpenAiChatModel.builder()
 
 // ↓ Converted to ↓
 
-// OpenAI-Compatible (Satellite → LLM)
+// OpenAI-Compatible (AI Hub → LLM)
 {
   "model": "claude-sonnet-4",
   "messages": [...],
@@ -443,7 +443,7 @@ var model = OpenAiChatModel.builder()
 
 ## Implementation Guide
 
-### For Satellite Service Developers
+### For AI Hub Service Developers
 
 ```java
 @Path("/ai/v1")
@@ -489,7 +489,7 @@ public class CloudempiereAIResource {
 Properties ctx = Env.getCtx();
 
 CloudempiereClient client = CloudempiereClient.builder()
-    .baseUrl("http://satellite:8090")
+    .baseUrl("http://AI Hub:8090")
     .sessionToken(getSessionToken(ctx))
     .build();
 
@@ -509,8 +509,8 @@ CloudempiereResponse response = client.chat(request);
 
 **Decision: Use Hybrid Protocol Architecture**
 
-- **iDempiere → Satellite:** Cloudempiere AI Protocol v1
-- **Satellite → LLMs:** OpenAI-Compatible API
+- **iDempiere → AI Hub:** Cloudempiere AI Protocol v1
+- **AI Hub → LLMs:** OpenAI-Compatible API
 
 **Rationale:**
 - Use industry standards where they fit (LLM communication)
@@ -519,7 +519,7 @@ CloudempiereResponse response = client.chat(request);
 - Best developer experience on both sides
 
 **Next Steps:**
-1. Implement protocol adapter in Satellite service
+1. Implement protocol adapter in AI Hub service
 2. Update iDempiere plugin to use v1 protocol
 3. Integration testing
 4. Production deployment

@@ -31,7 +31,7 @@ public class X_AIG_Provider extends PO implements I_AIG_Provider, I_Persistent
 	/**
 	 *
 	 */
-	private static final long serialVersionUID = 20251211L;
+	private static final long serialVersionUID = 20251218L;
 
     /** Standard Constructor */
     public X_AIG_Provider (Properties ctx, int AIG_Provider_ID, String trxName)
@@ -160,8 +160,8 @@ public class X_AIG_Provider extends PO implements I_AIG_Provider, I_Persistent
 	public static final String AIGPROVIDERTYPE_MockAIHub = "MOA";
 	/** Ollama = OLL */
 	public static final String AIGPROVIDERTYPE_Ollama = "OLL";
-	/** Quarkus Satellite = SAT */
-	public static final String AIGPROVIDERTYPE_QuarkusSatellite = "SAT";
+	/** iDempiere AI Hub = SAT */
+	public static final String AIGPROVIDERTYPE_IDempiereAIHub = "SAT";
 	/** Set Provider Type.
 		@param AIGProviderType The type of the AI Provider
 	*/

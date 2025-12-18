@@ -49,14 +49,14 @@ public class LangChain4jProviderFactory {
     public static final String PROVIDER_OPENAI = "OAI";    // To be added to AD_Ref_List
     public static final String PROVIDER_LLAMA = "LLA";     // Meta Llama via Ollama - To be added to AD_Ref_List
     /** AI Hub provider type - routes requests to iDempiere AI Hub Service (ADR-042) */
-    public static final String PROVIDER_AI_HUB = X_AIG_Provider.AIGPROVIDERTYPE_QuarkusSatellite;
+    public static final String PROVIDER_AI_HUB = X_AIG_Provider.AIGPROVIDERTYPE_IDempiereAIHub;
 
     /** Default model names per provider */
     private static final String DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-4-20250514";
     private static final String DEFAULT_BEDROCK_MODEL = "anthropic.claude-3-5-sonnet-20241022-v2:0";
     private static final String DEFAULT_BEDROCK_REGION = "us-east-1";
     private static final String DEFAULT_MOCK_AI_HUB_MODEL = "llama3.2";
-    private static final String DEFAULT_MOCK_AI_HUB_URL = "http://localhost:8081/v1";  // Mock AI Hub for testing
+    private static final String DEFAULT_MOCK_AI_HUB_URL = "http://localhost:8090/v1";  // Mock AI Hub for testing
     private static final String DEFAULT_OLLAMA_MODEL = "llama3.2";
     private static final String DEFAULT_OPENAI_MODEL = "gpt-4o";
     private static final String DEFAULT_LLAMA_MODEL = "llama3.2";
@@ -428,59 +428,97 @@ public class LangChain4jProviderFactory {
     }
 
     /**
-     * Create a ChatLanguageModel for Mock AI Hub (testing without real AI Hub).
+     * Create a ChatLanguageModel for Mock AI Hub (testing/development).
      *
-     * <p>This provider simulates the iDempiere AI Hub API for testing purposes.
-     * It connects to an OpenAI-compatible endpoint (port 8081) that mimics the
-     * real AI Hub behavior without requiring full AI Hub deployment.
+     * <p><b>In-Plugin Mock:</b> No external HTTP server required, runs directly
+     * in the OSGi plugin for zero-configuration testing.
      *
      * <p>Useful for:
      * <ul>
      *   <li>Unit and integration testing</li>
      *   <li>Development without AI Hub infrastructure</li>
      *   <li>CI/CD pipelines</li>
-     *   <li>Local development with Ollama backend</li>
+     *   <li>Quick prototyping and demos</li>
      * </ul>
      *
-     * @param baseUrl API base URL (default: http://localhost:8081/v1)
-     * @param modelName Model name (default: llama3.2)
-     * @param apiKey API key (optional, uses "test" dummy value)
-     * @return ChatLanguageModel configured for Mock AI Hub
+     * <p><b>Note:</b> Returns a simple non-streaming model. Use createMockAIHubStreamingModel
+     * for streaming support.
+     *
+     * @param baseUrl Ignored (kept for API compatibility)
+     * @param modelName Model name (default: mock-ai-hub)
+     * @param apiKey Ignored (kept for API compatibility)
+     * @return ChatLanguageModel configured for in-plugin mock
      */
     private static ChatLanguageModel createMockAIHubModel(String baseUrl, String modelName, String apiKey) {
-        var builder = OpenAiChatModel.builder()
-            .baseUrl(baseUrl != null ? baseUrl : DEFAULT_MOCK_AI_HUB_URL)
-            .apiKey(apiKey != null && !apiKey.isEmpty() ? apiKey : "test")  // Dummy key for mock
-            .modelName(modelName != null ? modelName : DEFAULT_MOCK_AI_HUB_MODEL)
-            .temperature(0.7)
-            .logRequests(true)
-            .logResponses(true);
+        log.info("Creating in-plugin Mock AI Hub (no HTTP server required)");
 
-        // Add observability listener (ADR-013)
-        if (metricsEnabled) {
-            builder.listeners(List.of(createMetricsListener("mock-ai-hub")));
-        }
+        // For non-streaming, wrap the streaming model
+        StreamingChatLanguageModel streamingModel = new MockAIHubChatModel(
+            modelName != null ? modelName : DEFAULT_MOCK_AI_HUB_MODEL,
+            true  // verbose logging
+        );
 
-        return builder.build();
+        // Convert to non-streaming by blocking on completion
+        return new ChatLanguageModel() {
+            @Override
+            public dev.langchain4j.model.output.Response<dev.langchain4j.data.message.AiMessage> generate(
+                    List<dev.langchain4j.data.message.ChatMessage> messages) {
+                java.util.concurrent.CompletableFuture<dev.langchain4j.model.output.Response<dev.langchain4j.data.message.AiMessage>> future =
+                    new java.util.concurrent.CompletableFuture<>();
+
+                streamingModel.generate(messages, new dev.langchain4j.model.StreamingResponseHandler<dev.langchain4j.data.message.AiMessage>() {
+                    @Override
+                    public void onNext(String token) {
+                        // Collect tokens (not needed for non-streaming)
+                    }
+
+                    @Override
+                    public void onComplete(dev.langchain4j.model.output.Response<dev.langchain4j.data.message.AiMessage> response) {
+                        future.complete(response);
+                    }
+
+                    @Override
+                    public void onError(Throwable error) {
+                        future.completeExceptionally(error);
+                    }
+                });
+
+                try {
+                    return future.get();
+                } catch (Exception e) {
+                    throw new RuntimeException("Mock AI Hub generation failed", e);
+                }
+            }
+        };
     }
 
     /**
      * Create a StreamingChatLanguageModel for Mock AI Hub.
      *
-     * @param baseUrl API base URL (default: http://localhost:8081/v1)
-     * @param modelName Model name (default: llama3.2)
-     * @param apiKey API key (optional, uses "test" dummy value)
-     * @return StreamingChatLanguageModel configured for Mock AI Hub
+     * <p><b>In-Plugin Mock:</b> No external HTTP server required, runs directly
+     * in the OSGi plugin. Provides streaming responses word-by-word with contextual
+     * mock data.
+     *
+     * <p><b>Benefits:</b>
+     * <ul>
+     *   <li>✅ Zero configuration - works immediately</li>
+     *   <li>✅ No external dependencies</li>
+     *   <li>✅ No port conflicts</li>
+     *   <li>✅ Fast in-memory processing</li>
+     *   <li>✅ Can be used as production fallback</li>
+     * </ul>
+     *
+     * @param baseUrl Ignored (kept for API compatibility)
+     * @param modelName Model name (default: mock-ai-hub)
+     * @param apiKey Ignored (kept for API compatibility)
+     * @return StreamingChatLanguageModel configured for in-plugin mock
      */
     private static StreamingChatLanguageModel createMockAIHubStreamingModel(String baseUrl, String modelName, String apiKey) {
-        return OpenAiStreamingChatModel.builder()
-            .baseUrl(baseUrl != null ? baseUrl : DEFAULT_MOCK_AI_HUB_URL)
-            .apiKey(apiKey != null && !apiKey.isEmpty() ? apiKey : "test")  // Dummy key for mock
-            .modelName(modelName != null ? modelName : DEFAULT_MOCK_AI_HUB_MODEL)
-            .temperature(0.7)
-            .logRequests(true)
-            .logResponses(true)
-            .build();
+        log.info("Creating in-plugin Mock AI Hub (no HTTP server required)");
+        return new MockAIHubChatModel(
+            modelName != null ? modelName : DEFAULT_MOCK_AI_HUB_MODEL,
+            true  // verbose logging
+        );
     }
 
     private static ChatLanguageModel createOpenAiModel(String apiKey, String modelName) {
@@ -837,7 +875,7 @@ public class LangChain4jProviderFactory {
         return OpenAiEmbeddingModel.builder()
             .baseUrl(baseUrl)
             .apiKey(apiKey)
-            .modelName("text-embedding-3-small")  // Satellite routes appropriately
+            .modelName("text-embedding-3-small")  // AI Hub routes appropriately
             .build();
     }
 

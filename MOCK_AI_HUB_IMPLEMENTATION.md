@@ -136,7 +136,7 @@ INSERT INTO AD_Ref_List VALUES (
 1. **Update Existing SAT Provider:**
    - System Admin → AI → AI Provider → Find SAT provider
    - **Name:** iDempiere AI Hub
-   - **Provider Type:** Quarkus Satellite (SAT)
+   - **Provider Type:** iDempiere AI Hub (SAT)
    - **URL:** http://localhost:8090
    - **Model Name:** claude-sonnet-4
 
@@ -267,7 +267,7 @@ public void testWithMockAIHub() {
 |----------|----------|--------|
 | Satellite | AI Hub | More descriptive, matches Quarkus service name |
 | iDempiere-CLI | Mock AI Hub | Clarifies it's a mock for testing |
-| Quarkus Satellite | iDempiere AI Hub | Aligns with actual product name |
+| iDempiere AI Hub | iDempiere AI Hub | Aligns with actual product name |
 
 ---
 

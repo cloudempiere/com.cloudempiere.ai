@@ -1,4 +1,4 @@
-# ADR-042: Satellite AI Provider Integration
+# ADR-042: AI Hub Provider Integration
 
 ## Status
 
@@ -22,7 +22,7 @@ The iDempiere AI plugin (`com.cloudempiere.ai`) currently supports multiple AI p
 3. **No centralized AI processing** for multi-tenant deployments
 4. **Direct API costs** - each iDempiere instance pays separately for API calls
 
-ADR-038 proposed a Quarkus Satellite AI Service that runs Java 17+ with full LangChain4j 1.x capabilities. This ADR defines how to integrate that satellite service as a **new provider type** in the existing factory pattern.
+ADR-038 proposed a iDempiere AI Hub AI Service that runs Java 17+ with full LangChain4j 1.x capabilities. This ADR defines how to integrate that AI Hub service as a **new provider type** in the existing factory pattern.
 
 ## Decision Drivers
 
@@ -30,31 +30,31 @@ ADR-038 proposed a Quarkus Satellite AI Service that runs Java 17+ with full Lan
 - **Centralize AI processing** for cost optimization and management
 - **Enable MCP server capabilities** for Claude Desktop and IDE integration
 - **Maintain backward compatibility** with existing direct providers
-- **Support graceful fallback** when satellite is unavailable
+- **Support graceful fallback** when AI Hub is unavailable
 - **Minimize changes** to existing codebase
 
 ## Considered Options
 
-1. **New SATELLITE provider type** - Add `PROVIDER_SATELLITE` to factory with REST/HTTP client
-2. **Replace all providers with satellite proxy** - Route all AI through satellite
-3. **gRPC integration** - Use gRPC for high-performance satellite communication
+1. **New AIHUB provider type** - Add `PROVIDER_AIHUB` to factory with REST/HTTP client
+2. **Replace all providers with AI Hub proxy** - Route all AI through AI Hub
+3. **gRPC integration** - Use gRPC for high-performance AI Hub communication
 4. **MCP client in iDempiere** - Use MCP protocol directly (blocked by Java 11)
 
 ## Decision Outcome
 
-**Chosen option:** "New SATELLITE provider type", because it:
+**Chosen option:** "New AIHUB provider type", because it:
 - Integrates cleanly with existing factory pattern
 - Allows gradual migration (per-tenant choice)
 - Maintains backward compatibility
 - Uses simple REST/HTTP (no new dependencies)
-- Enables satellite features without breaking existing setups
+- Enables AI Hub features without breaking existing setups
 
 ### Confirmation
 
-- Unit tests verify `PROVIDER_SATELLITE` creates correct model
-- Integration tests confirm iDempiere → Satellite → LLM flow
-- Health check endpoint validates satellite availability
-- Metrics show requests routed through satellite
+- Unit tests verify `PROVIDER_AIHUB` creates correct model
+- Integration tests confirm iDempiere → AI Hub → LLM flow
+- Health check endpoint validates AI Hub availability
+- Metrics show requests routed through AI Hub
 
 ---
 
@@ -73,8 +73,8 @@ ADR-038 proposed a Quarkus Satellite AI Service that runs Java 17+ with full Lan
 │  │  ───┼───────────────┼──────┼─────────────────────────────┼──────────  │ │
 │  │  1  │ Claude Direct │ ANT  │ (not used)                  │ sk-ant-... │ │
 │  │  2  │ Bedrock       │ BED  │ (not used)                  │ key:sec:rg │ │
-│  │  3  │ Satellite AI  │ SAT  │ http://satellite:8080       │ bearer-tok │ │
-│  │  4  │ Satellite Dev │ SAT  │ http://localhost:8080       │ dev-token  │ │
+│  │  3  │ AI Hub AI  │ SAT  │ http://AI Hub:8080       │ bearer-tok │ │
+│  │  4  │ AI Hub Dev │ SAT  │ http://localhost:8080       │ dev-token  │ │
 │  └───────────────────────────────────────────────────────────────────────┘ │
 │                                    │                                        │
 │  ┌─────────────────────────────────▼─────────────────────────────────────┐ │
@@ -86,7 +86,7 @@ ADR-038 proposed a Quarkus Satellite AI Service that runs Java 17+ with full Lan
 │  │          case PROVIDER_BEDROCK:    return createBedrockModel();       │ │
 │  │          case PROVIDER_OLLAMA:     return createOllamaModel();        │ │
 │  │          case PROVIDER_OPENAI:     return createOpenAiModel();        │ │
-│  │          case PROVIDER_SATELLITE:  return createSatelliteModel(); ◄── │ │
+│  │          case PROVIDER_AIHUB:  return createAI HubModel(); ◄── │ │
 │  │      }                                                                 │ │
 │  │  }                                                                     │ │
 │  └───────────────────────────────────────────────────────────────────────┘ │
@@ -97,7 +97,7 @@ ADR-038 proposed a Quarkus Satellite AI Service that runs Java 17+ with full Lan
                     (OpenAI-compat)  │  + Bearer Token Auth
                                      │
                     ┌────────────────▼────────────────┐
-                    │   Quarkus Satellite Service      │
+                    │   iDempiere AI Hub Service      │
                     │   (Java 17+, LangChain4j 1.x)    │
                     │                                  │
                     │  ┌────────────────────────────┐ │
@@ -142,7 +142,7 @@ ADR-038 proposed a Quarkus Satellite AI Service that runs Java 17+ with full Lan
 
 ```
 ┌──────────────┐     ┌──────────────────┐     ┌──────────────────┐     ┌─────────────┐
-│  iDempiere   │     │   Satellite      │     │   Satellite      │     │   Claude    │
+│  iDempiere   │     │   AI Hub      │     │   AI Hub      │     │   Claude    │
 │  AIChatWidget│     │   REST API       │     │   LangChain4j    │     │   API       │
 └──────┬───────┘     └────────┬─────────┘     └────────┬─────────┘     └──────┬──────┘
        │                      │                        │                      │
@@ -195,38 +195,38 @@ Add to `LangChain4jProviderFactory.java`:
 
 ```java
 /**
- * Satellite provider type - routes requests to Quarkus Satellite Service.
+ * AI Hub provider type - routes requests to iDempiere AI Hub Service.
  *
  * Configuration in AIG_Provider:
- * - URL: Satellite service URL (e.g., http://satellite:8080)
+ * - URL: AI Hub service URL (e.g., http://AI Hub:8080)
  * - APIKey: Bearer token for authentication
- * - ModelName: Target model (routed by satellite to upstream provider)
+ * - ModelName: Target model (routed by AI Hub to upstream provider)
  */
-public static final String PROVIDER_SATELLITE = "SAT";
+public static final String PROVIDER_AIHUB = "SAT";
 ```
 
 ### 2. AD_Ref_List Entry
 
-Add reference list value for satellite provider:
+Add reference list value for AI Hub provider:
 
 | Column | Value |
 |--------|-------|
 | AD_Reference_ID | (AIG_ProviderType reference) |
 | Value | SAT |
-| Name | Quarkus Satellite |
-| Description | AI requests routed through Quarkus Satellite Service |
+| Name | iDempiere AI Hub |
+| Description | AI requests routed through iDempiere AI Hub Service |
 | IsActive | Y |
 
 ### 3. Factory Method
 
 ```java
 /**
- * Create a ChatLanguageModel that routes through Quarkus Satellite Service.
+ * Create a ChatLanguageModel that routes through iDempiere AI Hub Service.
  *
- * <p>The satellite service exposes an OpenAI-compatible REST API, so we use
- * OpenAiChatModel with custom baseUrl pointing to the satellite.
+ * <p>The AI Hub service exposes an OpenAI-compatible REST API, so we use
+ * OpenAiChatModel with custom baseUrl pointing to the AI Hub.
  *
- * <p>Benefits of satellite routing:
+ * <p>Benefits of AI Hub routing:
  * <ul>
  *   <li>Access to LangChain4j 1.x features (MCP, extended thinking)</li>
  *   <li>Centralized AI processing and cost management</li>
@@ -234,20 +234,20 @@ Add reference list value for satellite provider:
  *   <li>Multi-tenant support with context isolation</li>
  * </ul>
  *
- * @param config MAIProvider with satellite endpoint and auth token
- * @return ChatLanguageModel proxying through satellite
+ * @param config MAIProvider with AI Hub endpoint and auth token
+ * @return ChatLanguageModel proxying through AI Hub
  */
-private static ChatLanguageModel createSatelliteModel(MAIProvider config) {
+private static ChatLanguageModel createAI HubModel(MAIProvider config) {
     String url = config.getURL();
     if (url == null || url.isEmpty()) {
         throw new IllegalArgumentException(
-            "Satellite URL not configured. Set URL in AIG_Provider.");
+            "AI Hub URL not configured. Set URL in AIG_Provider.");
     }
 
     String apiKey = config.getAPIKey();
     if (apiKey == null || apiKey.isEmpty()) {
         throw new IllegalArgumentException(
-            "Satellite API key not configured. Set APIKey (bearer token) in AIG_Provider.");
+            "AI Hub API key not configured. Set APIKey (bearer token) in AIG_Provider.");
     }
 
     // Normalize endpoint URL
@@ -261,40 +261,40 @@ private static ChatLanguageModel createSatelliteModel(MAIProvider config) {
         modelName = "claude-sonnet-4";  // Default model
     }
 
-    log.info("Creating Satellite proxy model: endpoint=" + endpoint + ", model=" + modelName);
+    log.info("Creating AI Hub proxy model: endpoint=" + endpoint + ", model=" + modelName);
 
-    // Use OpenAI-compatible client (satellite exposes /v1/chat/completions)
+    // Use OpenAI-compatible client (AI Hub exposes /v1/chat/completions)
     var builder = OpenAiChatModel.builder()
         .baseUrl(baseUrl)
-        .apiKey(apiKey)  // Bearer token for satellite auth
+        .apiKey(apiKey)  // Bearer token for AI Hub auth
         .modelName(modelName)
         .temperature(0.7)
-        .timeout(Duration.ofSeconds(120))  // Longer timeout for satellite hop
+        .timeout(Duration.ofSeconds(120))  // Longer timeout for AI Hub hop
         .logRequests(true)
         .logResponses(true);
 
     // Add observability listener
     if (metricsEnabled) {
-        builder.listeners(List.of(createMetricsListener("satellite")));
+        builder.listeners(List.of(createMetricsListener("AI Hub")));
     }
 
     return builder.build();
 }
 
 /**
- * Create a StreamingChatLanguageModel through satellite.
+ * Create a StreamingChatLanguageModel through AI Hub.
  */
-private static StreamingChatLanguageModel createSatelliteStreamingModel(MAIProvider config) {
+private static StreamingChatLanguageModel createAI HubStreamingModel(MAIProvider config) {
     String url = config.getURL();
     if (url == null || url.isEmpty()) {
         throw new IllegalArgumentException(
-            "Satellite URL not configured. Set URL in AIG_Provider.");
+            "AI Hub URL not configured. Set URL in AIG_Provider.");
     }
 
     String apiKey = config.getAPIKey();
     if (apiKey == null || apiKey.isEmpty()) {
         throw new IllegalArgumentException(
-            "Satellite API key not configured. Set APIKey (bearer token) in AIG_Provider.");
+            "AI Hub API key not configured. Set APIKey (bearer token) in AIG_Provider.");
     }
 
     if (!endpoint.endsWith("/")) {
@@ -317,19 +317,19 @@ private static StreamingChatLanguageModel createSatelliteStreamingModel(MAIProvi
 }
 
 /**
- * Create an EmbeddingModel through satellite.
+ * Create an EmbeddingModel through AI Hub.
  */
-private static EmbeddingModel createSatelliteEmbeddingModel(MAIProvider config) {
+private static EmbeddingModel createAI HubEmbeddingModel(MAIProvider config) {
     String url = config.getURL();
     if (url == null || url.isEmpty()) {
         throw new IllegalArgumentException(
-            "Satellite URL not configured. Set URL in AIG_Provider.");
+            "AI Hub URL not configured. Set URL in AIG_Provider.");
     }
 
     String apiKey = config.getAPIKey();
     if (apiKey == null || apiKey.isEmpty()) {
         throw new IllegalArgumentException(
-            "Satellite API key not configured. Set APIKey (bearer token) in AIG_Provider.");
+            "AI Hub API key not configured. Set APIKey (bearer token) in AIG_Provider.");
     }
 
     if (!endpoint.endsWith("/")) {
@@ -338,7 +338,7 @@ private static EmbeddingModel createSatelliteEmbeddingModel(MAIProvider config) 
     String baseUrl = endpoint + "v1";
 
     // Use default embedding model or from config
-    String modelName = "text-embedding-3-small";  // Satellite routes appropriately
+    String modelName = "text-embedding-3-small";  // AI Hub routes appropriately
 
     return OpenAiEmbeddingModel.builder()
         .baseUrl(baseUrl)
@@ -353,30 +353,30 @@ private static EmbeddingModel createSatelliteEmbeddingModel(MAIProvider config) 
 Update `create()`, `createStreaming()`, and `createEmbeddingModel()`:
 
 ```java
-case PROVIDER_SATELLITE:
-    return createSatelliteModel(config);
+case PROVIDER_AIHUB:
+    return createAI HubModel(config);
 
 // In createStreaming():
-case PROVIDER_SATELLITE:
-    return createSatelliteStreamingModel(config);
+case PROVIDER_AIHUB:
+    return createAI HubStreamingModel(config);
 
 // In createEmbeddingModel():
-case PROVIDER_SATELLITE:
-    return createSatelliteEmbeddingModel(config);
+case PROVIDER_AIHUB:
+    return createAI HubEmbeddingModel(config);
 ```
 
 ### 5. Health Check Support
 
 ```java
 /**
- * Check if satellite service is available.
+ * Check if AI Hub service is available.
  *
- * @param config MAIProvider with satellite endpoint
- * @return true if satellite responds to health check
+ * @param config MAIProvider with AI Hub endpoint
+ * @return true if AI Hub responds to health check
  */
-public static boolean isSatelliteHealthy(MAIProvider config) {
-    if (!PROVIDER_SATELLITE.equals(config.getAIGProviderType())) {
-        return true;  // Not a satellite provider
+public static boolean isAI HubHealthy(MAIProvider config) {
+    if (!PROVIDER_AIHUB.equals(config.getAIGProviderType())) {
+        return true;  // Not a AI Hub provider
     }
 
     String url = config.getURL();
@@ -394,7 +394,7 @@ public static boolean isSatelliteHealthy(MAIProvider config) {
         int status = conn.getResponseCode();
         return status == 200;
     } catch (Exception e) {
-        log.warning("Satellite health check failed: " + e.getMessage());
+        log.warning("AI Hub health check failed: " + e.getMessage());
         return false;
     }
 }
@@ -406,11 +406,11 @@ public static boolean isSatelliteHealthy(MAIProvider config) {
 
 ### iDempiereContext DTO
 
-The satellite needs iDempiere context for security and audit:
+The AI Hub needs iDempiere context for security and audit:
 
 ```java
 /**
- * Context passed to satellite service with each request.
+ * Context passed to AI Hub service with each request.
  * Included in request headers or body extension.
  */
 public class iDempiereContext {
@@ -442,7 +442,7 @@ public class iDempiereContext {
 Pass context via custom headers:
 
 ```java
-// In request to satellite
+// In request to AI Hub
 X-iDempiere-Client-ID: 1000000
 X-iDempiere-Org-ID: 1000000
 X-iDempiere-User-ID: 100
@@ -454,7 +454,7 @@ X-iDempiere-Language: en_US
 
 ---
 
-## Satellite REST API Specification
+## AI Hub REST API Specification
 
 ### Endpoints
 
@@ -492,7 +492,7 @@ X-iDempiere-Language: en_US
 
 ### Model Routing
 
-The satellite routes requests based on model name:
+The AI Hub routes requests based on model name:
 
 | Model Name | Upstream Provider |
 |------------|-------------------|
@@ -506,17 +506,17 @@ The satellite routes requests based on model name:
 
 ## Pros and Cons of the Options
 
-### Option 1: New SATELLITE Provider Type (Chosen)
+### Option 1: New AIHUB Provider Type (Chosen)
 
 - Good, because it integrates cleanly with existing factory pattern
-- Good, because it allows per-tenant choice of satellite vs direct
+- Good, because it allows per-tenant choice of AI Hub vs direct
 - Good, because it maintains backward compatibility
 - Good, because it uses standard REST/HTTP (no new dependencies)
 - Good, because it enables gradual migration
 - Neutral, because it adds network latency (one hop)
-- Bad, because it requires satellite service deployment
+- Bad, because it requires AI Hub service deployment
 
-### Option 2: Replace All Providers with Satellite Proxy
+### Option 2: Replace All Providers with AI Hub Proxy
 
 - Good, because it simplifies architecture (single provider)
 - Good, because it centralizes all AI management
@@ -545,46 +545,46 @@ The satellite routes requests based on model name:
 
 ### Phase 1: Add Provider Type (This ADR)
 
-1. Add `PROVIDER_SATELLITE` constant
+1. Add `PROVIDER_AIHUB` constant
 2. Add AD_Ref_List entry
 3. Implement factory methods
 4. Add health check support
 
-### Phase 2: Deploy Satellite Service
+### Phase 2: Deploy AI Hub Service
 
-1. Create Quarkus satellite project (separate repo)
+1. Create Quarkus AI Hub project (separate repo)
 2. Implement OpenAI-compatible REST endpoints
 3. Add authentication and context handling
 4. Deploy to test environment
 
 ### Phase 3: Tenant Migration
 
-1. Create satellite AIG_Provider record for test tenant
+1. Create AI Hub AIG_Provider record for test tenant
 2. Validate end-to-end flow
 3. Migrate production tenants gradually
 4. Monitor metrics and costs
 
 ### Phase 4: Advanced Features
 
-1. Enable MCP server in satellite
+1. Enable MCP server in AI Hub
 2. Add extended thinking support
 3. Implement response caching
 4. Add multi-tenant isolation
 
 ---
 
-## Development: Mock Satellite Server
+## Development: Mock AI Hub Server
 
-A **MockSatelliteServer** is provided for development and testing while the real Quarkus Satellite service is being built.
+A **MockAI HubServer** is provided for development and testing while the real iDempiere AI Hub service is being built.
 
 ### Quick Start
 
 ```bash
 # Start mock server on default port 8090
-./run-mock-satellite.sh
+./run-mock-AI Hub.sh
 
 # Start on custom port with ECHO mode
-./run-mock-satellite.sh 8091 ECHO
+./run-mock-AI Hub.sh 8091 ECHO
 ```
 
 ### Configure iDempiere
@@ -593,8 +593,8 @@ Create an `AIG_Provider` record:
 
 | Field | Value |
 |-------|-------|
-| Name | Mock Satellite |
-| Type | SAT (Quarkus Satellite) |
+| Name | Mock AI Hub |
+| Type | SAT (iDempiere AI Hub) |
 | Endpoint | http://localhost:8090 |
 | APIKey | mock-token |
 | ModelName | claude-sonnet-4 |
@@ -620,10 +620,10 @@ Create an `AIG_Provider` record:
 
 | File | Description |
 |------|-------------|
-| `src/.../satellite/MockSatelliteServer.java` | Mock server implementation |
-| `src/.../satellite/SatelliteProviderConstants.java` | Constants and headers |
-| `run-mock-satellite.sh` | Startup script |
-| `org.idempiere.test/.../MockSatelliteServerTest.java` | Unit tests |
+| `src/.../AI Hub/MockAI HubServer.java` | Mock server implementation |
+| `src/.../AI Hub/AI HubProviderConstants.java` | Constants and headers |
+| `run-mock-AI Hub.sh` | Startup script |
+| `org.idempiere.test/.../MockAI HubServerTest.java` | Unit tests |
 
 ### Test the Mock Server
 
@@ -652,13 +652,13 @@ curl -X POST http://localhost:8090/v1/chat/completions \
 
 ### Fallback Strategy
 
-If satellite is unavailable, the factory can fall back to direct providers:
+If AI Hub is unavailable, the factory can fall back to direct providers:
 
 ```java
 public static ChatLanguageModel createWithFallback(MAIProvider primary, MAIProvider fallback) {
-    if (PROVIDER_SATELLITE.equals(primary.getAIGProviderType())) {
-        if (!isSatelliteHealthy(primary)) {
-            log.warning("Satellite unavailable, using fallback provider");
+    if (PROVIDER_AIHUB.equals(primary.getAIGProviderType())) {
+        if (!isAI HubHealthy(primary)) {
+            log.warning("AI Hub unavailable, using fallback provider");
             return create(fallback);
         }
     }
@@ -670,7 +670,7 @@ public static ChatLanguageModel createWithFallback(MAIProvider primary, MAIProvi
 
 - [ADR-002](002-langchain4j-strategic-adoption.md) - LangChain4j Strategic Adoption
 - [ADR-035](035-java-version-strategy.md) - Java Version Strategy (explains Java 11 constraint)
-- [ADR-038](038-quarkus-satellite-ai-service.md) - Quarkus Satellite AI Service Architecture (research)
+- [ADR-038](038-quarkus-AI Hub-ai-service.md) - iDempiere AI Hub AI Service Architecture (research)
 - [ADR-040](040-embedding-ingestion-evolution.md) - Embedding Ingestion Evolution (alternative for RAG)
 
 ### References
@@ -683,4 +683,4 @@ public static ChatLanguageModel createWithFallback(MAIProvider primary, MAIProvi
 
 *ADR-042 | Version 1.0 | 2025-12-10*
 *Status: Proposed*
-*Next Step: Implement PROVIDER_SATELLITE in LangChain4jProviderFactory*
+*Next Step: Implement PROVIDER_AIHUB in LangChain4jProviderFactory*

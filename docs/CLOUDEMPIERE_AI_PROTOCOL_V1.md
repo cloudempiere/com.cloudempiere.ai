@@ -46,7 +46,7 @@ The **Cloudempiere AI Protocol** is a RESTful API specification designed for AI-
 ## Base URL
 
 ```
-https://satellite.cloudempiere.com/ai/v1
+https://AI Hub.cloudempiere.com/ai/v1
 ```
 
 **Local Development:**
@@ -72,7 +72,7 @@ The session token encodes:
 - AD_Session_ID
 - Expiration timestamp
 
-**Token Format:** JWT signed with satellite service secret
+**Token Format:** JWT signed with AI Hub service secret
 
 ---
 
@@ -202,7 +202,7 @@ The session token encodes:
   },
 
   "audit": {
-    "executed_by": "satellite-service",
+    "executed_by": "AI Hub-service",
     "on_behalf_of": {
       "user_id": 100,
       "user_name": "admin",
@@ -408,12 +408,12 @@ data: {"finish_reason":"complete","usage":{"total_tokens":239,"cost_usd":0.0012}
 
 ```
 1. iDempiere authenticates user → creates AD_Session
-2. iDempiere requests session token from Satellite
-3. Satellite validates user/role → issues JWT token
+2. iDempiere requests session token from AI Hub
+3. AI Hub validates user/role → issues JWT token
 4. iDempiere includes token in Authorization header
-5. Satellite validates token → extracts security context
-6. Satellite enforces role-based access on operations
-7. Satellite logs audit trail
+5. AI Hub validates token → extracts security context
+6. AI Hub enforces role-based access on operations
+7. AI Hub logs audit trail
 ```
 
 ### Role-Based Access Control
@@ -534,7 +534,7 @@ The Java plugin should:
 4. Build security context from Env.getCtx()
 5. Handle streaming via callback interface
 
-### For Satellite Service
+### For AI Hub Service
 
 The Quarkus service should:
 1. Validate JWT token on every request
@@ -582,7 +582,7 @@ public class OpenAIToCloudempiereAdapter {
 
 ### Gradual Migration
 
-1. Phase 1: Satellite accepts both protocols (Cloudempiere + OpenAI)
+1. Phase 1: AI Hub accepts both protocols (Cloudempiere + OpenAI)
 2. Phase 2: iDempiere plugin migrates to Cloudempiere protocol
 3. Phase 3: OpenAI compatibility deprecated after 12 months
 4. Phase 4: Remove OpenAI compatibility
@@ -592,7 +592,7 @@ public class OpenAIToCloudempiereAdapter {
 ## Reference Implementation
 
 - **iDempiere Plugin:** `com.cloudempiere.ai` (Java 11)
-- **Satellite Service:** `idempiere-cli/satelite-noro` (Quarkus + Java 17)
+- **AI Hub Service:** `idempiere-cli/satelite-noro` (Quarkus + Java 17)
 - **Protocol Version:** 1.0
 - **Status:** DRAFT - Accepting feedback
 

@@ -7,19 +7,55 @@ and this project adheres to [Conventional Commits](https://conventionalcommits.o
 
 ## [Unreleased]
 
-### v0.27.0-SNAPSHOT - Mock AI Hub Provider
+---
 
-**Added:**
-- **Mock AI Hub Provider Implementation**
-  - Mock provider for testing without external AI Hub service
-  - Simulates AI responses for development and testing
-  - Compatible with iDempiere AI Hub protocol
+## [0.27.0] - 2025-12-18
 
-**Changed:**
-- **Provider Naming**
-  - "Satellite Provider" renamed to "AI Hub Provider" throughout codebase
-  - Migration scripts updated for Mock AI Hub provider
-  - run-mock-satellite.sh for local testing
+### In-Plugin Mock AI Hub Provider
+
+This release implements a zero-configuration in-plugin mock provider and removes the HTTP mock server infrastructure.
+
+#### Added
+
+- **In-Plugin Mock AI Hub Provider** (`MockAIHubChatModel.java`)
+  - Zero-configuration mock for development and testing
+  - No external HTTP server required
+  - Streaming response support with word-by-word delivery
+  - Contextual mock responses based on keywords
+  - Can serve as production fallback
+  - 12/12 unit tests passing
+
+- **Documentation**
+  - `docs/MOCK_AI_HUB_COMPARISON.md` - Implementation strategy and testing guide
+  - `docs/v0.27.0-MOCK-AI-HUB-SUMMARY.md` - Complete implementation summary
+  - Migration scripts for CLD-1628 (AI Hub provider type)
+
+#### Changed
+
+- **Provider Naming: Satellite → AI Hub**
+  - Renamed all "Satellite" references to "AI Hub" throughout codebase
+  - Updated ADR-042 (AI Hub Provider Integration)
+  - Updated architecture documentation
+  - Migration scripts for provider type updates
+
+- **Factory Simplified** (`LangChain4jProviderFactory.java`)
+  - MOA provider type always returns in-plugin mock
+  - Removed HTTP mock server logic
+  - Parameters `baseUrl` and `apiKey` ignored for compatibility
+
+#### Removed
+
+- **HTTP Mock Server Infrastructure** (~900 lines)
+  - `MockAIHubServer.java` (642 lines) - HTTP server implementation
+  - `AIHubProviderConstants.java` - Constants file
+  - `run-mock-ai-hub.sh` - Startup script
+  - `MockSatelliteServerTest.java` - HTTP server tests
+  - `SatelliteProviderTest.java` - Provider integration tests
+
+#### Testing
+
+- ✅ In-Plugin Mock: Tested and working correctly
+- ⏳ iDempiere AI Hub Integration: Postponed until local dev environment setup
 
 ---
 
@@ -75,7 +111,7 @@ This release implements persistent vector storage for RAG-based AI context retri
 
 ## [0.24.0] - 2025-12-11
 
-### Satellite Provider & Language Detection Enhancements
+### AI Hub Provider & Language Detection Enhancements
 
 This release enhances the Satellite provider integration and improves language detection capabilities.
 
@@ -87,7 +123,7 @@ This release enhances the Satellite provider integration and improves language d
   - Comprehensive language detection logging
   - Enhanced error logging with log.severe
 
-- **Satellite Provider**
+- **AI Hub Provider**
   - Improved JSON stream flag parsing
   - Tool/function calling support
   - OpenAI protocol compatibility
@@ -122,18 +158,18 @@ This release enhances the Satellite provider integration and improves language d
 
 ## [0.23.0] - 2025-12-11
 
-### Satellite Provider Integration (ADR-042)
+### AI Hub Provider Integration (ADR-042)
 
-This release introduces Satellite AI Provider support for external LangChain4j services.
+This release introduces AI Hub Provider support for external LangChain4j services.
 
 #### Added
 
-- **ADR-042: Satellite AI Provider Integration**
-  - URL column in AIG_Provider for satellite service endpoint configuration
+- **ADR-042: AI Hub Provider Integration**
+  - URL column in AIG_Provider for AI Hub service endpoint configuration
   - Uses existing iDempiere URL element (AD_Element_ID=983)
   - SAT provider type in AIGProviderType reference list
   - Conditional display logic for URL field (@AIGProviderType@=SAT)
-  - Supports Quarkus Satellite Service integration (Java 17+, LangChain4j 1.x)
+  - Supports iDempiere AI Hub Service integration (Java 17+, LangChain4j 1.x)
 
 - **RAG Infrastructure**
   - Trigger-based embedding for K_Entry (ADR-029)

@@ -8,9 +8,9 @@ This document tracks features, implementation status, and version compatibility 
 
 ---
 
-## Current Version: v0.27.0-SNAPSHOT
+## Current Version: v0.27.0
 
-**Status:** 🚧 In Progress - Mock AI Hub Provider
+**Status:** ✅ Released - In-Plugin Mock AI Hub Provider
 **Previous:** v0.26.0 - Service Configuration Cleanup
 
 **Strategic Focus:** The Chat Widget is our primary AI implementation. All features will be integrated and tested through the chat widget before other use cases (charts, reports, etc.).
@@ -21,11 +21,11 @@ This document tracks features, implementation status, and version compatibility 
 
 | Version | Date | Key Features | Focus Area |
 |---------|------|--------------|------------|
-| **0.27.0** | TBD | **Mock AI Hub Provider (In Progress)** | **Testing & Development** |
+| **0.27.0** | 2025-12-18 | **In-Plugin Mock AI Hub Provider** | **Testing & Development** |
 | 0.26.0 | 2025-12-18 | Service Configuration Cleanup | Code Quality |
 | 0.25.0 | 2025-12-11 | P1 Context Layer Vector Embedding Storage | RAG Infrastructure |
-| 0.24.0 | 2025-12-11 | Satellite Provider & Language Detection | Multi-Provider |
-| 0.23.0 | 2025-12-11 | Satellite Provider Integration (ADR-042) | Multi-Provider |
+| 0.24.0 | 2025-12-11 | AI Hub Provider & Language Detection | Multi-Provider |
+| 0.23.0 | 2025-12-11 | AI Hub Provider Integration (ADR-042) | Multi-Provider |
 | 0.22.0 | 2025-12-11 | Clickable Record Links in Chat with Table Support (ADR-039) | UX & Navigation |
 | 0.21.0 | 2025-12-10 | Real-Time Streaming Improvements (Tables & Emojis) | UX |
 | 0.20.0 | 2025-12-10 | Language Detection & User-Friendly Error Handling | UX & i18n |
@@ -134,6 +134,7 @@ This document tracks features, implementation status, and version compatibility 
 | **Llama (via Ollama)** | 0.18.0 | ✅ Done | LangChain4j | Llama models via Ollama backend ⚠️* |
 | **OpenAI** | 0.9.0 | ✅ Done | LangChain4j | GPT-4o, GPT-4-turbo via OpenAiChatModel |
 | **iDempiere AI Hub** | 0.23.0 | 🚧 In Progress | REST API | AI requests routed through iDempiere AI Hub Service (Java 17+, LangChain4j 1.x) 🚀 |
+| **Mock AI Hub (In-Plugin)** | 0.27.0 | ✅ Done | LangChain4j | Zero-config mock for development (no HTTP server) ⭐ |
 | **Azure OpenAI** | - | 🟡 v0.11.0 | LangChain4j | Enterprise OpenAI deployment |
 | **Custom Providers** | 0.9.0 | ✅ Done | LangChain4j | Extensible via ChatLanguageModel interface |
 
@@ -432,6 +433,6 @@ Based on validation reports:
 
 ---
 
-**Last Updated:** 2025-12-10
-**Current Version:** v0.21.0 (Real-Time Streaming Improvements)
-**Next Release:** v0.22.0 - Share Dialog & Advanced Sharing
+**Last Updated:** 2025-12-18
+**Current Version:** v0.27.0 (In-Plugin Mock AI Hub Provider)
+**Next Release:** v0.28.0 - TBD

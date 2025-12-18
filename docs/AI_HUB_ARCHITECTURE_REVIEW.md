@@ -1,4 +1,4 @@
-# Satellite Service Architecture Review
+# AI Hub Service Architecture Review
 
 **Project:** idempiere-cli (satelite-noro branch)
 **Date:** 2025-12-11
@@ -36,7 +36,7 @@ The satelite-noro implementation shows **strong engineering** in several areas (
 ### 📊 Codebase Structure (41 Java files)
 
 ```
-satellite/
+AI Hub/
 ├── agent/          (7 files)  - Agent boundaries, context, service
 ├── api/            (5 files)  - REST endpoints, filters, exception mapping
 ├── config/         (1 file)   - Model pricing
@@ -55,7 +55,7 @@ satellite/
 
 ### 1. Security Guards System (★★★★★)
 
-**Location:** `satellite/security/`
+**Location:** `AI Hub/security/`
 
 ```java
 // InputGuard.java - Lines 38-77
@@ -77,7 +77,7 @@ satellite/
 
 ### 2. Agent Boundary System (★★★★☆)
 
-**Location:** `satellite/agent/AgentBoundary.java`
+**Location:** `AI Hub/agent/AgentBoundary.java`
 
 ```java
 - Table-level access control (allowedTables, blockedTables)
@@ -105,7 +105,7 @@ satellite/
 
 ### 3. Provider Registry (★★★★☆)
 
-**Location:** `satellite/routing/ProviderRegistry.java`
+**Location:** `AI Hub/routing/ProviderRegistry.java`
 
 ```java
 - Multi-provider support (Anthropic, OpenAI, Ollama, Bedrock)
@@ -129,7 +129,7 @@ satellite/
 
 ### 4. Observability Layer (★★★★☆)
 
-**Location:** `satellite/observability/`
+**Location:** `AI Hub/observability/`
 
 ```
 - AuditService.java     - Audit logging
@@ -151,7 +151,7 @@ satellite/
 
 ### 1. NO iDempiere Database Connection (★☆☆☆☆)
 
-**Problem:** The satellite service needs to:
+**Problem:** The AI Hub service needs to:
 1. Validate security context against iDempiere database
 2. Execute database queries with role-based access
 3. Check user permissions (AD_User_ID, AD_Role_ID)
@@ -180,13 +180,13 @@ public class IdempiereSecurityService {
     @Inject
     DataSource idempiereDb;  // Connection to iDempiere database
 
-    public boolean validateContext(SatelliteContext ctx) {
+    public boolean validateContext(AI HubContext ctx) {
         // Query AD_User, AD_Role tables
         // Verify user belongs to client
         // Verify role is active
     }
 
-    public ResultSet executeSecureQuery(String sql, SatelliteContext ctx) {
+    public ResultSet executeSecureQuery(String sql, AI HubContext ctx) {
         // Apply role-based WHERE clauses
         // Use iDempiere's AccessSqlParser
         // Execute with proper transaction management
@@ -231,7 +231,7 @@ public class IdempiereSecurityService {
 
 ```java
 // ContextExtractor.java - Line 57
-SatelliteContext context = contextExtractor.extract(httpHeaders.getRequestHeaders());
+AI HubContext context = contextExtractor.extract(httpHeaders.getRequestHeaders());
 ```
 
 Extracts context but **doesn't validate it**:
@@ -250,7 +250,7 @@ X-iDempiere-Role-ID: 0  # System Administrator!
 
 **Required:**
 ```java
-public SatelliteContext extractAndValidate(MultivaluedMap<String, String> headers) {
+public AI HubContext extractAndValidate(MultivaluedMap<String, String> headers) {
     // Extract JWT from Authorization header
     // Verify signature
     // Decode payload
@@ -267,7 +267,7 @@ public SatelliteContext extractAndValidate(MultivaluedMap<String, String> header
 **Problem:**
 
 ```java
-// SatelliteRequest.java - Line 103
+// AI HubRequest.java - Line 103
 @JsonProperty("conversation_id")
 String conversationId;
 ```
@@ -311,7 +311,7 @@ CREATE TABLE AIG_Message (
 **Missing:**
 ```java
 public class ModelRouter {
-    public ProviderInfo route(SatelliteRequest request, List<ProviderInfo> available) {
+    public ProviderInfo route(AI HubRequest request, List<ProviderInfo> available) {
         // Strategy 1: Explicit provider in request
         // Strategy 2: Model name pattern matching (claude-* → anthropic)
         // Strategy 3: Cost-based (cheapest available)
@@ -337,7 +337,7 @@ AD_Role → AD_Window_Access
        → AD_Record_Access
 ```
 
-**Satellite AgentBoundary:**
+**AI Hub AgentBoundary:**
 ```
 allowedTables
 allowedColumns
@@ -386,10 +386,10 @@ User Permission = iDempiere RBAC ∩ AgentBoundary
 
 **Test Files Found:**
 ```
-test/java/org/idempiere/cli/satellite/
-├── dto/SatelliteDtoTest.java
-├── agent/SatelliteAgentServiceTest.java
-└── api/SatelliteApiResourceTest.java
+test/java/org/idempiere/cli/AI Hub/
+├── dto/AI HubDtoTest.java
+├── agent/AI HubAgentServiceTest.java
+└── api/AI HubApiResourceTest.java
 ```
 
 **Questions:**
@@ -442,8 +442,8 @@ public class IdempiereSecurityService {
     @Named("idempiere")
     DataSource idempiereDb;
 
-    public boolean validateContext(SatelliteContext ctx) { ... }
-    public ResultSet executeSecureQuery(String sql, SatelliteContext ctx) { ... }
+    public boolean validateContext(AI HubContext ctx) { ... }
+    public ResultSet executeSecureQuery(String sql, AI HubContext ctx) { ... }
 }
 ```
 
@@ -452,7 +452,7 @@ public class IdempiereSecurityService {
 // Implement JWT validation
 @ApplicationScoped
 public class JwtValidator {
-    public SatelliteContext validate(String token) {
+    public AI HubContext validate(String token) {
         // Verify signature
         // Decode claims
         // Lookup in database
@@ -499,7 +499,7 @@ public class JwtValidator {
 
 ### 1. Database Access Strategy
 
-**Q:** How should Satellite access iDempiere database?
+**Q:** How should AI Hub access iDempiere database?
 
 **Options:**
 - **A)** Direct JDBC connection to iDempiere DB
@@ -516,7 +516,7 @@ public class JwtValidator {
 
 **Options:**
 - **A)** iDempiere database (AD_User, AD_Role tables)
-- **B)** Satellite has its own user/role tables
+- **B)** AI Hub has its own user/role tables
 - **C)** External auth service (Keycloak, OAuth)
 
 **Recommendation:** A (iDempiere database) - single source of truth

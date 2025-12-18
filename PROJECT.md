@@ -77,7 +77,7 @@ We believe **iDempiere's strong plugin architecture** enables rapid AI integrati
 
 | Feature | Status | Description |
 |---------|--------|-------------|
-| **Multi-Provider Support** | ✅ | Anthropic Claude, AWS Bedrock, Ollama (local), OpenAI, Quarkus Satellite 🚀 |
+| **Multi-Provider Support** | ✅ | Anthropic Claude, AWS Bedrock, Ollama (local), OpenAI, iDempiere AI Hub 🚀 |
 | **LangChain4j Integration** | ✅ | Native agent framework with @Tool annotations |
 | **Secure Database Access** | ✅ | AI queries respect AD_Client_ID, AD_Org_ID, AD_Role_ID filters |
 | **9 ERP Tools** | ✅ | Database query, record lookup, metadata, business objects |

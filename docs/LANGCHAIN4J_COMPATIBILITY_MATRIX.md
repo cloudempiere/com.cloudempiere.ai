@@ -2,7 +2,7 @@
 
 **Date:** 2025-12-11
 **Status:** ANALYSIS
-**Purpose:** Document compatibility between iDempiere Plugin (Java 11, LangChain4j 0.35.0) and Satellite Service (Java 17, LangChain4j 0.36+/1.x)
+**Purpose:** Document compatibility between iDempiere Plugin (Java 11, LangChain4j 0.35.0) and AI Hub Service (Java 17, LangChain4j 0.36+/1.x)
 
 ---
 
@@ -10,10 +10,10 @@
 
 ⚠️ **CRITICAL VERSION CONSTRAINT:**
 - **iDempiere Plugin:** Java 11 → **LangChain4j 0.35.0 MAX** (last Java 11 compatible)
-- **Satellite Service:** Java 17+ → **LangChain4j 0.36+ or 1.x** (requires Java 17)
+- **AI Hub Service:** Java 17+ → **LangChain4j 0.36+ or 1.x** (requires Java 17)
 - **Risk:** Version mismatch could cause protocol incompatibilities and feature gaps
 
-**Mitigation:** Use Cloudempiere Protocol v1 as abstraction layer + LangChain4j native clients in Satellite only.
+**Mitigation:** Use Cloudempiere Protocol v1 as abstraction layer + LangChain4j native clients in AI Hub only.
 
 ---
 
@@ -159,7 +159,7 @@ public String search(@P("query") String query) { ... }
 ```
 ┌════════════════════════════════════════════════════════════════════════════┐
 │                         IDEMPIERE PLUGIN (Java 11)                         │
-│                         LangChain4j 0.35.0 (NOT used for Satellite!)       │
+│                         LangChain4j 0.35.0 (NOT used for AI Hub!)       │
 ├════════════════════════════════════════════════════════════════════════════┤
 │                                                                            │
 │  ┌──────────────────────────────────────────────────────────────────┐    │
@@ -170,15 +170,15 @@ public String search(@P("query") String query) { ... }
 │                                    ↓                                       │
 │  ┌──────────────────────────────────────────────────────────────────┐    │
 │  │ 2. Check provider type from AIG_Provider.AIGProviderType          │    │
-│  │    if (providerType == "Satellite") {                             │    │
+│  │    if (providerType == "AI Hub") {                             │    │
 │  │        // Use HTTP client (NOT LangChain4j!)                      │    │
-│  │        return satelliteClient.chat(request);                      │    │
+│  │        return AI HubClient.chat(request);                      │    │
 │  │    }                                                               │    │
 │  └──────────────────────────────────────────────────────────────────┘    │
 │                                    │                                       │
 │                                    ↓                                       │
 │  ┌──────────────────────────────────────────────────────────────────┐    │
-│  │ 3. SatelliteClient.java (Pure HTTP - NO LangChain4j!)             │    │
+│  │ 3. AI HubClient.java (Pure HTTP - NO LangChain4j!)             │    │
 │  │                                                                    │    │
 │  │    CloudempiereRequest request = CloudempiereRequest.builder()    │    │
 │  │        .security(SecurityContext.fromCtx(ctx))                    │    │
@@ -191,9 +191,9 @@ public String search(@P("query") String query) { ... }
 │                                    │                                       │
 │                                    ↓                                       │
 │  ┌──────────────────────────────────────────────────────────────────┐    │
-│  │ 4. POST to Satellite via HTTP                                     │    │
+│  │ 4. POST to AI Hub via HTTP                                     │    │
 │  │                                                                    │    │
-│  │    POST http://satellite:8090/ai/v1/chat                          │    │
+│  │    POST http://AI Hub:8090/ai/v1/chat                          │    │
 │  │    Content-Type: application/json                                 │    │
 │  │    Authorization: Bearer <session-token>                          │    │
 │  │                                                                    │    │
@@ -225,13 +225,13 @@ public String search(@P("query") String query) { ... }
                                      │
                                      ↓
 ┌════════════════════════════════════════════════════════════════════════════┐
-│                      SATELLITE SERVICE (Java 17)                           │
+│                      AIHUB SERVICE (Java 17)                           │
 │                      LangChain4j 1.x (Used internally only!)               │
 ├════════════════════════════════════════════════════════════════════════════┤
 │                                                                            │
 │  ┌──────────────────────────────────────────────────────────────────┐    │
 │  │ 5. Receive HTTP request                                           │    │
-│  │    SatelliteApiResource.java                                      │    │
+│  │    AI HubApiResource.java                                      │    │
 │  │                                                                    │    │
 │  │    @POST                                                          │    │
 │  │    @Path("/v1/chat")                                              │    │
@@ -335,7 +335,7 @@ public String search(@P("query") String query) { ... }
 │                                                                            │
 │  ┌──────────────────────────────────────────────────────────────────┐    │
 │  │ 12. Receive HTTP response                                         │    │
-│  │     SatelliteClient.java                                          │    │
+│  │     AI HubClient.java                                          │    │
 │  │                                                                    │    │
 │  │     CloudempiereResponse response =                               │    │
 │  │         gson.fromJson(httpResponse.body(),                        │    │
@@ -355,16 +355,16 @@ KEY POINTS:
 ═══════════
 
 1. ✅ iDempiere uses LangChain4j 0.35.0 ONLY for direct Anthropic/OpenAI calls
-   (when provider is NOT Satellite)
+   (when provider is NOT AI Hub)
 
-2. ✅ iDempiere uses PURE HTTP CLIENT (no LangChain4j) when calling Satellite
+2. ✅ iDempiere uses PURE HTTP CLIENT (no LangChain4j) when calling AI Hub
    - gson.toJson() / gson.fromJson()
    - No LangChain4j classes cross the network!
 
-3. ✅ Satellite receives plain JSON (Cloudempiere Protocol v1)
+3. ✅ AI Hub receives plain JSON (Cloudempiere Protocol v1)
    - No knowledge of iDempiere's LangChain4j version
 
-4. ✅ Satellite uses LangChain4j 1.x INTERNALLY ONLY
+4. ✅ AI Hub uses LangChain4j 1.x INTERNALLY ONLY
    - Creates LangChain4j objects from protocol JSON
    - Calls LLMs with native clients
    - Converts back to protocol JSON
@@ -380,7 +380,7 @@ COMPARISON: What if we used LangChain4j types over HTTP?
 
 ❌ BROKEN APPROACH (Don't do this!):
 
-iDempiere (0.35.0)                        Satellite (1.x)
+iDempiere (0.35.0)                        AI Hub (1.x)
      │                                         │
      │  UserMessage msg = new UserMessage()   │
      │  // Class instance                     │
@@ -395,7 +395,7 @@ iDempiere (0.35.0)                        Satellite (1.x)
 
 ✅ CORRECT APPROACH (What we actually do):
 
-iDempiere (0.35.0)                        Satellite (1.x)
+iDempiere (0.35.0)                        AI Hub (1.x)
      │                                         │
      │  CloudempiereRequest req = ...          │
      │  String json = gson.toJson(req)         │
@@ -414,24 +414,24 @@ iDempiere (0.35.0)                        Satellite (1.x)
 
 **✅ Protocol Abstraction:**
 - iDempiere sends Cloudempiere Protocol v1 (custom JSON)
-- Satellite translates to LangChain4j calls
-- **No direct version dependency between iDempiere and Satellite**
+- AI Hub translates to LangChain4j calls
+- **No direct version dependency between iDempiere and AI Hub**
 
 **✅ Version Isolation:**
-- iDempiere doesn't use LangChain4j to call Satellite
-- Satellite doesn't expose LangChain4j types to iDempiere
+- iDempiere doesn't use LangChain4j to call AI Hub
+- AI Hub doesn't expose LangChain4j types to iDempiere
 - Protocol is version-agnostic
 
 **Example - iDempiere Side (0.35.0):**
 ```java
-// iDempiere Plugin - NO LangChain4j calls to Satellite
-public class SatelliteClient {
+// iDempiere Plugin - NO LangChain4j calls to AI Hub
+public class AI HubClient {
     public CloudempiereResponse chat(CloudempiereRequest request) {
         // Pure HTTP client - no LangChain4j
         String json = toJson(request);
 
         HttpResponse response = httpClient.post(
-            satelliteUrl + "/ai/v1/chat",
+            AI HubUrl + "/ai/v1/chat",
             json,
             headers
         );
@@ -441,9 +441,9 @@ public class SatelliteClient {
 }
 ```
 
-**Example - Satellite Side (0.36+/1.x):**
+**Example - AI Hub Side (0.36+/1.x):**
 ```java
-// Satellite Service - Uses LangChain4j 1.x
+// AI Hub Service - Uses LangChain4j 1.x
 @POST
 @Path("/v1/chat")
 public Response chat(CloudempiereRequest request) {
@@ -484,10 +484,10 @@ public Response chat(CloudempiereRequest request) {
 | Component | Version | Status |
 |-----------|---------|--------|
 | iDempiere | LangChain4j 0.35.0 | ✅ |
-| Satellite | LangChain4j 0.35.0 | ✅ |
+| AI Hub | LangChain4j 0.35.0 | ✅ |
 | **Compatibility** | **✅ Perfect** | No issues |
 
-**Problem:** Satellite needs Java 17 features, can't stay on 0.35.0 long-term.
+**Problem:** AI Hub needs Java 17 features, can't stay on 0.35.0 long-term.
 
 ---
 
@@ -496,7 +496,7 @@ public Response chat(CloudempiereRequest request) {
 | Component | Version | Status |
 |-----------|---------|--------|
 | iDempiere | LangChain4j 0.35.0 | ✅ |
-| Satellite | LangChain4j 1.x | ✅ |
+| AI Hub | LangChain4j 1.x | ✅ |
 | **Protocol** | **LangChain4j types over HTTP** | ❌ BROKEN |
 
 **Problem:**
@@ -504,7 +504,7 @@ public Response chat(CloudempiereRequest request) {
 // iDempiere (0.35.0) sends:
 UserMessage msg = new UserMessage("Hello");  // Class instance
 
-// Satellite (1.x) expects:
+// AI Hub (1.x) expects:
 UserMessage msg = UserMessage.from("Hello");  // Record instance
 
 // Result: Deserialization error!
@@ -517,7 +517,7 @@ UserMessage msg = UserMessage.from("Hello");  // Record instance
 | Component | Version | Protocol | Status |
 |-----------|---------|----------|--------|
 | iDempiere | LangChain4j 0.35.0 | Cloudempiere v1 | ✅ |
-| Satellite | LangChain4j 1.x | Cloudempiere v1 | ✅ |
+| AI Hub | LangChain4j 1.x | Cloudempiere v1 | ✅ |
 | **Compatibility** | **Version-agnostic** | **✅ WORKS** | No coupling |
 
 **Why It Works:**
@@ -532,7 +532,7 @@ UserMessage msg = UserMessage.from("Hello");  // Record instance
   }
 }
 
-// Satellite receives and converts:
+// AI Hub receives and converts:
 // 1. Parse Cloudempiere JSON (no LangChain4j types)
 // 2. Create LangChain4j 1.x objects internally
 // 3. Call LLM
@@ -553,13 +553,13 @@ UserMessage msg = UserMessage.from("Hello");  // Record instance
 
 ## Feature Gap Analysis
 
-### Features Available in Satellite (1.x) but NOT in iDempiere (0.35.0)
+### Features Available in AI Hub (1.x) but NOT in iDempiere (0.35.0)
 
-| Feature | Satellite (1.x) | iDempiere (0.35.0) | Impact |
+| Feature | AI Hub (1.x) | iDempiere (0.35.0) | Impact |
 |---------|-----------------|-------------------|---------|
-| **MCP (Model Context Protocol)** | ✅ Supported | ❌ Not available | Low - Satellite can use internally |
+| **MCP (Model Context Protocol)** | ✅ Supported | ❌ Not available | Low - AI Hub can use internally |
 | **Enhanced Observability** | ✅ Listeners | ⚠️ Limited | Medium - Cost tracking less detailed |
-| **Extended Thinking Timeline** | ✅ Supported | ❌ Not available | Low - Satellite can expose via protocol |
+| **Extended Thinking Timeline** | ✅ Supported | ❌ Not available | Low - AI Hub can expose via protocol |
 | **Google Gemini Streaming** | ✅ Enhanced | ⚠️ Basic | Low - Protocol abstracts streaming |
 | **System Message Caching** | ✅ Supported | ❌ Not available | Medium - Cost optimization unavailable |
 
@@ -567,9 +567,9 @@ UserMessage msg = UserMessage.from("Hello");  // Record instance
 
 **Yes, via Protocol Abstraction!**
 
-Example: Extended Thinking in Satellite 1.x
+Example: Extended Thinking in AI Hub 1.x
 ```java
-// Satellite (LangChain4j 1.x) - Uses extended thinking
+// AI Hub (LangChain4j 1.x) - Uses extended thinking
 ChatLanguageModel model = AnthropicChatModel.builder()
     .apiKey(apiKey)
     .modelName("claude-sonnet-4")
@@ -608,7 +608,7 @@ CloudempiereResponse ceResponse = CloudempiereResponse.builder()
 | Risk | Probability | Impact | Mitigation |
 |------|-------------|--------|------------|
 | Protocol versioning | Low | Low | Use version field in JSON |
-| Feature unavailability | Medium | Low | Satellite exposes new features via protocol |
+| Feature unavailability | Medium | Low | AI Hub exposes new features via protocol |
 | Performance overhead | Low | Low | HTTP/JSON overhead minimal |
 
 ---
@@ -622,7 +622,7 @@ CloudempiereResponse ceResponse = CloudempiereResponse.builder()
 | Component | Version | Java | Status |
 |-----------|---------|------|--------|
 | iDempiere Plugin | LangChain4j 0.35.0 | 11 | ✅ Production |
-| Satellite Service | LangChain4j 0.36+ | 17 | ✅ Production |
+| AI Hub Service | LangChain4j 0.36+ | 17 | ✅ Production |
 | Protocol | Cloudempiere v1 | N/A | ✅ Stable |
 
 **Decision:** Accept version mismatch, rely on protocol abstraction.
@@ -636,7 +636,7 @@ CloudempiereResponse ceResponse = CloudempiereResponse.builder()
 | Component | Version | Java | Status |
 |-----------|---------|------|--------|
 | iDempiere Plugin | LangChain4j 1.x | 17 | 🔄 Future |
-| Satellite Service | LangChain4j 1.x | 17 | ✅ Production |
+| AI Hub Service | LangChain4j 1.x | 17 | ✅ Production |
 | Protocol | Cloudempiere v1 | N/A | ✅ Stable |
 
 **Benefits:**
@@ -657,22 +657,22 @@ CloudempiereResponse ceResponse = CloudempiereResponse.builder()
 ### ✅ DO (Recommended Approach)
 
 1. **Use Cloudempiere Protocol v1 as abstraction layer**
-   - iDempiere → Satellite communication uses custom JSON
+   - iDempiere → AI Hub communication uses custom JSON
    - No LangChain4j types cross network boundary
    - Version-agnostic
 
-2. **Keep LangChain4j usage internal to Satellite**
-   - Satellite can upgrade to 1.x independently
-   - iDempiere doesn't need to know Satellite's LangChain4j version
+2. **Keep LangChain4j usage internal to AI Hub**
+   - AI Hub can upgrade to 1.x independently
+   - iDempiere doesn't need to know AI Hub's LangChain4j version
 
 3. **Expose new features via protocol extensions**
    ```json
    {
      "version": "1.0",
      "capabilities": {
-       "extended_thinking": true,  // New in Satellite 1.x
-       "system_caching": true,      // New in Satellite 1.x
-       "mcp_tools": true            // New in Satellite 1.x
+       "extended_thinking": true,  // New in AI Hub 1.x
+       "system_caching": true,      // New in AI Hub 1.x
+       "mcp_tools": true            // New in AI Hub 1.x
      }
    }
    ```
@@ -682,7 +682,7 @@ CloudempiereResponse ceResponse = CloudempiereResponse.builder()
    // iDempiere asks what features are available
    GET /ai/v1/capabilities
 
-   // Satellite responds with features from LangChain4j 1.x
+   // AI Hub responds with features from LangChain4j 1.x
    {
      "langchain4j_version": "1.0.0",
      "features": ["extended_thinking", "mcp", "system_caching"],
@@ -702,15 +702,15 @@ CloudempiereResponse ceResponse = CloudempiereResponse.builder()
 
 2. **Don't try to force version sync**
    - iDempiere can't upgrade to 1.x until Release-11
-   - Satellite shouldn't be held back to 0.35.0
+   - AI Hub shouldn't be held back to 0.35.0
 
 3. **Don't bypass protocol abstraction**
    ```java
    // ❌ BAD - Direct LangChain4j RPC
-   iDempiere → (LangChain4j types over HTTP) → Satellite
+   iDempiere → (LangChain4j types over HTTP) → AI Hub
 
    // ✅ GOOD - Protocol abstraction
-   iDempiere → (Cloudempiere JSON) → Satellite → (LangChain4j) → LLM
+   iDempiere → (Cloudempiere JSON) → AI Hub → (LangChain4j) → LLM
    ```
 
 ---
@@ -732,7 +732,7 @@ public void testProtocolVersionIndependence() {
     // Convert to JSON
     String json = toJson(request);
 
-    // Satellite (1.x) receives and parses
+    // AI Hub (1.x) receives and parses
     CloudempiereRequest parsed = fromJson(json, CloudempiereRequest.class);
 
     // Should work regardless of LangChain4j versions
@@ -743,11 +743,11 @@ public void testProtocolVersionIndependence() {
 @Test
 public void testFeatureNegotiation() {
     // iDempiere checks capabilities
-    HttpResponse response = httpClient.get(satelliteUrl + "/ai/v1/capabilities");
+    HttpResponse response = httpClient.get(AI HubUrl + "/ai/v1/capabilities");
 
     CapabilitiesResponse caps = fromJson(response.body(), CapabilitiesResponse.class);
 
-    // Satellite may have newer features
+    // AI Hub may have newer features
     if (caps.features().contains("extended_thinking")) {
         // Use extended thinking
         request.parameters().put("extended_thinking", true);
@@ -766,7 +766,7 @@ public void testFeatureNegotiation() {
 | Aspect | Assessment | Status |
 |--------|-----------|--------|
 | **Version Mismatch Risk** | Low with protocol abstraction | ✅ Mitigated |
-| **Feature Availability** | Satellite can use 1.x features | ✅ Good |
+| **Feature Availability** | AI Hub can use 1.x features | ✅ Good |
 | **iDempiere Limitations** | Stuck on 0.35.0 until Release-11 | ⚠️ Acceptable |
 | **Migration Path** | Clear upgrade to 1.x when Java 17 available | ✅ Planned |
 | **Protocol Stability** | Cloudempiere v1 is version-agnostic | ✅ Stable |
@@ -778,7 +778,7 @@ public void testFeatureNegotiation() {
    - No binary compatibility issues
    - Features exposed via protocol extensions
 
-2. **Satellite can upgrade independently** to:
+2. **AI Hub can upgrade independently** to:
    - LangChain4j 1.x (Java 17)
    - Get latest features (MCP, extended thinking, observability)
    - Expose new capabilities via protocol
@@ -797,7 +797,7 @@ public void testFeatureNegotiation() {
 
 ✅ **Cloudempiere Protocol v1 + LangChain4j native clients = Version mismatch is NOT a weak point**
 
-The hybrid protocol architecture successfully decouples iDempiere (Java 11, LangChain4j 0.35.0) from Satellite (Java 17, LangChain4j 1.x), allowing independent evolution while maintaining compatibility.
+The hybrid protocol architecture successfully decouples iDempiere (Java 11, LangChain4j 0.35.0) from AI Hub (Java 17, LangChain4j 1.x), allowing independent evolution while maintaining compatibility.
 
 ---
 
