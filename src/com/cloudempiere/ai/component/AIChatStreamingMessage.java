@@ -29,6 +29,7 @@ import org.zkoss.zul.Html;
 
 import com.cloudempiere.ai.util.ChatRecordLinkRenderer;
 import com.cloudempiere.ai.util.MarkdownTableRenderer;
+import com.cloudempiere.ai.util.StreamingTableRenderer;
 import com.cloudempiere.ai.util.StreamingTextBuffer;
 import com.cloudempiere.ai.util.ZoomLinkProcessor;
 
@@ -120,6 +121,9 @@ public class AIChatStreamingMessage extends Div {
     /** Language detection service for session language (ADR-037) */
     private com.cloudempiere.ai.service.LanguageDetectionService languageService;
 
+    /** Streaming table renderer for cell-by-cell table rendering */
+    private StreamingTableRenderer tableRenderer;
+
     /**
      * Create a new streaming message component.
      */
@@ -151,6 +155,11 @@ public class AIChatStreamingMessage extends Div {
         this.parentWidgetId = parentWidgetId;
         this.chatId = chatId;
         this.languageService = chatId > 0 ? com.cloudempiere.ai.service.LanguageDetectionService.getInstance() : null;
+
+        // Initialize streaming table renderer for cell-by-cell rendering
+        this.tableRenderer = new StreamingTableRenderer();
+        this.tableRenderer.setContext(ctx, parentWidgetId);
+
         injectCSS();
         init();
     }
@@ -306,6 +315,10 @@ public class AIChatStreamingMessage extends Div {
             return;
         }
         content.append(chunk);
+
+        // Feed chunk to streaming table renderer for cell-by-cell rendering
+        tableRenderer.appendChunk(chunk);
+
         updateContentDisplay();
     }
 
@@ -447,6 +460,9 @@ public class AIChatStreamingMessage extends Div {
      */
     public void setLocale(Locale locale) {
         this.locale = locale != null ? locale : Locale.getDefault();
+        if (tableRenderer != null) {
+            tableRenderer.setLocale(this.locale);
+        }
     }
 
     /**
@@ -493,11 +509,20 @@ public class AIChatStreamingMessage extends Div {
      * Update the main content display.
      */
     private void updateContentDisplay() {
-        // Use getDisplayableText() to avoid incomplete surrogates
-        String html = renderPartialMarkdown(content.getDisplayableText());
-        if (!isComplete) {
-            html += "<span class='streaming-cursor'>|</span>";
+        String html;
+
+        // Use streaming table renderer if we're currently in a table
+        if (tableRenderer != null && tableRenderer.isInTable()) {
+            // Cell-by-cell rendering for smooth table streaming
+            html = tableRenderer.renderCurrentState();
+        } else {
+            // Use getDisplayableText() to avoid incomplete surrogates
+            html = renderPartialMarkdown(content.getDisplayableText());
+            if (!isComplete) {
+                html += "<span class='streaming-cursor'>|</span>";
+            }
         }
+
         streamingContent.setContent("<div class='ai-markdown-content'>" + html + "</div>");
     }
 
@@ -662,9 +687,13 @@ public class AIChatStreamingMessage extends Div {
         markdownText = markdownText.replaceAll("(?s)<invoke[^>]*>.*?</invoke>", "");
         markdownText = markdownText.replaceAll("(?s)<parameter[^>]*>.*?</parameter>", "");
 
-        // Pre-render tables BEFORE passing to marked.js (ADR-039)
-        // This ensures zoom links in table cells are processed correctly
-        if (MarkdownTableRenderer.containsTable(markdownText)) {
+        // Pre-render tables using the streaming table renderer's final output
+        // This provides consistent rendering between streaming and final display
+        if (tableRenderer != null && tableRenderer.isInTable()) {
+            // Use streaming table renderer for final output (already processed)
+            markdownText = tableRenderer.renderFinal();
+        } else if (MarkdownTableRenderer.containsTable(markdownText)) {
+            // Fall back to standard renderer if table wasn't streamed
             MarkdownTableRenderer.setLocale(locale);
             MarkdownTableRenderer.setContext(ctx);
             MarkdownTableRenderer.setWidgetId(parentWidgetId);
