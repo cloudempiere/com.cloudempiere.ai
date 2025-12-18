@@ -7,16 +7,29 @@ and this project adheres to [Conventional Commits](https://conventionalcommits.o
 
 ## [Unreleased]
 
-### v0.29.0-SNAPSHOT - TBD
+---
 
-**Added:**
-- TBD
+## [0.29.0] - 2025-12-18
 
-**Changed:**
-- TBD
+### Zoom Links in Markdown Tables Fix
 
-**Removed:**
-- TBD
+This patch release fixes zoom links not being clickable when rendered inside markdown table cells.
+
+#### Fixed
+
+- **Escaped Pipe Support in Zoom Links**
+  - Updated `ZoomLinkProcessor` regex pattern to match both plain (`|`) and escaped (`\|`) pipes
+  - AI escapes pipes in table cells to prevent interpretation as cell separators
+  - Pattern change: `:(\\d+)\\|` → `:(\\d+)\\\\?\\|`
+  - Zoom links now correctly render as clickable in all contexts (tables and inline)
+
+#### Changed
+
+- **Debug Logging for Zoom Links**
+  - Added comprehensive debug logging in `MarkdownTableRenderer`
+  - Logs cell content, context state, and processing results
+  - Helps diagnose zoom link rendering issues in tables
+  - Warning-level logs with emoji indicators (✅ ⚠️ ❌)
 
 ---
 
