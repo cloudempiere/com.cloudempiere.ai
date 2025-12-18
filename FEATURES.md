@@ -8,10 +8,10 @@ This document tracks features, implementation status, and version compatibility 
 
 ---
 
-## Current Version: v0.27.0
+## Current Version: v0.28.0-SNAPSHOT
 
-**Status:** ✅ Released - In-Plugin Mock AI Hub Provider
-**Previous:** v0.26.0 - Service Configuration Cleanup
+**Status:** 🚧 In Progress - TBD
+**Previous:** v0.27.0 - In-Plugin Mock AI Hub Provider
 
 **Strategic Focus:** The Chat Widget is our primary AI implementation. All features will be integrated and tested through the chat widget before other use cases (charts, reports, etc.).
 
@@ -434,5 +434,5 @@ Based on validation reports:
 ---
 
 **Last Updated:** 2025-12-18
-**Current Version:** v0.27.0 (In-Plugin Mock AI Hub Provider)
+**Current Version:** v0.28.0-SNAPSHOT (In Development)
 **Next Release:** v0.28.0 - TBD
