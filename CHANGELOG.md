@@ -7,16 +7,54 @@ and this project adheres to [Conventional Commits](https://conventionalcommits.o
 
 ## [Unreleased]
 
-### v0.30.0-SNAPSHOT - TBD
+---
 
-**Added:**
-- TBD
+## [0.30.0] - 2025-12-18
 
-**Changed:**
-- TBD
+### Cell-by-Cell Streaming Table Rendering
 
-**Removed:**
-- TBD
+This feature release implements progressive cell-by-cell rendering for markdown tables during streaming, providing a smoother and more responsive user experience.
+
+#### Added
+
+- **StreamingTableRenderer**
+  - New `StreamingTableRenderer` class for stateful table streaming
+  - Processes markdown tables incrementally during streaming
+  - Maintains state across chunks (current row, current cell, completed rows)
+  - Buffers incomplete cells until pipe delimiter (`|`) arrives
+  - Renders partial rows with streaming cursor showing current cell position
+  - Handles separator row (|---|) for alignment specifications
+  - Preserves pre-table and post-table content correctly
+
+- **Progressive Table Display**
+  - Tables now render cell by cell instead of line by line
+  - Streaming cursor shows in currently active cell
+  - Table structure visible immediately with progressive cell filling
+  - Smooth UX as content streams in from AI
+
+#### Changed
+
+- **AIChatStreamingMessage Integration**
+  - Updated `AIChatStreamingMessage` to use `StreamingTableRenderer` during streaming
+  - Each chunk feeds into table renderer for progressive parsing
+  - Uses `renderCurrentState()` for real-time display updates
+  - Falls back to standard `MarkdownTableRenderer` for final rendering
+  - Maintains locale and context settings across renderers
+
+#### Technical Details
+
+- Parses table structure incrementally (pipe delimiters, newlines, separator rows)
+- Detects table boundaries and switches between table/non-table modes
+- Tracks bracket depth to handle zoom link syntax `[[Table:ID|Display]]` correctly
+- Numbers formatted per locale, zoom links processed correctly
+- Compatible with existing markdown rendering pipeline
+
+#### Benefits
+
+- **Improved UX**: Cells appear progressively instead of rows popping in
+- **Visual Feedback**: Clear indication of streaming progress with cursor
+- **Structural Clarity**: Table headers and structure visible immediately
+- **Consistent Rendering**: Same final output as standard renderer
 
 ---
 
