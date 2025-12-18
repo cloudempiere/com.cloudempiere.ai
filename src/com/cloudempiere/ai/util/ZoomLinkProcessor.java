@@ -45,13 +45,21 @@ public class ZoomLinkProcessor {
 	/**
 	 * Regex pattern for zoom links: [[TableName:RecordID|Display Text]]
 	 *
+	 * <p>Also matches and strips optional markdown formatting (bold/italic):
+	 * <ul>
+	 *   <li>[[Table:ID|Text]] - plain</li>
+	 *   <li>**[[Table:ID|Text]]** - bold (stripped)</li>
+	 *   <li>*[[Table:ID|Text]]* - italic (stripped)</li>
+	 *   <li>***[[Table:ID|Text]]*** - bold+italic (stripped)</li>
+	 * </ul>
+	 *
 	 * Groups:
 	 * - Group 1: TableName (e.g., C_BPartner)
 	 * - Group 2: RecordID (e.g., 1000001)
 	 * - Group 3: Display Text (e.g., Acme Corporation)
 	 */
 	private static final Pattern ZOOM_LINK_PATTERN = Pattern.compile(
-		"\\[\\[([A-Za-z_][A-Za-z0-9_]*):(\\d+)\\|([^\\]]+)\\]\\]"
+		"\\*{0,3}\\[\\[([A-Za-z_][A-Za-z0-9_]*):(\\d+)\\|([^\\]]+)\\]\\]\\*{0,3}"
 	);
 
 	/**
