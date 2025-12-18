@@ -14,6 +14,7 @@ import java.util.logging.Level;
 import org.compiere.model.MChat;
 import org.compiere.util.CLogger;
 import org.compiere.util.Env;
+import org.compiere.util.Msg;
 import org.json.JSONObject;
 import org.osgi.framework.Bundle;
 import org.osgi.framework.BundleContext;
@@ -704,7 +705,7 @@ public class AIService {
 
                     // setOverrideLanguage will log the language switch if there was a previous one
                     languageService.setOverrideLanguage(chatId, detected);
-                    callback.onProgress("language", "Language detected: " + detectedLangName);
+                    callback.onProgress("language", getLocalizedProgressMessage(ctx, "AIG_LanguageDetected") + " " + detectedLangName);
                 } else {
                     log.warning("[LANGUAGE] ✗ Could not auto-detect language from input");
                     log.warning("[LANGUAGE] ✓ Will use login language: " + loginLangName);
@@ -739,7 +740,7 @@ public class AIService {
 
                 // setOverrideLanguage will log the language switch detection
                 languageService.setOverrideLanguage(chatId, requested);
-                callback.onProgress("language", "Switching to: " + requestedLangName);
+                callback.onProgress("language", getLocalizedProgressMessage(ctx, "AIG_SwitchingTo") + " " + requestedLangName);
             }
 
             // Final language state - show complete trace
@@ -868,7 +869,7 @@ public class AIService {
             final String metricsInputMessage = processedMessage; // Capture for token estimation
 
             // Start streaming
-            callback.onProgress("analyzing", "Processing your request...");
+            callback.onProgress("analyzing", getLocalizedProgressMessage(ctx, "AIG_Processing"));
 
             // Build session ID for the agent
             String sessionId = chat.getCM_Chat_ID() + "-" + memory.getCurrentThreadRootId();
@@ -1083,8 +1084,11 @@ public class AIService {
                 provider.getAIGProviderType() + ")");
 
         try {
+            // Get context for localized progress message
+            Properties ctx = chat.getCtx();
+
             // Signal progress
-            callback.onProgress("analyzing", "Processing your request...");
+            callback.onProgress("analyzing", getLocalizedProgressMessage(ctx, "AIG_Processing"));
 
             // Call the batch API
             ChatResult result = chatWithContext(provider, chat, message, contextData, threadRootId);
@@ -1683,6 +1687,54 @@ public class AIService {
             return providerType.toLowerCase();
         }
     }
+
+    // ========================================================================
+    // Localization Helpers (ADR-037)
+    // ========================================================================
+
+    /**
+     * Get localized progress message using AD_Message system.
+     *
+     * <p>Uses iDempiere's standard message system (AD_Message + AD_Message_Trl) for localization.
+     * Falls back to English if no translation exists for the user's language.
+     *
+     * <p><strong>Fallback behavior:</strong>
+     * <ol>
+     *   <li>Try to get message from AD_Message_Trl for user's language</li>
+     *   <li>If not found, fall back to English from AD_Message.MsgText</li>
+     *   <li>AI responses will still be in correct language via language instruction (ADR-037)</li>
+     * </ol>
+     *
+     * <p><strong>Message Keys:</strong>
+     * <ul>
+     *   <li>AIG_Processing - "Processing your request..."</li>
+     *   <li>AIG_LanguageDetected - "Language detected:"</li>
+     *   <li>AIG_SwitchingTo - "Switching to:"</li>
+     * </ul>
+     *
+     * @param ctx iDempiere context (contains AD_Language for user's session)
+     * @param messageKey AD_Message.Value (e.g., "AIG_Processing")
+     * @return Localized message
+     */
+    private static String getLocalizedProgressMessage(Properties ctx, String messageKey) {
+        // Use iDempiere's Msg.getMsg() which automatically handles:
+        // - Looking up AD_Message by Value
+        // - Getting translation from AD_Message_Trl for user's language
+        // - Falling back to English MsgText if no translation exists
+        String message = Msg.getMsg(ctx, messageKey);
+
+        // If message not found (returns key), return empty string to avoid showing key to user
+        if (message == null || message.equals(messageKey)) {
+            log.warning("Message not found: " + messageKey + " - check migration scripts");
+            return "";
+        }
+
+        return message;
+    }
+
+    // ========================================================================
+    // Metrics Helpers (ADR-013)
+    // ========================================================================
 
     /**
      * Calculate cost in microdollars based on model pricing.

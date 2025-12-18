@@ -995,8 +995,9 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 		}
 
 		// Create streaming message component and store reference for cancellation
-		// Pass context and widget ID for zoom link processing (ADR-039)
-		final AIChatStreamingMessage streamingMsg = new AIChatStreamingMessage(sessionCtx, getUuid());
+		// Pass context, widget ID for zoom link processing (ADR-039), and chat ID for language detection (ADR-037)
+		final AIChatStreamingMessage streamingMsg = new AIChatStreamingMessage(sessionCtx, getUuid(),
+				chat != null ? chat.getCM_Chat_ID() : 0);
 		currentStreamingMessage = streamingMsg;
 
 		// Get agent name from provider's AD_User (capture for use in lambda)

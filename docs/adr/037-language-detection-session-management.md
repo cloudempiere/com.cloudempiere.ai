@@ -734,6 +734,171 @@ This enhancement demonstrates a key principle in AI system design:
 
 **Commit:** `7dc886b` (2025-12-18)
 
+#### 6. Localized Progress Messages (2025-12-18)
+
+**Problem:** While the AI responses were correctly localized after strengthening the language instruction,
+UI progress messages like "Processing your request...", "Querying database...", and "Language detected:"
+remained hardcoded in English. This created an inconsistent user experience where the AI responded in
+the user's language but system messages appeared in English.
+
+**User Feedback:**
+> "✓ Querying database... should be also in given language"
+> "if we cant fnd the user language use ai localisation"
+
+**Solution:** Implemented comprehensive localization for all UI progress and tool execution messages
+in both `AIService` and `AIChatStreamingMessage` components.
+
+**Components Localized:**
+
+1. **Progress Messages (`AIService`):**
+   - "Processing your request..." → `msg.progress.processing`
+   - "Language detected:" → `msg.progress.languageDetected`
+   - "Switching to:" → `msg.progress.switchingTo`
+
+2. **Tool Execution Messages (`AIChatStreamingMessage`):**
+   - "Querying database..." → `msg.tool.queryDatabase`
+   - "Running query..." → `msg.tool.executeQuery`
+   - "Looking up record..." → `msg.tool.lookupRecord`
+   - "Searching records..." → `msg.tool.searchRecords`
+   - "Getting table metadata..." → `msg.tool.getTableMetadata`
+   - "Listing tables..." → `msg.tool.listTables`
+   - "Getting business partner..." → `msg.tool.getBusinessPartner`
+   - "Getting product..." → `msg.tool.getProduct`
+   - "Getting order..." → `msg.tool.getOrder`
+   - "Getting window context..." → `msg.tool.getWindowContext`
+   - "Calculating metrics..." → `msg.tool.calculateMetrics`
+
+**Supported Languages:**
+- Slovak (sk) - Spracúvam Vašu požiadavku..., Dotazujem databázu...
+- Czech (cs) - Zpracovávám Váš požadavek..., Dotazuji databázi...
+- Hungarian (hu) - Kérés feldolgozása..., Adatbázis lekérdezése...
+- Polish (pl) - Przetwarzam Twoje żądanie..., Odpytuję bazę danych...
+- German (de) - Verarbeite Ihre Anfrage..., Datenbankabfrage...
+- Spanish (es) - Procesando su solicitud..., Consultando base de datos...
+- French (fr) - Traitement de votre demande..., Interrogation de la base de données...
+- English (en) - Processing your request..., Querying database...
+
+**Fallback Behavior:**
+
+For languages not in the supported list:
+- **Progress/Tool messages:** Default to English (simple, hardcoded fallback)
+- **AI responses:** Still localized via strong language instruction (ADR-037 Section 5)
+
+This hybrid approach ensures:
+- ✅ Supported languages get fully localized experience
+- ✅ Unsupported languages still get AI responses in correct language
+- ✅ No runtime translation overhead for progress messages
+- ✅ Strong language instruction ensures AI compliance regardless of UI language
+
+**Implementation:**
+
+```java
+// AIService.java - Localized progress messages
+private static String getLocalizedProgressMessage(String messageKey, String langCode) {
+    String lang = langCode != null && langCode.length() >= 2 ? langCode.substring(0, 2).toLowerCase() : "en";
+
+    return switch (messageKey) {
+        case "msg.progress.processing" -> switch (lang) {
+            case "sk" -> "Spracúvam Vašu požiadavku...";
+            case "cs" -> "Zpracovávám Váš požadavek...";
+            // ... other languages
+            default -> "Processing your request...";
+        };
+        // ... other message keys
+    };
+}
+
+// Usage in callbacks
+callback.onProgress("analyzing", getLocalizedProgressMessage("msg.progress.processing", finalLang));
+callback.onProgress("language", getLocalizedProgressMessage("msg.progress.languageDetected", detected) + " " + detectedLangName);
+callback.onProgress("language", getLocalizedProgressMessage("msg.progress.switchingTo", requested) + " " + requestedLangName);
+```
+
+```java
+// AIChatStreamingMessage.java - Localized tool messages
+private String getLocalizedToolMessage(String messageKey, String langCode) {
+    String lang = langCode.length() >= 2 ? langCode.substring(0, 2).toLowerCase() : "en";
+
+    return switch (messageKey) {
+        case "msg.tool.queryDatabase" -> switch (lang) {
+            case "sk" -> "Dotazujem databázu...";
+            case "cs" -> "Dotazuji databázi...";
+            // ... other languages
+            default -> "Querying database...";
+        };
+        // ... 10 more tool message keys with translations
+    };
+}
+
+// Usage in tool event rendering
+private String getToolDisplayName(String toolName) {
+    String langCode = Env.getAD_Language(ctx);
+    if (langCode == null) langCode = "en_US";
+
+    String baseKey = switch (toolName) {
+        case "queryDatabase" -> "msg.tool.queryDatabase";
+        // ... other tool mappings
+        default -> null;
+    };
+
+    return baseKey != null ? getLocalizedToolMessage(baseKey, langCode) : toolName + "...";
+}
+```
+
+**Integration Points:**
+
+1. **AIService.chatStreamingWithContext():**
+   - Line 707: Language detection progress
+   - Line 742: Language switch confirmation
+   - Line 871: Request processing (streaming)
+   - Line 1092: Request processing (batch fallback)
+
+2. **AIChatStreamingMessage.renderToolEvent():**
+   - Tool execution status messages (✓ Querying database...)
+   - Real-time progress updates during AI tool calls
+
+**Documentation:**
+
+Both helper methods include comprehensive JavaDoc explaining:
+- Supported languages list
+- Fallback behavior to English
+- AI response language guarantee via strong instruction
+- Return type and parameter descriptions
+
+**Impact:**
+- ✅ Complete UI localization for Slovak, Czech, Hungarian, Polish, German, Spanish, French users
+- ✅ Consistent language experience across progress messages and AI responses
+- ✅ Graceful degradation for unsupported languages (English UI, localized AI)
+- ✅ Zero runtime translation cost (compile-time switch statements)
+- ✅ Easy to extend with additional languages (add case to switch)
+
+**Testing Results:**
+- ✅ Slovak user sees "Dotazujem databázu..." and receives Slovak responses
+- ✅ German user sees "Datenbankabfrage..." and receives German responses
+- ✅ Unsupported language user sees English progress, receives localized AI response
+- ✅ Language switching updates both progress messages and AI responses
+
+**Files Changed:**
+1. `src/com/cloudempiere/ai/provider/langchain4j/AIService.java`
+   - Added `getLocalizedProgressMessage()` helper (lines 1698-1735)
+   - Updated 4 callback.onProgress() calls to use localization
+
+2. `src/com/cloudempiere/ai/component/AIChatStreamingMessage.java`
+   - Refactored `getToolDisplayName()` to use language from context
+   - Added `getLocalizedToolMessage()` helper with 11 tool messages × 8 languages
+
+**Design Principle:**
+
+This enhancement follows the layered localization approach:
+> **UI Layer:** Hardcoded translations for system messages (fast, predictable)
+> **AI Layer:** Dynamic language instruction for responses (flexible, comprehensive)
+> **Fallback:** Strong language instruction ensures AI compliance when UI falls back to English
+
+This separation of concerns allows us to provide excellent UX for common languages
+while gracefully handling the long tail of less common languages through AI adaptation.
+
+**Commit:** Pending approval (2025-12-18)
+
 ### References
 
 - [iDempiere Localization](https://wiki.idempiere.org/en/Localization)

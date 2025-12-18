@@ -19,6 +19,7 @@ import java.util.Locale;
 import java.util.Properties;
 
 import org.compiere.util.Env;
+import org.compiere.util.Msg;
 import org.compiere.util.Util;
 import org.zkoss.zk.ui.event.Event;
 import org.zkoss.zk.ui.event.EventListener;
@@ -113,11 +114,17 @@ public class AIChatStreamingMessage extends Div {
     /** Parent widget ID for zoom event targeting */
     private String parentWidgetId;
 
+    /** Chat ID for session language lookup */
+    private int chatId;
+
+    /** Language detection service for session language (ADR-037) */
+    private com.cloudempiere.ai.service.LanguageDetectionService languageService;
+
     /**
      * Create a new streaming message component.
      */
     public AIChatStreamingMessage() {
-        this(Env.getCtx(), null);
+        this(Env.getCtx(), null, 0);
     }
 
     /**
@@ -127,10 +134,23 @@ public class AIChatStreamingMessage extends Div {
      * @param parentWidgetId parent widget ID for zoom event targeting (fires onZoom)
      */
     public AIChatStreamingMessage(Properties ctx, String parentWidgetId) {
+        this(ctx, parentWidgetId, 0);
+    }
+
+    /**
+     * Create a new streaming message component with context for zoom links and language detection.
+     *
+     * @param ctx iDempiere context for database access
+     * @param parentWidgetId parent widget ID for zoom event targeting (fires onZoom)
+     * @param chatId chat ID for session language lookup (0 if unknown)
+     */
+    public AIChatStreamingMessage(Properties ctx, String parentWidgetId, int chatId) {
         super();
         this.componentId = "stream_" + System.currentTimeMillis() + "_" + (int)(Math.random() * 10000);
         this.ctx = ctx != null ? ctx : Env.getCtx();
         this.parentWidgetId = parentWidgetId;
+        this.chatId = chatId;
+        this.languageService = chatId > 0 ? com.cloudempiere.ai.service.LanguageDetectionService.getInstance() : null;
         injectCSS();
         init();
     }
@@ -541,32 +561,61 @@ public class AIChatStreamingMessage extends Div {
      * Map internal tool names to user-friendly display names.
      */
     private String getToolDisplayName(String toolName) {
+        // Get language code for localization - use session language if available (ADR-037)
+        String langCode;
+        if (languageService != null && chatId > 0) {
+            langCode = languageService.getSessionLanguage(ctx, chatId);
+        } else {
+            langCode = Env.getAD_Language(ctx);
+        }
+        if (langCode == null) langCode = "en_US";
+
+        // Map tool names to AD_Message keys
+        String messageKey = null;
         switch (toolName) {
             case "queryDatabase":
-                return "Querying database...";
+                messageKey = "AIG_QueryDatabase";
+                break;
             case "executeQuery":
-                return "Running query...";
+                messageKey = "AIG_ExecuteQuery";
+                break;
             case "lookupRecord":
-                return "Looking up record...";
+                messageKey = "AIG_LookupRecord";
+                break;
             case "searchRecords":
-                return "Searching records...";
+                messageKey = "AIG_SearchRecords";
+                break;
             case "getTableMetadata":
-                return "Reading table metadata...";
+                messageKey = "AIG_GetTableMetadata";
+                break;
             case "listTables":
-                return "Listing tables...";
+                messageKey = "AIG_ListTables";
+                break;
             case "getBusinessPartner":
-                return "Looking up business partner...";
+                messageKey = "AIG_GetBusinessPartner";
+                break;
             case "getProduct":
-                return "Looking up product...";
+                messageKey = "AIG_GetProduct";
+                break;
             case "getOrder":
-                return "Looking up order...";
+                messageKey = "AIG_GetOrder";
+                break;
             case "getWindowContext":
-                return "Reading window data...";
+                messageKey = "AIG_GetWindowContext";
+                break;
             case "calculateMetrics":
-                return "Calculating metrics...";
-            default:
-                return toolName + "...";
+                messageKey = "AIG_CalculateMetrics";
+                break;
         }
+
+        if (messageKey != null) {
+            // Use iDempiere's Msg.getMsg() which automatically handles language from context
+            String message = Msg.getMsg(ctx, messageKey);
+            // If message not found, fall back to tool name
+            return (message != null && !message.equals(messageKey)) ? message : toolName + "...";
+        }
+
+        return toolName + "...";
     }
 
     /**
