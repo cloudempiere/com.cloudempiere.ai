@@ -2,12 +2,13 @@
 
 ## Status
 
-**Enhanced** (2025-12-11)
+**Enhanced** (2025-12-18)
 
 ## Date
 
 2025-12-10 (Initial Implementation)
 2025-12-11 (Enhancement: Tenant Language Fallback + Slavic Language Support)
+2025-12-18 (Enhancement: Strengthened Language Instruction for AI Compliance)
 
 ## Deciders
 
@@ -608,8 +609,134 @@ log.severe("[LANGUAGE] ⚠ ERROR: Will fall back to user login or tenant languag
 
 **Impact:** Detection failures are now clearly visible in production logs for troubleshooting.
 
+#### 5. Strengthened Language Instruction for AI Compliance (2025-12-18)
+
+**Problem:** Despite language detection working correctly (detecting Slovak, Czech, etc.), the AI
+continued responding in English. The language instruction was too weak and easily ignored by the model.
+
+**Root Cause Analysis:**
+- Original instruction was polite and suggestive: "Respond in **Slovak**"
+- AI models prioritize English unless explicitly and strongly instructed otherwise
+- Weak language instruction allowed the model to default to English for "clarity"
+- Users writing in Slovak received English responses, breaking conversational flow
+
+**Solution:** Dramatically strengthened the language instruction with multiple reinforcement techniques:
+
+**Before (Weak Instruction):**
+```
+## LANGUAGE REQUIREMENT
+Respond ENTIRELY in **Slovak** (sk_SK).
+This applies to ALL parts of your response - explanations, summaries, questions, and suggestions.
+Exception: Keep technical terms (table names, column names, SQL keywords, process names, window names) in English for accuracy.
+```
+
+**After (Strong Instruction):**
+```
+## CRITICAL LANGUAGE REQUIREMENT - HIGHEST PRIORITY
+
+🔴 **MANDATORY:** You MUST respond EXCLUSIVELY and COMPLETELY in **Slovak** (sk_SK).
+
+This is NON-NEGOTIABLE and applies to:
+- ✅ ALL explanations and descriptions
+- ✅ ALL questions you ask the user
+- ✅ ALL suggestions and recommendations
+- ✅ ALL data summaries and analysis
+- ✅ ALL error messages and warnings
+- ✅ ALL introductory and concluding statements
+
+ONLY EXCEPTION: Technical identifiers (table names like 'C_Order', column names like 'DocumentNo',
+SQL keywords, ERP process names, window names) remain in English for technical accuracy.
+
+❌ DO NOT mix languages - user speaks Slovak, you respond in Slovak.
+❌ DO NOT default to English - this is explicitly forbidden.
+❌ DO NOT explain in English - everything in Slovak.
+
+If user requests language change, acknowledge and switch immediately.
+```
+
+**Key Enhancements:**
+
+1. **Priority Markers:** "CRITICAL", "HIGHEST PRIORITY", "MANDATORY", "NON-NEGOTIABLE"
+   - Signals importance to the model's attention mechanism
+   - Prevents deprioritization in favor of default English behavior
+
+2. **Visual Emphasis:** Red circle (🔴), checkmarks (✅), cross marks (❌)
+   - Draws attention in the system prompt
+   - Creates visual hierarchy for scanning
+
+3. **Explicit Prohibition List:**
+   - "DO NOT mix languages" - Prevents bilingual responses
+   - "DO NOT default to English" - Blocks fallback behavior
+   - "DO NOT explain in English" - Reinforces full compliance
+
+4. **Comprehensive Scope List:**
+   - Enumerates all response categories (7 bullet points)
+   - Leaves no ambiguity about what "ENTIRELY" means
+   - Explicitly includes error messages and warnings
+
+5. **Repetition of Language Name:**
+   - Language name appears 3+ times in the instruction
+   - Reinforces the target language through repetition
+   - Creates stronger semantic association
+
+**Implementation:**
+```java
+public String buildLanguageInstruction(String languageCode) {
+    if (languageCode == null || languageCode.isBlank()) {
+        return "";
+    }
+
+    Language language = Language.getLanguage(languageCode);
+    if (language == null) {
+        log.fine("Unknown language code: " + languageCode);
+        return "";
+    }
+
+    return "## CRITICAL LANGUAGE REQUIREMENT - HIGHEST PRIORITY\n\n" +
+           "🔴 **MANDATORY:** You MUST respond EXCLUSIVELY and COMPLETELY in **" + language.getName() + "** (" + language.getLanguageCode() + ").\n\n" +
+           "This is NON-NEGOTIABLE and applies to:\n" +
+           "- ✅ ALL explanations and descriptions\n" +
+           "- ✅ ALL questions you ask the user\n" +
+           "- ✅ ALL suggestions and recommendations\n" +
+           "- ✅ ALL data summaries and analysis\n" +
+           "- ✅ ALL error messages and warnings\n" +
+           "- ✅ ALL introductory and concluding statements\n\n" +
+           "ONLY EXCEPTION: Technical identifiers (table names like 'C_Order', column names like 'DocumentNo', " +
+           "SQL keywords, ERP process names, window names) remain in English for technical accuracy.\n\n" +
+           "❌ DO NOT mix languages - user speaks " + language.getName() + ", you respond in " + language.getName() + ".\n" +
+           "❌ DO NOT default to English - this is explicitly forbidden.\n" +
+           "❌ DO NOT explain in English - everything in " + language.getName() + ".\n\n" +
+           "If user requests language change, acknowledge and switch immediately.";
+}
+```
+
+**Impact:**
+- ✅ AI now consistently responds in the detected/requested language
+- ✅ Slovak, Czech, Hungarian, Polish users receive responses in their language
+- ✅ Language compliance maintained even with complex technical queries
+- ✅ Technical terms (C_Order, DocumentNo, SQL) correctly preserved in English
+
+**Testing Results:**
+- ✅ Slovak prompt → Slovak response (previously English)
+- ✅ Czech prompt → Czech response (previously English)
+- ✅ Hungarian prompt → Hungarian response (previously English)
+- ✅ English prompt → English response (unchanged)
+
+**Prompt Engineering Principle:**
+
+This enhancement demonstrates a key principle in AI system design:
+> **Explicit is better than implicit.** AI models require strong, unambiguous instructions
+> with explicit prohibitions to override their default behaviors. Polite suggestions
+> are easily ignored; emphatic commands with visual markers are not.
+
+**File Changed:**
+- `src/com/cloudempiere/ai/service/LanguageDetectionService.java` - `buildLanguageInstruction()` method
+
+**Commit:** `7dc886b` (2025-12-18)
+
 ### References
 
 - [iDempiere Localization](https://wiki.idempiere.org/en/Localization)
 - [idempiere-cli SupportAnswerService](https://github.com/cloudempiere/idempiere-cli) - Reference implementation
 - [LangChain4j System Message](https://docs.langchain4j.dev/) - System prompt handling
+- [Prompt Engineering Guide](https://www.promptingguide.ai/) - Instruction strength and compliance
