@@ -602,6 +602,9 @@ public class AIChatStreamingMessage extends Div {
     private void renderFinalMarkdown() {
         String markdownText = content.flush();
 
+        // Normalize excessive line breaks (3+ newlines → 2 newlines for proper paragraph spacing)
+        markdownText = markdownText.replaceAll("\n{3,}", "\n\n");
+
         // Remove hallucinated function call XML blocks
         markdownText = markdownText.replaceAll("(?s)<function_calls>.*?</function_calls>", "");
         markdownText = markdownText.replaceAll("(?s)<function_result>.*?</function_result>", "");

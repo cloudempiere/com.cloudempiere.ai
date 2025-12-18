@@ -2054,6 +2054,9 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 	private String renderMarkdownPreservingHTML(String text) {
 		if (text == null || text.isEmpty()) return "";
 
+		// Normalize excessive line breaks (3+ newlines → 2 newlines for proper paragraph spacing)
+		text = text.replaceAll("\n{3,}", "\n\n");
+
 		StringBuilder result = new StringBuilder();
 		int pos = 0;
 
