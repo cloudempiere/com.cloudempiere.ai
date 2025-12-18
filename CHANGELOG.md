@@ -7,16 +7,61 @@ and this project adheres to [Conventional Commits](https://conventionalcommits.o
 
 ## [Unreleased]
 
-### v0.28.0-SNAPSHOT - TBD
+---
 
-**Added:**
-- TBD
+## [0.28.0] - 2025-12-18
 
-**Changed:**
-- TBD
+### Localized Progress Messages via AD_Message System
 
-**Removed:**
-- TBD
+This release implements proper iDempiere message localization for AI chat progress and tool execution messages.
+
+#### Added
+
+- **AD_Message Localization System**
+  - 14 new AD_Message records (AIG_* prefix) with migration scripts CLD-1629
+  - 3 progress messages: `AIG_Processing`, `AIG_LanguageDetected`, `AIG_SwitchingTo`
+  - 11 tool messages: `AIG_QueryDatabase`, `AIG_ExecuteQuery`, `AIG_LookupRecord`, `AIG_SearchRecords`, `AIG_GetTableMetadata`, `AIG_ListTables`, `AIG_GetBusinessPartner`, `AIG_GetProduct`, `AIG_GetOrder`, `AIG_GetWindowContext`, `AIG_CalculateMetrics`
+  - PostgreSQL and Oracle migration scripts for message initialization
+  - English translations included, ready for multi-language support via AD_Message_Trl
+
+- **Session Language Integration**
+  - Chat ID parameter added to `AIChatStreamingMessage` constructor
+  - Integration with `LanguageDetectionService` for session language lookup
+  - Tool messages now respect session language overrides (ADR-037)
+  - Progress messages use user's iDempiere session language
+
+#### Changed
+
+- **Localization Architecture** (ADR-037 Section 6)
+  - Replaced hardcoded switch statements with `Msg.getMsg()` calls
+  - `AIService.getLocalizedProgressMessage()` now uses AD_Message system
+  - `AIChatStreamingMessage.getToolDisplayName()` now uses AD_Message system
+  - Automatic fallback to English when translations missing
+  - Removed obsolete hardcoded translation helper methods
+
+#### Fixed
+
+- **Java 11 Compatibility**
+  - Converted Java 14 switch expressions to Java 11-compatible switch statements
+  - Fixed compilation errors in `AIService.java` and `AIChatStreamingMessage.java`
+  - Added helper methods for cleaner Java 11 switch handling
+
+#### Documentation
+
+- Updated ADR-037 Section 6: "Localized Progress Messages"
+  - Complete implementation documentation
+  - Message key mappings (14 messages)
+  - Fallback behavior explanation
+  - Layered localization architecture (UI Layer + AI Layer)
+  - Benefits and testing instructions
+
+#### Benefits
+
+- Translators use iDempiere Message window (no code changes required)
+- All iDempiere languages supported via AD_Message_Trl
+- Clean separation of UI strings from code
+- Zero runtime translation overhead
+- Graceful degradation for unsupported languages
 
 ---
 

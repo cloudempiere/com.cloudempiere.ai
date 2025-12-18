@@ -8,9 +8,10 @@ This document tracks features, implementation status, and version compatibility 
 
 ---
 
-## Current Version: v0.28.0-SNAPSHOT
+## Current Version: v0.28.0
 
-**Status:** 🚧 In Progress - TBD
+**Status:** ✅ Released - 2025-12-18
+**Focus:** Localized Progress Messages via AD_Message System
 **Previous:** v0.27.0 - In-Plugin Mock AI Hub Provider
 
 **Strategic Focus:** The Chat Widget is our primary AI implementation. All features will be integrated and tested through the chat widget before other use cases (charts, reports, etc.).
@@ -21,7 +22,8 @@ This document tracks features, implementation status, and version compatibility 
 
 | Version | Date | Key Features | Focus Area |
 |---------|------|--------------|------------|
-| **0.27.0** | 2025-12-18 | **In-Plugin Mock AI Hub Provider** | **Testing & Development** |
+| **0.28.0** | 2025-12-18 | **AD_Message Localization for Progress/Tool Messages** | **Internationalization** |
+| 0.27.0 | 2025-12-18 | In-Plugin Mock AI Hub Provider | Testing & Development |
 | 0.26.0 | 2025-12-18 | Service Configuration Cleanup | Code Quality |
 | 0.25.0 | 2025-12-11 | P1 Context Layer Vector Embedding Storage | RAG Infrastructure |
 | 0.24.0 | 2025-12-11 | AI Hub Provider & Language Detection | Multi-Provider |
