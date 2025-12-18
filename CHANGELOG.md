@@ -7,6 +7,20 @@ and this project adheres to [Conventional Commits](https://conventionalcommits.o
 
 ## [Unreleased]
 
+### v0.27.0-SNAPSHOT - Mock AI Hub Provider
+
+**Added:**
+- **Mock AI Hub Provider Implementation**
+  - Mock provider for testing without external AI Hub service
+  - Simulates AI responses for development and testing
+  - Compatible with iDempiere AI Hub protocol
+
+**Changed:**
+- **Provider Naming**
+  - "Satellite Provider" renamed to "AI Hub Provider" throughout codebase
+  - Migration scripts updated for Mock AI Hub provider
+  - run-mock-satellite.sh for local testing
+
 ---
 
 ## [0.26.0] - 2025-12-18
@@ -227,7 +241,7 @@ This release improves the streaming user experience with real-time markdown tabl
   - Support for explicit alignment via `:---|:---:|---:`
   - Partial table rendering during streaming
 
-- **ADR-039: Async Embedding Queue Architecture** (renamed from Satellite AI Queue)
+- **ADR-039: Async Embedding Queue Architecture** (renamed from AI Hub Queue)
   - Updated architecture for embedding queue processing
 
 - **ADR-040: Embedding Ingestion Evolution**

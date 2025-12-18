@@ -44,16 +44,19 @@ public class LangChain4jProviderFactory {
     /** Provider type constants matching AD_Ref_List values */
     public static final String PROVIDER_ANTHROPIC = X_AIG_Provider.AIGPROVIDERTYPE_AnthropicClaude;
     public static final String PROVIDER_BEDROCK = X_AIG_Provider.AIGPROVIDERTYPE_AWSBedrock;
+    public static final String PROVIDER_MOCK_AI_HUB = X_AIG_Provider.AIGPROVIDERTYPE_MockAIHub;
     public static final String PROVIDER_OLLAMA = X_AIG_Provider.AIGPROVIDERTYPE_Ollama;
     public static final String PROVIDER_OPENAI = "OAI";    // To be added to AD_Ref_List
     public static final String PROVIDER_LLAMA = "LLA";     // Meta Llama via Ollama - To be added to AD_Ref_List
-    /** Satellite provider type - routes requests to Quarkus Satellite Service (ADR-042) */
-    public static final String PROVIDER_SATELLITE = X_AIG_Provider.AIGPROVIDERTYPE_QuarkusSatellite;
+    /** AI Hub provider type - routes requests to iDempiere AI Hub Service (ADR-042) */
+    public static final String PROVIDER_AI_HUB = X_AIG_Provider.AIGPROVIDERTYPE_QuarkusSatellite;
 
     /** Default model names per provider */
     private static final String DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-4-20250514";
     private static final String DEFAULT_BEDROCK_MODEL = "anthropic.claude-3-5-sonnet-20241022-v2:0";
     private static final String DEFAULT_BEDROCK_REGION = "us-east-1";
+    private static final String DEFAULT_MOCK_AI_HUB_MODEL = "llama3.2";
+    private static final String DEFAULT_MOCK_AI_HUB_URL = "http://localhost:8081/v1";  // Mock AI Hub for testing
     private static final String DEFAULT_OLLAMA_MODEL = "llama3.2";
     private static final String DEFAULT_OPENAI_MODEL = "gpt-4o";
     private static final String DEFAULT_LLAMA_MODEL = "llama3.2";
@@ -61,13 +64,14 @@ public class LangChain4jProviderFactory {
 
     /** Default embedding model names per provider */
     private static final String DEFAULT_BEDROCK_EMBEDDING_MODEL = "amazon.titan-embed-text-v2:0";
+    private static final String DEFAULT_MOCK_AI_HUB_EMBEDDING_MODEL = "nomic-embed-text";
     private static final String DEFAULT_OLLAMA_EMBEDDING_MODEL = "nomic-embed-text";
     private static final String DEFAULT_OPENAI_EMBEDDING_MODEL = "text-embedding-3-small";
 
-    /** Default satellite configuration */
-    private static final String DEFAULT_SATELLITE_URL = "http://localhost:8090";
-    private static final String DEFAULT_SATELLITE_MODEL = "claude-sonnet-4";
-    private static final int DEFAULT_SATELLITE_TIMEOUT_SECONDS = 120;
+    /** Default AI Hub configuration */
+    private static final String DEFAULT_AI_HUB_URL = "http://localhost:8090";
+    private static final String DEFAULT_AI_HUB_MODEL = "claude-sonnet-4";
+    private static final int DEFAULT_AI_HUB_TIMEOUT_SECONDS = 120;
 
     /** Cache for model instances by provider ID */
     private static final Map<Integer, ChatLanguageModel> modelCache = new ConcurrentHashMap<>();
@@ -124,14 +128,16 @@ public class LangChain4jProviderFactory {
                 return createAnthropicModel(apiKey, modelName);
             case PROVIDER_BEDROCK:
                 return createBedrockModel(modelName, apiKey);
+            case PROVIDER_MOCK_AI_HUB:
+                return createMockAIHubModel(baseUrl, modelName, apiKey);
             case PROVIDER_OLLAMA:
                 return createOllamaModel(baseUrl, modelName);
             case PROVIDER_OPENAI:
                 return createOpenAiModel(apiKey, modelName);
             case PROVIDER_LLAMA:
                 return createLlamaModel(baseUrl, modelName);
-            case PROVIDER_SATELLITE:
-                return createSatelliteModel(config);
+            case PROVIDER_AI_HUB:
+                return createAIHubModel(config);
             default:
                 throw new IllegalArgumentException("Unknown provider type: " + providerType);
         }
@@ -178,14 +184,16 @@ public class LangChain4jProviderFactory {
                 return createAnthropicStreamingModel(apiKey, modelName);
             case PROVIDER_BEDROCK:
                 return createBedrockStreamingModel(modelName, apiKey);
+            case PROVIDER_MOCK_AI_HUB:
+                return createMockAIHubStreamingModel(baseUrl, modelName, apiKey);
             case PROVIDER_OLLAMA:
                 return createOllamaStreamingModel(baseUrl, modelName);
             case PROVIDER_OPENAI:
                 return createOpenAiStreamingModel(apiKey, modelName);
             case PROVIDER_LLAMA:
                 return createLlamaStreamingModel(baseUrl, modelName);
-            case PROVIDER_SATELLITE:
-                return createSatelliteStreamingModel(config);
+            case PROVIDER_AI_HUB:
+                return createAIHubStreamingModel(config);
             default:
                 throw new IllegalArgumentException("Streaming not supported for provider: " + providerType);
         }
@@ -266,6 +274,9 @@ public class LangChain4jProviderFactory {
             case PROVIDER_BEDROCK:
                 return createBedrockEmbeddingModel(modelName, apiKey);
 
+            case PROVIDER_MOCK_AI_HUB:
+                return createMockAIHubEmbeddingModel(baseUrl, modelName, apiKey);
+
             case PROVIDER_OLLAMA:
                 return createOllamaEmbeddingModel(baseUrl, modelName);
 
@@ -276,8 +287,8 @@ public class LangChain4jProviderFactory {
                 // Llama uses Ollama for embeddings with nomic-embed-text or similar
                 return createLlamaEmbeddingModel(baseUrl, modelName);
 
-            case PROVIDER_SATELLITE:
-                return createSatelliteEmbeddingModel(config);
+            case PROVIDER_AI_HUB:
+                return createAIHubEmbeddingModel(config);
 
             default:
                 // Fallback to Bedrock Titan for unknown providers
@@ -306,10 +317,11 @@ public class LangChain4jProviderFactory {
     public static boolean hasNativeEmbeddings(String providerType) {
         // Only these providers have native embedding APIs
         return PROVIDER_BEDROCK.equals(providerType) ||
+               PROVIDER_MOCK_AI_HUB.equals(providerType) ||
                PROVIDER_OLLAMA.equals(providerType) ||
                PROVIDER_OPENAI.equals(providerType) ||
                PROVIDER_LLAMA.equals(providerType) ||
-               PROVIDER_SATELLITE.equals(providerType);
+               PROVIDER_AI_HUB.equals(providerType);
     }
 
     // ========================================================================
@@ -412,6 +424,62 @@ public class LangChain4jProviderFactory {
             .baseUrl(baseUrl != null ? baseUrl : DEFAULT_OLLAMA_URL)
             .modelName(modelName != null ? modelName : DEFAULT_LLAMA_MODEL)
             .temperature(0.7)
+            .build();
+    }
+
+    /**
+     * Create a ChatLanguageModel for Mock AI Hub (testing without real AI Hub).
+     *
+     * <p>This provider simulates the iDempiere AI Hub API for testing purposes.
+     * It connects to an OpenAI-compatible endpoint (port 8081) that mimics the
+     * real AI Hub behavior without requiring full AI Hub deployment.
+     *
+     * <p>Useful for:
+     * <ul>
+     *   <li>Unit and integration testing</li>
+     *   <li>Development without AI Hub infrastructure</li>
+     *   <li>CI/CD pipelines</li>
+     *   <li>Local development with Ollama backend</li>
+     * </ul>
+     *
+     * @param baseUrl API base URL (default: http://localhost:8081/v1)
+     * @param modelName Model name (default: llama3.2)
+     * @param apiKey API key (optional, uses "test" dummy value)
+     * @return ChatLanguageModel configured for Mock AI Hub
+     */
+    private static ChatLanguageModel createMockAIHubModel(String baseUrl, String modelName, String apiKey) {
+        var builder = OpenAiChatModel.builder()
+            .baseUrl(baseUrl != null ? baseUrl : DEFAULT_MOCK_AI_HUB_URL)
+            .apiKey(apiKey != null && !apiKey.isEmpty() ? apiKey : "test")  // Dummy key for mock
+            .modelName(modelName != null ? modelName : DEFAULT_MOCK_AI_HUB_MODEL)
+            .temperature(0.7)
+            .logRequests(true)
+            .logResponses(true);
+
+        // Add observability listener (ADR-013)
+        if (metricsEnabled) {
+            builder.listeners(List.of(createMetricsListener("mock-ai-hub")));
+        }
+
+        return builder.build();
+    }
+
+    /**
+     * Create a StreamingChatLanguageModel for Mock AI Hub.
+     *
+     * @param baseUrl API base URL (default: http://localhost:8081/v1)
+     * @param modelName Model name (default: llama3.2)
+     * @param apiKey API key (optional, uses "test" dummy value)
+     * @return StreamingChatLanguageModel configured for Mock AI Hub
+     */
+    private static StreamingChatLanguageModel createMockAIHubStreamingModel(String baseUrl, String modelName, String apiKey) {
+        return OpenAiStreamingChatModel.builder()
+            .baseUrl(baseUrl != null ? baseUrl : DEFAULT_MOCK_AI_HUB_URL)
+            .apiKey(apiKey != null && !apiKey.isEmpty() ? apiKey : "test")  // Dummy key for mock
+            .modelName(modelName != null ? modelName : DEFAULT_MOCK_AI_HUB_MODEL)
+            .temperature(0.7)
+            .logRequests(true)
+            .logResponses(true)
             .build();
     }
 
@@ -584,6 +652,25 @@ public class LangChain4jProviderFactory {
     }
 
     /**
+     * Create an EmbeddingModel for Mock AI Hub.
+     *
+     * <p>Uses OpenAI's embedding model interface but connects to a local
+     * or mock endpoint (port 8081) for testing without real AI Hub.
+     *
+     * @param baseUrl API base URL (default: http://localhost:8081/v1)
+     * @param modelName Embedding model name (default: nomic-embed-text)
+     * @param apiKey API key (optional, uses "test" dummy value)
+     * @return EmbeddingModel configured for Mock AI Hub embeddings
+     */
+    private static EmbeddingModel createMockAIHubEmbeddingModel(String baseUrl, String modelName, String apiKey) {
+        return OpenAiEmbeddingModel.builder()
+            .baseUrl(baseUrl != null ? baseUrl : DEFAULT_MOCK_AI_HUB_URL)
+            .apiKey(apiKey != null && !apiKey.isEmpty() ? apiKey : "test")  // Dummy key for mock
+            .modelName(modelName != null ? modelName : DEFAULT_MOCK_AI_HUB_EMBEDDING_MODEL)
+            .build();
+    }
+
+    /**
      * Create an EmbeddingModel for Llama via Ollama.
      *
      * <p>Uses Ollama's embedding models. Recommended models:
@@ -615,16 +702,16 @@ public class LangChain4jProviderFactory {
     }
 
     // ========================================================================
-    // Satellite Provider Methods (ADR-042)
+    // AI Hub Provider Methods (ADR-042)
     // ========================================================================
 
     /**
-     * Create a ChatLanguageModel that routes through Quarkus Satellite Service.
+     * Create a ChatLanguageModel that routes through iDempiere AI Hub.
      *
-     * <p>The satellite service exposes an OpenAI-compatible REST API, so we use
-     * OpenAiChatModel with custom baseUrl pointing to the satellite.
+     * <p>The AI Hub service exposes an OpenAI-compatible REST API, so we use
+     * OpenAiChatModel with custom baseUrl pointing to the AI Hub.
      *
-     * <p>Benefits of satellite routing:
+     * <p>Benefits of AI Hub routing:
      * <ul>
      *   <li>Access to LangChain4j 1.x features (MCP, extended thinking)</li>
      *   <li>Centralized AI processing and cost management</li>
@@ -632,20 +719,20 @@ public class LangChain4jProviderFactory {
      *   <li>Multi-tenant support with context isolation</li>
      * </ul>
      *
-     * @param config Provider configuration with satellite endpoint and auth token
-     * @return ChatLanguageModel proxying through satellite
+     * @param config Provider configuration with AI Hub endpoint and auth token
+     * @return ChatLanguageModel proxying through AI Hub
      */
-    private static ChatLanguageModel createSatelliteModel(IAIProviderConfig config) {
+    private static ChatLanguageModel createAIHubModel(IAIProviderConfig config) {
         String endpoint = config.getEndpoint();
         if (endpoint == null || endpoint.isEmpty()) {
-            endpoint = DEFAULT_SATELLITE_URL;
-            log.info("Satellite endpoint not configured, using default: " + endpoint);
+            endpoint = DEFAULT_AI_HUB_URL;
+            log.info("AI Hub endpoint not configured, using default: " + endpoint);
         }
 
         String apiKey = config.getAPIKey();
         if (apiKey == null || apiKey.isEmpty()) {
             apiKey = "mock-token";  // Allow mock mode for development
-            log.warning("Satellite API key not configured, using mock token for development");
+            log.warning("AI Hub API key not configured, using mock token for development");
         }
 
         // Normalize endpoint URL
@@ -656,13 +743,13 @@ public class LangChain4jProviderFactory {
 
         String modelName = config.getModelName();
         if (modelName == null || modelName.isEmpty()) {
-            modelName = DEFAULT_SATELLITE_MODEL;
+            modelName = DEFAULT_AI_HUB_MODEL;
         }
 
-        log.warning("Creating Satellite proxy model: endpoint=" + endpoint + ", model=" + modelName);
-        log.warning("Satellite baseUrl: " + baseUrl);
+        log.warning("Creating AI Hub proxy model: endpoint=" + endpoint + ", model=" + modelName);
+        log.warning("AI Hub baseUrl: " + baseUrl);
 
-        // Use OpenAI-compatible client (satellite exposes /v1/chat/completions)
+        // Use OpenAI-compatible client (AI Hub exposes /v1/chat/completions)
         var builder = OpenAiChatModel.builder()
             .baseUrl(baseUrl)
             .apiKey(apiKey)
@@ -673,29 +760,29 @@ public class LangChain4jProviderFactory {
 
         // Add observability listener
         if (metricsEnabled) {
-            builder.listeners(List.of(createMetricsListener("satellite")));
+            builder.listeners(List.of(createMetricsListener("ai-hub")));
         }
 
         return builder.build();
     }
 
     /**
-     * Create a StreamingChatLanguageModel through satellite.
+     * Create a StreamingChatLanguageModel through AI Hub.
      *
-     * @param config Provider configuration with satellite endpoint and auth token
-     * @return StreamingChatLanguageModel proxying through satellite
+     * @param config Provider configuration with AI Hub endpoint and auth token
+     * @return StreamingChatLanguageModel proxying through AI Hub
      */
-    private static StreamingChatLanguageModel createSatelliteStreamingModel(IAIProviderConfig config) {
+    private static StreamingChatLanguageModel createAIHubStreamingModel(IAIProviderConfig config) {
         String endpoint = config.getEndpoint();
         if (endpoint == null || endpoint.isEmpty()) {
-            endpoint = DEFAULT_SATELLITE_URL;
-            log.info("Satellite streaming endpoint not configured, using default: " + endpoint);
+            endpoint = DEFAULT_AI_HUB_URL;
+            log.info("AI Hub streaming endpoint not configured, using default: " + endpoint);
         }
 
         String apiKey = config.getAPIKey();
         if (apiKey == null || apiKey.isEmpty()) {
             apiKey = "mock-token";
-            log.warning("Satellite streaming API key not configured, using mock token for development");
+            log.warning("AI Hub streaming API key not configured, using mock token for development");
         }
 
         if (!endpoint.endsWith("/")) {
@@ -705,11 +792,11 @@ public class LangChain4jProviderFactory {
 
         String modelName = config.getModelName();
         if (modelName == null || modelName.isEmpty()) {
-            modelName = DEFAULT_SATELLITE_MODEL;
+            modelName = DEFAULT_AI_HUB_MODEL;
         }
 
-        log.warning("Creating Satellite streaming model: endpoint=" + endpoint + ", model=" + modelName);
-        log.warning("Satellite streaming baseUrl: " + baseUrl);
+        log.warning("Creating AI Hub streaming model: endpoint=" + endpoint + ", model=" + modelName);
+        log.warning("AI Hub streaming baseUrl: " + baseUrl);
 
         return OpenAiStreamingChatModel.builder()
             .baseUrl(baseUrl)
@@ -722,22 +809,22 @@ public class LangChain4jProviderFactory {
     }
 
     /**
-     * Create an EmbeddingModel through satellite.
+     * Create an EmbeddingModel through AI Hub.
      *
-     * @param config Provider configuration with satellite endpoint and auth token
-     * @return EmbeddingModel proxying through satellite
+     * @param config Provider configuration with AI Hub endpoint and auth token
+     * @return EmbeddingModel proxying through AI Hub
      */
-    private static EmbeddingModel createSatelliteEmbeddingModel(IAIProviderConfig config) {
+    private static EmbeddingModel createAIHubEmbeddingModel(IAIProviderConfig config) {
         String endpoint = config.getEndpoint();
         if (endpoint == null || endpoint.isEmpty()) {
-            endpoint = DEFAULT_SATELLITE_URL;
-            log.info("Satellite embedding endpoint not configured, using default: " + endpoint);
+            endpoint = DEFAULT_AI_HUB_URL;
+            log.info("AI Hub embedding endpoint not configured, using default: " + endpoint);
         }
 
         String apiKey = config.getAPIKey();
         if (apiKey == null || apiKey.isEmpty()) {
             apiKey = "mock-token";
-            log.warning("Satellite embedding API key not configured, using mock token for development");
+            log.warning("AI Hub embedding API key not configured, using mock token for development");
         }
 
         if (!endpoint.endsWith("/")) {
@@ -745,7 +832,7 @@ public class LangChain4jProviderFactory {
         }
         String baseUrl = endpoint + "v1";
 
-        log.info("Creating Satellite embedding model: endpoint=" + endpoint);
+        log.info("Creating AI Hub embedding model: endpoint=" + endpoint);
 
         return OpenAiEmbeddingModel.builder()
             .baseUrl(baseUrl)
@@ -755,19 +842,19 @@ public class LangChain4jProviderFactory {
     }
 
     /**
-     * Check if satellite service is available.
+     * Check if AI Hub service is available.
      *
-     * @param config Provider configuration with satellite endpoint
-     * @return true if satellite responds to health check
+     * @param config Provider configuration with AI Hub endpoint
+     * @return true if AI Hub responds to health check
      */
-    public static boolean isSatelliteHealthy(IAIProviderConfig config) {
-        if (!PROVIDER_SATELLITE.equals(config.getAIGProviderType())) {
-            return true;  // Not a satellite provider
+    public static boolean isAIHubHealthy(IAIProviderConfig config) {
+        if (!PROVIDER_AI_HUB.equals(config.getAIGProviderType())) {
+            return true;  // Not an AI Hub provider
         }
 
         String endpoint = config.getEndpoint();
         if (endpoint == null || endpoint.isEmpty()) {
-            endpoint = DEFAULT_SATELLITE_URL;
+            endpoint = DEFAULT_AI_HUB_URL;
         }
 
         try {
@@ -780,7 +867,7 @@ public class LangChain4jProviderFactory {
             int status = conn.getResponseCode();
             return status == 200;
         } catch (Exception e) {
-            log.warning("Satellite health check failed: " + e.getMessage());
+            log.warning("AI Hub health check failed: " + e.getMessage());
             return false;
         }
     }

@@ -10,7 +10,7 @@ This document tracks features, implementation status, and version compatibility 
 
 ## Current Version: v0.27.0-SNAPSHOT
 
-**Status:** 🚧 In Progress - Next Development Cycle
+**Status:** 🚧 In Progress - Mock AI Hub Provider
 **Previous:** v0.26.0 - Service Configuration Cleanup
 
 **Strategic Focus:** The Chat Widget is our primary AI implementation. All features will be integrated and tested through the chat widget before other use cases (charts, reports, etc.).
@@ -21,7 +21,7 @@ This document tracks features, implementation status, and version compatibility 
 
 | Version | Date | Key Features | Focus Area |
 |---------|------|--------------|------------|
-| **0.27.0** | TBD | **Next Development Cycle (In Progress)** | **TBD** |
+| **0.27.0** | TBD | **Mock AI Hub Provider (In Progress)** | **Testing & Development** |
 | 0.26.0 | 2025-12-18 | Service Configuration Cleanup | Code Quality |
 | 0.25.0 | 2025-12-11 | P1 Context Layer Vector Embedding Storage | RAG Infrastructure |
 | 0.24.0 | 2025-12-11 | Satellite Provider & Language Detection | Multi-Provider |
@@ -133,14 +133,14 @@ This document tracks features, implementation status, and version compatibility 
 | **Ollama (Local)** | 0.9.0 | ✅ Done | LangChain4j | Local LLM support (llama3.2, mistral, etc.) ⚠️* |
 | **Llama (via Ollama)** | 0.18.0 | ✅ Done | LangChain4j | Llama models via Ollama backend ⚠️* |
 | **OpenAI** | 0.9.0 | ✅ Done | LangChain4j | GPT-4o, GPT-4-turbo via OpenAiChatModel |
-| **Quarkus Satellite** | 0.23.0 | 🚧 In Progress | REST API | AI requests routed through Quarkus Satellite Service (Java 17+, LangChain4j 1.x) 🚀 |
+| **iDempiere AI Hub** | 0.23.0 | 🚧 In Progress | REST API | AI requests routed through iDempiere AI Hub Service (Java 17+, LangChain4j 1.x) 🚀 |
 | **Azure OpenAI** | - | 🟡 v0.11.0 | LangChain4j | Enterprise OpenAI deployment |
 | **Custom Providers** | 0.9.0 | ✅ Done | LangChain4j | Extensible via ChatLanguageModel interface |
 
 **\*Ollama/Llama Tool Support Limitation:** Streaming mode uses `SimpleStreamingAgent` without tools due to LangChain4j 0.35.0 limitations. Full streaming+tools requires LangChain4j 0.37.0+ (Java 17). Use Anthropic/OpenAI/Bedrock for full tool support.
 
-**🚀 Satellite Provider Benefits (ADR-042):**
-The Quarkus Satellite Service enables iDempiere v10 (Java 11) to access advanced AI features from LangChain4j 1.x (Java 17+):
+**🚀 AI Hub Provider Benefits (ADR-042):**
+The iDempiere AI Hub Service enables iDempiere v10 (Java 11) to access advanced AI features from LangChain4j 1.x (Java 17+):
 - **Extended Thinking/Reasoning Timeline** - Display AI reasoning process in real-time
 - **MCP (Model Context Protocol)** Support - Connect to external knowledge sources
 - **System/Tool Message Caching** - Reduce costs by caching prompts (Anthropic/OpenAI)
@@ -148,7 +148,7 @@ The Quarkus Satellite Service enables iDempiere v10 (Java 11) to access advanced
 - **Google Gemini Streaming** - Stream responses from Google's Gemini models
 - **LangChain4j 1.x Features** - Access latest framework capabilities without upgrading iDempiere to Java 17
 
-The Satellite architecture decouples AI provider versions from iDempiere runtime, enabling progressive enhancement.
+The AI Hub architecture decouples AI provider versions from iDempiere runtime, enabling progressive enhancement.
 
 **Legacy Providers (Deprecated in v0.9.0):**
 - ❌ Custom `AnthropicProvider` → Replaced by `AnthropicChatModel`
