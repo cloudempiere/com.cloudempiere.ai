@@ -8,11 +8,10 @@ This document tracks features, implementation status, and version compatibility 
 
 ---
 
-## Current Version: v0.29.0
+## Current Version: v0.30.0-SNAPSHOT
 
-**Status:** ✅ Released - 2025-12-18
-**Focus:** Zoom Links in Markdown Tables Fix
-**Previous:** v0.28.0 - Localized Progress Messages via AD_Message System
+**Status:** 🚧 In Progress - TBD
+**Previous:** v0.29.0 - Zoom Links in Markdown Tables Fix
 
 **Strategic Focus:** The Chat Widget is our primary AI implementation. All features will be integrated and tested through the chat widget before other use cases (charts, reports, etc.).
 
