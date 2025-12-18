@@ -8,10 +8,10 @@ This document tracks features, implementation status, and version compatibility 
 
 ---
 
-## Current Version: v0.23.0-SNAPSHOT
+## Current Version: v0.27.0-SNAPSHOT
 
-**Status:** 🚧 In Progress - Satellite Provider & Advanced Sharing
-**Previous:** v0.22.0 - Clickable Record Links in Chat with Table Support (ADR-039)
+**Status:** 🚧 In Progress - Next Development Cycle
+**Previous:** v0.26.0 - Service Configuration Cleanup
 
 **Strategic Focus:** The Chat Widget is our primary AI implementation. All features will be integrated and tested through the chat widget before other use cases (charts, reports, etc.).
 
@@ -21,7 +21,11 @@ This document tracks features, implementation status, and version compatibility 
 
 | Version | Date | Key Features | Focus Area |
 |---------|------|--------------|------------|
-| **0.23.0** | TBD | **Satellite Provider & Advanced Sharing (In Progress)** | **Multi-Provider & Collaboration** |
+| **0.27.0** | TBD | **Next Development Cycle (In Progress)** | **TBD** |
+| 0.26.0 | 2025-12-18 | Service Configuration Cleanup | Code Quality |
+| 0.25.0 | 2025-12-11 | P1 Context Layer Vector Embedding Storage | RAG Infrastructure |
+| 0.24.0 | 2025-12-11 | Satellite Provider & Language Detection | Multi-Provider |
+| 0.23.0 | 2025-12-11 | Satellite Provider Integration (ADR-042) | Multi-Provider |
 | 0.22.0 | 2025-12-11 | Clickable Record Links in Chat with Table Support (ADR-039) | UX & Navigation |
 | 0.21.0 | 2025-12-10 | Real-Time Streaming Improvements (Tables & Emojis) | UX |
 | 0.20.0 | 2025-12-10 | Language Detection & User-Friendly Error Handling | UX & i18n |

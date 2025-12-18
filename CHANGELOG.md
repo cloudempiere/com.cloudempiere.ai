@@ -7,18 +7,126 @@ and this project adheres to [Conventional Commits](https://conventionalcommits.o
 
 ## [Unreleased]
 
-### v0.23.0-SNAPSHOT - Satellite Provider & Advanced Sharing
+---
 
-**Added:**
+## [0.26.0] - 2025-12-18
+
+### Service Configuration Cleanup
+
+This patch release cleans up OSGI service configurations and removes obsolete test code.
+
+#### Changed
+
+- **OSGI Service Configuration**
+  - Simplified AIChatWidgetFactory interface reference (removed package prefix)
+  - Added lifecycle methods (activate/deactivate) to EmbeddingTriggerService
+
+#### Removed
+
+- Obsolete TestRAGContextLayer.java test file (433 lines)
+
+---
+
+## [0.25.0] - 2025-12-11
+
+### P1 Context Layer Vector Embedding Storage
+
+This release implements persistent vector storage for RAG-based AI context retrieval with pgvector support.
+
+#### Added
+
+- **Vector Embedding Infrastructure (CLD-1601, ADR-012, ADR-026)**
+  - AIG_Embedding table for persistent vector storage (768 dimensions)
+  - AIG_IngestionMetadata table for tracking knowledge ingestion state
+  - PostgreSQL: native vector(768) type with HNSW index for fast similarity search
+  - Oracle: BLOB storage with in-memory search fallback
+  - Helper function AIG_Embedding_Search() for semantic search with client filtering
+  - Multi-tenant aware with AD_Client_ID filtering
+  - Source tracking (ad_metadata, knowledge_entry, glossary, window_context)
+  - Language support via AD_Language column
+
+#### Changed
+
+- Migration scripts use PascalCase naming (AIG_Embedding, not aig_embedding)
+- All indexes, functions, triggers follow iDempiere conventions
+- Standardized 'Cloudempiere' branding throughout documentation
+
+#### Technical
+
+- Supports nomic-embed-text (768d) and OpenAI text-embedding-3-small (1536d)
+- HNSW index for O(log n) similarity search performance
+- Client/language-aware semantic search
+
+---
+
+## [0.24.0] - 2025-12-11
+
+### Satellite Provider & Language Detection Enhancements
+
+This release enhances the Satellite provider integration and improves language detection capabilities.
+
+#### Added
+
+- **Language Detection (ADR-037)**
+  - Tenant/client language fallback
+  - Slavic language support (Slovak, Czech, Hungarian, Polish)
+  - Comprehensive language detection logging
+  - Enhanced error logging with log.severe
+
+- **Satellite Provider**
+  - Improved JSON stream flag parsing
+  - Tool/function calling support
+  - OpenAI protocol compatibility
+  - Architecture and protocol documentation
+
+- **Database Utilities**
+  - DatabaseSyntaxHelper for database-specific SQL syntax
+
+- **Dependencies**
+  - openai4j 0.22.0 for OpenAI protocol support
+  - Exported embeddings package for external use
+
+#### Changed
+
+- **Model Refactor**
+  - Renamed Endpoint → URL in AIG_Provider
+  - Backward compatibility via getEndpoint() wrapper
+
+- **Debugging**
+  - Comprehensive zoom link processing debug logs
+  - Table rendering debug logs
+  - Streaming message improvements
+
+- **Documentation**
+  - Satellite architecture review
+  - Protocol decision analysis
+  - LangChain4j compatibility matrix
+  - Cloudempiere AI Protocol v1 spec
+  - Updated project instructions with debug log requirements
+
+---
+
+## [0.23.0] - 2025-12-11
+
+### Satellite Provider Integration (ADR-042)
+
+This release introduces Satellite AI Provider support for external LangChain4j services.
+
+#### Added
+
 - **ADR-042: Satellite AI Provider Integration**
   - URL column in AIG_Provider for satellite service endpoint configuration
-  - Uses existing iDempiere URL element (AD_Element_ID=983) for consistency
+  - Uses existing iDempiere URL element (AD_Element_ID=983)
   - SAT provider type in AIGProviderType reference list
   - Conditional display logic for URL field (@AIGProviderType@=SAT)
-  - Migration scripts standardized to iDempiere format (CLD-1601)
   - Supports Quarkus Satellite Service integration (Java 17+, LangChain4j 1.x)
 
-**Changed:**
+- **RAG Infrastructure**
+  - Trigger-based embedding for K_Entry (ADR-029)
+  - EmbeddingTriggerService for automatic knowledge base indexing
+
+#### Changed
+
 - **Migration Script Standards**
   - Standardized PostgreSQL and Oracle migration scripts
   - Added CLD-1601 ticket reference as primary identifier
@@ -26,20 +134,6 @@ and this project adheres to [Conventional Commits](https://conventionalcommits.o
   - Replaced hardcoded user ID with toRecordId() function
   - Added timestamp comments before each SQL statement
   - Added Oracle-specific directives (SET SQLBLANKLINES ON, SET DEFINE OFF)
-
-**Planned:**
-- Share button in AIChatWidget (OWNER only)
-- User/role picker dialog
-- Time-bound sharing (ValidFrom/ValidTo)
-- Sharing notifications
-- Ownership transfer UI
-
-**Deferred:**
-- ESC key shortcut to cancel streaming (requires ZK keyboard handling)
-- Upgrade LangChain4j to v1.8.0+ for proper HTTP cancellation
-- ADR-017: Chart Executive Overview
-- ADR-018: Sales Opportunity Summary
-- ADR-011: Domain Agents
 
 ---
 
