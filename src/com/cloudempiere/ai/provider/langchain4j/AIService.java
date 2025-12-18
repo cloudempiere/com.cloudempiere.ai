@@ -13,7 +13,9 @@ import java.util.logging.Level;
 
 import org.compiere.model.MChat;
 import org.compiere.util.CLogger;
+import org.compiere.util.DB;
 import org.compiere.util.Env;
+import org.compiere.util.Language;
 import org.compiere.util.Msg;
 import org.json.JSONObject;
 import org.osgi.framework.Bundle;
@@ -718,7 +720,7 @@ public class AIService {
             java.util.Optional<String> requestedLang = languageService.detectLanguageChangeRequest(processedMessage);
             if (requestedLang.isPresent()) {
                 String requested = requestedLang.get();
-                org.compiere.util.Language requestedLangObj = org.compiere.util.Language.getLanguage(requested);
+                Language requestedLangObj = Language.getLanguage(requested);
                 String requestedLangName = requestedLangObj != null ? requestedLangObj.getName() : requested;
 
                 log.warning("[LANGUAGE] ✓ User explicitly requested: " + requestedLangName + " (" + requested + ")");
@@ -745,7 +747,7 @@ public class AIService {
 
             // Final language state - show complete trace
             String finalLang = languageService.getSessionLanguage(ctx, chatId);
-            org.compiere.util.Language finalLangObj = org.compiere.util.Language.getLanguage(finalLang);
+            Language finalLangObj = Language.getLanguage(finalLang);
             String finalLangName = finalLangObj != null ? finalLangObj.getName() : finalLang;
 
             log.warning("[LANGUAGE] ========================================");
@@ -1323,9 +1325,9 @@ public class AIService {
 
         // Detect and log database type
         String dbType = "Unknown";
-        if (org.compiere.util.DB.isPostgreSQL()) {
+        if (DB.isPostgreSQL()) {
             dbType = "PostgreSQL";
-        } else if (org.compiere.util.DB.isOracle()) {
+        } else if (DB.isOracle()) {
             dbType = "Oracle";
         }
         log.warning("[DATABASE] Detected database type: " + dbType);
@@ -1344,7 +1346,7 @@ public class AIService {
 
         // Log the language instruction being used
         String sessionLang = languageService.getSessionLanguage(ctx, chatId);
-        org.compiere.util.Language langObj = org.compiere.util.Language.getLanguage(sessionLang);
+        Language langObj = Language.getLanguage(sessionLang);
         String langName = langObj != null ? langObj.getName() : sessionLang;
         log.warning("[LANGUAGE] System prompt language: " + langName + " (" + sessionLang + ")");
         log.warning("[LANGUAGE] Language instruction length: " + languageInstruction.length() + " chars");

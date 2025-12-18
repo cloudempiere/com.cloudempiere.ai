@@ -53,13 +53,17 @@ public class ZoomLinkProcessor {
 	 *   <li>***[[Table:ID|Text]]*** - bold+italic (stripped)</li>
 	 * </ul>
 	 *
+	 * <p><b>Escaped Pipe Support:</b>
+	 * In markdown tables, pipes may be escaped to prevent interpretation as cell separators.
+	 * Pattern matches both `|` and `\|` (backslash-escaped pipe).
+	 *
 	 * Groups:
 	 * - Group 1: TableName (e.g., C_BPartner)
 	 * - Group 2: RecordID (e.g., 1000001)
 	 * - Group 3: Display Text (e.g., Acme Corporation)
 	 */
 	private static final Pattern ZOOM_LINK_PATTERN = Pattern.compile(
-		"\\*{0,3}\\[\\[([A-Za-z_][A-Za-z0-9_]*):(\\d+)\\|([^\\]]+)\\]\\]\\*{0,3}"
+		"\\*{0,3}\\[\\[([A-Za-z_][A-Za-z0-9_]*):(\\d+)\\\\?\\|([^\\]]+)\\]\\]\\*{0,3}"
 	);
 
 	/**

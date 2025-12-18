@@ -593,16 +593,27 @@ public class MarkdownTableRenderer {
                 // This converts [[TableName:RecordID|Display]] to clickable HTML links
                 Properties ctx = currentCtx.get();
                 String widgetId = currentWidgetId.get();
+
+                // Debug: Always log cell content and context state
+                log.warning("[TABLE-ZOOM] Cell content: " + displayContent);
+                log.warning("[TABLE-ZOOM] ctx null? " + (ctx == null) + ", widgetId null? " + (widgetId == null));
+                if (widgetId != null) {
+                    log.warning("[TABLE-ZOOM] widgetId: " + widgetId);
+                }
+
                 if (ctx != null && widgetId != null) {
                     String beforeZoom = displayContent;
                     displayContent = com.cloudempiere.ai.util.ZoomLinkProcessor.processZoomLinks(
                         displayContent, ctx, widgetId);
                     if (!displayContent.equals(beforeZoom)) {
-                        log.warning("[TABLE-ZOOM] Processed zoom link in cell: " + beforeZoom.substring(0, Math.min(50, beforeZoom.length())));
-                        log.warning("[TABLE-ZOOM] Result: " + displayContent.substring(0, Math.min(100, displayContent.length())));
+                        log.warning("[TABLE-ZOOM] ✅ Processed zoom link in cell: " + beforeZoom.substring(0, Math.min(50, beforeZoom.length())));
+                        log.warning("[TABLE-ZOOM] ✅ Result: " + displayContent.substring(0, Math.min(100, displayContent.length())));
+                    } else {
+                        log.warning("[TABLE-ZOOM] ⚠️ No change after zoom processing (pattern didn't match?)");
                     }
                 } else {
-                    log.warning("[TABLE-ZOOM] Context or widgetId is null - cannot process zoom links");
+                    log.warning("[TABLE-ZOOM] ❌ Context or widgetId is null - cannot process zoom links");
+                    log.warning("[TABLE-ZOOM] ❌ This means zoom links will NOT be clickable!");
                 }
 
                 // HTML-escape cell content to prevent XSS
