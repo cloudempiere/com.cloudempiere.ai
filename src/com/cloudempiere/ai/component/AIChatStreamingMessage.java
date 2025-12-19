@@ -21,13 +21,17 @@ import java.util.Properties;
 import org.compiere.util.Env;
 import org.compiere.util.Msg;
 import org.compiere.util.Util;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.zkoss.zk.ui.event.Event;
 import org.zkoss.zk.ui.event.EventListener;
 import org.zkoss.zk.ui.event.Events;
 import org.zkoss.zul.Div;
 import org.zkoss.zul.Html;
 
-import com.cloudempiere.ai.util.ChatRecordLinkRenderer;
+import com.cloudempiere.ai.util.ChunkCleaner;
+import com.cloudempiere.ai.util.CommonMarkRenderer;
+import com.cloudempiere.ai.util.MarkdownRenderer;
 import com.cloudempiere.ai.util.MarkdownTableRenderer;
 import com.cloudempiere.ai.util.StreamingTableRenderer;
 import com.cloudempiere.ai.util.StreamingTextBuffer;
@@ -53,6 +57,8 @@ import com.cloudempiere.ai.util.ZoomLinkProcessor;
 public class AIChatStreamingMessage extends Div {
 
     private static final long serialVersionUID = 1L;
+    
+    private static final Logger log = LoggerFactory.getLogger(AIChatStreamingMessage.class);
 
     // ============= UI Sections =============
 
@@ -124,6 +130,17 @@ public class AIChatStreamingMessage extends Div {
     /** Streaming table renderer for cell-by-cell table rendering */
     private StreamingTableRenderer tableRenderer;
 
+    // ============= Throttled Rendering (ADR-047) =============
+
+    /** Queue for batching chunks before rendering (throttling to 50ms intervals) */
+    private final List<String> chunkQueue = new ArrayList<>();
+
+    /** Flag to track if render is scheduled */
+    private boolean renderScheduled = false;
+
+    /** Lock object for synchronizing chunk queue access */
+    private final Object queueLock = new Object();
+
     /**
      * Create a new streaming message component.
      */
@@ -158,6 +175,8 @@ public class AIChatStreamingMessage extends Div {
 
         // Initialize streaming table renderer for cell-by-cell rendering
         this.tableRenderer = new StreamingTableRenderer();
+        int clientId = org.compiere.util.Env.getAD_Client_ID(ctx);
+        log.warn("[STREAM-INIT] Setting context on StreamingTableRenderer | AD_Client_ID=" + clientId);
         this.tableRenderer.setContext(ctx, parentWidgetId);
 
         injectCSS();
@@ -304,6 +323,10 @@ public class AIChatStreamingMessage extends Div {
      *
      * <p>Called from onChunk callback via Executions.schedule().
      *
+     * <p><b>Performance Note (ADR-047):</b> Chunks are queued and rendered
+     * at fixed 50ms intervals to prevent DOM thrashing. This reduces updates
+     * from 100+/sec to ~20/sec for smoother UX.
+     *
      * @param chunk text chunk to append
      */
     public void appendChunk(String chunk) {
@@ -314,12 +337,97 @@ public class AIChatStreamingMessage extends Div {
         if (chunk == null || chunk.isEmpty()) {
             return;
         }
-        content.append(chunk);
 
-        // Feed chunk to streaming table renderer for cell-by-cell rendering
-        tableRenderer.appendChunk(chunk);
+        // Clean chunk before processing (ADR-047 Phase 1)
+        String cleaned = ChunkCleaner.clean(chunk);
 
+        // Queue chunk for batched rendering (ADR-047 Phase 2)
+        synchronized (queueLock) {
+            chunkQueue.add(cleaned);
+
+            // Schedule render if not already pending
+            if (!renderScheduled) {
+                renderScheduled = true;
+                scheduleRender();
+            }
+        }
+    }
+
+    /**
+     * Schedule a batched render update after 50ms delay.
+     *
+     * <p>Uses ZK's client-side timer mechanism to throttle DOM updates.
+     * Multiple chunks are batched together and rendered once per interval.
+     *
+     * <p><b>Performance Impact:</b>
+     * <ul>
+     *   <li>Before: 100+ DOM updates/sec (per chunk)</li>
+     *   <li>After: ~20 DOM updates/sec (every 50ms)</li>
+     *   <li>Result: 80% reduction in browser reflows</li>
+     * </ul>
+     */
+    private void scheduleRender() {
+        // Use JavaScript setTimeout to schedule server callback after 50ms
+        // This ensures smooth 20 FPS rendering without overwhelming the browser
+        String script = String.format(
+            "setTimeout(function() {" +
+            "  var w = zk.Widget.$('%s');" +
+            "  if (w) {" +
+            "    zAu.send(new zk.Event(w, 'onBatchRender'));" +
+            "  }" +
+            "}, 50);",  // 50ms = 20 FPS (smooth without overhead)
+            getId()
+        );
+
+        org.zkoss.zk.ui.util.Clients.evalJavaScript(script);
+    }
+
+    /**
+     * Handle batched render event (triggered every 50ms by scheduleRender).
+     *
+     * <p>This method:
+     * <ol>
+     *   <li>Collects all queued chunks</li>
+     *   <li>Processes them through content buffer and table renderer</li>
+     *   <li>Updates DOM once for entire batch</li>
+     *   <li>Reschedules if more chunks arrived during processing</li>
+     * </ol>
+     *
+     * <p>Called via ZK event system from client-side JavaScript timer.
+     */
+    public void onBatchRender() {
+        // Collect batch of chunks
+        List<String> batch;
+        synchronized (queueLock) {
+            if (chunkQueue.isEmpty()) {
+                renderScheduled = false;
+                return;
+            }
+
+            // Copy and clear queue
+            batch = new ArrayList<>(chunkQueue);
+            chunkQueue.clear();
+        }
+
+        // Process all chunks in batch
+        for (String chunk : batch) {
+            content.append(chunk);
+
+            // Feed chunk to streaming table renderer for cell-by-cell rendering
+            tableRenderer.appendChunk(chunk);
+        }
+
+        // Update DOM once for entire batch
         updateContentDisplay();
+
+        // Reschedule if more chunks arrived during processing
+        synchronized (queueLock) {
+            if (!chunkQueue.isEmpty()) {
+                scheduleRender();
+            } else {
+                renderScheduled = false;
+            }
+        }
     }
 
     /**
@@ -405,6 +513,19 @@ public class AIChatStreamingMessage extends Div {
         if (isComplete) {
             return; // Already completed
         }
+
+        // Flush any remaining chunks in queue (ADR-047)
+        synchronized (queueLock) {
+            if (!chunkQueue.isEmpty()) {
+                for (String chunk : chunkQueue) {
+                    content.append(chunk);
+                    tableRenderer.appendChunk(chunk);
+                }
+                chunkQueue.clear();
+            }
+            renderScheduled = false;
+        }
+
         isComplete = true;
         // Use marked.js for full markdown rendering (tables, code blocks, etc.)
         renderFinalMarkdown();
@@ -483,6 +604,19 @@ public class AIChatStreamingMessage extends Div {
         if (isCancelled || isComplete) {
             return;
         }
+
+        // Flush any remaining chunks in queue (ADR-047)
+        synchronized (queueLock) {
+            if (!chunkQueue.isEmpty()) {
+                for (String chunk : chunkQueue) {
+                    content.append(chunk);
+                    tableRenderer.appendChunk(chunk);
+                }
+                chunkQueue.clear();
+            }
+            renderScheduled = false;
+        }
+
         isCancelled = true;
         isComplete = true;
 
@@ -507,6 +641,11 @@ public class AIChatStreamingMessage extends Div {
 
     /**
      * Update the main content display.
+     *
+     * <p><b>ADR-047 Phase 2.5:</b> Uses CommonMarkRenderer for consistent rendering
+     * during both streaming and final phases. This eliminates content jumps and
+     * markdown leaks caused by the previous dual-path approach (regex during
+     * streaming, CommonMark after completion).
      */
     private void updateContentDisplay() {
         String html;
@@ -517,7 +656,27 @@ public class AIChatStreamingMessage extends Div {
             html = tableRenderer.renderCurrentState();
         } else {
             // Use getDisplayableText() to avoid incomplete surrogates
-            html = renderPartialMarkdown(content.getDisplayableText());
+            String markdownText = content.getDisplayableText();
+
+            // Pre-render tables if present (before CommonMark parsing)
+            if (MarkdownTableRenderer.containsTable(markdownText)) {
+                int clientId = org.compiere.util.Env.getAD_Client_ID(ctx);
+                log.warn("[STREAMING] Setting context on MarkdownTableRenderer | AD_Client_ID=" + clientId);
+                MarkdownTableRenderer.setLocale(locale);
+                MarkdownTableRenderer.setContext(ctx);
+                MarkdownTableRenderer.setWidgetId(parentWidgetId);
+                try {
+                    markdownText = MarkdownTableRenderer.renderTables(markdownText);
+                } finally {
+                    MarkdownTableRenderer.clearLocale();
+                    MarkdownTableRenderer.clearZoomContext();
+                }
+            }
+
+            // Use CommonMarkRenderer for consistent rendering (ADR-047 Phase 2.5)
+            // This ensures streaming and final rendering are identical
+            html = processMarkdownPreservingHTML(markdownText);
+
             if (!isComplete) {
                 html += "<span class='streaming-cursor'>|</span>";
             }
@@ -664,9 +823,11 @@ public class AIChatStreamingMessage extends Div {
     }
 
     /**
-     * Render final content using marked.js for full markdown support (tables, code blocks, etc.).
+     * Render final content using CommonMark Java library for full markdown support.
      *
-     * <p>This replaces the simple renderPartialMarkdown() with client-side marked.js rendering.
+     * <p><b>ADR-047 Phase 2.5:</b> This uses the same CommonMarkRenderer used during streaming
+     * to ensure consistent rendering throughout the message lifecycle. This eliminates content
+     * jumps and layout shifts that occurred with the previous dual-path approach.
      *
      * <p><b>Implementation Note:</b> We use the existing content_[componentId] element that was
      * created in init() rather than generating a new container ID. This ensures the DOM element
@@ -694,6 +855,8 @@ public class AIChatStreamingMessage extends Div {
             markdownText = tableRenderer.renderFinal();
         } else if (MarkdownTableRenderer.containsTable(markdownText)) {
             // Fall back to standard renderer if table wasn't streamed
+            int clientId = org.compiere.util.Env.getAD_Client_ID(ctx);
+            log.warn("[FINAL-RENDER] Setting context on MarkdownTableRenderer | AD_Client_ID=" + clientId);
             MarkdownTableRenderer.setLocale(locale);
             MarkdownTableRenderer.setContext(ctx);
             MarkdownTableRenderer.setWidgetId(parentWidgetId);
@@ -717,6 +880,14 @@ public class AIChatStreamingMessage extends Div {
             // Uncomment when vector DB caching is available:
             // markdownText = ChatRecordLinkRenderer.extractAndRender(markdownText, ctx, parentWidgetId);
         }
+
+        // Normalize excessive line breaks AGAIN after table/link rendering (ADR-047 Phase 1)
+        // Table rendering may have preserved or added extra newlines around tables
+        markdownText = markdownText.replaceAll("\n{3,}", "\n\n");
+
+        // Ensure headings have proper line breaks before them for markdown parsing
+        // Fix cases where AI doesn't put newline before heading: "text## Heading" → "text\n## Heading"
+        markdownText = markdownText.replaceAll("([^\n])(\n?)(#{1,3} )", "$1\n\n$3");
 
         // Use the existing streamingContent element's ID (content_[componentId])
         // This element was created in init() and already exists in the DOM
@@ -795,96 +966,23 @@ public class AIChatStreamingMessage extends Div {
     /**
      * Render partial markdown (simple implementation for streaming).
      *
-     * <p>For full markdown rendering, the final content uses marked.js on the client.
-     * This method provides real-time rendering during streaming for:
-     * <ul>
-     *   <li>Headings (h1-h4)</li>
-     *   <li>Bold and italic text</li>
-     *   <li>Inline code</li>
-     *   <li>Lists</li>
-     *   <li>Tables (GFM pipe tables)</li>
-     * </ul>
+     * <p><b>DEPRECATED (ADR-047 Phase 2.5):</b> This method used regex-based
+     * MarkdownRenderer which caused inconsistencies with the CommonMark-based
+     * final rendering. Use {@link #processMarkdownPreservingHTML(String)} instead
+     * for consistent rendering in both streaming and final phases.
+     *
+     * <p>This method is kept for backward compatibility but now delegates to
+     * the unified CommonMark renderer to ensure consistency.
+     *
+     * @deprecated Use {@link #processMarkdownPreservingHTML(String)} for unified
+     *             CommonMark-based rendering. This method will be removed in v0.32.0.
      */
+    @Deprecated
     private String renderPartialMarkdown(String text) {
-        if (text == null || text.isEmpty()) {
-            return "";
-        }
-
-        // Remove hallucinated function call XML blocks (model without tools may generate these)
-        // Pattern matches <function_calls>...</function_calls> and <function_result>...</function_result>
-        String cleaned = text;
-        cleaned = cleaned.replaceAll("(?s)<function_calls>.*?</function_calls>", "");
-        cleaned = cleaned.replaceAll("(?s)<function_result>.*?</function_result>", "");
-        // Also remove incomplete/partial tags that may appear during streaming
-        cleaned = cleaned.replaceAll("(?s)<function_calls>.*$", "");
-        cleaned = cleaned.replaceAll("(?s)<function_result>.*$", "");
-        cleaned = cleaned.replaceAll("(?s)<invoke[^>]*>.*?</invoke>", "");
-        cleaned = cleaned.replaceAll("(?s)<parameter[^>]*>.*?</parameter>", "");
-
-        // IMPORTANT: Tables must be rendered BEFORE HTML escaping because the table
-        // detection relies on pipe characters (|) which get escaped by maskHTML().
-        // The MarkdownTableRenderer handles cell content escaping internally.
-        String result = cleaned;
-        if (MarkdownTableRenderer.containsTable(cleaned)) {
-            MarkdownTableRenderer.setLocale(locale);
-            // Set context for zoom link processing in table cells (ADR-039)
-            MarkdownTableRenderer.setContext(ctx);
-            MarkdownTableRenderer.setWidgetId(parentWidgetId);
-            try {
-                result = MarkdownTableRenderer.renderTables(cleaned);
-            } finally {
-                MarkdownTableRenderer.clearLocale();
-                MarkdownTableRenderer.clearZoomContext();
-            }
-        }
-
-        // Now escape non-table content. We need to be careful here:
-        // If tables were rendered, they contain HTML tags that shouldn't be escaped.
-        // Split by table tags and only escape non-table parts.
-        if (result.contains("<table")) {
-            result = escapeNonTableContent(result);
-        } else {
-            // No tables - escape everything
-            result = Util.maskHTML(result, true);
-        }
-
-        // Simple markdown transformations for streaming display
-
-        // Headings: # text, ## text, ### text (must be at start of line)
-        // Process headings before line breaks to preserve newline matching
-        result = result.replaceAll("(?m)^### (.+)$", "<h4 style='font-size: 14px; font-weight: 600; margin: 12px 0 8px 0;'>$1</h4>");
-        result = result.replaceAll("(?m)^## (.+)$", "<h3 style='font-size: 15px; font-weight: 600; margin: 14px 0 8px 0;'>$1</h3>");
-        result = result.replaceAll("(?m)^# (.+)$", "<h2 style='font-size: 16px; font-weight: 600; margin: 16px 0 10px 0;'>$1</h2>");
-
-        // Bold: **text** or __text__
-        result = result.replaceAll("\\*\\*(.+?)\\*\\*", "<strong>$1</strong>");
-        result = result.replaceAll("__(.+?)__", "<strong>$1</strong>");
-
-        // Italic: *text* or _text_
-        result = result.replaceAll("(?<!\\*)\\*(?!\\*)(.+?)(?<!\\*)\\*(?!\\*)", "<em>$1</em>");
-        result = result.replaceAll("(?<!_)_(?!_)(.+?)(?<!_)_(?!_)", "<em>$1</em>");
-
-        // Code: `text`
-        result = result.replaceAll("`([^`]+)`", "<code style='background: #f5f5f5; padding: 2px 6px; border-radius: 3px; font-family: monospace; font-size: 0.9em;'>$1</code>");
-
-        // Lists: - item or * item (basic support)
-        result = result.replaceAll("(?m)^- (.+)$", "<li style='margin-left: 16px; list-style-type: disc;'>$1</li>");
-        result = result.replaceAll("(?m)^\\* (.+)$", "<li style='margin-left: 16px; list-style-type: disc;'>$1</li>");
-
-        // Line breaks (after all other line-based processing)
-        result = result.replace("\n", "<br/>");
-
-        // Clean up extra <br/> after block elements
-        result = result.replaceAll("</h2><br/>", "</h2>");
-        result = result.replaceAll("</h3><br/>", "</h3>");
-        result = result.replaceAll("</h4><br/>", "</h4>");
-        result = result.replaceAll("</li><br/>", "</li>");
-        result = result.replaceAll("</table><br/>", "</table>");
-        result = result.replaceAll("</tr><br/>", "</tr>");
-        result = result.replaceAll("</th><br/>", "</th>");
-        result = result.replaceAll("</td><br/>", "</td>");
-
-        return result;
+        // ADR-047 Phase 2.5: Delegate to unified CommonMark renderer
+        // This ensures consistency between streaming and final rendering
+        log.warn("renderPartialMarkdown() is deprecated - using CommonMark renderer");
+        return processMarkdownPreservingHTML(text);
     }
 
     /**
@@ -991,24 +1089,35 @@ public class AIChatStreamingMessage extends Div {
                tagName.equals("img") || tagName.equals("input");
     }
 
+    /**
+     * Process simple markdown (for final rendering with HTML preservation).
+     *
+     * <p>Uses CommonMark Java library for full markdown support (ADR-047).
+     * Preserves pre-rendered HTML elements (tables, zoom links).
+     *
+     * <p><b>Supported Features:</b>
+     * <ul>
+     *   <li>Numbered lists (1. 2. 3.)</li>
+     *   <li>Unordered lists (-, *)</li>
+     *   <li>Nested lists</li>
+     *   <li>Code blocks (```)</li>
+     *   <li>Headings (# ## ###)</li>
+     *   <li>Bold, italic, strikethrough</li>
+     *   <li>Links and images</li>
+     *   <li>Blockquotes</li>
+     * </ul>
+     *
+     * @param text markdown text to process
+     * @return HTML output
+     */
     private String processSimpleMarkdown(String text) {
-        if (text == null || text.isEmpty()) return "";
-        String result = Util.maskHTML(text, true);
-        result = result.replaceAll("(?m)^### (.+)$", "<h4 style='font-size: 14px; font-weight: 600; margin: 12px 0 8px 0;'>$1</h4>");
-        result = result.replaceAll("(?m)^## (.+)$", "<h3 style='font-size: 15px; font-weight: 600; margin: 14px 0 8px 0;'>$1</h3>");
-        result = result.replaceAll("(?m)^# (.+)$", "<h2 style='font-size: 16px; font-weight: 600; margin: 16px 0 10px 0;'>$1</h2>");
-        result = result.replaceAll("\\*\\*(.+?)\\*\\*", "<strong>$1</strong>");
-        result = result.replaceAll("__(.+?)__", "<strong>$1</strong>");
-        result = result.replaceAll("(?<!\\*)\\*(?!\\*)(.+?)(?<!\\*)\\*(?!\\*)", "<em>$1</em>");
-        result = result.replaceAll("`([^`]+)`", "<code style='background: #f5f5f5; padding: 2px 6px; border-radius: 3px; font-family: monospace; font-size: 0.9em;'>$1</code>");
-        result = result.replaceAll("(?m)^- (.+)$", "<li style='margin-left: 16px; list-style-type: disc;'>$1</li>");
-        result = result.replaceAll("(?m)^\\* (.+)$", "<li style='margin-left: 16px; list-style-type: disc;'>$1</li>");
-        result = result.replace("\n", "<br/>");
-        result = result.replaceAll("</h2><br/>", "</h2>");
-        result = result.replaceAll("</h3><br/>", "</h3>");
-        result = result.replaceAll("</h4><br/>", "</h4>");
-        result = result.replaceAll("</li><br/>", "</li>");
-        return result;
+        if (text == null || text.isEmpty()) {
+            return "";
+        }
+
+        // Use CommonMark for full markdown support (ADR-047)
+        // This handles lists, code blocks, and all standard markdown
+        return CommonMarkRenderer.render(text);
     }
 
     /**
