@@ -1,4 +1,6 @@
-# ADR-027: Chain Maintainability and UI Configuration Strategy
+# ADR-041: Chain Maintainability and UI Configuration Strategy
+
+> **Note:** Renumbered from ADR-027 to resolve numbering conflict with ADR-027 (Implementation Roadmap).
 
 ## Status
 

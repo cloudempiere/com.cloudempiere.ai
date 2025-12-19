@@ -417,6 +417,7 @@ Follow [Conventional Commits](https://conventionalcommits.org/):
 - [ADR-027](docs/adr/027-implementation-roadmap-priority.md) - Implementation Roadmap and Priority Matrix
 - [ADR-034](docs/adr/034-google-gemini-provider-integration.md) - Google Gemini Provider Integration
 - [ADR-035](docs/adr/035-java-version-strategy.md) - Java Version Strategy and Migration Path
+- [ADR-042](docs/adr/042-satellite-ai-provider-integration.md) - AI Hub Provider Integration
 
 ### Data & Intelligence
 - [ADR-005](docs/adr/005-intelligent-data-source-routing.md) - Intelligent Data Source Routing (Superseded by ADR-012)
@@ -425,6 +426,7 @@ Follow [Conventional Commits](https://conventionalcommits.org/):
 - [ADR-008](docs/adr/008-llm-instruction-following.md) - LLM Instruction Following Strategy
 - [ADR-012](docs/adr/012-rag-based-context-retrieval.md) - RAG-Based Context Retrieval
 - [ADR-026](docs/adr/026-vector-database-strategy.md) - Vector Database Strategy (AWS pgvector vs alternatives)
+- [ADR-040](docs/adr/040-embedding-ingestion-evolution.md) - Embedding Ingestion Evolution Strategy
 
 ### Agent Architecture
 - [ADR-009](docs/adr/009-domain-boundaries-agent-scope.md) - Domain Boundaries and Agent Scope Architecture
@@ -442,6 +444,10 @@ Follow [Conventional Commits](https://conventionalcommits.org/):
 - [ADR-036](docs/adr/036-chat-ownership-and-sharing-model.md) - Chat Ownership and Sharing Model
 - [ADR-037](docs/adr/037-language-detection-session-management.md) - Language Detection and Session Language Management
 - [ADR-038](docs/adr/038-user-friendly-error-handling.md) - User-Friendly Error Handling and Issue Tracking
+- [ADR-039](docs/adr/039-chat-panel-record-zoom-drill.md) - Chat Panel Record Zoom and Drill Integration
+- [ADR-041](docs/adr/041-chain-maintainability-ui-configuration.md) - Chain Maintainability and UI Configuration
+- [ADR-047](docs/adr/047-streaming-chat-rendering-best-practices.md) - Streaming Chat Rendering Best Practices
+- [ADR-048](docs/adr/048-comprehensive-security-strategy.md) - Comprehensive Security Strategy
 
 ### Use Cases - Phase 1 (MVP)
 - [ADR-017](docs/adr/017-chart-executive-overview.md) - Chart Executive Overview

@@ -31,7 +31,7 @@ public class X_AIG_Provider extends PO implements I_AIG_Provider, I_Persistent
 	/**
 	 *
 	 */
-	private static final long serialVersionUID = 20251218L;
+	private static final long serialVersionUID = 20251208L;
 
     /** Standard Constructor */
     public X_AIG_Provider (Properties ctx, int AIG_Provider_ID, String trxName)
@@ -156,12 +156,10 @@ public class X_AIG_Provider extends PO implements I_AIG_Provider, I_Persistent
 	public static final String AIGPROVIDERTYPE_AWSBedrock = "ABE";
 	/** Anthropic Claude = ANT */
 	public static final String AIGPROVIDERTYPE_AnthropicClaude = "ANT";
-	/** Mock AI Hub = MOA */
-	public static final String AIGPROVIDERTYPE_MockAIHub = "MOA";
+	/** Mock OpenAI = MOA */
+	public static final String AIGPROVIDERTYPE_MockOpenAI = "MOA";
 	/** Ollama = OLL */
 	public static final String AIGPROVIDERTYPE_Ollama = "OLL";
-	/** iDempiere AI Hub = SAT */
-	public static final String AIGPROVIDERTYPE_IDempiereAIHub = "SAT";
 	/** Set Provider Type.
 		@param AIGProviderType The type of the AI Provider
 	*/
@@ -246,21 +244,5 @@ public class X_AIG_Provider extends PO implements I_AIG_Provider, I_Persistent
 	public String getName()
 	{
 		return (String)get_Value(COLUMNNAME_Name);
-	}
-
-	/** Set URL.
-		@param URL URL
-	*/
-	public void setURL (String URL)
-	{
-		set_Value (COLUMNNAME_URL, URL);
-	}
-
-	/** Get URL.
-		@return URL
-	  */
-	public String getURL()
-	{
-		return (String)get_Value(COLUMNNAME_URL);
 	}
 }

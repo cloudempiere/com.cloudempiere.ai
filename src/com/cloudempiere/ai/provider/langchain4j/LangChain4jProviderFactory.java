@@ -44,19 +44,17 @@ public class LangChain4jProviderFactory {
     /** Provider type constants matching AD_Ref_List values */
     public static final String PROVIDER_ANTHROPIC = X_AIG_Provider.AIGPROVIDERTYPE_AnthropicClaude;
     public static final String PROVIDER_BEDROCK = X_AIG_Provider.AIGPROVIDERTYPE_AWSBedrock;
-    public static final String PROVIDER_MOCK_AI_HUB = X_AIG_Provider.AIGPROVIDERTYPE_MockAIHub;
-    public static final String PROVIDER_OLLAMA = X_AIG_Provider.AIGPROVIDERTYPE_Ollama;
+    public static final String PROVIDER_MOCK_OPENAI = X_AIG_Provider.AIGPROVIDERTYPE_MockOpenAI;
+    public static final String PROVIDER_OLLAMA = "OLL";    // To be added to AD_Ref_List
     public static final String PROVIDER_OPENAI = "OAI";    // To be added to AD_Ref_List
     public static final String PROVIDER_LLAMA = "LLA";     // Meta Llama via Ollama - To be added to AD_Ref_List
-    /** AI Hub provider type - routes requests to iDempiere AI Hub Service (ADR-042) */
-    public static final String PROVIDER_AI_HUB = X_AIG_Provider.AIGPROVIDERTYPE_IDempiereAIHub;
 
     /** Default model names per provider */
     private static final String DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-4-20250514";
     private static final String DEFAULT_BEDROCK_MODEL = "anthropic.claude-3-5-sonnet-20241022-v2:0";
     private static final String DEFAULT_BEDROCK_REGION = "us-east-1";
-    private static final String DEFAULT_MOCK_AI_HUB_MODEL = "llama3.2";
-    private static final String DEFAULT_MOCK_AI_HUB_URL = "http://localhost:8090/v1";  // Mock AI Hub for testing
+    private static final String DEFAULT_MOCK_OPENAI_MODEL = "llama3.2";
+    private static final String DEFAULT_MOCK_OPENAI_URL = "http://localhost:8081/v1";  // iDempiere-CLI Chat API (ADR-048)
     private static final String DEFAULT_OLLAMA_MODEL = "llama3.2";
     private static final String DEFAULT_OPENAI_MODEL = "gpt-4o";
     private static final String DEFAULT_LLAMA_MODEL = "llama3.2";
@@ -64,14 +62,9 @@ public class LangChain4jProviderFactory {
 
     /** Default embedding model names per provider */
     private static final String DEFAULT_BEDROCK_EMBEDDING_MODEL = "amazon.titan-embed-text-v2:0";
-    private static final String DEFAULT_MOCK_AI_HUB_EMBEDDING_MODEL = "nomic-embed-text";
+    private static final String DEFAULT_MOCK_OPENAI_EMBEDDING_MODEL = "nomic-embed-text";
     private static final String DEFAULT_OLLAMA_EMBEDDING_MODEL = "nomic-embed-text";
     private static final String DEFAULT_OPENAI_EMBEDDING_MODEL = "text-embedding-3-small";
-
-    /** Default AI Hub configuration */
-    private static final String DEFAULT_AI_HUB_URL = "http://localhost:8090";
-    private static final String DEFAULT_AI_HUB_MODEL = "claude-sonnet-4";
-    private static final int DEFAULT_AI_HUB_TIMEOUT_SECONDS = 120;
 
     /** Cache for model instances by provider ID */
     private static final Map<Integer, ChatLanguageModel> modelCache = new ConcurrentHashMap<>();
@@ -82,16 +75,16 @@ public class LangChain4jProviderFactory {
     private static boolean metricsEnabled = true;
 
     /**
-     * Create a ChatLanguageModel from provider configuration.
+     * Create a ChatLanguageModel from MAIProvider configuration.
      *
      * <p>Uses the ModelName from the provider configuration if set,
      * otherwise falls back to provider-specific defaults.
      *
-     * @param config Provider configuration (MAIProvider or IAIProviderConfig implementation)
+     * @param config MAIProvider database configuration
      * @return ChatLanguageModel instance
      * @throws IllegalArgumentException if provider type is unknown
      */
-    public static ChatLanguageModel create(IAIProviderConfig config) {
+    public static ChatLanguageModel create(MAIProvider config) {
         // Use ModelName from config if set, otherwise null (will use defaults)
         String modelName = config.getModelName();
         if (modelName != null && modelName.trim().isEmpty()) {
@@ -103,12 +96,12 @@ public class LangChain4jProviderFactory {
     /**
      * Create a ChatLanguageModel with optional model name override.
      *
-     * @param config Provider configuration (MAIProvider or IAIProviderConfig implementation)
+     * @param config MAIProvider database configuration
      * @param modelName Optional model name (uses config.getModelName() or default if null)
      * @param baseUrl Optional base URL for Ollama (uses default if null)
      * @return ChatLanguageModel instance
      */
-    public static ChatLanguageModel create(IAIProviderConfig config, String modelName, String baseUrl) {
+    public static ChatLanguageModel create(MAIProvider config, String modelName, String baseUrl) {
         String providerType = config.getAIGProviderType();
         String apiKey = config.getAPIKey();
 
@@ -128,16 +121,14 @@ public class LangChain4jProviderFactory {
                 return createAnthropicModel(apiKey, modelName);
             case PROVIDER_BEDROCK:
                 return createBedrockModel(modelName, apiKey);
-            case PROVIDER_MOCK_AI_HUB:
-                return createMockAIHubModel(baseUrl, modelName, apiKey);
+            case PROVIDER_MOCK_OPENAI:
+                return createMockOpenAiModel(baseUrl, modelName, apiKey);
             case PROVIDER_OLLAMA:
                 return createOllamaModel(baseUrl, modelName);
             case PROVIDER_OPENAI:
                 return createOpenAiModel(apiKey, modelName);
             case PROVIDER_LLAMA:
                 return createLlamaModel(baseUrl, modelName);
-            case PROVIDER_AI_HUB:
-                return createAIHubModel(config);
             default:
                 throw new IllegalArgumentException("Unknown provider type: " + providerType);
         }
@@ -149,10 +140,10 @@ public class LangChain4jProviderFactory {
      * <p>Uses the ModelName from the provider configuration if set,
      * otherwise falls back to provider-specific defaults.
      *
-     * @param config Provider configuration (MAIProvider or IAIProviderConfig implementation)
+     * @param config MAIProvider database configuration
      * @return StreamingChatLanguageModel instance
      */
-    public static StreamingChatLanguageModel createStreaming(IAIProviderConfig config) {
+    public static StreamingChatLanguageModel createStreaming(MAIProvider config) {
         // Use ModelName from config if set, otherwise null (will use defaults)
         String modelName = config.getModelName();
         if (modelName != null && modelName.trim().isEmpty()) {
@@ -164,7 +155,7 @@ public class LangChain4jProviderFactory {
     /**
      * Create a StreamingChatLanguageModel with optional model name override.
      */
-    public static StreamingChatLanguageModel createStreaming(IAIProviderConfig config, String modelName, String baseUrl) {
+    public static StreamingChatLanguageModel createStreaming(MAIProvider config, String modelName, String baseUrl) {
         String providerType = config.getAIGProviderType();
         String apiKey = config.getAPIKey();
 
@@ -184,16 +175,14 @@ public class LangChain4jProviderFactory {
                 return createAnthropicStreamingModel(apiKey, modelName);
             case PROVIDER_BEDROCK:
                 return createBedrockStreamingModel(modelName, apiKey);
-            case PROVIDER_MOCK_AI_HUB:
-                return createMockAIHubStreamingModel(baseUrl, modelName, apiKey);
+            case PROVIDER_MOCK_OPENAI:
+                return createMockOpenAiStreamingModel(baseUrl, modelName, apiKey);
             case PROVIDER_OLLAMA:
                 return createOllamaStreamingModel(baseUrl, modelName);
             case PROVIDER_OPENAI:
                 return createOpenAiStreamingModel(apiKey, modelName);
             case PROVIDER_LLAMA:
                 return createLlamaStreamingModel(baseUrl, modelName);
-            case PROVIDER_AI_HUB:
-                return createAIHubStreamingModel(config);
             default:
                 throw new IllegalArgumentException("Streaming not supported for provider: " + providerType);
         }
@@ -202,7 +191,7 @@ public class LangChain4jProviderFactory {
     /**
      * Get or create a cached ChatLanguageModel instance.
      */
-    public static ChatLanguageModel getOrCreate(IAIProviderConfig config) {
+    public static ChatLanguageModel getOrCreate(MAIProvider config) {
         return modelCache.computeIfAbsent(config.getAIG_Provider_ID(),
             id -> create(config));
     }
@@ -243,23 +232,23 @@ public class LangChain4jProviderFactory {
      *   <li>OpenAI → text-embedding-3-small</li>
      * </ul>
      *
-     * @param config Provider configuration (MAIProvider or IAIProviderConfig implementation)
+     * @param config MAIProvider database configuration
      * @return EmbeddingModel instance
      * @throws IllegalArgumentException if provider type is unknown
      */
-    public static EmbeddingModel createEmbeddingModel(IAIProviderConfig config) {
+    public static EmbeddingModel createEmbeddingModel(MAIProvider config) {
         return createEmbeddingModel(config, null, null);
     }
 
     /**
      * Create an EmbeddingModel with optional model name override.
      *
-     * @param config Provider configuration (MAIProvider or IAIProviderConfig implementation)
+     * @param config MAIProvider database configuration
      * @param modelName Optional model name (uses default if null)
      * @param baseUrl Optional base URL for Ollama (uses default if null)
      * @return EmbeddingModel instance
      */
-    public static EmbeddingModel createEmbeddingModel(IAIProviderConfig config, String modelName, String baseUrl) {
+    public static EmbeddingModel createEmbeddingModel(MAIProvider config, String modelName, String baseUrl) {
         String providerType = config.getAIGProviderType();
         String apiKey = config.getAPIKey();
 
@@ -274,8 +263,8 @@ public class LangChain4jProviderFactory {
             case PROVIDER_BEDROCK:
                 return createBedrockEmbeddingModel(modelName, apiKey);
 
-            case PROVIDER_MOCK_AI_HUB:
-                return createMockAIHubEmbeddingModel(baseUrl, modelName, apiKey);
+            case PROVIDER_MOCK_OPENAI:
+                return createMockOpenAiEmbeddingModel(baseUrl, modelName, apiKey);
 
             case PROVIDER_OLLAMA:
                 return createOllamaEmbeddingModel(baseUrl, modelName);
@@ -287,9 +276,6 @@ public class LangChain4jProviderFactory {
                 // Llama uses Ollama for embeddings with nomic-embed-text or similar
                 return createLlamaEmbeddingModel(baseUrl, modelName);
 
-            case PROVIDER_AI_HUB:
-                return createAIHubEmbeddingModel(config);
-
             default:
                 // Fallback to Bedrock Titan for unknown providers
                 log.warning("Unknown provider type: " + providerType + ", falling back to Bedrock Titan Embeddings");
@@ -300,10 +286,10 @@ public class LangChain4jProviderFactory {
     /**
      * Get or create a cached EmbeddingModel instance.
      *
-     * @param config Provider configuration (MAIProvider or IAIProviderConfig implementation)
+     * @param config MAIProvider configuration
      * @return Cached or newly created EmbeddingModel
      */
-    public static EmbeddingModel getOrCreateEmbeddingModel(IAIProviderConfig config) {
+    public static EmbeddingModel getOrCreateEmbeddingModel(MAIProvider config) {
         return embeddingModelCache.computeIfAbsent(config.getAIG_Provider_ID(),
             id -> createEmbeddingModel(config));
     }
@@ -317,11 +303,10 @@ public class LangChain4jProviderFactory {
     public static boolean hasNativeEmbeddings(String providerType) {
         // Only these providers have native embedding APIs
         return PROVIDER_BEDROCK.equals(providerType) ||
-               PROVIDER_MOCK_AI_HUB.equals(providerType) ||
+               PROVIDER_MOCK_OPENAI.equals(providerType) ||
                PROVIDER_OLLAMA.equals(providerType) ||
                PROVIDER_OPENAI.equals(providerType) ||
-               PROVIDER_LLAMA.equals(providerType) ||
-               PROVIDER_AI_HUB.equals(providerType);
+               PROVIDER_LLAMA.equals(providerType);
     }
 
     // ========================================================================
@@ -428,97 +413,60 @@ public class LangChain4jProviderFactory {
     }
 
     /**
-     * Create a ChatLanguageModel for Mock AI Hub (testing/development).
+     * Create a ChatLanguageModel for MockOpenAI (OpenAI-compatible API).
      *
-     * <p><b>In-Plugin Mock:</b> No external HTTP server required, runs directly
-     * in the OSGi plugin for zero-configuration testing.
+     * <p>This provider connects to an OpenAI-compatible API endpoint, such as:
+     * <ul>
+     *   <li>iDempiere-CLI Chat API (ADR-048) - http://localhost:8081/v1</li>
+     *   <li>Local mock servers for testing</li>
+     *   <li>Alternative OpenAI-compatible LLM APIs</li>
+     * </ul>
      *
      * <p>Useful for:
      * <ul>
-     *   <li>Unit and integration testing</li>
-     *   <li>Development without AI Hub infrastructure</li>
-     *   <li>CI/CD pipelines</li>
-     *   <li>Quick prototyping and demos</li>
+     *   <li>Testing without API costs</li>
+     *   <li>Development environments</li>
+     *   <li>Integration testing</li>
+     *   <li>Using local LLMs via OpenAI-compatible wrappers</li>
      * </ul>
      *
-     * <p><b>Note:</b> Returns a simple non-streaming model. Use createMockAIHubStreamingModel
-     * for streaming support.
-     *
-     * @param baseUrl Ignored (kept for API compatibility)
-     * @param modelName Model name (default: mock-ai-hub)
-     * @param apiKey Ignored (kept for API compatibility)
-     * @return ChatLanguageModel configured for in-plugin mock
+     * @param baseUrl API base URL (default: http://localhost:8081/v1)
+     * @param modelName Model name (default: llama3.2)
+     * @param apiKey API key (optional, can be dummy value "test" for local servers)
+     * @return ChatLanguageModel configured for MockOpenAI
      */
-    private static ChatLanguageModel createMockAIHubModel(String baseUrl, String modelName, String apiKey) {
-        log.info("Creating in-plugin Mock AI Hub (no HTTP server required)");
+    private static ChatLanguageModel createMockOpenAiModel(String baseUrl, String modelName, String apiKey) {
+        var builder = OpenAiChatModel.builder()
+            .baseUrl(baseUrl != null ? baseUrl : DEFAULT_MOCK_OPENAI_URL)
+            .apiKey(apiKey != null && !apiKey.isEmpty() ? apiKey : "test")  // Dummy API key for local servers
+            .modelName(modelName != null ? modelName : DEFAULT_MOCK_OPENAI_MODEL)
+            .temperature(0.7)
+            .logRequests(true)
+            .logResponses(true);
 
-        // For non-streaming, wrap the streaming model
-        StreamingChatLanguageModel streamingModel = new MockAIHubChatModel(
-            modelName != null ? modelName : DEFAULT_MOCK_AI_HUB_MODEL,
-            true  // verbose logging
-        );
+        // Add observability listener (ADR-013)
+        if (metricsEnabled) {
+            builder.listeners(List.of(createMetricsListener("mock-openai")));
+        }
 
-        // Convert to non-streaming by blocking on completion
-        return new ChatLanguageModel() {
-            @Override
-            public dev.langchain4j.model.output.Response<dev.langchain4j.data.message.AiMessage> generate(
-                    List<dev.langchain4j.data.message.ChatMessage> messages) {
-                java.util.concurrent.CompletableFuture<dev.langchain4j.model.output.Response<dev.langchain4j.data.message.AiMessage>> future =
-                    new java.util.concurrent.CompletableFuture<>();
-
-                streamingModel.generate(messages, new dev.langchain4j.model.StreamingResponseHandler<dev.langchain4j.data.message.AiMessage>() {
-                    @Override
-                    public void onNext(String token) {
-                        // Collect tokens (not needed for non-streaming)
-                    }
-
-                    @Override
-                    public void onComplete(dev.langchain4j.model.output.Response<dev.langchain4j.data.message.AiMessage> response) {
-                        future.complete(response);
-                    }
-
-                    @Override
-                    public void onError(Throwable error) {
-                        future.completeExceptionally(error);
-                    }
-                });
-
-                try {
-                    return future.get();
-                } catch (Exception e) {
-                    throw new RuntimeException("Mock AI Hub generation failed", e);
-                }
-            }
-        };
+        return builder.build();
     }
 
     /**
-     * Create a StreamingChatLanguageModel for Mock AI Hub.
+     * Create a StreamingChatLanguageModel for MockOpenAI (OpenAI-compatible API).
      *
-     * <p><b>In-Plugin Mock:</b> No external HTTP server required, runs directly
-     * in the OSGi plugin. Provides streaming responses word-by-word with contextual
-     * mock data.
-     *
-     * <p><b>Benefits:</b>
-     * <ul>
-     *   <li>✅ Zero configuration - works immediately</li>
-     *   <li>✅ No external dependencies</li>
-     *   <li>✅ No port conflicts</li>
-     *   <li>✅ Fast in-memory processing</li>
-     *   <li>✅ Can be used as production fallback</li>
-     * </ul>
-     *
-     * @param baseUrl Ignored (kept for API compatibility)
-     * @param modelName Model name (default: mock-ai-hub)
-     * @param apiKey Ignored (kept for API compatibility)
-     * @return StreamingChatLanguageModel configured for in-plugin mock
+     * @param baseUrl API base URL (default: http://localhost:8081/v1)
+     * @param modelName Model name (default: llama3.2)
+     * @param apiKey API key (optional, can be dummy value "test" for local servers)
+     * @return StreamingChatLanguageModel configured for MockOpenAI
      */
-    private static StreamingChatLanguageModel createMockAIHubStreamingModel(String baseUrl, String modelName, String apiKey) {
-        log.info("Creating in-plugin Mock AI Hub (no HTTP server required)");
-        return new MockAIHubChatModel(
-            modelName != null ? modelName : DEFAULT_MOCK_AI_HUB_MODEL,
-            true  // verbose logging
-        );
+    private static StreamingChatLanguageModel createMockOpenAiStreamingModel(String baseUrl, String modelName, String apiKey) {
+        return OpenAiStreamingChatModel.builder()
+            .baseUrl(baseUrl != null ? baseUrl : DEFAULT_MOCK_OPENAI_URL)
+            .apiKey(apiKey != null && !apiKey.isEmpty() ? apiKey : "test")  // Dummy API key for local servers
+            .modelName(modelName != null ? modelName : DEFAULT_MOCK_OPENAI_MODEL)
+            .temperature(0.7)
+            .build();
     }
 
     private static ChatLanguageModel createOpenAiModel(String apiKey, String modelName) {
@@ -690,21 +638,21 @@ public class LangChain4jProviderFactory {
     }
 
     /**
-     * Create an EmbeddingModel for Mock AI Hub.
+     * Create an EmbeddingModel for MockOpenAI (OpenAI-compatible API).
      *
      * <p>Uses OpenAI's embedding model interface but connects to a local
-     * or mock endpoint (port 8081) for testing without real AI Hub.
+     * or mock endpoint (e.g., iDempiere-CLI Chat API).
      *
      * @param baseUrl API base URL (default: http://localhost:8081/v1)
      * @param modelName Embedding model name (default: nomic-embed-text)
-     * @param apiKey API key (optional, uses "test" dummy value)
-     * @return EmbeddingModel configured for Mock AI Hub embeddings
+     * @param apiKey API key (optional, can be dummy value "test" for local servers)
+     * @return EmbeddingModel configured for MockOpenAI embeddings
      */
-    private static EmbeddingModel createMockAIHubEmbeddingModel(String baseUrl, String modelName, String apiKey) {
+    private static EmbeddingModel createMockOpenAiEmbeddingModel(String baseUrl, String modelName, String apiKey) {
         return OpenAiEmbeddingModel.builder()
-            .baseUrl(baseUrl != null ? baseUrl : DEFAULT_MOCK_AI_HUB_URL)
-            .apiKey(apiKey != null && !apiKey.isEmpty() ? apiKey : "test")  // Dummy key for mock
-            .modelName(modelName != null ? modelName : DEFAULT_MOCK_AI_HUB_EMBEDDING_MODEL)
+            .baseUrl(baseUrl != null ? baseUrl : DEFAULT_MOCK_OPENAI_URL)
+            .apiKey(apiKey != null && !apiKey.isEmpty() ? apiKey : "test")  // Dummy API key for local servers
+            .modelName(modelName != null ? modelName : DEFAULT_MOCK_OPENAI_EMBEDDING_MODEL)
             .build();
     }
 
@@ -737,177 +685,6 @@ public class LangChain4jProviderFactory {
             .apiKey(apiKey)
             .modelName(modelName != null ? modelName : DEFAULT_OPENAI_EMBEDDING_MODEL)
             .build();
-    }
-
-    // ========================================================================
-    // AI Hub Provider Methods (ADR-042)
-    // ========================================================================
-
-    /**
-     * Create a ChatLanguageModel that routes through iDempiere AI Hub.
-     *
-     * <p>The AI Hub service exposes an OpenAI-compatible REST API, so we use
-     * OpenAiChatModel with custom baseUrl pointing to the AI Hub.
-     *
-     * <p>Benefits of AI Hub routing:
-     * <ul>
-     *   <li>Access to LangChain4j 1.x features (MCP, extended thinking)</li>
-     *   <li>Centralized AI processing and cost management</li>
-     *   <li>Advanced observability and caching</li>
-     *   <li>Multi-tenant support with context isolation</li>
-     * </ul>
-     *
-     * @param config Provider configuration with AI Hub endpoint and auth token
-     * @return ChatLanguageModel proxying through AI Hub
-     */
-    private static ChatLanguageModel createAIHubModel(IAIProviderConfig config) {
-        String endpoint = config.getEndpoint();
-        if (endpoint == null || endpoint.isEmpty()) {
-            endpoint = DEFAULT_AI_HUB_URL;
-            log.info("AI Hub endpoint not configured, using default: " + endpoint);
-        }
-
-        String apiKey = config.getAPIKey();
-        if (apiKey == null || apiKey.isEmpty()) {
-            apiKey = "mock-token";  // Allow mock mode for development
-            log.warning("AI Hub API key not configured, using mock token for development");
-        }
-
-        // Normalize endpoint URL
-        if (!endpoint.endsWith("/")) {
-            endpoint = endpoint + "/";
-        }
-        String baseUrl = endpoint + "v1";
-
-        String modelName = config.getModelName();
-        if (modelName == null || modelName.isEmpty()) {
-            modelName = DEFAULT_AI_HUB_MODEL;
-        }
-
-        log.warning("Creating AI Hub proxy model: endpoint=" + endpoint + ", model=" + modelName);
-        log.warning("AI Hub baseUrl: " + baseUrl);
-
-        // Use OpenAI-compatible client (AI Hub exposes /v1/chat/completions)
-        var builder = OpenAiChatModel.builder()
-            .baseUrl(baseUrl)
-            .apiKey(apiKey)
-            .modelName(modelName)
-            .temperature(0.7)
-            .logRequests(true)
-            .logResponses(true);
-
-        // Add observability listener
-        if (metricsEnabled) {
-            builder.listeners(List.of(createMetricsListener("ai-hub")));
-        }
-
-        return builder.build();
-    }
-
-    /**
-     * Create a StreamingChatLanguageModel through AI Hub.
-     *
-     * @param config Provider configuration with AI Hub endpoint and auth token
-     * @return StreamingChatLanguageModel proxying through AI Hub
-     */
-    private static StreamingChatLanguageModel createAIHubStreamingModel(IAIProviderConfig config) {
-        String endpoint = config.getEndpoint();
-        if (endpoint == null || endpoint.isEmpty()) {
-            endpoint = DEFAULT_AI_HUB_URL;
-            log.info("AI Hub streaming endpoint not configured, using default: " + endpoint);
-        }
-
-        String apiKey = config.getAPIKey();
-        if (apiKey == null || apiKey.isEmpty()) {
-            apiKey = "mock-token";
-            log.warning("AI Hub streaming API key not configured, using mock token for development");
-        }
-
-        if (!endpoint.endsWith("/")) {
-            endpoint = endpoint + "/";
-        }
-        String baseUrl = endpoint + "v1";
-
-        String modelName = config.getModelName();
-        if (modelName == null || modelName.isEmpty()) {
-            modelName = DEFAULT_AI_HUB_MODEL;
-        }
-
-        log.warning("Creating AI Hub streaming model: endpoint=" + endpoint + ", model=" + modelName);
-        log.warning("AI Hub streaming baseUrl: " + baseUrl);
-
-        return OpenAiStreamingChatModel.builder()
-            .baseUrl(baseUrl)
-            .apiKey(apiKey)
-            .modelName(modelName)
-            .temperature(0.7)
-            .logRequests(true)
-            .logResponses(true)
-            .build();
-    }
-
-    /**
-     * Create an EmbeddingModel through AI Hub.
-     *
-     * @param config Provider configuration with AI Hub endpoint and auth token
-     * @return EmbeddingModel proxying through AI Hub
-     */
-    private static EmbeddingModel createAIHubEmbeddingModel(IAIProviderConfig config) {
-        String endpoint = config.getEndpoint();
-        if (endpoint == null || endpoint.isEmpty()) {
-            endpoint = DEFAULT_AI_HUB_URL;
-            log.info("AI Hub embedding endpoint not configured, using default: " + endpoint);
-        }
-
-        String apiKey = config.getAPIKey();
-        if (apiKey == null || apiKey.isEmpty()) {
-            apiKey = "mock-token";
-            log.warning("AI Hub embedding API key not configured, using mock token for development");
-        }
-
-        if (!endpoint.endsWith("/")) {
-            endpoint = endpoint + "/";
-        }
-        String baseUrl = endpoint + "v1";
-
-        log.info("Creating AI Hub embedding model: endpoint=" + endpoint);
-
-        return OpenAiEmbeddingModel.builder()
-            .baseUrl(baseUrl)
-            .apiKey(apiKey)
-            .modelName("text-embedding-3-small")  // AI Hub routes appropriately
-            .build();
-    }
-
-    /**
-     * Check if AI Hub service is available.
-     *
-     * @param config Provider configuration with AI Hub endpoint
-     * @return true if AI Hub responds to health check
-     */
-    public static boolean isAIHubHealthy(IAIProviderConfig config) {
-        if (!PROVIDER_AI_HUB.equals(config.getAIGProviderType())) {
-            return true;  // Not an AI Hub provider
-        }
-
-        String endpoint = config.getEndpoint();
-        if (endpoint == null || endpoint.isEmpty()) {
-            endpoint = DEFAULT_AI_HUB_URL;
-        }
-
-        try {
-            java.net.URL healthUrl = new java.net.URL(endpoint + "/health");
-            java.net.HttpURLConnection conn = (java.net.HttpURLConnection) healthUrl.openConnection();
-            conn.setRequestMethod("GET");
-            conn.setConnectTimeout(5000);
-            conn.setReadTimeout(5000);
-
-            int status = conn.getResponseCode();
-            return status == 200;
-        } catch (Exception e) {
-            log.warning("AI Hub health check failed: " + e.getMessage());
-            return false;
-        }
     }
 
     // ========================================================================

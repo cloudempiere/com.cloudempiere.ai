@@ -10,3 +10,5 @@ com.cloudempiere.cache.test*
 
 # macOS system files
 .DS_Store
+/.claude/agents
+/.claude

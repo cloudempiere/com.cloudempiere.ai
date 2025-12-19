@@ -1174,76 +1174,6 @@ This release implements critical P1 infrastructure for production readiness.
 
 ---
 
-### Next: v0.10.0 (Q1 2026)
-**Focus:** RAG Migration, Structured Outputs, Observability, MCP REST API
-
-**Phase 1: RAG Migration (ADR-012) - 2 weeks**
-- Week 1: Setup LangChain4j RAG infrastructure (EmbeddingStore, ContentRetriever)
-  - ✅ Add dependencies: langchain4j-embeddings, langchain4j-ollama (already in pom.xml)
-  - ✅ Create RAGContextManager (~100 lines) - DONE
-  - ✅ Create RAGConversationService - DONE
-  - Parallel testing (RAG vs custom routing)
-- Week 2: Migration and cleanup
-  - Switch AIConversationService to RAG pattern
-  - Remove custom routing code (PromptAnalyzer, ConversationContextManager, EntityExtractor - 630 lines)
-  - Validation testing (target: >50% cache hit rate, >95% accuracy)
-
-**Phase 2: Domain Boundaries (ADR-009) - 1 week**
-- ✅ BoundaryEnforcementFilter - DONE (auto-inject org/client filters)
-- ✅ DataAccessValidator - DONE (table/column permissions)
-- ✅ CostBoundaryMonitor - DONE (budget tracking)
-- ✅ AgentBoundaryRegistry - DONE (predefined boundaries)
-- Integration with existing BoundaryValidator and SecureDatabaseQueryExecutor
-
-**Phase 2: Structured Outputs - 1 week**
-- Structured outputs (OrderSummary, InventoryReport Java records)
-- Type-safe AI responses with validation
-
-**Phase 3: Observability - 1 week**
-- Observability listeners (TokenUsageListener, LatencyListener, AuditListener)
-- Cost tracking and performance metrics
-
-**Phase 4: MCP REST API - 2 weeks**
-- MCP REST API completion (HTTP endpoints for external clients)
-- Enhanced context extraction (form state, process parameters)
-- Performance optimization (query caching, connection pooling)
-
-### Next: v0.11.0 (Q1-Q2 2026)
-**Focus:** LangChain4j Enhancements (ADR-008), Domain Agents, Agentic Workflows
-
-**Phase 1: Instruction Following Enhancements (ADR-008) - 4 weeks**
-- Week 1: Temperature Control (Quick Win)
-  - Set `temperature(0.0)` for deterministic function calling
-  - 1 line of code, 15-minute implementation
-  - **Impact:** Reproducible results for testing, consistent behavior
-
-- Week 2-3: Structured Outputs (High Priority)
-  - Define typed interfaces (`ERPQueryResult`, `Record`) with `@Description` annotations
-  - Replace manual JSON parsing with LangChain4j automatic schema validation
-  - Type-safe AI responses with compile-time validation
-  - **Impact:** 80% less parsing code (100 → 20 lines), automatic retry on invalid structure
-
-- Week 4: Validation Loop (Medium Priority)
-  - Implement `OutputParser` with `formatInstructions()` for automatic error correction
-  - Self-correcting AI (retries with enhanced prompts on validation failure)
-  - **Impact:** 70% less validation code (50 → 15 lines), auto-correction of AI errors
-
-**Expected Results:**
-- ✅ 80% less parsing code
-- ✅ Type-safe responses
-- ✅ Deterministic function calling
-- ✅ Auto-correction of AI errors
-- ✅ 95% → 98% accuracy improvement
-
-**Phase 2: Domain Agents & Agentic Workflows - 4 weeks**
-- Domain-specific agents (InventoryAgent, SalesAgent, PurchasingAgent, HelpDeskAgent)
-- Agentic workflows (sequential, parallel, conditional routing via `langchain4j-agentic`)
-- Input/Output Guards (cost boundaries, PII detection, SQL injection prevention)
-- Process execution tool (AI can trigger iDempiere processes with approval)
-- Report generation tool (AI-generated Jasper reports)
-
----
-
 ## [0.10.1] - 2025-12-01
 
 ### MCP Architecture Validation & Documentation Cleanup
@@ -1743,15 +1673,88 @@ This release implements critical P1 infrastructure for production readiness.
 | 19 | v0.19.0 | 2025-12-08 | Streaming-First Architecture & Tool Support Separation |
 | 20 | v0.20.0 | 2025-12-10 | Language Detection & User-Friendly Error Handling |
 | 21 | v0.21.0 | 2025-12-10 | Real-Time Streaming Improvements (Tables & Emojis) |
+| 22 | v0.22.0 | 2025-12-11 | Clickable Record Links in Chat (ADR-039) |
+| 23 | v0.23.0 | 2025-12-11 | AI Hub Provider Integration (ADR-042) |
+| 24 | v0.24.0 | 2025-12-11 | AI Hub Provider & Language Detection Enhancements |
+| 25 | v0.25.0 | 2025-12-11 | P1 Context Layer Vector Embedding Storage |
+| 26 | v0.26.0 | 2025-12-18 | Service Configuration Cleanup |
+| 27 | v0.27.0 | 2025-12-18 | In-Plugin Mock AI Hub Provider |
+| 28 | v0.28.0 | 2025-12-18 | AD_Message Localization for Progress/Tool Messages |
+| 29 | v0.29.0 | 2025-12-18 | Zoom Links in Markdown Tables Fix |
+| 30 | v0.30.0 | 2025-12-18 | Cell-by-Cell Streaming Table Rendering |
 
 ## Upcoming Phases
 
-| Phase | Version | Target | Milestone |
-|-------|---------|--------|-----------|
-| 22 | v0.22.0 | Q1 2026 | Share Dialog & Advanced Sharing |
-| 23 | v0.23.0 | Q1 2026 | Chart Executive Overview (First Business Case) |
-| 24 | v0.24.0 | Q1 2026 | Domain Agents (Inventory, Sales, Purchasing) |
-| 25 | v1.0.0 | Q2 2026 | Production Release |
+| Phase | Version | Target | Milestone | ADR |
+|-------|---------|--------|-----------|-----|
+| 31 | v0.31.0 | 2025-12 | CommonMark Integration & Unified Rendering | ADR-047 |
+| 32 | v0.32.0 | Q1 2026 | Share Dialog & Advanced Sharing | ADR-036 |
+| 33 | v0.33.0 | Q1 2026 | Chart Executive Overview (First Business Case) | ADR-017 |
+| 34 | v0.34.0 | Q1 2026 | Domain Agents (Inventory, Sales, Purchasing) | ADR-011 |
+| 35 | v1.0.0 | Q2 2026 | Production Release | - |
+
+## Planned Tasks (from ADRs)
+
+> **See also:** [DEPRECATION_ROADMAP.md](docs/DEPRECATION_ROADMAP.md) - Custom code → LangChain4j migration
+
+### 🔴 Critical Priority
+| Task | Target | ADR | Notes |
+|------|--------|-----|-------|
+| Re-enable Zoom Links | v0.31.0 | ADR-039 | Currently disabled for debugging |
+| Remove AD_Client_ID Debug Logging | v0.31.0 | - | Temporary debugging code |
+| **Deprecate Custom DTO Layer** | v0.32.0 | ADR-002 | 1,413 lines → LangChain4j types |
+| **Simplify ThreadAwareChatMemory** | v0.32.0 | ADR-002 | 465 lines → ChatMemory + Listener |
+| **Enhanced Injection Prevention** | v0.32.0 | ADR-048 | Base64, zero-width char detection |
+| **Token Optimization** | v0.32.0 | ADR-048 | Budget-aware retrieval |
+| Structured Outputs | v0.32.0 | ADR-008 | 80% less parsing code |
+| Temperature Control | v0.32.0 | ADR-008 | 1-line quick win |
+
+### 🟡 Medium Priority
+| Task | Target | ADR | Notes |
+|------|--------|-----|-------|
+| Share Dialog (User/Role picker) | v0.32.0 | ADR-036 | Deferred from v0.17.0 |
+| **Deprecate AIStreamCallback** | v0.33.0 | ADR-002 | 259 lines → StreamingResponseHandler |
+| **Remove ToolRegistry** | v0.33.0 | ADR-002 | 450 lines → @Tool annotations only |
+| **Rate Limiting** | v0.33.0 | ADR-048 | Per-user, per-tenant limits |
+| **Response Caching** | v0.33.0 | ADR-048 | Tenant-aware cache |
+| Validation Loop | v0.33.0 | ADR-008 | 70% less validation code |
+| **Replace Routing with RAG** | v0.34.0 | ADR-012 | 1,884 lines → ContentRetriever |
+| **Comprehensive Audit** | v0.34.0 | ADR-048 | AIG_SecurityViolation table |
+| Agentic Patterns | v0.34.0 | ADR-010 | langchain4j-agentic module |
+| MCP REST API | v0.34.0 | ADR-003 | HTTP endpoints for external clients |
+
+### 🟢 Lower Priority
+| Task | Target | ADR | Notes |
+|------|--------|-----|-------|
+| ESC Key Shortcut for Cancel | v0.32.0 | - | Deferred from v0.16.0 |
+| HTTP Connection Close on Cancel | Java 17 | - | Requires LangChain4j v1.8.0+ |
+
+## Known Issues / Temporary Code
+
+> **See [CRITICAL_ISSUES.md](docs/CRITICAL_ISSUES.md) for full issue tracker**
+
+### 🔴 P0 - Blockers (Fix Before Production)
+| Issue | File | Impact |
+|-------|------|--------|
+| Cross-tenant data access | `ChatAccessService.java:78` | SECURITY |
+| NPE in streaming completion | `AIService.java:1050` | CRASH |
+| Thread race condition | `AIChatWidget.java:909` | DATA |
+| Desktop reference invalid | `AIChatWidget.java:948` | CRASH |
+
+### 🟡 P1 - High (Fix Before Scale)
+| Issue | File | Impact |
+|-------|------|--------|
+| Cancellation race | `AIChatWidget.java:2155` | UX |
+| Memory leak in cache | `AIService.java:106` | OOM |
+| O(n²) markdown render | `AIChatStreamingMessage.java:1031` | PERF |
+| Unbounded chunk queue | `AIChatStreamingMessage.java:136` | OOM |
+
+### ⚠️ Temporary Debugging (v0.31.0-SNAPSHOT)
+- **Zoom Links Disabled** - `ZoomLinkProcessor.processZoomLinks()` returns text unchanged
+  - To re-enable: Remove early return in `ZoomLinkProcessor.java:78-82`
+- **AD_Client_ID Logging** - Context validation logging at all critical points
+  - Tags: `[STREAM-INIT]`, `[FINAL-RENDER]`, `[PARTIAL-RENDER]`, `[STREAMING-ZOOM]`, `[TABLE-ZOOM]`, `[ZOOM-PROCESSOR]`
+  - To remove: Search for `AD_Client_ID=` in source files
 
 ## iDempiere Compatibility
 

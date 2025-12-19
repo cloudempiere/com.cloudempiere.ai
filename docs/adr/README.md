@@ -16,7 +16,7 @@ This directory contains architecture decisions for the Cloudempiere AI plugin.
 | [004](004-java-agent-framework.md) | Java Agent Framework Selection | Accepted | 2025-11-26 |
 | [034](034-google-gemini-provider-integration.md) | Google Gemini Provider Integration | Proposed | 2025-12-03 |
 | [035](035-java-version-strategy.md) | Java Version Strategy and Migration Path | Accepted | 2025-12-04 |
-| [038](038-quarkus-AI Hub-ai-service.md) | iDempiere AI Hub AI Service Architecture | Research | 2025-12-10 |
+| [042](042-satellite-ai-provider-integration.md) | AI Hub Provider Integration | Accepted | 2025-12-11 |
 
 ### Data & Intelligence
 
@@ -29,6 +29,7 @@ This directory contains architecture decisions for the Cloudempiere AI plugin.
 | [012](012-rag-based-context-retrieval.md) | RAG-Based Context Retrieval | Accepted | 2025-12-01 |
 | [026](026-vector-database-strategy.md) | Vector Database Strategy | Proposed | 2025-12-03 |
 | [029](029-multi-tenant-ai-access.md) | Multi-Tenant AI Access for Service Providers | Proposed | 2025-12-03 |
+| [040](040-embedding-ingestion-evolution.md) | Embedding Ingestion Evolution Strategy | Accepted | 2025-12-10 |
 
 ### Agent Architecture
 
@@ -46,13 +47,16 @@ This directory contains architecture decisions for the Cloudempiere AI plugin.
 | [013](013-observability-cost-tracking.md) | Observability and Cost Tracking | Accepted | 2025-12-01 |
 | [014](014-guardrails-and-safety.md) | Guardrails and Safety | Accepted | 2025-12-01 |
 | [015](015-conversational-ux-patterns.md) | Conversational UX Patterns | Accepted | 2025-12-01 |
-| [027](027-chain-maintainability-ui-configuration.md) | Chain Maintainability and UI Configuration | Proposed | 2025-12-03 |
+| [048](048-comprehensive-security-strategy.md) | Comprehensive Security Strategy | Accepted | 2025-12-19 |
+| [027](027-implementation-roadmap-priority.md) | Implementation Roadmap and Priority Matrix | Accepted | 2025-12-03 |
 | [031](031-chat-panel-langchain4j-chatmodel-integration.md) | Chat Panel LangChain4j ChatModel Integration | Proposed | 2025-12-03 |
 | [032](032-testing-strategy.md) | Testing Strategy | Proposed | 2025-12-03 |
 | [033](033-streaming-thinking-timeline-ux.md) | Streaming Responses and Thinking Timeline UX | Proposed | 2025-12-03 |
 | [037](037-language-detection-session-management.md) | Language Detection and Session Language Management | Proposed | 2025-12-10 |
 | [038](038-user-friendly-error-handling.md) | User-Friendly Error Handling and Issue Tracking | Accepted | 2025-12-10 |
 | [039](039-chat-panel-record-zoom-drill.md) | Chat Panel Record Zoom and Drill Integration | Implemented v0.22.0 | 2025-12-11 |
+| [041](041-chain-maintainability-ui-configuration.md) | Chain Maintainability and UI Configuration | Proposed | 2025-12-03 |
+| [047](047-streaming-chat-rendering-best-practices.md) | Streaming Chat Rendering Best Practices | Accepted | 2025-12-18 |
 
 ### Use Cases - Phase 1 (MVP)
 
@@ -239,7 +243,12 @@ Each ADR includes:
 - iDempiere wiki and Application Dictionary integration
 - Context-aware help system
 
-**ADR-027: Chain Maintainability and UI Configuration**
+**ADR-027: Implementation Roadmap and Priority Matrix**
+- Context-First, Business-Validated implementation approach
+- Vector/RAG as core context service enabling meaningful AI responses
+- Priority tiers: P0 Foundation → P1 Core → P2 Enhancement → P3 Advanced
+
+**ADR-041: Chain Maintainability and UI Configuration**
 - Hybrid approach: code structure + database configuration
 - OSGi hot-deploy for chain updates without server restart
 - UI-configurable prompts, parameters, and cost budgets
