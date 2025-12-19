@@ -22,8 +22,7 @@ Import-Package: org.adempiere.webui.factory,
  org.zkoss.zk.ui,
  org.zkoss.zk.ui.event,
  org.zkoss.zk.ui.util,
- org.zkoss.zul,
- software.amazon.eventstream
+ org.zkoss.zul
 Service-Component: OSGI-INF/*.xml
 Bundle-ActivationPolicy: lazy
 Export-Package: com.cloudempiere.ai.component,
@@ -111,4 +110,7 @@ Bundle-ClassPath: .,
  lib/openai4j.jar,
  lib/slf4j-api.jar,
  lib/slf4j-nop.jar,
- lib/jtokkit.jar
+ lib/jtokkit.jar,
+ lib/commonmark.jar,
+ lib/commonmark-ext-gfm-tables.jar,
+ lib/commonmark-ext-gfm-strikethrough.jar

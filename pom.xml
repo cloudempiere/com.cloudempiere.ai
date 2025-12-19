@@ -393,6 +393,23 @@
 								    <artifactId>jtokkit</artifactId>
 								    <version>1.0.0</version>
 								</artifactItem>
+								<!-- CommonMark Java for full markdown parsing (ADR-047) -->
+								<artifactItem>
+								    <groupId>org.commonmark</groupId>
+								    <artifactId>commonmark</artifactId>
+								    <version>0.22.0</version>
+								</artifactItem>
+								<!-- CommonMark extensions for tables, strikethrough, etc. -->
+								<artifactItem>
+								    <groupId>org.commonmark</groupId>
+								    <artifactId>commonmark-ext-gfm-tables</artifactId>
+								    <version>0.22.0</version>
+								</artifactItem>
+								<artifactItem>
+								    <groupId>org.commonmark</groupId>
+								    <artifactId>commonmark-ext-gfm-strikethrough</artifactId>
+								    <version>0.22.0</version>
+								</artifactItem>
 							</artifactItems>
 							<outputDirectory>lib</outputDirectory>
 							<stripVersion>true</stripVersion>
