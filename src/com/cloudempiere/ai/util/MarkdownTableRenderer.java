@@ -629,15 +629,15 @@ public class MarkdownTableRenderer {
                     log.warning("[TABLE-ZOOM] ❌ This means zoom links will NOT be clickable!");
                 }
 
-                // HTML-escape cell content to prevent XSS
+                // Process inline markdown BEFORE escaping to render bold, italic, code
                 // EXCEPTION: Preserve zoom link HTML that was just generated above
                 String safeContent;
                 if (containsZoomLink(displayContent)) {
                     // Cell contains zoom link HTML - preserve it
                     safeContent = displayContent;
                 } else {
-                    // Normal cell - escape for security
-                    safeContent = escapeHtml(displayContent);
+                    // Process inline markdown, then escape for security
+                    safeContent = processInlineMarkdown(displayContent);
                 }
 
                 if (isFirstRow) {
@@ -686,6 +686,43 @@ public class MarkdownTableRenderer {
             .replace(">", "&gt;")
             .replace("\"", "&quot;")
             .replace("'", "&#39;");
+    }
+
+    /**
+     * Process inline markdown (bold, italic, code) in cell content.
+     * Converts markdown syntax to HTML while escaping other content for security.
+     *
+     * <p>Supported inline markdown:
+     * <ul>
+     *   <li><b>Bold:</b> `**text**` or `__text__` → `<strong>text</strong>`</li>
+     *   <li><b>Italic:</b> `*text*` or `_text_` → `<em>text</em>`</li>
+     *   <li><b>Code:</b> `` `text` `` → `<code>text</code>`</li>
+     * </ul>
+     *
+     * @param text cell content with markdown syntax
+     * @return HTML-safe content with markdown converted to tags
+     */
+    private static String processInlineMarkdown(String text) {
+        if (text == null || text.isEmpty()) {
+            return "";
+        }
+
+        // First escape HTML to prevent XSS
+        String escaped = escapeHtml(text);
+
+        // Then convert markdown to HTML tags (in correct order to avoid conflicts)
+        // Process code first (to avoid interfering with bold/italic markers inside code)
+        escaped = escaped.replaceAll("`([^`]+)`", "<code>$1</code>");
+
+        // Process bold (** or __) - must come before italic to avoid conflicts
+        escaped = escaped.replaceAll("\\*\\*([^*]+)\\*\\*", "<strong>$1</strong>");
+        escaped = escaped.replaceAll("__([^_]+)__", "<strong>$1</strong>");
+
+        // Process italic (* or _)
+        escaped = escaped.replaceAll("\\*([^*]+)\\*", "<em>$1</em>");
+        escaped = escaped.replaceAll("_([^_]+)_", "<em>$1</em>");
+
+        return escaped;
     }
 
     /**

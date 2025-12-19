@@ -75,14 +75,8 @@ public class ZoomLinkProcessor {
 	 * @return processed text with HTML zoom links
 	 */
 	public static String processZoomLinks(String text, Properties ctx, String widgetId) {
-		// ========== TEMPORARILY DISABLED FOR DEBUGGING ==========
-		// Return text unchanged - zoom links will show as [[Table:ID|Display]] syntax
-		int clientId = ctx != null ? org.compiere.util.Env.getAD_Client_ID(ctx) : -1;
-		log.warning("[ZOOM-PROCESSOR] DISABLED - Returning text unchanged | AD_Client_ID=" + clientId);
-		return text;
-		// ========================================================
-
-		/* ORIGINAL CODE - COMMENTED OUT
+		// ========== RE-ENABLED: Zoom link processing restored ==========
+		/* ORIGINAL CODE - NOW ACTIVE */
 		if (text == null || text.isEmpty()) {
 			return text;
 		}
@@ -136,7 +130,6 @@ public class ZoomLinkProcessor {
 		}
 
 		return result.toString();
-		*/
 	}
 
 	/**
