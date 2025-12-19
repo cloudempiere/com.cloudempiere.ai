@@ -44,8 +44,9 @@ public class LangChain4jProviderFactory {
     /** Provider type constants matching AD_Ref_List values */
     public static final String PROVIDER_ANTHROPIC = X_AIG_Provider.AIGPROVIDERTYPE_AnthropicClaude;
     public static final String PROVIDER_BEDROCK = X_AIG_Provider.AIGPROVIDERTYPE_AWSBedrock;
-    public static final String PROVIDER_MOCK_OPENAI = X_AIG_Provider.AIGPROVIDERTYPE_MockOpenAI;
-    public static final String PROVIDER_OLLAMA = "OLL";    // To be added to AD_Ref_List
+    public static final String PROVIDER_MOCK_OPENAI = X_AIG_Provider.AIGPROVIDERTYPE_MockAIHub;
+    public static final String PROVIDER_AI_HUB = X_AIG_Provider.AIGPROVIDERTYPE_IDempiereAIHub;
+    public static final String PROVIDER_OLLAMA = X_AIG_Provider.AIGPROVIDERTYPE_Ollama;
     public static final String PROVIDER_OPENAI = "OAI";    // To be added to AD_Ref_List
     public static final String PROVIDER_LLAMA = "LLA";     // Meta Llama via Ollama - To be added to AD_Ref_List
 
@@ -122,6 +123,7 @@ public class LangChain4jProviderFactory {
             case PROVIDER_BEDROCK:
                 return createBedrockModel(modelName, apiKey);
             case PROVIDER_MOCK_OPENAI:
+            case PROVIDER_AI_HUB:
                 return createMockOpenAiModel(baseUrl, modelName, apiKey);
             case PROVIDER_OLLAMA:
                 return createOllamaModel(baseUrl, modelName);
@@ -176,6 +178,7 @@ public class LangChain4jProviderFactory {
             case PROVIDER_BEDROCK:
                 return createBedrockStreamingModel(modelName, apiKey);
             case PROVIDER_MOCK_OPENAI:
+            case PROVIDER_AI_HUB:
                 return createMockOpenAiStreamingModel(baseUrl, modelName, apiKey);
             case PROVIDER_OLLAMA:
                 return createOllamaStreamingModel(baseUrl, modelName);
@@ -264,6 +267,7 @@ public class LangChain4jProviderFactory {
                 return createBedrockEmbeddingModel(modelName, apiKey);
 
             case PROVIDER_MOCK_OPENAI:
+            case PROVIDER_AI_HUB:
                 return createMockOpenAiEmbeddingModel(baseUrl, modelName, apiKey);
 
             case PROVIDER_OLLAMA:
@@ -304,6 +308,7 @@ public class LangChain4jProviderFactory {
         // Only these providers have native embedding APIs
         return PROVIDER_BEDROCK.equals(providerType) ||
                PROVIDER_MOCK_OPENAI.equals(providerType) ||
+               PROVIDER_AI_HUB.equals(providerType) ||
                PROVIDER_OLLAMA.equals(providerType) ||
                PROVIDER_OPENAI.equals(providerType) ||
                PROVIDER_LLAMA.equals(providerType);

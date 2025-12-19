@@ -97,11 +97,14 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 	/** Current async request (for cancellation) */
 	private volatile CompletableFuture<?> currentRequest;
 
-	/** Flag indicating if the current request was cancelled */
-	private volatile boolean requestCancelled = false;
+	/** Flag indicating if the current request was cancelled (atomic for thread-safety) */
+	private final java.util.concurrent.atomic.AtomicBoolean requestCancelled = new java.util.concurrent.atomic.AtomicBoolean(false);
 
 	/** Flag indicating if streaming is in progress */
 	private volatile boolean streamingInProgress = false;
+
+	/** Lock for thread management operations to prevent race conditions */
+	private final Object threadLock = new Object();
 
 	/** Current streaming message component (for cancellation) */
 	private volatile AIChatStreamingMessage currentStreamingMessage;
@@ -906,33 +909,43 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 			refreshContext();
 		}
 
-		// Save user message with proper thread parent
-		MAIChatEntry userEntry = new MAIChatEntry(chat, message);
+		// SAFETY: Atomic operation to prevent race conditions with rapid messages
+		final int threadIdForRequest;
+		synchronized (threadLock) {
+			// Save user message with proper thread parent
+			MAIChatEntry userEntry = new MAIChatEntry(chat, message);
 
-		// Set thread parent if we're in an existing thread
-		// We only support one level: root message + children (no grandchildren)
-		if (currentThreadRootId > 0) {
-			userEntry.setCM_ChatEntryParent_ID(currentThreadRootId);
+			// Set thread parent if we're in an existing thread
+			// We only support one level: root message + children (no grandchildren)
+			if (currentThreadRootId > 0) {
+				userEntry.setCM_ChatEntryParent_ID(currentThreadRootId);
+			}
+
+			userEntry.saveEx();
+
+			// If this is a new thread, it becomes the root
+			if (currentThreadRootId == 0) {
+				currentThreadRootId = userEntry.getCM_ChatEntry_ID();
+			}
+
+			// Capture thread ID before async operation starts
+			threadIdForRequest = currentThreadRootId;
+
+			// Clear input
+			inputBox.setText("");
+
+			// Show user message immediately
+			renderMessage(userEntry);
+			showLoading();
+			scrollToBottom();
 		}
 
-		userEntry.saveEx();
-
-		// If this is a new thread, it becomes the root
-		if (currentThreadRootId == 0) {
-			currentThreadRootId = userEntry.getCM_ChatEntry_ID();
-			// Reload thread list to show new thread
+		// Reload thread list OUTSIDE synchronized block to avoid blocking
+		if (threadIdForRequest != 0 && currentThreadRootId == threadIdForRequest) {
 			loadThreadList();
 		}
 
-		// Clear input
-		inputBox.setText("");
-
-		// Show user message immediately
-		renderMessage(userEntry);
-		showLoading();
-		scrollToBottom();
-
-		// Send message using LangChain4j service
+		// Send message using LangChain4j service (uses captured threadIdForRequest)
 		sendMessageLangChain4j(message);
 	}
 
@@ -970,7 +983,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 		log.warning("[UI-STREAM] ========================================");
 
 		// Reset cancellation state, mark streaming as in progress, and show stop button
-		requestCancelled = false;
+		requestCancelled.set(false);
 		streamingInProgress = true;
 		showStopButton();
 
@@ -1050,7 +1063,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 		AIStreamCallback callback = AIStreamCallback.builder()
 			.onChunk(chunk -> {
 				// Skip if request was cancelled
-				if (requestCancelled) {
+				if (requestCancelled.get()) {
 					return;
 				}
 				log.warning("[UI-STREAM] onChunk received, length=" + (chunk != null ? chunk.length() : 0));
@@ -1065,7 +1078,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 				}
 			})
 			.onToolStart((toolName, args) -> {
-				if (requestCancelled) return;
+				if (requestCancelled.get()) return;
 				log.warning("[UI-STREAM] onToolStart: " + toolName);
 				try {
 					Executions.schedule(desktop, e -> {
@@ -1076,7 +1089,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 				}
 			})
 			.onToolComplete((toolName, result) -> {
-				if (requestCancelled) return;
+				if (requestCancelled.get()) return;
 				log.warning("[UI-STREAM] onToolComplete: " + toolName);
 				try {
 					Executions.schedule(desktop, e -> {
@@ -1087,7 +1100,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 				}
 			})
 			.onToolError((toolName, error) -> {
-				if (requestCancelled) return;
+				if (requestCancelled.get()) return;
 				log.warning("[UI-STREAM] onToolError: " + toolName + " - " + error);
 				try {
 					Executions.schedule(desktop, e -> {
@@ -1098,7 +1111,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 				}
 			})
 			.onThinking(thinkingChunk -> {
-				if (requestCancelled) return;
+				if (requestCancelled.get()) return;
 				log.warning("[UI-STREAM] onThinking received");
 				try {
 					Executions.schedule(desktop, e -> {
@@ -1109,7 +1122,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 				}
 			})
 			.onThinkingComplete(() -> {
-				if (requestCancelled) return;
+				if (requestCancelled.get()) return;
 				log.warning("[UI-STREAM] onThinkingComplete");
 				try {
 					Executions.schedule(desktop, e -> {
@@ -1126,7 +1139,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 						log.warning("[UI-STREAM] Executing onComplete in UI thread");
 
 						// Skip if request was cancelled
-						if (requestCancelled) {
+						if (requestCancelled.get()) {
 							log.warning("[UI-STREAM] Request was cancelled, skipping onComplete");
 							return;
 						}
@@ -1174,7 +1187,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 
 					Executions.schedule(desktop, e -> {
 						// Skip if request was cancelled (cancellation triggers error callback)
-						if (requestCancelled) {
+						if (requestCancelled.get()) {
 							log.warning("[UI-STREAM] Request was cancelled, skipping onError");
 							return;
 						}
@@ -2154,22 +2167,28 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 	 */
 	private void cancelCurrentRequest() {
 		log.info("[CANCEL] Cancel request initiated, streamingInProgress=" + streamingInProgress);
-		requestCancelled = true;
-		streamingInProgress = false;
 
-		// Cancel the CompletableFuture if running (may not help much since streaming is async)
-		if (currentRequest != null && !currentRequest.isDone()) {
-			currentRequest.cancel(true);
-			log.info("[CANCEL] CompletableFuture cancelled");
-		}
+		// SAFETY: Atomic cancellation to prevent race conditions
+		if (requestCancelled.compareAndSet(false, true)) {
+			// Only execute cancel logic once
+			streamingInProgress = false;
 
-		// Mark streaming message as cancelled and persist partial response
-		if (currentStreamingMessage != null) {
-			currentStreamingMessage.markCancelled();
-			log.info("[CANCEL] Streaming message marked as cancelled");
+			// Cancel the CompletableFuture if running (may not help much since streaming is async)
+			if (currentRequest != null && !currentRequest.isDone()) {
+				currentRequest.cancel(true);
+				log.info("[CANCEL] CompletableFuture cancelled");
+			}
 
-			// Persist partial response to database
-			persistCancelledResponse();
+			// Mark streaming message as cancelled and persist partial response
+			if (currentStreamingMessage != null) {
+				currentStreamingMessage.markCancelled();
+				log.info("[CANCEL] Streaming message marked as cancelled");
+
+				// Persist partial response to database
+				persistCancelledResponse();
+			}
+		} else {
+			log.info("[CANCEL] Cancel already in progress, ignoring duplicate request");
 		}
 
 		// Reset UI state
@@ -2225,6 +2244,36 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 			log.info("[CANCEL] Partial response persisted, length=" + partialContent.length());
 		} catch (Exception e) {
 			log.log(Level.WARNING, "Failed to persist cancelled response", e);
+		}
+	}
+
+	/**
+	 * Safely schedule a UI update event, handling cases where desktop becomes unavailable.
+	 * SAFETY: Prevents silent failures when user navigates away during streaming.
+	 *
+	 * @param desktop Desktop instance to schedule on
+	 * @param handler Event handler to execute
+	 * @param event Event to send
+	 */
+	private void safeSchedule(Desktop desktop, java.util.function.Consumer<Event> handler, Event event) {
+		// Check desktop validity before scheduling
+		if (desktop == null || !desktop.isAlive()) {
+			log.fine("Desktop no longer available, cannot schedule UI update: " + event.getName());
+			return;
+		}
+
+		try {
+			Executions.schedule(desktop, e -> {
+				// Double-check desktop is still alive when event executes
+				if (desktop.isAlive()) {
+					handler.accept(e);
+				} else {
+					log.fine("Desktop became unavailable before event executed: " + event.getName());
+				}
+			}, event);
+		} catch (Exception e) {
+			// Catch any ZK exceptions related to desktop unavailability
+			log.log(Level.FINE, "Desktop became unavailable during schedule: " + e.getMessage(), e);
 		}
 	}
 
