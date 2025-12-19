@@ -75,12 +75,21 @@ public class ZoomLinkProcessor {
 	 * @return processed text with HTML zoom links
 	 */
 	public static String processZoomLinks(String text, Properties ctx, String widgetId) {
+		// ========== TEMPORARILY DISABLED FOR DEBUGGING ==========
+		// Return text unchanged - zoom links will show as [[Table:ID|Display]] syntax
+		int clientId = ctx != null ? org.compiere.util.Env.getAD_Client_ID(ctx) : -1;
+		log.warning("[ZOOM-PROCESSOR] DISABLED - Returning text unchanged | AD_Client_ID=" + clientId);
+		return text;
+		// ========================================================
+
+		/* ORIGINAL CODE - COMMENTED OUT
 		if (text == null || text.isEmpty()) {
 			return text;
 		}
 
-		// Debug: Log the text being processed
-		log.warning("[ZOOM-PROCESSOR] Processing text: " + text.substring(0, Math.min(100, text.length())));
+		// Context validation
+		int clientId = ctx != null ? org.compiere.util.Env.getAD_Client_ID(ctx) : -1;
+		log.warning("[ZOOM-PROCESSOR] Processing text | AD_Client_ID=" + clientId + " | length=" + text.length());
 		log.warning("[ZOOM-PROCESSOR] Pattern: " + ZOOM_LINK_PATTERN.pattern());
 
 		StringBuffer result = new StringBuffer();
@@ -127,6 +136,7 @@ public class ZoomLinkProcessor {
 		}
 
 		return result.toString();
+		*/
 	}
 
 	/**
