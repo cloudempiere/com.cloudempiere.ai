@@ -7,9 +7,89 @@ and this project adheres to [Conventional Commits](https://conventionalcommits.o
 
 ## [Unreleased]
 
-### v0.31.0-SNAPSHOT - TBD
+### Added
+- None
 
-**⚠️ TEMPORARY DEBUGGING:**
+### Changed
+- None
+
+### Fixed
+- None
+
+---
+
+## [0.31.0] - 2025-12-19
+
+### Critical Security and Stability Fixes (P0 Blockers)
+
+This release addresses 8 critical security and stability issues identified in production deployment readiness review. All P0 blockers are now resolved.
+
+#### Fixed
+
+- **#1: Cross-Tenant Data Access Vulnerability** ⚠️ **CRITICAL SECURITY**
+  - Fixed chat loading without client ID validation
+  - Chat queries now filter by `AD_Client_ID` at database level
+  - Prevents attackers from querying chats across tenants
+  - File: `ChatAccessService.java:78-93`
+  - Impact: Eliminates cross-tenant data breach risk
+
+- **#2: NPE in Streaming Completion Handler** ⚠️ **CRITICAL STABILITY**
+  - Added comprehensive null checks in `onComplete()` callback
+  - Prevents chat from hanging on null responses
+  - Added catch-all exception handler with user error callback
+  - File: `AIService.java:963-1070`
+  - Impact: Chat no longer hangs on streaming errors
+
+- **#3: Race Condition in Thread Management** ⚠️ **HIGH PRIORITY**
+  - Implemented synchronized block with `threadLock` for atomic operations
+  - Fixed race condition when rapid messages create thread corruption
+  - Thread ID captured before async operation starts
+  - File: `AIChatWidget.java:912-950`
+  - Impact: All messages correctly associated with their threads
+
+- **#4: Invalid Desktop Reference in Callbacks** ⚠️ **CRITICAL STABILITY**
+  - Added `safeSchedule()` helper method for desktop scheduling
+  - Checks desktop validity before and during event execution
+  - Prevents silent failures when user navigates away during streaming
+  - File: `AIChatWidget.java:2250-2278`
+  - Impact: No more silent crashes when window closes
+
+- **#5: Race Condition in Streaming Cancellation** ⚠️ **HIGH PRIORITY**
+  - Changed `requestCancelled` from boolean to `AtomicBoolean`
+  - Implemented atomic `compareAndSet()` for cancellation flag
+  - Prevents chunks from appearing after cancel button clicked
+  - File: `AIChatWidget.java:100-107, 2168-2192`
+  - Impact: Clean cancellation without stale content
+
+- **#6: Memory Leak in Agent/Model Cache** ⚠️ **MEDIUM PRIORITY**
+  - Replaced unbounded `ConcurrentHashMap` with bounded LRU caches
+  - Added `MAX_CACHE_SIZE=100` with automatic eviction
+  - Applies to agent cache, memory cache, and streaming model cache
+  - File: `AIService.java:105-151`
+  - Impact: Prevents OOM in long-running production servers
+
+- **#9: Missing Exception Handler in Guardrails** ⚠️ **MEDIUM PRIORITY**
+  - Added catch-all handlers for unexpected guardrail exceptions
+  - User-friendly error messages instead of crashes
+  - Applies to cost guard and input guard validation
+  - File: `AIService.java:308-329`
+  - Impact: Graceful error handling for all guardrail failures
+
+- **#10: Null Language Dereference** ⚠️ **MEDIUM PRIORITY**
+  - Verified existing null checks for language objects
+  - Already protected with ternary operators
+  - File: `AIService.java:762-763`
+  - Impact: No crashes on unknown language codes
+
+#### Changed
+
+- **Provider Type Constants** (Code Quality)
+  - Fixed `PROVIDER_MOCK_OPENAI` to reference correct constant
+  - Added `PROVIDER_AI_HUB` for iDempiere AI Hub support
+  - Updated all switch statements for consistent provider handling
+  - File: `LangChain4jProviderFactory.java:44-51`
+
+**⚠️ TEMPORARY DEBUGGING (Carried over from v0.30.0):**
 - **Zoom Links Disabled** - `ZoomLinkProcessor.processZoomLinks()` returns text unchanged
   - Purpose: Isolate table rendering issues from zoom link processing
   - Impact: Zoom link syntax `[[Table:ID|Display]]` will show as raw text

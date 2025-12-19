@@ -102,14 +102,53 @@ public class AIService {
     /** Singleton instance */
     private static AIService instance;
 
-    /** Agent cache by provider ID */
-    private final Map<Integer, ERPAgent> agentCache = new ConcurrentHashMap<>();
+    /** Maximum cache size to prevent OOM in long-running servers */
+    private static final int MAX_CACHE_SIZE = 100;
 
-    /** Memory cache by session ID */
-    private final Map<String, MessageWindowChatMemory> memoryCache = new ConcurrentHashMap<>();
+    /** Agent cache by provider ID (bounded LRU cache) */
+    private final Map<Integer, ERPAgent> agentCache = java.util.Collections.synchronizedMap(
+        new java.util.LinkedHashMap<Integer, ERPAgent>(MAX_CACHE_SIZE, 0.75f, true) {
+            private static final long serialVersionUID = 1L;
+            @Override
+            protected boolean removeEldestEntry(java.util.Map.Entry<Integer, ERPAgent> eldest) {
+                boolean shouldRemove = size() > MAX_CACHE_SIZE;
+                if (shouldRemove) {
+                    log.fine("Evicting eldest agent from cache: provider ID " + eldest.getKey());
+                }
+                return shouldRemove;
+            }
+        }
+    );
 
-    /** Streaming model cache by provider ID */
-    private final Map<Integer, StreamingChatLanguageModel> streamingModelCache = new ConcurrentHashMap<>();
+    /** Memory cache by session ID (bounded LRU cache) */
+    private final Map<String, MessageWindowChatMemory> memoryCache = java.util.Collections.synchronizedMap(
+        new java.util.LinkedHashMap<String, MessageWindowChatMemory>(MAX_CACHE_SIZE, 0.75f, true) {
+            private static final long serialVersionUID = 1L;
+            @Override
+            protected boolean removeEldestEntry(java.util.Map.Entry<String, MessageWindowChatMemory> eldest) {
+                boolean shouldRemove = size() > MAX_CACHE_SIZE;
+                if (shouldRemove) {
+                    log.fine("Evicting eldest memory from cache: session ID " + eldest.getKey());
+                }
+                return shouldRemove;
+            }
+        }
+    );
+
+    /** Streaming model cache by provider ID (bounded LRU cache) */
+    private final Map<Integer, StreamingChatLanguageModel> streamingModelCache = java.util.Collections.synchronizedMap(
+        new java.util.LinkedHashMap<Integer, StreamingChatLanguageModel>(MAX_CACHE_SIZE, 0.75f, true) {
+            private static final long serialVersionUID = 1L;
+            @Override
+            protected boolean removeEldestEntry(java.util.Map.Entry<Integer, StreamingChatLanguageModel> eldest) {
+                boolean shouldRemove = size() > MAX_CACHE_SIZE;
+                if (shouldRemove) {
+                    log.fine("Evicting eldest streaming model from cache: provider ID " + eldest.getKey());
+                }
+                return shouldRemove;
+            }
+        }
+    );
 
     /** Language detection service (ADR-037) */
     private final LanguageDetectionService languageService = LanguageDetectionService.getInstance();
@@ -266,17 +305,27 @@ public class AIService {
                 } catch (CostGuard.RateLimitExceededException e) {
                     log.warning("Rate limit exceeded for user " + userId + ": " + e.getMessage());
                     return "Please wait a moment before sending another message. " + e.getMessage();
+                } catch (Exception e) {
+                    // SAFETY: Catch-all for unexpected guardrail exceptions
+                    log.log(Level.SEVERE, "Unexpected error in cost guardrails: " + e.getMessage(), e);
+                    return "I apologize, but I'm experiencing technical difficulties. Please try again later.";
                 }
 
                 // 2. Input Guard: Sanitize input
-                GuardResult inputResult = inputGuard.validate(message);
-                if (inputResult.isBlocked()) {
-                    log.warning("Input blocked: " + inputResult.getBlockReason());
-                    return "I cannot process this request: " + inputResult.getBlockReason();
-                }
-                if (inputResult.wasModified()) {
-                    processedMessage = inputResult.getProcessedContent();
-                    log.info("Input masked: " + inputResult.getViolationType());
+                try {
+                    GuardResult inputResult = inputGuard.validate(message);
+                    if (inputResult.isBlocked()) {
+                        log.warning("Input blocked: " + inputResult.getBlockReason());
+                        return "I cannot process this request: " + inputResult.getBlockReason();
+                    }
+                    if (inputResult.wasModified()) {
+                        processedMessage = inputResult.getProcessedContent();
+                        log.info("Input masked: " + inputResult.getViolationType());
+                    }
+                } catch (Exception e) {
+                    // SAFETY: Catch-all for unexpected input guard exceptions
+                    log.log(Level.SEVERE, "Unexpected error in input guardrails: " + e.getMessage(), e);
+                    return "I apologize, but I'm unable to process your message at this time. Please try rephrasing.";
                 }
             }
 
@@ -961,89 +1010,111 @@ public class AIService {
                     }
                 })
                 .onComplete(response -> {
-                    log.warning("[STREAM] onComplete: streaming finished");
-                    long streamingEndTime = System.currentTimeMillis();
-
-                    // Get AI response text (from response or accumulator)
-                    String aiResponseText = responseAccumulator.get().toString();
-                    if (response != null && response.content() != null && response.content().text() != null) {
-                        aiResponseText = response.content().text();
-                    }
-
-                    // Add AI response to memory for conversation continuity
-                    if (aiResponseText != null && !aiResponseText.isEmpty()) {
-                        memory.add(AiMessage.from(aiResponseText));
-                    }
-
-                    // ================================================================
-                    // RECORD METRICS (ADR-013)
-                    // ================================================================
                     try {
-                        TokenUsage tokenUsage = response != null ? response.tokenUsage() : null;
-                        int inputTokens = 0;
-                        int outputTokens = 0;
+                        log.warning("[STREAM] onComplete: streaming finished");
+                        long streamingEndTime = System.currentTimeMillis();
 
-                        if (tokenUsage != null) {
-                            inputTokens = tokenUsage.inputTokenCount() != null ?
-                                tokenUsage.inputTokenCount() : 0;
-                            outputTokens = tokenUsage.outputTokenCount() != null ?
-                                tokenUsage.outputTokenCount() : 0;
-                        } else {
-                            // Estimate tokens if not provided (rough: 4 chars = 1 token)
-                            inputTokens = metricsInputMessage.length() / 4;
-                            outputTokens = aiResponseText != null ? aiResponseText.length() / 4 : 0;
-                            log.fine("[METRICS] Token usage not provided, estimated: in=" +
-                                inputTokens + ", out=" + outputTokens);
+                        // Get AI response text (from response or accumulator)
+                        // SAFETY: Comprehensive null checks to prevent NPE
+                        String aiResponseText = null;
+                        if (responseAccumulator != null && responseAccumulator.get() != null) {
+                            aiResponseText = responseAccumulator.get().toString();
+                        }
+                        if (response != null && response.content() != null
+                            && response.content().text() != null && !response.content().text().isEmpty()) {
+                            aiResponseText = response.content().text();
+                        }
+                        // Fallback to empty string if still null
+                        if (aiResponseText == null) {
+                            aiResponseText = "";
+                            log.warning("[STREAM] No response text available from streaming");
                         }
 
-                        int latencyMs = (int) (streamingEndTime - streamingStartTime);
+                        // Add AI response to memory for conversation continuity
+                        if (!aiResponseText.isEmpty()) {
+                            memory.add(AiMessage.from(aiResponseText));
+                        }
 
-                        // Calculate cost in microdollars (1 USD = 1,000,000 microdollars)
-                        int costMicrodollars = calculateCostMicrodollars(
-                            metricsModelName, inputTokens, outputTokens);
+                        // ================================================================
+                        // RECORD METRICS (ADR-013)
+                        // ================================================================
+                        try {
+                            TokenUsage tokenUsage = (response != null) ? response.tokenUsage() : null;
+                            int inputTokens = 0;
+                            int outputTokens = 0;
 
-                        // Persist metrics
-                        MAIUsageMetrics.record(
-                            metricsCtx,
-                            metricsUserId,
-                            metricsRoleId,
-                            metricsProviderId,
-                            "chat-streaming-tools",  // agentName (updated to reflect tools support)
-                            "STREAMING",             // agentType
-                            metricsModelName,
-                            inputTokens,
-                            outputTokens,
-                            costMicrodollars,
-                            latencyMs,
-                            metricsSessionId,
-                            "CHAT_STREAMING",        // requestType
-                            null                     // trxName (auto-commit)
-                        );
+                            if (tokenUsage != null) {
+                                Integer inputCount = tokenUsage.inputTokenCount();
+                                Integer outputCount = tokenUsage.outputTokenCount();
+                                inputTokens = (inputCount != null) ? inputCount : 0;
+                                outputTokens = (outputCount != null) ? outputCount : 0;
+                            } else {
+                                // Estimate tokens if not provided (rough: 4 chars = 1 token)
+                                inputTokens = (metricsInputMessage != null) ? metricsInputMessage.length() / 4 : 0;
+                                outputTokens = (aiResponseText != null) ? aiResponseText.length() / 4 : 0;
+                                log.fine("[METRICS] Token usage not provided, estimated: in=" +
+                                    inputTokens + ", out=" + outputTokens);
+                            }
 
-                        log.info("[METRICS] Recorded: model=" + metricsModelName +
-                            ", tokens=" + (inputTokens + outputTokens) +
-                            ", cost=$" + String.format("%.6f", costMicrodollars / 1000000.0) +
-                            ", latency=" + latencyMs + "ms");
+                            int latencyMs = (int) (streamingEndTime - streamingStartTime);
 
+                            // Calculate cost in microdollars (1 USD = 1,000,000 microdollars)
+                            int costMicrodollars = calculateCostMicrodollars(
+                                metricsModelName, inputTokens, outputTokens);
+
+                            // Persist metrics
+                            MAIUsageMetrics.record(
+                                metricsCtx,
+                                metricsUserId,
+                                metricsRoleId,
+                                metricsProviderId,
+                                "chat-streaming-tools",  // agentName (updated to reflect tools support)
+                                "STREAMING",             // agentType
+                                metricsModelName,
+                                inputTokens,
+                                outputTokens,
+                                costMicrodollars,
+                                latencyMs,
+                                metricsSessionId,
+                                "CHAT_STREAMING",        // requestType
+                                null                     // trxName (auto-commit)
+                            );
+
+                            log.info("[METRICS] Recorded: model=" + metricsModelName +
+                                ", tokens=" + (inputTokens + outputTokens) +
+                                ", cost=$" + String.format("%.6f", costMicrodollars / 1000000.0) +
+                                ", latency=" + latencyMs + "ms");
+
+                        } catch (Exception e) {
+                            log.log(Level.WARNING, "[METRICS] Failed to record metrics: " + e.getMessage(), e);
+                        }
+
+                        // Apply output guardrails on complete response
+                        final String finalAiResponseText = aiResponseText;
+                        if (guardrailsEnabled && finalAiResponseText != null && !finalAiResponseText.isEmpty()) {
+                            GuardResult outputResult = outputGuard.validate(finalAiResponseText);
+                            if (outputResult.isBlocked()) {
+                                log.warning("Output blocked: " + outputResult.getBlockReason());
+                            }
+                            if (outputResult.wasModified()) {
+                                log.warning("Output would have been masked: " + outputResult.getViolationType());
+                            }
+                        }
+
+                        // Call completion callback
+                        try {
+                            callback.onComplete();
+                        } catch (Exception e) {
+                            log.log(Level.SEVERE, "[STREAM] Error in onComplete callback: " + e.getMessage(), e);
+                        }
                     } catch (Exception e) {
-                        log.warning("[METRICS] Failed to record metrics: " + e.getMessage());
-                    }
-
-                    // Apply output guardrails on complete response
-                    final String finalAiResponseText = aiResponseText;
-                    if (guardrailsEnabled && finalAiResponseText != null) {
-                        GuardResult outputResult = outputGuard.validate(finalAiResponseText);
-                        if (outputResult.isBlocked()) {
-                            log.warning("Output blocked: " + outputResult.getBlockReason());
+                        // SAFETY: Catch-all handler to prevent chat from hanging
+                        log.log(Level.SEVERE, "[STREAM] Fatal error in completion handler: " + e.getMessage(), e);
+                        try {
+                            callback.onError(e);
+                        } catch (Exception callbackError) {
+                            log.log(Level.SEVERE, "[STREAM] Error calling onError callback: " + callbackError.getMessage(), callbackError);
                         }
-                        if (outputResult.wasModified()) {
-                            log.warning("Output would have been masked: " + outputResult.getViolationType());
-                        }
-                    }
-                    try {
-                        callback.onComplete();
-                    } catch (Exception e) {
-                        log.severe("[STREAM] Error in onComplete callback: " + e.getMessage());
                     }
                 })
                 .onError(error -> {

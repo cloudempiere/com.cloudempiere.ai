@@ -76,10 +76,19 @@ public class ChatAccessService implements IChatAccessService {
 
     @Override
     public ChatAccess getAccess(Properties ctx, int CM_Chat_ID, String trxName) {
-        MChat chat = new MChat(ctx, CM_Chat_ID, trxName);
-        if (chat.get_ID() == 0) {
+        // SECURITY: Load chat with client filter to prevent cross-tenant access
+        int clientId = Env.getAD_Client_ID(ctx);
+
+        String whereClause = "CM_Chat_ID=? AND AD_Client_ID IN (0, ?)";
+        MChat chat = new Query(ctx, MChat.Table_Name, whereClause, trxName)
+                .setParameters(CM_Chat_ID, clientId)
+                .first();
+
+        if (chat == null) {
+            log.fine("Chat " + CM_Chat_ID + " not found or not accessible to client " + clientId);
             return ChatAccess.NONE;
         }
+
         return getAccess(ctx, chat);
     }
 
