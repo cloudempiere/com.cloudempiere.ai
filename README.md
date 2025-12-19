@@ -137,11 +137,20 @@ String bpInfo = aiService.getBusinessPartner("BP001");
 
 ## Documentation
 
+### Architecture & Design
+- **[ARCHITECTURE.md](docs/ARCHITECTURE.md)**: Component diagrams, data flow, security layers
+- **[ADRs](docs/adr/)**: Architecture Decision Records (48 decisions)
+- **[DEPRECATION_ROADMAP.md](docs/DEPRECATION_ROADMAP.md)**: Migration plan for legacy code
+
+### Project Management
 - **[PROJECT.md](PROJECT.md)**: Complete project overview
 - **[FEATURES.md](FEATURES.md)**: Feature matrix and capabilities
 - **[CHANGELOG.md](CHANGELOG.md)**: Version history and changes
+- **[CRITICAL_ISSUES.md](docs/CRITICAL_ISSUES.md)**: Prioritized bug tracker
+
+### Development
 - **[CLAUDE.md](.claude/CLAUDE.md)**: Development guide for Claude Code
-- **[ADRs](docs/adr/)**: Architecture Decision Records
+- **[Implementation Guides](docs/guides/)**: Streaming, LangChain4j, ZK UI guides
 - **[MCP Server Docs](docs/mcpserver/)**: Model Context Protocol integration
 
 ---
