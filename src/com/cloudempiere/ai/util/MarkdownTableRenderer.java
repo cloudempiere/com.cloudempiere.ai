@@ -449,6 +449,9 @@ public class MarkdownTableRenderer {
      *
      * <p>Handles zoom link syntax [[Table:ID|Display]] correctly by not splitting
      * on pipes inside [[...]] brackets (ADR-039).
+     *
+     * <p>Handles backslash-escaped pipes (\|) correctly by not splitting on them
+     * and removing the backslash escape (ADR-047 Phase 2).
      */
     private static String[] parseCells(String line) {
         // Remove leading/trailing pipes
@@ -460,7 +463,9 @@ public class MarkdownTableRenderer {
             content = content.substring(0, content.length() - 1);
         }
 
-        // Split on pipes, but ignore pipes inside [[...]] zoom link syntax
+        // Split on pipes, but ignore:
+        // 1. Pipes inside [[...]] zoom link syntax
+        // 2. Backslash-escaped pipes (\|)
         List<String> cells = new ArrayList<>();
         StringBuilder currentCell = new StringBuilder();
         int bracketDepth = 0;  // Track [[...]] nesting
@@ -468,7 +473,10 @@ public class MarkdownTableRenderer {
         for (int i = 0; i < content.length(); i++) {
             char ch = content.charAt(i);
 
-            // Check for [[ opening
+            // Use shared parser for consistent escape handling (ADR-047 - Single Source of Truth)
+            TableCellParser.ParseResult parseResult = TableCellParser.parseChar(content, i);
+
+            // Check for [[ opening (before processing parse result)
             if (ch == '[' && i + 1 < content.length() && content.charAt(i + 1) == '[') {
                 bracketDepth++;
                 currentCell.append("[[");
@@ -484,14 +492,18 @@ public class MarkdownTableRenderer {
                 continue;
             }
 
-            // Pipe character - only split if not inside [[...]]
-            if (ch == '|' && bracketDepth == 0) {
-                // Cell separator - add current cell and start new one
+            // Process parse result
+            if (parseResult.isCellSeparator() && bracketDepth == 0) {
+                // Pipe character - only split if not inside [[...]]
                 cells.add(currentCell.toString().trim());
                 currentCell = new StringBuilder();
-            } else {
-                currentCell.append(ch);
+            } else if (parseResult.shouldAppend()) {
+                // Normal character or escaped sequence - append to cell
+                currentCell.append(parseResult.getCharToAppend());
             }
+
+            // Advance by number of characters consumed (1 for normal, 2 for escapes)
+            i += parseResult.getCharsToSkip() - 1; // -1 because loop increments i
         }
 
         // Add the last cell
@@ -595,7 +607,8 @@ public class MarkdownTableRenderer {
                 String widgetId = currentWidgetId.get();
 
                 // Debug: Always log cell content and context state
-                log.warning("[TABLE-ZOOM] Cell content: " + displayContent);
+                int clientId = ctx != null ? org.compiere.util.Env.getAD_Client_ID(ctx) : -1;
+                log.warning("[TABLE-ZOOM] Cell content: " + displayContent + " | AD_Client_ID=" + clientId);
                 log.warning("[TABLE-ZOOM] ctx null? " + (ctx == null) + ", widgetId null? " + (widgetId == null));
                 if (widgetId != null) {
                     log.warning("[TABLE-ZOOM] widgetId: " + widgetId);

@@ -171,29 +171,43 @@ public class StreamingTableRenderer {
             }
 
             if (inTable) {
-                if (ch == '|') {
+                // Use shared parser for consistent escape handling (ADR-047 - Single Source of Truth)
+                TableCellParser.ParseResult parseResult = TableCellParser.parseChar(chunk, i);
+
+                if (parseResult.isCellSeparator()) {
+                    // Unescaped pipe - cell boundary
                     processCellBoundary();
-                } else {
-                    currentCell.append(ch);
+                } else if (parseResult.shouldAppend()) {
+                    // Normal character or escaped sequence - append to cell
+                    currentCell.append(parseResult.getCharToAppend());
                 }
+
+                // Advance by number of characters consumed (1 for normal, 2 for escapes)
+                i += parseResult.getCharsToSkip() - 1; // -1 because loop increments i
             } else {
-                lineBuffer.append(ch);
-                // Check if line starts with | (potential table)
-                String lineSoFar = lineBuffer.toString().trim();
-                if (lineSoFar.startsWith("|") && !inTable) {
-                    // Start of table
-                    inTable = true;
-                    // Move line buffer content to current cell
-                    String content = lineBuffer.toString();
-                    lineBuffer.setLength(0);
-                    // Process as table content
-                    for (char c : content.toCharArray()) {
-                        if (c == '|') {
-                            processCellBoundary();
-                        } else {
-                            currentCell.append(c);
+                // Not in table mode - check if this starts a table
+                if (ch == '|') {
+                    // Pipe character encountered - check if it starts a line
+                    String bufferedContent = lineBuffer.toString().trim();
+                    if (bufferedContent.isEmpty()) {
+                        // First non-whitespace char on line is pipe - start table!
+                        inTable = true;
+
+                        // Process any leading whitespace as pre-table content if this is first table
+                        if (completedRows.isEmpty() && lineBuffer.length() > 0) {
+                            preTableContent.append(lineBuffer);
+                            lineBuffer.setLength(0);
                         }
+
+                        // Process the pipe as cell boundary
+                        processCellBoundary();
+                    } else {
+                        // Pipe in middle of line - not a table, just append
+                        lineBuffer.append(ch);
                     }
+                } else {
+                    // Regular character - append to line buffer
+                    lineBuffer.append(ch);
                 }
             }
         }
@@ -243,9 +257,19 @@ public class StreamingTableRenderer {
                 completedRows.add(currentRow.toArray(new String[0]));
             }
             currentRow = new ArrayList<>();
-        } else if (inTable && currentRow.isEmpty() && lineBuffer.toString().trim().isEmpty()) {
-            // Empty line - end of table
-            inTable = false;
+            // Stay in table mode - don't reset inTable here!
+            // Table mode will end when we encounter non-table content (line not starting with |)
+        } else if (inTable && currentRow.isEmpty()) {
+            // Empty row while in table mode
+            // Check if lineBuffer has non-table content (doesn't start with | after trim)
+            String lineContent = lineBuffer.toString().trim();
+            if (!lineContent.isEmpty() && !lineContent.startsWith("|")) {
+                // Non-table content encountered - end table mode
+                inTable = false;
+                postTableContent.append(lineBuffer).append("\n");
+                lineBuffer.setLength(0);
+            }
+            // Otherwise stay in table mode (empty line or next table row coming)
         } else if (!inTable) {
             // Content before/after table
             String line = lineBuffer.toString();
@@ -257,7 +281,10 @@ public class StreamingTableRenderer {
             lineBuffer.setLength(0);
         }
 
-        lineBuffer.setLength(0);
+        // Clear lineBuffer if not already cleared
+        if (lineBuffer.length() > 0 && !inTable) {
+            lineBuffer.setLength(0);
+        }
     }
 
     /**
@@ -370,6 +397,8 @@ public class StreamingTableRenderer {
 
             // Process zoom links if context available
             if (ctx != null && widgetId != null) {
+                int clientId = org.compiere.util.Env.getAD_Client_ID(ctx);
+                log.warning("[STREAMING-ZOOM] Processing completed cell | AD_Client_ID=" + clientId + " | content=" + cellContent.substring(0, Math.min(50, cellContent.length())));
                 cellContent = com.cloudempiere.ai.util.ZoomLinkProcessor.processZoomLinks(
                     cellContent, ctx, widgetId);
             }
@@ -405,8 +434,18 @@ public class StreamingTableRenderer {
     /**
      * Render a partial row (currently being streamed).
      *
-     * @param completedCells cells that are complete in this row
-     * @param currentCellContent content of cell currently being streamed
+     * <p><b>Important (ADR-047):</b> Zoom link processing happens ONLY for completed cells,
+     * not for the current cell being streamed. This prevents showing raw syntax
+     * when link syntax is split across chunks.
+     *
+     * <p>Example:
+     * <pre>
+     * Chunk 1: "| [[C_BPartner:1000|Acm"  ← Shows as raw text with cursor
+     * Chunk 2: "e Corp]] |"                ← Now complete, shows as link
+     * </pre>
+     *
+     * @param completedCells cells that are complete in this row (will show zoom links)
+     * @param currentCellContent content of cell currently being streamed (shows raw text)
      * @param isHeaderRow true if this is a header row
      * @param cursorCellIndex which cell to show cursor in
      */
@@ -427,6 +466,8 @@ public class StreamingTableRenderer {
 
             // Process zoom links
             if (ctx != null && widgetId != null) {
+                int clientId = org.compiere.util.Env.getAD_Client_ID(ctx);
+                log.warning("[STREAMING-ZOOM] Processing partial row cell | AD_Client_ID=" + clientId + " | content=" + cellContent.substring(0, Math.min(50, cellContent.length())));
                 cellContent = com.cloudempiere.ai.util.ZoomLinkProcessor.processZoomLinks(
                     cellContent, ctx, widgetId);
             }
@@ -449,10 +490,15 @@ public class StreamingTableRenderer {
             }
         }
 
-        // Render current cell with cursor
+        // Render current cell with cursor (NO zoom link processing - ADR-047)
+        // Incomplete cells show raw text with cursor until pipe delimiter closes them.
+        // Zoom links are processed only after cell is complete (see completed cells above).
         if (currentCellContent != null && !currentCellContent.trim().isEmpty()) {
             String align = getAlignment(completedCells.size(), isHeaderRow);
-            String safeContent = Util.maskHTML(currentCellContent.trim(), true);
+            String cellContent = currentCellContent.trim();
+
+            // Escape HTML (show raw text with cursor - no zoom link processing yet)
+            String safeContent = Util.maskHTML(cellContent, true);
             safeContent += "<span class='streaming-cursor'>|</span>";
 
             if (isHeaderRow) {
