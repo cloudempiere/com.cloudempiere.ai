@@ -7,13 +7,18 @@ and this project adheres to [Conventional Commits](https://conventionalcommits.o
 
 ## [Unreleased]
 
-### Added
+### v0.32.0-SNAPSHOT - TBD
+
+**Added:**
 - None
 
-### Changed
+**Changed:**
 - None
 
-### Fixed
+**Fixed:**
+- None
+
+**Removed:**
 - None
 
 ---
