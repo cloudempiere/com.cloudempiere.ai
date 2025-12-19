@@ -338,11 +338,12 @@ public class AIChatStreamingMessage extends Div {
             return;
         }
 
-        // Clean chunk before processing (ADR-047 Phase 1)
-        String cleaned = ChunkCleaner.clean(chunk);
-
         // Queue chunk for batched rendering (ADR-047 Phase 2)
+        // FIX BUG #4: Move ChunkCleaner.clean() INSIDE synchronized block
+        // to prevent race condition where chunk could be dropped
         synchronized (queueLock) {
+            // Clean chunk before processing (ADR-047 Phase 1)
+            String cleaned = ChunkCleaner.clean(chunk);
             chunkQueue.add(cleaned);
 
             // Schedule render if not already pending
@@ -515,11 +516,17 @@ public class AIChatStreamingMessage extends Div {
         }
 
         // Flush any remaining chunks in queue (ADR-047)
+        // FIX BUG #8: Add exception handling to prevent inconsistent state
         synchronized (queueLock) {
             if (!chunkQueue.isEmpty()) {
                 for (String chunk : chunkQueue) {
                     content.append(chunk);
-                    tableRenderer.appendChunk(chunk);
+                    try {
+                        tableRenderer.appendChunk(chunk);
+                    } catch (Exception e) {
+                        log.warning("Error appending chunk to table renderer during completion: " + e.getMessage());
+                        // Continue processing remaining chunks
+                    }
                 }
                 chunkQueue.clear();
             }
@@ -606,11 +613,17 @@ public class AIChatStreamingMessage extends Div {
         }
 
         // Flush any remaining chunks in queue (ADR-047)
+        // FIX BUG #8: Add exception handling to prevent inconsistent state
         synchronized (queueLock) {
             if (!chunkQueue.isEmpty()) {
                 for (String chunk : chunkQueue) {
                     content.append(chunk);
-                    tableRenderer.appendChunk(chunk);
+                    try {
+                        tableRenderer.appendChunk(chunk);
+                    } catch (Exception e) {
+                        log.warning("Error appending chunk to table renderer during cancellation: " + e.getMessage());
+                        // Continue processing remaining chunks
+                    }
                 }
                 chunkQueue.clear();
             }
@@ -640,12 +653,21 @@ public class AIChatStreamingMessage extends Div {
     // ============= Private UI Update Methods =============
 
     /**
-     * Update the main content display.
+     * Update the main content display during streaming.
      *
-     * <p><b>ADR-047 Phase 2.5:</b> Uses CommonMarkRenderer for consistent rendering
-     * during both streaming and final phases. This eliminates content jumps and
-     * markdown leaks caused by the previous dual-path approach (regex during
-     * streaming, CommonMark after completion).
+     * <p><b>FIX CLD-1653:</b> During streaming, shows PLAIN TEXT ONLY with basic HTML escaping.
+     * No markdown rendering during streaming to prevent 8 critical bugs from incomplete HTML tags
+     * and partial markdown syntax. Full markdown rendering happens only on completion in
+     * {@link #renderFinalMarkdown()}.
+     *
+     * <p><b>Behavior:</b>
+     * <ul>
+     *   <li>During streaming: Plain text with newlines converted to &lt;br/&gt;</li>
+     *   <li>On completion: {@link #renderFinalMarkdown()} renders full markdown</li>
+     *   <li>Exception: Table streaming uses {@link StreamingTableRenderer} for cell-by-cell rendering</li>
+     * </ul>
+     *
+     * <p>This matches how ChatGPT, Claude.ai, and other chat UIs work.
      */
     private void updateContentDisplay() {
         String html;
@@ -656,26 +678,15 @@ public class AIChatStreamingMessage extends Div {
             html = tableRenderer.renderCurrentState();
         } else {
             // Use getDisplayableText() to avoid incomplete surrogates
-            String markdownText = content.getDisplayableText();
+            String text = content.getDisplayableText();
 
-            // Pre-render tables if present (before CommonMark parsing)
-            if (MarkdownTableRenderer.containsTable(markdownText)) {
-                int clientId = org.compiere.util.Env.getAD_Client_ID(ctx);
-                log.warn("[STREAMING] Setting context on MarkdownTableRenderer | AD_Client_ID=" + clientId);
-                MarkdownTableRenderer.setLocale(locale);
-                MarkdownTableRenderer.setContext(ctx);
-                MarkdownTableRenderer.setWidgetId(parentWidgetId);
-                try {
-                    markdownText = MarkdownTableRenderer.renderTables(markdownText);
-                } finally {
-                    MarkdownTableRenderer.clearLocale();
-                    MarkdownTableRenderer.clearZoomContext();
-                }
-            }
-
-            // Use CommonMarkRenderer for consistent rendering (ADR-047 Phase 2.5)
-            // This ensures streaming and final rendering are identical
-            html = processMarkdownPreservingHTML(markdownText);
+            // FIX CLD-1653: During streaming, show plain text only (no markdown rendering)
+            // This prevents bugs from incomplete HTML tags and partial markdown syntax.
+            // Full markdown rendering happens only on completion in renderFinalMarkdown().
+            // This matches ChatGPT, Claude.ai, and other chat UIs.
+            html = Util.maskHTML(text, true)
+                .replace("\n", "<br/>")
+                .replace("  ", " &nbsp;");
 
             if (!isComplete) {
                 html += "<span class='streaming-cursor'>|</span>";
@@ -825,9 +836,19 @@ public class AIChatStreamingMessage extends Div {
     /**
      * Render final content using CommonMark Java library for full markdown support.
      *
-     * <p><b>ADR-047 Phase 2.5:</b> This uses the same CommonMarkRenderer used during streaming
-     * to ensure consistent rendering throughout the message lifecycle. This eliminates content
-     * jumps and layout shifts that occurred with the previous dual-path approach.
+     * <p><b>FIX CLD-1653:</b> Full markdown rendering happens ONLY on completion, not during
+     * streaming. This prevents 8 critical bugs caused by processing partial markdown and
+     * incomplete HTML tags during streaming. During streaming, {@link #updateContentDisplay()}
+     * shows plain text only with basic HTML escaping.
+     *
+     * <p><b>ADR-047:</b> This matches how ChatGPT, Claude.ai, and other chat UIs work - stream
+     * plain text, render markdown on completion. This eliminates:
+     * <ul>
+     *   <li>Race conditions from incomplete HTML tags split across chunks</li>
+     *   <li>Partial markdown parsing (unclosed code blocks, split bold markers)</li>
+     *   <li>HTML escaping mismatches between chunks</li>
+     *   <li>State tracking issues across 50ms batches</li>
+     * </ul>
      *
      * <p><b>Implementation Note:</b> We use the existing content_[componentId] element that was
      * created in init() rather than generating a new container ID. This ensures the DOM element
