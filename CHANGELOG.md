@@ -16,22 +16,34 @@ and this project adheres to [Conventional Commits](https://conventionalcommits.o
 - None
 
 **Fixed:**
-- **CLD-1653: 8 Critical Streaming Rendering Bugs** ⚠️ **CRITICAL**
-  - **BUG #1**: Race condition in `processMarkdownPreservingHTML()` with incomplete HTML tags
-  - **BUG #2**: No handling for incomplete closing tags (raw HTML escaped incorrectly)
-  - **BUG #3**: Missing markdown processing in unclosed tags
-  - **BUG #4**: Race condition - `ChunkCleaner.clean()` outside synchronized block (chunks dropped)
-  - **BUG #5**: No state tracking across chunks (HTML tags split across batches)
-  - **BUG #6**: Partial markdown parsing with CommonMark on incomplete content
-  - **BUG #7**: HTML escaping mismatch between chunks
-  - **BUG #8**: Silent exception handling in `markCancelled()` (inconsistent state)
-  - **Solution**: Stream plain text only, full markdown rendering on completion
-  - Matches ChatGPT/Claude.ai industry standard behavior
-  - Files: `AIChatStreamingMessage.java:342-354, 518-534, 609-625, 650-675, 814-835`
-  - Impact: Eliminates corrupted HTML, broken markdown, race conditions, and dropped chunks
+- None
 
 **Removed:**
 - None
+
+---
+
+## [0.31.1] - 2025-12-22
+
+### Patch Release: Critical Streaming Rendering Fix
+
+This patch release adds the missing batch render event listener that was critical for streaming to work correctly.
+
+#### Fixed
+
+- **Batch Render Event Listener Missing** ⚠️ **CRITICAL STREAMING FIX**
+  - Added `onBatchRender` event listener registration in `AIChatStreamingMessage` constructor
+  - Without this listener, JavaScript batched rendering is completely broken
+  - JavaScript fires `onBatchRender` events every 50ms, but they were silently dropped
+  - File: `AIChatStreamingMessage.java:318-328`
+  - Impact: Streaming rendering now works correctly with 50ms batching
+
+#### Changed
+
+- **OSGI Service Configuration Simplification**
+  - Updated `AIChatWidgetFactory.xml` xmlns from v1.3.0 to v1.1.0
+  - Simplified interface reference (removed package prefix)
+  - File: `OSGI-INF/com.cloudempiere.ai.factory.AIChatWidgetFactory.xml`
 
 ---
 

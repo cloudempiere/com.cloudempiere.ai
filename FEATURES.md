@@ -8,10 +8,10 @@ This document tracks features, implementation status, and version compatibility 
 
 ---
 
-## Current Version: v0.31.0-SNAPSHOT
+## Current Version: v0.32.0-SNAPSHOT
 
 **Status:** 🚧 In Progress - TBD
-**Previous:** v0.30.0 - Cell-by-Cell Streaming Table Rendering
+**Previous:** v0.31.1 - Critical Streaming Rendering Fix
 
 **Strategic Focus:** The Chat Widget is our primary AI implementation. All features will be integrated and tested through the chat widget before other use cases (charts, reports, etc.).
 
@@ -21,7 +21,9 @@ This document tracks features, implementation status, and version compatibility 
 
 | Version | Date | Key Features | Focus Area |
 |---------|------|--------------|------------|
-| **0.30.0** | 2025-12-18 | **Cell-by-Cell Streaming Table Rendering** | **UX Enhancement** |
+| **0.31.1** | 2025-12-22 | **Batch Render Event Listener Fix** | **Critical Bug Fix** |
+| 0.31.0 | 2025-12-19 | Critical P0 Blockers (Security & Stability) | Production Readiness |
+| 0.30.0 | 2025-12-18 | Cell-by-Cell Streaming Table Rendering | UX Enhancement |
 | 0.29.0 | 2025-12-18 | Zoom Links in Markdown Tables Fix | Bug Fix |
 | 0.28.0 | 2025-12-18 | AD_Message Localization for Progress/Tool Messages | Internationalization |
 | 0.27.0 | 2025-12-18 | In-Plugin Mock AI Hub Provider | Testing & Development |
