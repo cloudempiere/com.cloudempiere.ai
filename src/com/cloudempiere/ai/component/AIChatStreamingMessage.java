@@ -31,7 +31,6 @@ import org.zkoss.zul.Html;
 
 import com.cloudempiere.ai.util.ChunkCleaner;
 import com.cloudempiere.ai.util.CommonMarkRenderer;
-import com.cloudempiere.ai.util.MarkdownRenderer;
 import com.cloudempiere.ai.util.MarkdownTableRenderer;
 import com.cloudempiere.ai.util.StreamingTableRenderer;
 import com.cloudempiere.ai.util.StreamingTextBuffer;
@@ -316,6 +315,17 @@ public class AIChatStreamingMessage extends Div {
         copyButton.setStyle("display: flex; align-items: center; gap: 6px; cursor: pointer; " +
             "padding: 4px 8px; margin-top: 8px; width: fit-content;");
         appendChild(copyButton);
+
+        // CRITICAL FIX: Register onBatchRender event listener
+        // Without this listener, the batched rendering system is completely broken.
+        // JavaScript fires 'onBatchRender' event every 50ms via scheduleRender(),
+        // but it's silently dropped if no listener is registered.
+        addEventListener("onBatchRender", new EventListener<Event>() {
+            @Override
+            public void onEvent(Event event) throws Exception {
+                onBatchRender();
+            }
+        });
     }
 
     /**
@@ -404,6 +414,9 @@ public class AIChatStreamingMessage extends Div {
                 renderScheduled = false;
                 return;
             }
+
+            // Debug logging to verify event listener is working
+            log.warn("[BATCH-RENDER] onBatchRender() called, processing " + chunkQueue.size() + " chunks");
 
             // Copy and clear queue
             batch = new ArrayList<>(chunkQueue);
@@ -524,7 +537,7 @@ public class AIChatStreamingMessage extends Div {
                     try {
                         tableRenderer.appendChunk(chunk);
                     } catch (Exception e) {
-                        log.warning("Error appending chunk to table renderer during completion: " + e.getMessage());
+                        log.warn("Error appending chunk to table renderer during completion: " + e.getMessage());
                         // Continue processing remaining chunks
                     }
                 }
@@ -621,7 +634,7 @@ public class AIChatStreamingMessage extends Div {
                     try {
                         tableRenderer.appendChunk(chunk);
                     } catch (Exception e) {
-                        log.warning("Error appending chunk to table renderer during cancellation: " + e.getMessage());
+                        log.warn("Error appending chunk to table renderer during cancellation: " + e.getMessage());
                         // Continue processing remaining chunks
                     }
                 }
