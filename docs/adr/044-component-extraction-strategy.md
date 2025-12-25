@@ -1,1 +1,0 @@
-../../../idempiere-cli/docs/adr/044-component-extraction-strategy.md

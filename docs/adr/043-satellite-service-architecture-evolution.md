@@ -1,1 +1,0 @@
-../../../idempiere-cli/docs/adr/043-satellite-service-architecture-evolution.md

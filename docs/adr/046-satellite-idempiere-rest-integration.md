@@ -1,1 +1,0 @@
-../../../idempiere-cli/docs/adr/046-satellite-idempiere-rest-integration.md

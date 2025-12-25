@@ -1,1 +1,0 @@
-../../idempiere-cli/docs/SATELLITE-IMPLEMENTATION-ROADMAP.md

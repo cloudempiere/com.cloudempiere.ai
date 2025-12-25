@@ -1,1 +1,0 @@
-../../idempiere-cli/docs/SATELLITE-EVOLUTION-CHANGELOG.md
