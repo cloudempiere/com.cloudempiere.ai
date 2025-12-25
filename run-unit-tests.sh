@@ -1,14 +1,20 @@
 #!/bin/bash
 # Run AI plugin unit tests from CLI
-# Tests are located in org.idempiere.test plugin
+# Tests are located in com.cloudempiere.ai.test (local test bundle)
 # Requires iDempiere classes for CLogger, etc.
 #
 # Usage:
-#   ./run-unit-tests.sh                    # Run all tests
-#   ./run-unit-tests.sh APICreditsTest     # Run specific test class
-#   ./run-unit-tests.sh InputGuard         # Run tests matching pattern
-#   ./run-unit-tests.sh -v                 # Run all tests with verbose logging
-#   ./run-unit-tests.sh -v APICreditsTest  # Run specific test with verbose logging
+#   ./run-unit-tests.sh                           # Run all unit tests
+#   ./run-unit-tests.sh AIRequestTest             # Run specific test class
+#   ./run-unit-tests.sh -v                        # Run all tests with verbose logging
+#   ./run-unit-tests.sh -v AIMessageTest          # Run specific test with verbose logging
+#   ./run-unit-tests.sh --integration             # Run integration tests (requires API keys)
+#   ./run-unit-tests.sh --all                     # Run all tests (unit + integration)
+#
+# Testing Pyramid Profiles:
+#   Default: unit tests only (fast, no external deps)
+#   --integration: tests requiring external APIs (Anthropic, etc.)
+#   --all: all tests
 
 set -e
 
@@ -18,11 +24,20 @@ cd "$SCRIPT_DIR"
 # Parse arguments
 VERBOSE=false
 TEST_FILTER=""
+TEST_PROFILE="unit"
 
 while [[ $# -gt 0 ]]; do
     case $1 in
         -v|--verbose)
             VERBOSE=true
+            shift
+            ;;
+        --integration)
+            TEST_PROFILE="integration"
+            shift
+            ;;
+        --all)
+            TEST_PROFILE="all"
             shift
             ;;
         *)
@@ -33,10 +48,11 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Java home
-export JAVA_HOME="${JAVA_HOME:-/Library/Java/JavaVirtualMachines/adoptopenjdk-11.jdk/Contents/Home}"
+export JAVA_HOME="${JAVA_HOME:-/Library/Java/JavaVirtualMachines/amazon-corretto-11.jdk/Contents/Home}"
 
 echo "=== AI Plugin Unit Test Runner ==="
 echo "Java: $JAVA_HOME"
+echo "Profile: $TEST_PROFILE"
 if [ "$VERBOSE" = true ]; then
     echo "Mode: VERBOSE (detailed logging enabled)"
 fi
@@ -44,15 +60,16 @@ echo ""
 
 # Directories
 IDEMPIERE_DIR="$SCRIPT_DIR/../iDempiereCLDE"
-TEST_DIR="$IDEMPIERE_DIR/org.idempiere.test/src/com/cloudempiere/ai"
+TEST_BUNDLE_DIR="$SCRIPT_DIR/com.cloudempiere.ai.test"
+TEST_SRC_DIR="$TEST_BUNDLE_DIR/src"
 LIB_DIR="$SCRIPT_DIR/lib"
 BUILD_DIR="$SCRIPT_DIR/target/test-classes"
 CLASSES_DIR="$SCRIPT_DIR/target/classes"
 
-# Check test directory exists
-if [ ! -d "$TEST_DIR" ]; then
-    echo "ERROR: Test directory not found: $TEST_DIR"
-    echo "       Make sure org.idempiere.test is checked out."
+# Check test bundle exists
+if [ ! -d "$TEST_SRC_DIR" ]; then
+    echo "ERROR: Test source directory not found: $TEST_SRC_DIR"
+    echo "       Make sure com.cloudempiere.ai.test bundle is set up."
     exit 1
 fi
 
@@ -97,7 +114,7 @@ else
     if [ -n "$IDEMPIERE_BASE_JAR" ]; then
         CLASSPATH="$CLASSPATH:$IDEMPIERE_BASE_JAR"
     else
-        echo "WARNING: iDempiere base classes not found. Tests may fail."
+        echo "WARNING: iDempiere base classes not found. Some tests may fail."
     fi
 fi
 
@@ -123,16 +140,24 @@ fi
 
 echo "Compiling tests..."
 
-# Find all Java files in test dir (including utilities like TestLogger)
-# Exclude tests that require iDempiere context (AbstractTestCase) - they need full OSGi setup
-ALL_JAVA_FILES=$(find "$TEST_DIR" -name "*.java" 2>/dev/null | grep -v "AIProviderAuthorizationTest.java" || true)
+# Find Java files based on test profile
+if [ "$TEST_PROFILE" = "unit" ]; then
+    # Unit tests only (fast, no external deps)
+    ALL_JAVA_FILES=$(find "$TEST_SRC_DIR" -name "*.java" 2>/dev/null | grep -v "/integration/" | grep -v "/e2e/" || true)
+elif [ "$TEST_PROFILE" = "integration" ]; then
+    # Integration tests (require API keys, database, etc.)
+    ALL_JAVA_FILES=$(find "$TEST_SRC_DIR" -name "*.java" 2>/dev/null || true)
+else
+    # All tests
+    ALL_JAVA_FILES=$(find "$TEST_SRC_DIR" -name "*.java" 2>/dev/null || true)
+fi
 
 if [ -z "$ALL_JAVA_FILES" ]; then
-    echo "No Java files found in $TEST_DIR"
+    echo "No Java files found in $TEST_SRC_DIR"
     exit 1
 fi
 
-echo "Found Java files (standalone tests only):"
+echo "Found Java files:"
 echo "$ALL_JAVA_FILES" | while read f; do echo "  - $(basename $f)"; done
 echo ""
 
@@ -149,14 +174,21 @@ echo ""
 echo "Running tests..."
 echo "================="
 
-# Build JUnit command with optional verbose flag
+# Build JUnit command with optional verbose flag and tag filtering
 JAVA_OPTS=""
 DETAILS_MODE="tree"
+TAG_OPTS=""
 
 if [ "$VERBOSE" = true ]; then
-    # Enable verbose logging via system property
     JAVA_OPTS="-Dtest.verbose=true -Dtest.debug=true"
     DETAILS_MODE="verbose"
+fi
+
+# Apply JUnit 5 tag filtering based on profile
+if [ "$TEST_PROFILE" = "unit" ]; then
+    TAG_OPTS="--include-tag unit --exclude-tag integration --exclude-tag e2e"
+elif [ "$TEST_PROFILE" = "integration" ]; then
+    TAG_OPTS="--include-tag integration"
 fi
 
 JUNIT_CMD="$JAVA_HOME/bin/java $JAVA_OPTS -jar $TEST_LIB_DIR/junit-platform-console-standalone-1.10.2.jar --classpath $BUILD_DIR:$CLASSPATH"
@@ -165,17 +197,20 @@ if [ -n "$TEST_FILTER" ]; then
     # Run specific test class or pattern
     echo "Filter: $TEST_FILTER"
     $JUNIT_CMD \
-        --select-class "com.cloudempiere.ai.${TEST_FILTER}" \
+        --select-class "com.cloudempiere.ai.test.${TEST_FILTER}" \
+        $TAG_OPTS \
         --details $DETAILS_MODE 2>/dev/null || \
     $JUNIT_CMD \
         --scan-class-path "$BUILD_DIR" \
         --include-classname ".*${TEST_FILTER}.*" \
+        $TAG_OPTS \
         --details $DETAILS_MODE
 else
-    # Run all tests
+    # Run all tests matching profile
     $JUNIT_CMD \
         --scan-class-path "$BUILD_DIR" \
         --include-classname ".*Test$" \
+        $TAG_OPTS \
         --details $DETAILS_MODE
 fi
 
