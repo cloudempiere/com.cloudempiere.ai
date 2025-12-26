@@ -528,6 +528,22 @@ I found 3 pending orders totaling $31,400.
 3. **No ID Exposure**: Display DocumentNo/Name to users, resolve to ID server-side
 4. **Audit Trail**: Log zoom actions initiated from chat panel for compliance
 
+### Implementation Notes (v0.22.0)
+
+Issues resolved during implementation:
+
+| Issue | Problem | Solution |
+|-------|---------|----------|
+| JavaScript Context | `Html` component runs in isolated context without `zk`/`zAu` | Use `window.zk\|\|parent.zk` fallback |
+| HTML Sanitization | Markdown rendering escaped HTML tags | Added `sanitize: false` to `marked.setOptions()` |
+| AI Response Format | AI didn't format records as `[[Table:ID\|Display]]` | Added "RECORD REFERENCE FORMAT" to system prompt |
+
+**Key Files Modified:**
+- `AIChatWidget.java` - Event handler, markdown sanitization
+- `ZoomLinkProcessor.java` - JavaScript context fix
+- `ChatRecordLinkRenderer.java` - JavaScript context fix
+- `ERPAgent.java` - System prompt with record format instructions
+
 ### Related ADRs
 
 - [ADR-015](015-conversational-ux-patterns.md) - Response formatting includes action links
