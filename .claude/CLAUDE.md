@@ -418,6 +418,7 @@ Follow [Conventional Commits](https://conventionalcommits.org/):
 - [ADR-034](docs/adr/034-google-gemini-provider-integration.md) - Google Gemini Provider Integration
 - [ADR-035](docs/adr/035-java-version-strategy.md) - Java Version Strategy and Migration Path
 - [ADR-042](docs/adr/042-satellite-ai-provider-integration.md) - AI Hub Provider Integration
+- [ADR-049](docs/adr/049-mcp-client-external-tools-integration.md) - MCP Client Integration for External Tools (Ready for v11)
 
 ### Data & Intelligence
 - [ADR-005](docs/adr/005-intelligent-data-source-routing.md) - Intelligent Data Source Routing (Superseded by ADR-012)
