@@ -68,7 +68,7 @@ This document provides a visual and comprehensive overview of the com.cloudempie
 │  ┌─────────────────────────────────────────────────────────────────────┐    │
 │  │                     Provider Layer (LangChain4j)                     │    │
 │  │  ┌───────────┐  ┌───────────┐  ┌───────────┐  ┌───────────────────┐│    │
-│  │  │ Anthropic │  │ Bedrock   │  │ Ollama    │  │ AI Hub (Satellite)││    │
+│  │  │ Anthropic │  │ Bedrock   │  │ Ollama    │  │ AI Hub            ││    │
 │  │  │ (Claude)  │  │ (AWS)     │  │ (Local)   │  │ (Java 17 bridge)  ││    │
 │  │  └─────┬─────┘  └─────┬─────┘  └─────┬─────┘  └─────────┬─────────┘│    │
 │  └────────┼──────────────┼──────────────┼──────────────────┼──────────┘    │
