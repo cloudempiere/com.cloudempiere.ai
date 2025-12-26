@@ -779,7 +779,7 @@ public class Activator extends Incremental2PackActivator {
 - [ADR-006](006-data-model-architecture.md) - Data model defining AIG_* tables
 - [ADR-026](026-vector-database-strategy.md) - pgvector strategy for embeddings
 - [ADR-038](038-user-friendly-error-handling.md) - Error handling patterns
-- [ADR-042](042-satellite-ai-provider-integration.md) - AI Hub provider integration
+- [ADR-042](042-ai-hub-provider-integration.md) - AI Hub provider integration
 - [ADR-051](051-zk-ui-defensive-programming.md) - UI resilience using this health service
 
 ### References
