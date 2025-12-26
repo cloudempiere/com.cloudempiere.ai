@@ -18,7 +18,7 @@ The `com.cloudempiere.ai` plugin has evolved organically with two parallel imple
 |-------|----------------------|------------------------|
 | Provider Interface | `IAIProvider` (30+ methods) | `ChatLanguageModel` (3 methods) |
 | Provider Factory | `AIProviderFactory` (reflection-based) | Native LangChain4j modules |
-| Agent Loop | `BaseAgent` (manual iteration) | `AiServices.builder()` (automatic) |
+| Agent Loop | Custom agent loop (manual iteration) | `AiServices.builder()` (automatic) |
 | Tool Discovery | `ToolRegistry` + `ITool` interface | `@Tool` annotations |
 | Memory | Custom conversation tracking | `MessageWindowChatMemory` |
 | Message Format | `AIMessage`, `AIRequest`, `AIResponse` | `ChatMessage`, `ChatRequest`, `ChatResponse` |
@@ -182,25 +182,31 @@ public class BaseAgent {
 }
 ```
 
-**Recommended (LangChain4j):**
+**Implemented (LangChain4j):**
 ```java
-public interface IDempiereAgent {
-    @SystemMessage("""
-        You are an iDempiere ERP assistant with access to database queries.
-        Always respect user permissions. Never expose sensitive data.
-        """)
-    String execute(@MemoryId String sessionId, @UserMessage String goal);
+// Actual implementation: IERPAgent.java
+public interface IERPAgent {
+    @SystemMessage({...})  // See ERPAgent.SYSTEM_PROMPT
+    TokenStream chat(@MemoryId String memoryId, @UserMessage String userMessage);
 }
 
-// Usage
-IDempiereAgent agent = AiServices.builder(IDempiereAgent.class)
-    .chatLanguageModel(model)
-    .tools(new ERPTools(secureExecutor))
-    .chatMemory(MessageWindowChatMemory.withMaxMessages(20))
-    .build();
+// Actual implementation: ERPAgent.java
+public class ERPAgent {
+    public static IERPAgent createAgent(
+        StreamingChatLanguageModel model,
+        ERPTools tools,
+        ThreadAwareChatMemory memory
+    ) {
+        return AiServices.builder(IERPAgent.class)
+            .streamingChatLanguageModel(model)
+            .tools(tools)
+            .chatMemory(memory)
+            .build();
+    }
+}
 ```
 
-**Code Reduction:** ~500 lines (BaseAgent + AgentLoop logic)
+**Actual Code Reduction:** Custom agent loop replaced with LangChain4j AiServices
 
 #### 2.2 Migrate ToolRegistry to @Tool Annotations
 

@@ -2,7 +2,13 @@
 
 ## Status
 
-Proposed
+Accepted (Implemented 2025-12-25)
+
+**Implementation:**
+- `AIPluginHealthService.java` - Core health check service
+- `AIUIService.java` - UI-safe service layer
+- `Result.java` - Wrapper for safe execution
+- Integration with `AIChatWidgetFactory` for prerequisite checks
 
 ## Date
 

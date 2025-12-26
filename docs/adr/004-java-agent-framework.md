@@ -24,9 +24,11 @@ Three options were evaluated: **LangChain4j**, Spring AI, and Google Agent Devel
 **We will use LangChain4j as the agent framework.**
 
 Already implemented in v0.9.0:
-- `IDempiereAgent` interface with `AiServices`
+- `IERPAgent` interface with `AiServices` (see `agent/langchain4j/IERPAgent.java`)
 - `ERPTools` with @Tool annotations
 - Multi-provider support (Anthropic, Bedrock, Ollama, OpenAI)
+
+> ⚠️ **Java 11 Constraint**: iDempiere v10 requires Java 11, limiting LangChain4j to version 0.35.0 (last Java 11 compatible). See [ADR-035](035-java-version-strategy.md) for migration path to Java 17.
 
 ---
 
@@ -132,13 +134,13 @@ src/com/cloudempiere/ai/provider/langchain4j/
 ## References
 
 - **LangChain4j Documentation**: https://docs.langchain4j.dev/
-- **Provider Comparison**: `docs/ai-agent-javaframeworkagent/SPECIALIZED-LIBRARIES-COMPARISON.md`
-- **Integration Guide**: `docs/ai-agent-javaframeworkagent/Cloudempiere-Integration-Guide.md`
+- **Related ADR**: [ADR-002 LangChain4j Strategic Adoption](002-langchain4j-strategic-adoption.md)
+- **Java Version Strategy**: [ADR-035](035-java-version-strategy.md)
 
 ---
 
 ## Notes
 
-- Exploratory research archived in `docs/ai-agent-javaframeworkagent/`
 - Decision aligns with ADR-002 LangChain4j strategic adoption
 - No breaking changes to existing provider API
+- Implementation uses `IERPAgent` interface (not `IDempiereAgent` as originally planned)

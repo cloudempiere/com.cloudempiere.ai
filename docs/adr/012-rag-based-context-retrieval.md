@@ -23,7 +23,7 @@ The RAG module foundation exists but is **not yet integrated** into the main con
 | **ContentRetriever wiring** | ❌ Not Started | `LangChain4jAgent.java` | Missing `.contentRetriever(retriever)` call |
 | **Vector Database (pgvector)** | ❌ Deferred | See ADR-026 | Using InMemoryEmbeddingStore only |
 | **Test Coverage** | ❌ None | - | No RAG-specific tests |
-| **Legacy Code Removal** | ❌ Not Started | `src/com/cloudempiere/ai/routing/` | 630+ lines still active |
+| **Legacy Code Removal** | ❌ Not Started | `src/com/cloudempiere/ai/routing/` | 1884 lines still active (10 files) |
 
 ### What's Working
 

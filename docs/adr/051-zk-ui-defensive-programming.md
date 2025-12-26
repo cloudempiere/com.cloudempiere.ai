@@ -2,7 +2,13 @@
 
 ## Status
 
-Proposed
+Accepted (Implemented 2025-12-25)
+
+**Implementation:**
+- `AIUIService.java` - Defensive service layer wrapping all AI operations
+- `Result<T>` pattern for safe error handling
+- Integration with ADR-050 health checks
+- User-friendly error messages via ADR-038
 
 ## Date
 

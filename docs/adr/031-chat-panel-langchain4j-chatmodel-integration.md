@@ -2,7 +2,13 @@
 
 ## Status
 
-Accepted (Revised 2025-12-08) - Implementation In Progress
+Accepted (Revised 2025-12-26) - Core Implementation Complete
+
+**Implementation Status:**
+- ✅ Core integration complete (`AIService`, `ThreadAwareChatMemory`)
+- ✅ Streaming support complete
+- ❌ Unit tests pending
+- ❌ Legacy code cleanup pending (1884 lines in `routing/`)
 
 ## Date
 
