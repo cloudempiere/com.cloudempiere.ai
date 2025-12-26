@@ -1,55 +1,48 @@
-# Project Governance
+# Project Roadmap
 
-This document describes the governance structure, workflows, and standards for the `com.cloudempiere.ai` project.
+Version phases, milestones, and release workflow for `com.cloudempiere.ai`.
 
----
-
-## Documentation Flow
-
-```
-┌──────────────┐     ┌──────────────┐     ┌──────────────┐
-│  PROJECT.md  │────▶│ CHANGELOG.md │────▶│  FEATURES.md │
-│              │     │              │     │              │
-│ Quick Start  │     │ What Changed │     │ What Works   │
-│ Overview     │     │ Version Hist │     │ Status Track │
-│              │     │ Releases     │     │ Roadmap      │
-└──────────────┘     └──────────────┘     └──────────────┘
-       │                    │                    │
-       ▼                    ▼                    ▼
-┌─────────────────────────────────────────────────────────┐
-│                    docs/adr/*.md                         │
-│         Architecture Decision Records (Why we chose)    │
-└─────────────────────────────────────────────────────────┘
-       │
-       ▼
-┌──────────────┐
-│  CLAUDE.md   │
-│              │
-│ AI Context   │
-│ Build Cmds   │
-│ Architecture │
-└──────────────┘
-```
+**Related:**
+- [GOVERNANCE.md](GOVERNANCE.md) - Decision authority, commit conventions, quality gates
+- [FEATURES.md](../FEATURES.md) - Feature status matrix
+- [CHANGELOG.md](../CHANGELOG.md) - Version history
 
 ---
 
-## Commit Convention
+## Version Phases
 
-Follow [Conventional Commits](https://conventionalcommits.org/):
+### Completed Phases
 
-| Type | Description | CHANGELOG |
-|------|-------------|-----------|
-| `feat(scope):` | New feature | Added |
-| `fix(scope):` | Bug fix | Fixed |
-| `docs:` | Documentation | (no entry) |
-| `refactor:` | Code refactor | Changed |
-| `chore:` | Maintenance | (no entry) |
-| `test:` | Tests | (no entry) |
-| `perf:` | Performance | Changed |
+```
+v0.1.0 ──▶ v0.2.0 ──▶ v0.3.0 ──▶ v0.4.0 ──▶ v0.5.0 ──▶ v0.6.0 ──▶ v0.7.0 ──▶ v0.8.0
+  │          │          │          │          │          │          │          │
+  ▼          ▼          ▼          ▼          ▼          ▼          ▼          ▼
+Provider  Bedrock   Security  AI Chat  LangChain Lang4j   Docs &    MCP &
+Anthropic Provider  Context   Widget   Integr    Agents   Claude    Strategic
+                    Provider                              Agents    ADRs
 
-**Format:** `<type>(<scope>): <description>`
+Nov 18    Nov 18    Nov 20    Nov 26   Nov 26    Nov 28   Dec 1     Dec 1
+```
 
-**Example:** `feat(provider): add Ollama local LLM support`
+| Phase | Version | Date | Key Features |
+|-------|---------|------|--------------|
+| Phase 1 | v0.1.0 | 2025-11-18 | Initial provider infrastructure, Anthropic Claude |
+| Phase 2 | v0.2.0 | 2025-11-18 | AWS Bedrock provider (skeleton) |
+| Phase 3 | v0.3.0 | 2025-11-20 | Security layer, context providers |
+| Phase 4 | v0.4.0 | 2025-11-26 | AI Chat widget (CLD-1606) |
+| Phase 5 | v0.5.0 | 2025-11-26 | LangChain integration |
+| Phase 6 | v0.6.0 | 2025-11-28 | LangChain4j agent framework |
+| Phase 7 | v0.7.0 | 2025-12-01 | Documentation & Claude agents |
+| Phase 8 | v0.8.0 | 2025-12-01 | MCP Server & Strategic Architecture |
+
+### Upcoming Phases
+
+| Phase | Version | Target | Key Features |
+|-------|---------|--------|--------------|
+| Phase 9 | v0.9.0 | Q1 2026 | LangChain4j Native Providers, HTTP API layer |
+| Phase 10 | v0.10.0 | Q1 2026 | Domain agents (Inventory, Sales, Purchasing) |
+| Phase 11 | v0.11.0 | Q2 2026 | Production database schema, migrations |
+| Phase 12 | v1.0.0 | Q2 2026 | Production release |
 
 ---
 
@@ -68,103 +61,23 @@ Code changes   CHANGELOG.md   chore(release)  git tag -a    X.Y.Z+1-SNAPSHOT
                MANIFEST.MF
 ```
 
-**Command:** `/release ship`
-
 ### Files Updated During Release
 
 | File | What to Update |
 |------|----------------|
 | `pom.xml` | Version (if not inherited) |
-| `MANIFEST.MF` | Bundle-Version |
+| `META-INF/MANIFEST.MF` | Bundle-Version |
 | `CHANGELOG.md` | Version sections |
 | `FEATURES.md` | Version history table |
 
----
+### Claude Code Commands
 
-## Version Phases (Released)
-
-```
-v0.1.0 ──▶ v0.2.0 ──▶ v0.3.0 ──▶ v0.4.0 ──▶ v0.5.0 ──▶ v0.6.0 ──▶ v0.7.0 ──▶ v0.8.0
-  │          │          │          │          │          │          │          │
-  ▼          ▼          ▼          ▼          ▼          ▼          ▼          ▼
-┌────┐    ┌────┐    ┌────┐    ┌────┐    ┌────┐    ┌────┐    ┌────┐    ┌────┐
-│ P1 │    │ P2 │    │ P3 │    │ P4 │    │ P5 │    │ P6 │    │ P7 │    │ P8 │
-│ ✅ │    │ ✅ │    │ ✅ │    │ ✅ │    │ ✅ │    │ ✅ │    │ ✅ │    │ ✅ │
-└────┘    └────┘    └────┘    └────┘    └────┘    └────┘    └────┘    └────┘
-Provider  Bedrock   Security  AI Chat  LangChain Lang4j   Docs &    MCP &
-Anthropic Provider  Context   Widget   Integr    Agents   Claude    Strategic
-                    Provider                              Agents    ADRs
-
-Nov 18    Nov 18    Nov 20    Nov 26   Nov 26    Nov 28   Dec 1     Dec 1
-```
-
-### Completed Phases
-
-| Phase | Version | Date | Status | Key Features |
-|-------|---------|------|--------|--------------|
-| Phase 1 | v0.1.0 | 2025-11-18 | ✅ Done | Initial provider infrastructure, Anthropic Claude |
-| Phase 2 | v0.2.0 | 2025-11-18 | ✅ Done | AWS Bedrock provider (skeleton) |
-| Phase 3 | v0.3.0 | 2025-11-20 | ✅ Done | Security layer, context providers |
-| Phase 4 | v0.4.0 | 2025-11-26 | ✅ Done | AI Chat widget (CLD-1606) |
-| Phase 5 | v0.5.0 | 2025-11-26 | ✅ Done | LangChain integration |
-| Phase 6 | v0.6.0 | 2025-11-28 | ✅ Done | LangChain4j agent framework |
-| Phase 7 | v0.7.0 | 2025-12-01 | ✅ Done | Documentation & Claude agents |
-| Phase 8 | v0.8.0 | 2025-12-01 | ✅ Done | MCP Server & Strategic Architecture |
-
-### Upcoming Phases
-
-| Phase | Version | Target | Status | Key Features |
-|-------|---------|--------|--------|--------------|
-| Phase 9 | v0.9.0 | Q1 2026 | Planned | LangChain4j Native Providers, HTTP API layer |
-| Phase 10 | v0.10.0 | Q1 2026 | Planned | Domain agents (Inventory, Sales, Purchasing) |
-| Phase 11 | v0.11.0 | Q2 2026 | Planned | Production database schema, migrations |
-| Phase 12 | v1.0.0 | Q2 2026 | Planned | Production release |
-
----
-
-## File Structure
-
-```
-com.cloudempiere.ai/
-│
-├── .claude/
-│   ├── CLAUDE.md ◀──────────── AI Context & Instructions
-│   ├── commands/
-│   │   └── release.md ◀─────── /release ship|status|bump
-│   └── agents/ ◀────────────── Claude Code Agent Specs (26 agents)
-│
-├── docs/
-│   ├── adr/
-│   │   ├── 000-template.md ◀── ADR Template
-│   │   ├── 001-*.md ◀───────── Initial Architecture Decision
-│   │   ├── 002-langchain4j-strategic-adoption.md ◀── LangChain4j Strategy
-│   │   ├── 002-appendix-feature-mapping.md ◀── Feature Mapping
-│   │   └── 003-mcp-server-integration.md ◀── MCP Server Decision
-│   ├── mcpserver/ ◀─────────── MCP Server Documentation (11 files)
-│   │   ├── INDEX.md ◀───────── Documentation navigation
-│   │   ├── 00-START_HERE.md
-│   │   ├── 01-ARCHITECTURE.md
-│   │   ├── 02-IMPLEMENTATION_GUIDE.md
-│   │   ├── 03-BEST_PRACTICES.md
-│   │   └── 04-DEPLOYMENT.md
-│   ├── analysis-to-langchain/  Strategic Analysis
-│   └── GOVERNANCE.md ◀──────── This document
-│
-├── src/com/cloudempiere/ai/
-│   ├── provider/ ◀──────────── AI Provider Layer
-│   │   ├── impl/ ◀──────────── Anthropic, Bedrock implementations
-│   │   ├── factory/ ◀──────── OSGi service factory
-│   │   └── dto/ ◀───────────── Request/Response DTOs
-│   ├── database/ ◀──────────── Security Layer
-│   ├── context/ ◀───────────── Context Providers
-│   └── model/ ◀─────────────── Data Models (I_*, X_*, M*)
-│
-├── PROJECT.md ◀─────────────── Quick Start & Overview
-├── CHANGELOG.md ◀───────────── Version History
-├── FEATURES.md ◀────────────── Feature Matrix
-├── pom.xml ◀────────────────── Maven Build
-└── MANIFEST.MF ◀────────────── OSGi Bundle
-```
+| Command | Description |
+|---------|-------------|
+| `/release ship` | Full release workflow |
+| `/release status` | Show version and changes |
+| `/release bump minor` | Bump to next minor version |
+| `/release tag v0.x.x` | Create specific version tag |
 
 ---
 
@@ -184,9 +97,9 @@ com.cloudempiere.ai/
 
 | Branch | Purpose |
 |--------|---------|
-| `main` | Production-ready code |
+| `master` | Production-ready code |
 | `develop` | Integration branch |
-| `nbe` | Development branch |
+| `langchain` | LangChain4j integration development |
 | `CLD-*` | Feature branches (Linear tickets) |
 
 ### Feature Branch Naming
@@ -199,80 +112,30 @@ fix/short-description
 
 ---
 
-## Decision Making
+## Current Sprint Focus
 
-### Architecture Decision Records (ADRs)
+See [chat-panel-implementation-plan.md](guides/chat-panel-implementation-plan.md) for detailed implementation tasks.
 
-For significant decisions, create an ADR in `docs/adr/`:
+**Immediate Priorities (P1):**
+1. Unit tests for ThreadAwareChatMemory, RAGContextManager, AgentBoundary
+2. TokenUsageListener for cost tracking
+3. Delete old routing code (1884 lines) after tests pass
 
-1. Copy `000-template.md` to `NNN-title.md`
-2. Fill in Context, Decision, Consequences
-3. Set Status to "Proposed"
-4. Review with team
-5. Update Status to "Accepted"
-
-### When to Create an ADR
-
-- New provider integration
-- Security model changes
-- Database schema changes
-- Breaking API changes
-- Technology stack decisions
-
----
-
-## Claude Code Commands
-
-| Command | Description |
-|---------|-------------|
-| `/release ship` | Full release workflow |
-| `/release status` | Show version and changes |
-| `/release bump minor` | Bump to next minor version |
-| `/release tag v0.x.x` | Create specific version tag |
-
----
-
-## Quick Reference
-
-### Commit Message Template
-
-```
-feat(provider): add Ollama local LLM support
-
-- Add OllamaProvider implementation
-- Support model selection
-- Add health check endpoint
-
-Closes CLD-1234
-
-🤖 Generated with [Claude Code](https://claude.com/claude-code)
-
-Co-Authored-By: Claude <noreply@anthropic.com>
-```
-
-### Document Updates Checklist
-
-- [ ] CHANGELOG.md updated
-- [ ] FEATURES.md updated
-- [ ] PROJECT.md updated (if user-facing)
-- [ ] ADR created (if architectural)
-- [ ] Version files updated
+**Enhancement (P2):**
+4. LatencyMetricsListener
+5. TimeBoundaryValidator
+6. Integration tests
 
 ---
 
 ## References
 
-- [Conventional Commits](https://conventionalcommits.org/)
-- [Keep a Changelog](https://keepachangelog.com/)
+- [GOVERNANCE.md](GOVERNANCE.md) - Decision authority, commit conventions
+- [FEATURES.md](../FEATURES.md) - Feature matrix
+- [CHANGELOG.md](../CHANGELOG.md) - Version history
 - [Semantic Versioning](https://semver.org/)
-- [PROJECT.md](../PROJECT.md)
-- [FEATURES.md](../FEATURES.md)
-- [CHANGELOG.md](../CHANGELOG.md)
-- [ADR-001: Initial Architecture](adr/001-initial-architecture.md)
-- [ADR-002: LangChain4j Strategic Adoption](adr/002-langchain4j-strategic-adoption.md)
-- [ADR-003: MCP Server Integration](adr/003-mcp-server-integration.md)
-- [MCP Server Documentation](mcpserver/INDEX.md)
+- [Keep a Changelog](https://keepachangelog.com/)
 
 ---
 
-*Version: 1.1 | Updated: 2025-12-01*
+*Version: 3.0 | Updated: 2025-12-26*

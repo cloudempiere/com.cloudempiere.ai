@@ -502,7 +502,8 @@ com.cloudempiere.ai/
 │   │   ├── 010-agent-orchestration-architecture.md
 │   │   └── 011-specialized-agent-scopes.md
 │   ├── mcpserver/                            # MCP server documentation
-│   ├── GOVERNANCE.md                         # Project governance
+│   ├── GOVERNANCE.md                         # Decision authority framework
+│   ├── ROADMAP.md                            # Version phases and releases
 │   └── ADR_VALIDATION_REPORT.md              # ADR validation findings
 ├── .claude/
 │   ├── agents/                               # Claude Code agents (26)
@@ -548,7 +549,8 @@ com.cloudempiere.ai/
 | [CHANGELOG.md](CHANGELOG.md) | Version history and release notes |
 | [FEATURES.md](FEATURES.md) | Feature matrix and implementation status |
 | [CLAUDE.md](.claude/CLAUDE.md) | Development guidelines for Claude Code |
-| [GOVERNANCE.md](docs/GOVERNANCE.md) | Project governance and workflows |
+| [GOVERNANCE.md](docs/GOVERNANCE.md) | Decision authority framework |
+| [ROADMAP.md](docs/ROADMAP.md) | Version phases and releases |
 | [ADR Validation Report](docs/ADR_VALIDATION_REPORT.md) | Architecture validation findings |
 
 **Architecture Decision Records (ADRs):**
@@ -693,7 +695,7 @@ com.cloudempiere.ai/
 2. Update CHANGELOG.md for all changes
 3. Create ADR for significant architectural decisions
 4. Run tests before committing
-5. Review [GOVERNANCE.md](docs/GOVERNANCE.md) for workflows
+5. Review [GOVERNANCE.md](docs/GOVERNANCE.md) for decision authority
 
 **Commit Message Format:**
 ```

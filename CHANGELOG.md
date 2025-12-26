@@ -1535,7 +1535,8 @@ This release implements critical P1 infrastructure for production readiness.
   - `ADR-002-appendix` - Feature mapping (no functionality lost)
   - `ADR-003` - MCP server integration decision
 - **Project Governance**
-  - `docs/GOVERNANCE.md` - Workflows, conventions, release process
+  - `docs/GOVERNANCE.md` - Decision authority framework
+  - `docs/ROADMAP.md` - Phases, milestones, release process
 
 #### Changed
 - Updated roadmap with strategic LangChain4j migration path

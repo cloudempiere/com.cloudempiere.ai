@@ -146,7 +146,8 @@ String bpInfo = aiService.getBusinessPartner("BP001");
 - **[PROJECT.md](PROJECT.md)**: Complete project overview
 - **[FEATURES.md](FEATURES.md)**: Feature matrix and capabilities
 - **[CHANGELOG.md](CHANGELOG.md)**: Version history and changes
-- **[CRITICAL_ISSUES.md](docs/CRITICAL_ISSUES.md)**: Prioritized bug tracker
+- **[ROADMAP.md](docs/ROADMAP.md)**: Version phases and milestones
+- **[GOVERNANCE.md](docs/GOVERNANCE.md)**: Decision authority and conventions
 
 ### Development
 - **[CLAUDE.md](.claude/CLAUDE.md)**: Development guide for Claude Code
@@ -192,33 +193,6 @@ com.cloudempiere.ai/
 ├── pom.xml                    # Maven configuration
 └── META-INF/MANIFEST.MF       # OSGi bundle manifest
 ```
-
----
-
-## Version History
-
-- **v0.9.0** (2025-12-01): LangChain4j native providers
-- **v0.8.0** (2025-12-01): MCP server & strategic architecture
-- **v0.7.0** (2025-12-01): Documentation & Claude agents
-- **v0.6.0** (2025-11-28): LangChain4j agent framework
-- **v0.5.0** (2025-11-26): LangChain integration
-- **v0.4.0** (2025-11-26): AI chat widget
-- **v0.3.0** (2025-11-20): Security layer & context providers
-- **v0.2.0** (2025-11-18): AWS Bedrock integration
-- **v0.1.0** (2025-11-18): Initial provider infrastructure
-
-See [CHANGELOG.md](CHANGELOG.md) for detailed changes.
-
----
-
-## Roadmap
-
-| Phase | Version | Status | Milestone |
-|-------|---------|--------|-----------|
-| Phase 9 | v0.9.0 | ✅ Released | LangChain4j Native Providers |
-| Phase 10 | v0.10.0 | In Progress | Domain Agents |
-| Phase 11 | v0.11.0 | Planned | Production Database Schema |
-| Phase 12 | v1.0.0 | Planned | Production Release |
 
 ---
 
