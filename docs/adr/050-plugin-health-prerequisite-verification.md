@@ -2,13 +2,28 @@
 
 ## Status
 
-Accepted (Implemented 2025-12-25)
+**Experimental** (Implemented 2025-12-25, Updated 2025-12-27)
 
 **Implementation:**
-- `AIPluginHealthService.java` - Core health check service
+- `AIPluginHealthService.java` - Core health check service with all 4 tiers
 - `AIUIService.java` - UI-safe service layer
 - `Result.java` - Wrapper for safe execution
+- `CheckResult.java` - Immutable check result with Builder pattern
+- `PrerequisiteTier.java` - 4-tier categorization enum
+- `IPrerequisiteCheck.java` - Generic check interface (reusable)
 - Integration with `AIChatWidgetFactory` for prerequisite checks
+
+**Implemented Checks:**
+| Check | Tier | Description |
+|-------|------|-------------|
+| `TableExistsCheck` | CRITICAL/REQUIRED/OPTIONAL | Verifies AD_Table + physical table |
+| `ActiveProviderCheck` | REQUIRED | At least one active AIG_Provider |
+| `PgVectorExtensionCheck` | OPTIONAL | pgvector extension for RAG |
+| `OllamaServiceCheck` | EXTERNAL | Ollama server reachability (async) |
+
+**Monitoring:**
+- `getHealthAsJson()` - JSON output for monitoring endpoints
+- `isFeatureAvailable(feature)` - Check specific feature availability
 
 ## Date
 
