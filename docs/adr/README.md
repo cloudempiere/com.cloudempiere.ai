@@ -17,6 +17,7 @@ This directory contains architecture decisions for the Cloudempiere AI plugin.
 | [034](034-google-gemini-provider-integration.md) | Google Gemini Provider Integration | Proposed | 2025-12-03 |
 | [035](035-java-version-strategy.md) | Java Version Strategy and Migration Path | Accepted | 2025-12-04 |
 | [042](042-ai-hub-provider-integration.md) | AI Hub Provider Integration | Accepted | 2025-12-11 |
+| [052](052-ai-chat-widget-core-decoupling.md) | AI Chat Widget Core Decoupling | Proposed | 2025-12-26 |
 
 ### Data & Intelligence
 

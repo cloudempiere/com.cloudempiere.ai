@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<scr:component xmlns:scr="http://www.osgi.org/xmlns/scr/v1.3.0" activate="activate" deactivate="deactivate" immediate="true" name="com.cloudempiere.ai.provider.langchain4j.AIService">
+   <property name="service.ranking" type="Integer" value="100"/>
+   <service>
+      <provide interface="com.cloudempiere.ai.provider.langchain4j.IAIService"/>
+   </service>
+   <reference cardinality="0..1" field="ragService" interface="com.cloudempiere.ai.rag.IRagService" name="ragService" policy="dynamic"/>
+   <implementation class="com.cloudempiere.ai.provider.langchain4j.AIService"/>
+</scr:component>

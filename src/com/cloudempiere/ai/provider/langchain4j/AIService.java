@@ -22,6 +22,12 @@ import org.osgi.framework.Bundle;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.FrameworkUtil;
 import org.osgi.framework.ServiceReference;
+import org.osgi.service.component.annotations.Activate;
+import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.Deactivate;
+import org.osgi.service.component.annotations.Reference;
+import org.osgi.service.component.annotations.ReferenceCardinality;
+import org.osgi.service.component.annotations.ReferencePolicy;
 
 import com.cloudempiere.ai.guardrails.InputGuard;
 import com.cloudempiere.ai.guardrails.OutputGuard;
@@ -95,12 +101,21 @@ import dev.langchain4j.service.AiServices;
  * @since ADR-002 LangChain4j Strategic Adoption
  * @see com.cloudempiere.ai.rag.RAGConversationService RAGConversationService (not yet wired)
  */
-public class AIService {
+@Component(
+    service = IAIService.class,
+    immediate = true,
+    property = {"service.ranking:Integer=100"}
+)
+public class AIService implements IAIService {
 
     private static final CLogger log = CLogger.getCLogger(AIService.class);
 
-    /** Singleton instance */
-    private static AIService instance;
+    /** OSGi service instance for static method bridge */
+    private static volatile AIService serviceInstance;
+
+    /** Legacy singleton instance (deprecated) */
+    @Deprecated
+    private static AIService legacyInstance;
 
     /** Maximum cache size to prevent OOM in long-running servers */
     private static final int MAX_CACHE_SIZE = 100;
@@ -153,11 +168,16 @@ public class AIService {
     /** Language detection service (ADR-037) */
     private final LanguageDetectionService languageService = LanguageDetectionService.getInstance();
 
-    /** Cached RAG service (P1 Context Layer) */
+    /**
+     * RAG service for knowledge retrieval (P1 Context Layer).
+     * Injected via OSGi @Reference with optional cardinality and dynamic policy.
+     * This means the service can be null if not available, and will be updated dynamically.
+     */
+    @Reference(
+        cardinality = ReferenceCardinality.OPTIONAL,
+        policy = ReferencePolicy.DYNAMIC
+    )
     private volatile IRagService ragService;
-
-    /** Lock for RAG service initialization */
-    private final Object ragServiceLock = new Object();
 
     /** Default conversation memory size */
     private static final int DEFAULT_MEMORY_SIZE = 20;
@@ -247,20 +267,81 @@ public class AIService {
     /** Estimated cost per request in USD (conservative estimate) */
     private static final BigDecimal ESTIMATED_COST_PER_REQUEST = new BigDecimal("0.05");
 
-    private AIService() {
-        // Private constructor for singleton
-        log.info("AIService initialized with guardrails " +
+    /**
+     * Default constructor for OSGi instantiation.
+     */
+    public AIService() {
+        log.fine("AIService instantiated (OSGi)");
+    }
+
+    // ========================================================================
+    // OSGi Lifecycle
+    // ========================================================================
+
+    /**
+     * OSGi component activation.
+     * @param context Bundle context
+     */
+    @Activate
+    protected void activate(BundleContext context) {
+        serviceInstance = this;
+        log.info("AIService activated (OSGi service) with guardrails " +
                 (guardrailsEnabled ? "enabled" : "disabled"));
     }
 
     /**
-     * Get singleton instance.
+     * OSGi component deactivation.
+     * Clears all caches to prevent memory leaks.
      */
+    @Deactivate
+    protected void deactivate() {
+        clearAllCaches();
+        serviceInstance = null;
+        log.info("AIService deactivated");
+    }
+
+    /**
+     * Get singleton instance.
+     *
+     * @deprecated Use OSGi {@code @Reference} injection instead:
+     * <pre>
+     * &#64;Reference
+     * private IAIService aiService;
+     * </pre>
+     * @return AIService instance
+     */
+    @Deprecated
     public static synchronized AIService getInstance() {
-        if (instance == null) {
-            instance = new AIService();
+        // Prefer OSGi service instance
+        if (serviceInstance != null) {
+            return serviceInstance;
         }
-        return instance;
+
+        // Fallback: OSGi service lookup
+        try {
+            Bundle bundle = FrameworkUtil.getBundle(AIService.class);
+            if (bundle != null) {
+                BundleContext ctx = bundle.getBundleContext();
+                if (ctx != null) {
+                    ServiceReference<IAIService> ref = ctx.getServiceReference(IAIService.class);
+                    if (ref != null) {
+                        AIService service = (AIService) ctx.getService(ref);
+                        if (service != null) {
+                            return service;
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.log(Level.WARNING, "Failed to get OSGi service instance", e);
+        }
+
+        // Last resort: legacy singleton (for non-OSGi contexts)
+        if (legacyInstance == null) {
+            legacyInstance = new AIService();
+            log.warning("AIService.getInstance() using legacy singleton - use @Reference injection instead");
+        }
+        return legacyInstance;
     }
 
     /**
@@ -281,6 +362,7 @@ public class AIService {
      * @return AI response (sanitized)
      * @throws RuntimeException if guardrails block the request or AI call fails
      */
+    @Override
     public String chat(MAIProvider provider, Properties ctx, String sessionId, String message) {
         log.info("AIService.chat: session=" + sessionId +
                 ", message=" + message.substring(0, Math.min(50, message.length())));
@@ -381,6 +463,7 @@ public class AIService {
      * @return AI response (sanitized) and updated thread root ID
      * @throws RuntimeException if guardrails block or AI call fails
      */
+    @Override
     public ChatResult chatWithContext(MAIProvider provider, MChat chat,
                                        String message, JSONObject contextData,
                                        int threadRootId) {
@@ -596,6 +679,7 @@ public class AIService {
      * @param threadRootId Thread root ID (0 for new thread)
      * @param callback Streaming callback for real-time response handling
      */
+    @Override
     public void chatStreamingWithContext(MAIProvider provider, MChat chat,
                                           String message, JSONObject contextData,
                                           int threadRootId, AIStreamCallback callback) {
@@ -1218,6 +1302,7 @@ public class AIService {
      * @param threadRootId Thread root ID (0 for new thread)
      * @return ChatResult with response and thread info
      */
+    @Override
     public ChatResult chatBlocking(MAIProvider provider, MChat chat,
                                     String message, JSONObject contextData,
                                     int threadRootId) {
@@ -1439,6 +1524,7 @@ public class AIService {
      * @return AI response (sanitized)
      * @throws RuntimeException if guardrails block the request or AI call fails
      */
+    @Override
     public String execute(MAIProvider provider, Properties ctx, String goal) {
         log.info("AIService.execute: " + goal.substring(0, Math.min(50, goal.length())));
 
@@ -1601,6 +1687,7 @@ public class AIService {
     /**
      * Clear conversation memory for a session.
      */
+    @Override
     public void clearMemory(String sessionId) {
         memoryCache.remove(sessionId);
         log.info("Memory cleared for session: " + sessionId);
@@ -1609,6 +1696,7 @@ public class AIService {
     /**
      * Clear all caches (e.g., on configuration change).
      */
+    @Override
     public void clearAllCaches() {
         agentCache.clear();
         memoryCache.clear();
@@ -1620,6 +1708,7 @@ public class AIService {
     /**
      * Get conversation memory size for a session.
      */
+    @Override
     public int getMemorySize(String sessionId) {
         MessageWindowChatMemory memory = memoryCache.get(sessionId);
         return memory != null ? memory.messages().size() : 0;
@@ -1643,6 +1732,7 @@ public class AIService {
      *
      * @param enabled true to enable guardrails, false to disable
      */
+    @Override
     public void setGuardrailsEnabled(boolean enabled) {
         this.guardrailsEnabled = enabled;
         log.info("Guardrails " + (enabled ? "enabled" : "disabled"));
@@ -1653,6 +1743,7 @@ public class AIService {
      *
      * @return true if guardrails are enabled
      */
+    @Override
     public boolean isGuardrailsEnabled() {
         return guardrailsEnabled;
     }
@@ -1664,38 +1755,13 @@ public class AIService {
     /**
      * Get the RAG service for knowledge retrieval.
      *
-     * <p>Uses lazy initialization with OSGi service lookup.
-     * Returns null if RAG service is not available.
+     * <p>The RAG service is injected via OSGi @Reference annotation with
+     * optional cardinality and dynamic policy. Returns null if not available.
      *
      * @return IRagService instance or null
      */
     private IRagService getRagService() {
-        if (ragService != null) {
-            return ragService;
-        }
-
-        synchronized (ragServiceLock) {
-            if (ragService == null) {
-                try {
-                    Bundle bundle = FrameworkUtil.getBundle(AIService.class);
-                    if (bundle != null) {
-                        BundleContext context = bundle.getBundleContext();
-                        if (context != null) {
-                            ServiceReference<IRagService> ref = context.getServiceReference(IRagService.class);
-                            if (ref != null) {
-                                ragService = context.getService(ref);
-                                if (ragService != null) {
-                                    log.info("RAG service initialized: available=" + ragService.isAvailable());
-                                }
-                            }
-                        }
-                    }
-                } catch (Exception e) {
-                    log.warning("Failed to get RAG service: " + e.getMessage());
-                }
-            }
-        }
-
+        // Simply return the @Reference injected field (may be null if service not available)
         return ragService;
     }
 
@@ -1704,6 +1770,7 @@ public class AIService {
      *
      * @return true if RAG service is available and configured
      */
+    @Override
     public boolean isRagAvailable() {
         IRagService rag = getRagService();
         return rag != null && rag.isAvailable();
@@ -1715,6 +1782,7 @@ public class AIService {
      * @param clientId AD_Client_ID
      * @return Budget status information
      */
+    @Override
     public CostGuard.BudgetStatus getBudgetStatus(int clientId) {
         return costGuard.getBudgetStatus(clientId);
     }
@@ -1724,6 +1792,7 @@ public class AIService {
      *
      * @param clientId AD_Client_ID
      */
+    @Override
     public void clearBudgetCache(int clientId) {
         costGuard.clearBudgetCache(clientId);
     }

@@ -55,6 +55,9 @@ import com.cloudempiere.ai.context.AIContextProviderRegistry;
 import com.cloudempiere.ai.context.ContextParameters;
 import com.cloudempiere.ai.context.IAIContextProvider;
 import com.cloudempiere.ai.error.AIErrorHandler;
+import com.cloudempiere.ai.health.AIPluginHealthService;
+import com.cloudempiere.ai.health.AIUIService;
+import com.cloudempiere.ai.health.Result;
 import com.cloudempiere.ai.error.AIErrorHandler.AIErrorResult;
 import com.cloudempiere.ai.model.MAIChat;
 import com.cloudempiere.ai.model.MAIChatEntry;
@@ -181,6 +184,9 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 		init();
 	}
 
+	/** Flag indicating if widget is in unavailable state */
+	private boolean unavailableState = false;
+
 	/**
 	 * Initialize the widget
 	 */
@@ -197,6 +203,13 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 		// Use Env.getCtx() which should have the session context when called from UI thread
 		sessionCtx = Env.getCtx();
 
+		// Check plugin health first (ADR-050, ADR-051: Defensive programming)
+		Result<Boolean> availability = AIUIService.checkAvailability();
+		if (!availability.isSuccess()) {
+			showUnavailableState(availability.getMessage());
+			return;
+		}
+
 		// Register zoom event listener for clickable record links
 		addEventListener(ON_ZOOM, this);
 
@@ -205,8 +218,18 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 		// Load Markdown rendering libraries (marked.js + Prism.js for syntax highlighting)
 		loadMarkdownLibraries();
 
-		// Initialize AI service (LangChain4j)
-		langchainService = AIService.getInstance();
+		// Initialize AI service (LangChain4j) - use defensive wrapper
+		Result<AIService> serviceResult = AIUIService.safeExecute(
+				() -> AIService.getInstance(), "chat-init");
+		if (!serviceResult.isSuccess()) {
+			showUnavailableState(serviceResult.getMessage());
+			return;
+		}
+		langchainService = serviceResult.getValueOrDefault(null);
+		if (langchainService == null) {
+			showUnavailableState(AIUIService.getDisplayStatus());
+			return;
+		}
 		log.fine("AIChatWidget initialized with LangChain4j service");
 
 		// Context indicator (if enabled)
@@ -1419,6 +1442,70 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 					", category=" + errorResult.getCategory() +
 					", issueId=" + errorResult.getAD_Issue_ID());
 		}, new Event("onAIError"));
+	}
+
+	/**
+	 * Show unavailable state when AI service is not ready.
+	 * (ADR-050, ADR-051: Defensive programming - graceful degradation)
+	 *
+	 * @param message User-friendly explanation of why AI is unavailable
+	 */
+	private void showUnavailableState(String message) {
+		unavailableState = true;
+
+		// Clear any existing children
+		getChildren().clear();
+
+		// Create a centered container for the unavailable message
+		Vlayout container = new Vlayout();
+		container.setStyle("display: flex; flex-direction: column; align-items: center; " +
+				"justify-content: center; height: 100%; padding: 24px; text-align: center;");
+
+		// Icon
+		Html iconHtml = new Html("<div style='font-size: 48px; margin-bottom: 16px; opacity: 0.5;'>" +
+				"\uD83D\uDEAB</div>"); // 🚫 emoji
+		container.appendChild(iconHtml);
+
+		// Title
+		String title = Msg.getMsg(Env.getCtx(), "AIServiceUnavailable");
+		if (title == null || title.equals("AIServiceUnavailable")) {
+			title = "AI Assistant Unavailable";
+		}
+		Html titleHtml = new Html("<div style='font-size: 16px; font-weight: 600; " +
+				"color: #424242; margin-bottom: 8px;'>" + Util.maskHTML(title, true) + "</div>");
+		container.appendChild(titleHtml);
+
+		// Message
+		String displayMessage = message != null ? message : "AI features are currently unavailable. Please try again later.";
+		Html messageHtml = new Html("<div style='font-size: 13px; color: #757575; " +
+				"max-width: 300px; line-height: 1.5;'>" + Util.maskHTML(displayMessage, true) + "</div>");
+		container.appendChild(messageHtml);
+
+		// Retry button (allows user to check availability again)
+		Button retryButton = new Button(Msg.getMsg(Env.getCtx(), "Retry"));
+		retryButton.setStyle("margin-top: 16px; padding: 8px 16px; background: #1976d2; " +
+				"color: white; border: none; border-radius: 4px; cursor: pointer;");
+		retryButton.addEventListener(Events.ON_CLICK, evt -> {
+			// Re-check availability and re-initialize if now available
+			AIPluginHealthService health = AIPluginHealthService.getInstance();
+			if (health != null) {
+				health.refresh();
+			}
+			Result<Boolean> availability = AIUIService.checkAvailability();
+			if (availability.isSuccess()) {
+				unavailableState = false;
+				getChildren().clear();
+				init();
+			} else {
+				// Update the message with current status
+				Clients.showNotification(availability.getMessage(), "warning", null, null, 3000);
+			}
+		});
+		container.appendChild(retryButton);
+
+		appendChild(container);
+
+		log.warning("AIChatWidget showing unavailable state: " + displayMessage);
 	}
 
 	/**

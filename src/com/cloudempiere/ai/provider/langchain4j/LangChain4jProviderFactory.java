@@ -3,8 +3,16 @@ package com.cloudempiere.ai.provider.langchain4j;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.logging.Level;
 
 import org.compiere.util.CLogger;
+import org.osgi.framework.Bundle;
+import org.osgi.framework.BundleContext;
+import org.osgi.framework.FrameworkUtil;
+import org.osgi.framework.ServiceReference;
+import org.osgi.service.component.annotations.Activate;
+import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.Deactivate;
 
 import com.cloudempiere.ai.model.MAIProvider;
 import com.cloudempiere.ai.model.X_AIG_Provider;
@@ -26,18 +34,35 @@ import software.amazon.awssdk.regions.Region;
 /**
  * Factory for creating LangChain4j ChatLanguageModel instances from iDempiere configuration.
  *
- * Replaces the custom IAIProvider implementations with LangChain4j native providers:
- * - AnthropicChatModel (replaces AnthropicProvider)
- * - BedrockAnthropicChatModel (replaces AWSBedrockProvider)
- * - OllamaChatModel (local LLM support for any Ollama model)
- * - OpenAiChatModel (OpenAI/Azure support)
- * - LlamaModel (Meta Llama models via Ollama - llama3.2, llama3.1, codellama, etc.)
+ * <p>Replaces the custom IAIProvider implementations with LangChain4j native providers:
+ * <ul>
+ *   <li>AnthropicChatModel (replaces AnthropicProvider)</li>
+ *   <li>BedrockAnthropicChatModel (replaces AWSBedrockProvider)</li>
+ *   <li>OllamaChatModel (local LLM support for any Ollama model)</li>
+ *   <li>OpenAiChatModel (OpenAI/Azure support)</li>
+ *   <li>LlamaModel (Meta Llama models via Ollama - llama3.2, llama3.1, codellama, etc.)</li>
+ * </ul>
+ *
+ * <p><strong>OSGi Service:</strong> This class is now an OSGi component that implements
+ * {@link ILangChain4jProviderFactory}. Use {@code @Reference} injection to obtain an instance.
+ *
+ * <p><strong>Backward Compatibility:</strong> Static methods are retained but deprecated.
+ * They delegate to the OSGi service instance.
  *
  * @author Cloudempiere
- * @version 0.10.0
+ * @version 10.0.0
  * @since ADR-002 LangChain4j Strategic Adoption
+ * @since ADR-052 OSGi Modernization
  */
-public class LangChain4jProviderFactory {
+@Component(
+    service = ILangChain4jProviderFactory.class,
+    immediate = true,
+    property = {"service.ranking:Integer=100"}
+)
+public class LangChain4jProviderFactory implements ILangChain4jProviderFactory {
+
+    /** OSGi service instance for static method bridge */
+    private static volatile LangChain4jProviderFactory serviceInstance;
 
     private static final CLogger log = CLogger.getCLogger(LangChain4jProviderFactory.class);
 
@@ -67,13 +92,195 @@ public class LangChain4jProviderFactory {
     private static final String DEFAULT_OLLAMA_EMBEDDING_MODEL = "nomic-embed-text";
     private static final String DEFAULT_OPENAI_EMBEDDING_MODEL = "text-embedding-3-small";
 
-    /** Cache for model instances by provider ID */
-    private static final Map<Integer, ChatLanguageModel> modelCache = new ConcurrentHashMap<>();
-    private static final Map<Integer, StreamingChatLanguageModel> streamingModelCache = new ConcurrentHashMap<>();
-    private static final Map<Integer, EmbeddingModel> embeddingModelCache = new ConcurrentHashMap<>();
+    /** Cache for model instances by provider ID (instance-level for OSGi lifecycle) */
+    private final Map<Integer, ChatLanguageModel> instanceModelCache = new ConcurrentHashMap<>();
+    private final Map<Integer, StreamingChatLanguageModel> instanceStreamingModelCache = new ConcurrentHashMap<>();
+    private final Map<Integer, EmbeddingModel> instanceEmbeddingModelCache = new ConcurrentHashMap<>();
 
     /** Flag to enable/disable metrics listener (default: enabled) */
+    private boolean instanceMetricsEnabled = true;
+
+    // ========================================================================
+    // Legacy static caches (deprecated, for backward compatibility)
+    // ========================================================================
+
+    /** @deprecated Use instance caches via OSGi service */
+    @Deprecated
+    private static final Map<Integer, ChatLanguageModel> modelCache = new ConcurrentHashMap<>();
+    /** @deprecated Use instance caches via OSGi service */
+    @Deprecated
+    private static final Map<Integer, StreamingChatLanguageModel> streamingModelCache = new ConcurrentHashMap<>();
+    /** @deprecated Use instance caches via OSGi service */
+    @Deprecated
+    private static final Map<Integer, EmbeddingModel> embeddingModelCache = new ConcurrentHashMap<>();
+    /** @deprecated Use instance field via OSGi service */
+    @Deprecated
     private static boolean metricsEnabled = true;
+
+    // ========================================================================
+    // OSGi Lifecycle
+    // ========================================================================
+
+    /**
+     * OSGi component activation.
+     * @param context Bundle context
+     */
+    @Activate
+    protected void activate(BundleContext context) {
+        serviceInstance = this;
+        log.info("LangChain4jProviderFactory activated (OSGi service)");
+    }
+
+    /**
+     * OSGi component deactivation.
+     * Clears all caches to prevent memory leaks.
+     */
+    @Deactivate
+    protected void deactivate() {
+        clearInstanceCaches();
+        serviceInstance = null;
+        log.info("LangChain4jProviderFactory deactivated");
+    }
+
+    /**
+     * Clear all instance-level caches.
+     */
+    private void clearInstanceCaches() {
+        instanceModelCache.clear();
+        instanceStreamingModelCache.clear();
+        instanceEmbeddingModelCache.clear();
+        log.info("LangChain4j instance model caches cleared");
+    }
+
+    // ========================================================================
+    // OSGi Service Instance Lookup (for deprecated static methods)
+    // ========================================================================
+
+    /**
+     * Get OSGi service instance for backward compatibility.
+     * @return Service instance or null if not available
+     */
+    private static LangChain4jProviderFactory getServiceInstance() {
+        if (serviceInstance != null) {
+            return serviceInstance;
+        }
+        // Fallback: OSGi service lookup
+        try {
+            Bundle bundle = FrameworkUtil.getBundle(LangChain4jProviderFactory.class);
+            if (bundle != null) {
+                BundleContext ctx = bundle.getBundleContext();
+                if (ctx != null) {
+                    ServiceReference<ILangChain4jProviderFactory> ref =
+                        ctx.getServiceReference(ILangChain4jProviderFactory.class);
+                    if (ref != null) {
+                        return (LangChain4jProviderFactory) ctx.getService(ref);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.log(Level.WARNING, "Failed to get OSGi service instance", e);
+        }
+        return null;
+    }
+
+    // ========================================================================
+    // ILangChain4jProviderFactory Interface Implementation (OSGi)
+    // These instance methods delegate to static methods for implementation
+    // but use instance caches for proper OSGi lifecycle management
+    // ========================================================================
+
+    @Override
+    public ChatLanguageModel createModel(MAIProvider config) {
+        String modelName = config.getModelName();
+        if (modelName != null && modelName.trim().isEmpty()) {
+            modelName = null;
+        }
+        return createModel(config, modelName, null);
+    }
+
+    @Override
+    public ChatLanguageModel createModel(MAIProvider config, String modelName, String baseUrl) {
+        // Delegate to static implementation
+        return create(config, modelName, baseUrl);
+    }
+
+    @Override
+    public StreamingChatLanguageModel createStreamingModel(MAIProvider config) {
+        String modelName = config.getModelName();
+        if (modelName != null && modelName.trim().isEmpty()) {
+            modelName = null;
+        }
+        return createStreamingModel(config, modelName, null);
+    }
+
+    @Override
+    public StreamingChatLanguageModel createStreamingModel(MAIProvider config, String modelName, String baseUrl) {
+        return createStreaming(config, modelName, baseUrl);
+    }
+
+    @Override
+    public ChatLanguageModel getOrCreateModel(MAIProvider config) {
+        return instanceModelCache.computeIfAbsent(config.getAIG_Provider_ID(),
+            id -> createModel(config));
+    }
+
+    @Override
+    public EmbeddingModel createEmbedding(MAIProvider config) {
+        return createEmbedding(config, null, null);
+    }
+
+    @Override
+    public EmbeddingModel createEmbedding(MAIProvider config, String modelName, String baseUrl) {
+        return createEmbeddingModel(config, modelName, baseUrl);
+    }
+
+    @Override
+    public EmbeddingModel getOrCreateEmbedding(MAIProvider config) {
+        return instanceEmbeddingModelCache.computeIfAbsent(config.getAIG_Provider_ID(),
+            id -> createEmbedding(config));
+    }
+
+    @Override
+    public boolean supportsNativeEmbeddings(String providerType) {
+        return hasNativeEmbeddings(providerType);
+    }
+
+    @Override
+    public void clearAllCaches() {
+        clearInstanceCaches();
+        // Also clear static caches for backward compatibility
+        modelCache.clear();
+        streamingModelCache.clear();
+        embeddingModelCache.clear();
+        log.info("LangChain4j model cache cleared (instance + static)");
+    }
+
+    @Override
+    public void evict(int providerId) {
+        instanceModelCache.remove(providerId);
+        instanceStreamingModelCache.remove(providerId);
+        instanceEmbeddingModelCache.remove(providerId);
+        // Also evict from static caches
+        modelCache.remove(providerId);
+        streamingModelCache.remove(providerId);
+        embeddingModelCache.remove(providerId);
+    }
+
+    @Override
+    public void enableMetrics(boolean enabled) {
+        this.instanceMetricsEnabled = enabled;
+        metricsEnabled = enabled;  // Also set static for backward compat
+        log.info("Metrics collection " + (enabled ? "enabled" : "disabled"));
+    }
+
+    @Override
+    public boolean metricsEnabled() {
+        return instanceMetricsEnabled;
+    }
+
+    // ========================================================================
+    // Static Factory Methods (for backward compatibility)
+    // ========================================================================
 
     /**
      * Create a ChatLanguageModel from MAIProvider configuration.
