@@ -7,7 +7,6 @@ import java.sql.ResultSet;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumMap;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -98,34 +97,143 @@ public class AIPluginHealthService {
 	 * Register default prerequisite checks.
 	 */
 	private void registerDefaultChecks() {
-		// Critical: Core tables
-		checks.add(new TableExistsCheck("AIG_Provider", PrerequisiteTier.CRITICAL,
-				"Deploy AI plugin 2Pack or run migration scripts"));
-		checks.add(new TableExistsCheck("AIG_Model", PrerequisiteTier.CRITICAL,
-				"Deploy AI plugin 2Pack or run migration scripts"));
-
-		// Required: Supporting tables
-		checks.add(new TableExistsCheck("AIG_Chat", PrerequisiteTier.REQUIRED,
-				"Deploy AI plugin 2Pack for chat functionality"));
-		checks.add(new TableExistsCheck("AIG_ChatEntry", PrerequisiteTier.REQUIRED,
-				"Deploy AI plugin 2Pack for chat functionality"));
-		checks.add(new TableExistsCheck("AIG_Budget", PrerequisiteTier.REQUIRED,
-				"Deploy AI plugin 2Pack for cost tracking"));
+		// Dynamically discover all AIG_* tables from model package
+		discoverAndRegisterTableChecks();
 
 		// Required: Active provider check
 		checks.add(new ActiveProviderCheck());
-
-		// Optional: Enhanced features
-		checks.add(new TableExistsCheck("AIG_KnowledgeBase", PrerequisiteTier.OPTIONAL,
-				"Deploy knowledge base tables for RAG functionality"));
-		checks.add(new TableExistsCheck("AIG_Embedding", PrerequisiteTier.OPTIONAL,
-				"Deploy embedding tables and pgvector extension for RAG"));
 
 		// Optional: pgvector extension for vector embeddings
 		checks.add(new PgVectorExtensionCheck());
 
 		// External: AI provider services (checked asynchronously)
 		checks.add(new OllamaServiceCheck());
+	}
+
+	/**
+	 * Dynamically discover AIG_* tables from model interfaces and register checks.
+	 * Scans com.cloudempiere.ai.model package for I_AIG_* interfaces.
+	 */
+	private void discoverAndRegisterTableChecks() {
+		// Define tier classification for existing tables only
+		// Tables are discovered dynamically from AD_Table, this map only defines criticality
+		Map<String, PrerequisiteTier> tierMap = new LinkedHashMap<>();
+
+		// Critical: Core provider infrastructure
+		tierMap.put("AIG_Provider", PrerequisiteTier.CRITICAL);
+
+		// Required: Essential functionality
+		tierMap.put("AIG_Budget", PrerequisiteTier.REQUIRED);
+		tierMap.put("AIG_UsageMetrics", PrerequisiteTier.REQUIRED);
+
+		// Optional: Enhanced features and audit
+		tierMap.put("AIG_ChatOwnership", PrerequisiteTier.OPTIONAL);
+		tierMap.put("AIG_Embedding", PrerequisiteTier.OPTIONAL);
+		tierMap.put("AIG_QueryAudit", PrerequisiteTier.OPTIONAL);
+		tierMap.put("AIG_Prompt_Config", PrerequisiteTier.OPTIONAL);
+
+		try {
+			// Scan model package for I_AIG_* interfaces
+			String packageName = "com.cloudempiere.ai.model";
+			Class<?>[] modelClasses = getModelClasses(packageName);
+
+			for (Class<?> modelClass : modelClasses) {
+				String className = modelClass.getSimpleName();
+
+				// Extract table name from interface (I_AIG_Provider -> AIG_Provider)
+				if (className.startsWith("I_AIG_")) {
+					String tableName = className.substring(2); // Remove "I_" prefix
+
+					// Get tier from map, default to REQUIRED if not specified
+					PrerequisiteTier tier = tierMap.getOrDefault(tableName, PrerequisiteTier.REQUIRED);
+
+					String resolution = getResolutionForTable(tableName, tier);
+					checks.add(new TableExistsCheck(tableName, tier, resolution));
+
+					log.fine("Registered health check for table: " + tableName + " (" + tier + ")");
+				}
+			}
+		} catch (Exception e) {
+			log.log(Level.WARNING, "Could not discover model classes, falling back to hardcoded list", e);
+			// Fallback: Register only critical tables manually
+			checks.add(new TableExistsCheck("AIG_Provider", PrerequisiteTier.CRITICAL,
+					"Deploy AI plugin 2Pack or run migration scripts"));
+		}
+	}
+
+	/**
+	 * Get all model classes from a package by discovering AIG_* tables from database.
+	 * This approach is truly dynamic - no hardcoded table list needed!
+	 *
+	 * Strategy:
+	 * 1. Query AD_Table for all AIG_* tables registered in the Application Dictionary
+	 * 2. Try to load corresponding I_AIG_* interface for each table
+	 * 3. Only register health checks for tables that have model interfaces
+	 */
+	private Class<?>[] getModelClasses(String packageName) throws Exception {
+		List<Class<?>> classes = new ArrayList<>();
+
+		// Get classloader from this bundle
+		ClassLoader classLoader = this.getClass().getClassLoader();
+
+		try {
+			// Query AD_Table for all AIG_* tables
+			String sql = "SELECT TableName FROM AD_Table WHERE TableName LIKE 'AIG_%' AND IsActive = 'Y' ORDER BY TableName";
+
+			List<String> tableNames = new ArrayList<>();
+			try (PreparedStatement pstmt = DB.prepareStatement(sql, null);
+				 ResultSet rs = pstmt.executeQuery()) {
+				while (rs.next()) {
+					tableNames.add(rs.getString(1));
+				}
+			}
+
+			log.fine("Discovered " + tableNames.size() + " AIG_* tables from AD_Table");
+
+			// Try to load model interface for each discovered table
+			for (String tableName : tableNames) {
+				try {
+					Class<?> clazz = classLoader.loadClass(packageName + ".I_" + tableName);
+					if (clazz.isInterface()) {
+						classes.add(clazz);
+						log.fine("Loaded model interface: I_" + tableName);
+					}
+				} catch (ClassNotFoundException e) {
+					// Model interface not yet generated/implemented
+					// This is expected during development when table exists but model isn't generated
+					log.fine("Model interface not found for table: " + tableName + " - skipping health check");
+				}
+			}
+
+		} catch (Exception e) {
+			log.log(Level.WARNING, "Error discovering AIG_* tables from database", e);
+		}
+
+		return classes.toArray(new Class<?>[0]);
+	}
+
+	/**
+	 * Get resolution steps for a table based on its tier.
+	 */
+	private String getResolutionForTable(String tableName, PrerequisiteTier tier) {
+		switch (tier) {
+			case CRITICAL:
+				return "Deploy AI plugin 2Pack or run migration scripts";
+			case REQUIRED:
+				if (tableName.startsWith("AIG_Chat")) {
+					return "Deploy AI plugin 2Pack for chat functionality";
+				} else if (tableName.contains("Budget") || tableName.contains("Usage")) {
+					return "Deploy AI plugin 2Pack for cost tracking";
+				}
+				return "Deploy AI plugin 2Pack or run migration scripts";
+			case OPTIONAL:
+				if (tableName.contains("Knowledge") || tableName.contains("Embedding")) {
+					return "Deploy RAG tables for knowledge base functionality";
+				}
+				return "Deploy optional AI plugin tables";
+			default:
+				return "Check AI plugin deployment";
+		}
 	}
 
 	/**
@@ -190,18 +298,26 @@ public class AIPluginHealthService {
 
 			boolean isStrictMode = "strict".equalsIgnoreCase(System.getProperty(PROP_STRICT_MODE));
 
+			// Create AD_Issue for ANY failures (CRITICAL, REQUIRED, or OPTIONAL) to notify admins
+			if (!failures.isEmpty()) {
+				createAdminIssue(failures);
+			}
+
 			if (!allCriticalPassed) {
 				healthy.set(false);
 				statusMessage.set("AI features unavailable - critical prerequisites missing");
-				createAdminIssue(failures);
 			} else if (!allRequiredPassed && isStrictMode) {
 				healthy.set(false);
 				statusMessage.set("AI features unavailable (strict mode) - required prerequisites missing");
-				createAdminIssue(failures);
 			} else if (!allRequiredPassed) {
 				healthy.set(true); // Graceful mode - continue with warnings
 				statusMessage.set("AI features partially available - some prerequisites missing");
 				log.warning("AI plugin running in degraded mode - some features unavailable");
+			} else if (!failures.isEmpty()) {
+				// All critical/required passed, but optional failures exist
+				healthy.set(true);
+				statusMessage.set("AI features available - optional features unavailable");
+				log.info("AI plugin healthy but with optional prerequisites missing (e.g., pgvector)");
 			} else {
 				healthy.set(true);
 				statusMessage.set("AI features available");

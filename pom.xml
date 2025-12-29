@@ -369,6 +369,8 @@
 								    <artifactId>langchain4j-pgvector</artifactId>
 								    <version>0.35.0</version>
 								</artifactItem>
+								<!-- PostgreSQL JDBC Driver - provided by org.compiere.db.postgresql.provider bundle -->
+								<!-- Not bundled here to avoid duplication; accessed via Require-Bundle in MANIFEST.MF -->
 								<!-- OpenAI4j - required by langchain4j-open-ai (used for AI Hub provider) -->
 								<artifactItem>
 								    <groupId>dev.ai4j</groupId>

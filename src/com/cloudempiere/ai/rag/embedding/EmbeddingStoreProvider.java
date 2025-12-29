@@ -61,7 +61,7 @@ import dev.langchain4j.store.embedding.pgvector.PgVectorEmbeddingStore;
  *
  * <p>Configuration:
  * <ul>
- *   <li>Table: aig_embedding (created by migration)</li>
+ *   <li>Table: aig_embedding (created by migration 202512101600_CLD-1601.sql)</li>
  *   <li>Dimension: 768 (nomic-embed-text default)</li>
  *   <li>Index: HNSW with cosine distance</li>
  *   <li>System property: {@code ai.embedding.mode} - "strict" or "graceful" (default)</li>
@@ -309,7 +309,9 @@ public class EmbeddingStoreProvider implements IEmbeddingStoreProvider {
             createPgVectorStore();
             pgVectorAvailable = true;
             log.info("EmbeddingStoreProvider initialized with pgvector, dimension=" + dimension);
-        } catch (Exception e) {
+        } catch (Throwable e) {
+            // Catch Throwable (not just Exception) to handle NoClassDefFoundError
+            // when PostgreSQL JDBC driver is not available in classpath
             handlePrerequisiteFailure("Failed to create pgvector store: " + e.getMessage(), status);
         }
     }

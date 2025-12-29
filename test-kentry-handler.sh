@@ -120,7 +120,7 @@ if [ "$QUICK_TEST" = false ]; then
         print_warning "aig_embedding table not found"
         echo "  Running migration script..."
 
-        MIGRATION_FILE="migration/postgresql/202512101600_P1_Vector_Embedding.sql"
+        MIGRATION_FILE="migration/postgresql/202512101600_CLD-1601.sql"
         if [ -f "$MIGRATION_FILE" ]; then
             $PSQL -f "$MIGRATION_FILE" > /dev/null 2>&1
             print_success "Migration executed successfully"

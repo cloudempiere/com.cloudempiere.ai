@@ -168,12 +168,9 @@ The health service checks prerequisites in four tiers:
 
 | Prerequisite | Check Method | Resolution |
 |--------------|--------------|------------|
-| `aig_provider` table | `information_schema.tables` | Deploy 2Pack or run migrations |
-| `aig_budget` table | `information_schema.tables` | Deploy 2Pack or run migrations |
-| `aig_usagemetrics` table | `information_schema.tables` | Deploy 2Pack or run migrations |
-| `aig_chatownership` table | `information_schema.tables` | Deploy 2Pack or run migrations |
-| `aig_queryaudit` table | `information_schema.tables` | Deploy 2Pack or run migrations |
-| `aig_prompt_config` table | `information_schema.tables` | Deploy 2Pack or run migrations |
+| `AIG_Provider` table | AD_Table + physical check | Deploy 2Pack or run migrations |
+| `AIG_Budget` table | AD_Table + physical check | Deploy 2Pack or run migrations |
+| `AIG_UsageMetrics` table | AD_Table + physical check | Deploy 2Pack or run migrations |
 | Active AIG_Provider | Query AIG_Provider | Configure at least one provider |
 
 #### Tier 3: Optional (Enhanced Features)
@@ -181,8 +178,10 @@ The health service checks prerequisites in four tiers:
 | Prerequisite | Check Method | Affected Feature |
 |--------------|--------------|------------------|
 | pgvector extension | `pg_extension` | Vector embeddings, RAG |
-| `aig_embedding` table | `information_schema.tables` | Persistent embeddings |
-| `aig_knowledge_entry` table | `information_schema.tables` | Knowledge base |
+| `AIG_Embedding` table | AD_Table + physical check | Persistent embeddings |
+| `AIG_ChatOwnership` table | AD_Table + physical check | Chat ownership tracking |
+| `AIG_QueryAudit` table | AD_Table + physical check | Query audit logging |
+| `AIG_Prompt_Config` table | AD_Table + physical check | Prompt configuration |
 
 #### Tier 4: External Services
 
@@ -257,6 +256,86 @@ public enum HealthState {
 }
 ```
 
+### Dynamic Table Discovery
+
+**Problem**: Hardcoded table lists in health checks create maintenance overhead and become outdated as tables are added or removed during development.
+
+**Solution**: Dynamically discover AIG_* tables from the Application Dictionary and only check tables that have corresponding model interfaces.
+
+#### Discovery Strategy
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│            Dynamic Table Discovery Flow                         │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  1. Query AD_Table                                              │
+│     SELECT TableName FROM AD_Table                              │
+│     WHERE TableName LIKE 'AIG_%' AND IsActive = 'Y'             │
+│                                                                 │
+│  2. For each discovered table:                                  │
+│     try {                                                       │
+│       Class<?> clazz = loadClass("I_" + tableName);             │
+│       if (clazz.isInterface()) {                                │
+│         registerHealthCheck(tableName);                         │
+│       }                                                         │
+│     } catch (ClassNotFoundException e) {                        │
+│       // Model not generated yet - skip silently                │
+│     }                                                           │
+│                                                                 │
+│  3. Apply tier classification from tierMap                      │
+│     PrerequisiteTier tier = tierMap.getOrDefault(               │
+│         tableName, PrerequisiteTier.REQUIRED);                  │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+#### Tier Classification Map
+
+The `tierMap` defines criticality levels for tables. Only existing, implemented tables should be included:
+
+```java
+private void discoverAndRegisterTableChecks() {
+    Map<String, PrerequisiteTier> tierMap = new LinkedHashMap<>();
+
+    // Critical: Core provider infrastructure
+    tierMap.put("AIG_Provider", PrerequisiteTier.CRITICAL);
+
+    // Required: Essential functionality
+    tierMap.put("AIG_Budget", PrerequisiteTier.REQUIRED);
+    tierMap.put("AIG_UsageMetrics", PrerequisiteTier.REQUIRED);
+
+    // Optional: Enhanced features and audit
+    tierMap.put("AIG_ChatOwnership", PrerequisiteTier.OPTIONAL);
+    tierMap.put("AIG_Embedding", PrerequisiteTier.OPTIONAL);
+    tierMap.put("AIG_QueryAudit", PrerequisiteTier.OPTIONAL);
+    tierMap.put("AIG_Prompt_Config", PrerequisiteTier.OPTIONAL);
+
+    // Tables not in map default to REQUIRED tier
+}
+```
+
+#### Benefits
+
+✅ **No hardcoded table list** - Discovers all AIG_* tables from AD_Table automatically
+✅ **Development-friendly** - Doesn't fail when model interface isn't generated yet
+✅ **Self-maintaining** - New table + generated model = automatic health check
+✅ **Source of truth** - Model interfaces define what code expects to exist
+✅ **Graceful degradation** - Missing model interfaces are skipped without errors
+
+#### When to Update tierMap
+
+Update the `tierMap` in `AIPluginHealthService.discoverAndRegisterTableChecks()` when:
+
+1. **Adding a new critical table** - Tables required for plugin to function at all
+2. **Changing table importance** - Moving a table from OPTIONAL to REQUIRED
+3. **New table is implemented** - Add entry with appropriate tier classification
+
+**Do NOT** add tables to tierMap that:
+- Haven't been created in AD_Table yet
+- Don't have generated model interfaces (I_*, X_*, M* classes)
+- Are planned but not implemented
+
 ### Lazy Initialization Pattern
 
 ```
@@ -318,18 +397,19 @@ TIER 1 - CRITICAL
 ═══════════════════════════════════════════════════════════════
 TIER 2 - REQUIRED (Core Functionality)
 ═══════════════════════════════════════════════════════════════
-✗ aig_provider: NOT FOUND
-✗ aig_budget: NOT FOUND
-✗ aig_usagemetrics: NOT FOUND
-✗ aig_chatownership: NOT FOUND
-✗ aig_queryaudit: NOT FOUND
-✗ aig_prompt_config: NOT FOUND
+✓ AIG_Provider: FOUND
+✓ AIG_Budget: FOUND
+✓ AIG_UsageMetrics: FOUND
+✓ Active AIG_Provider: CONFIGURED
 
 ═══════════════════════════════════════════════════════════════
 TIER 3 - OPTIONAL (Enhanced Features)
 ═══════════════════════════════════════════════════════════════
 ✗ pgvector extension: NOT INSTALLED (RAG disabled)
-✗ aig_embedding table: NOT FOUND (persistent embeddings disabled)
+✓ AIG_Embedding: FOUND
+✓ AIG_ChatOwnership: FOUND
+✓ AIG_QueryAudit: FOUND
+✓ AIG_Prompt_Config: FOUND
 
 ═══════════════════════════════════════════════════════════════
 TIER 4 - EXTERNAL SERVICES
@@ -372,41 +452,44 @@ Map<String, Object> status = AIPluginHealthService.getInstance().getHealthAsJson
 Returns:
 ```json
 {
-  "status": "DEGRADED",
-  "timestamp": "2025-12-25T10:30:00Z",
+  "status": "HEALTHY",
+  "timestamp": 1735476600000,
   "mode": "GRACEFUL",
+  "message": "AI features available",
   "tiers": {
     "critical": {
       "status": "HEALTHY",
       "checks": {
-        "database": true,
-        "context": true
+        "Table AIG_Provider": true
       }
     },
     "required": {
-      "status": "UNHEALTHY",
+      "status": "HEALTHY",
       "checks": {
-        "aig_provider": false,
-        "aig_budget": false,
-        "hasActiveProvider": false
-      },
-      "missing": ["aig_provider", "aig_budget", "aig_usagemetrics"]
+        "Table AIG_Budget": true,
+        "Table AIG_UsageMetrics": true,
+        "Active AI Provider": true
+      }
     },
     "optional": {
       "status": "DEGRADED",
       "checks": {
-        "pgvector": false,
-        "aig_embedding": false
+        "pgvector Extension": false,
+        "Table AIG_Embedding": true,
+        "Table AIG_ChatOwnership": true,
+        "Table AIG_QueryAudit": true,
+        "Table AIG_Prompt_Config": true
       },
-      "disabledFeatures": ["RAG", "persistent_embeddings"]
+      "missing": ["pgvector Extension"]
     },
     "external": {
-      "status": "UNKNOWN",
-      "services": {}
+      "status": "UNHEALTHY",
+      "checks": {
+        "Ollama Service": false
+      },
+      "missing": ["Ollama Service"]
     }
-  },
-  "summary": "Core tables missing - deploy 2Pack",
-  "resolutionUrl": "/webui/ai-plugin-setup"
+  }
 }
 ```
 
