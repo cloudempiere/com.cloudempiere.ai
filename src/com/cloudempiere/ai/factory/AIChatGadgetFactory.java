@@ -19,7 +19,13 @@ import java.util.logging.Level;
 import org.adempiere.webui.factory.IDashboardGadgetFactory;
 import org.compiere.util.CLogger;
 import org.compiere.util.Env;
+import org.compiere.util.Msg;
 import org.zkoss.zk.ui.Component;
+import org.zkoss.zk.ui.event.Event;
+import org.zkoss.zk.ui.event.EventListener;
+import org.zkoss.zk.ui.event.Events;
+import org.zkoss.zul.Panel;
+import org.zkoss.zul.Panelchildren;
 
 import com.cloudempiere.ai.component.AIChatWidget;
 import com.cloudempiere.ai.health.AIPluginHealthService;
@@ -73,10 +79,14 @@ public class AIChatGadgetFactory implements IDashboardGadgetFactory {
     /**
      * Get gadget component for the given URI.
      *
+     * <p>Returns a fully configured {@link Panel} containing the {@link AIChatWidget}.
+     * The panel includes all styling, event handlers, and configuration that was
+     * previously hardcoded in HelpController.
+     *
      * @param uri Gadget URI (e.g., "ai-chat")
-     * @param parent Parent component
+     * @param parent Parent component (used to find sibling panels for collapse behavior)
      * @param arg Additional arguments (unused)
-     * @return AIChatWidget if uri is "ai-chat" and widget is available, null otherwise
+     * @return Fully configured Panel with AIChatWidget, or null if not available
      */
     @Override
     public org.zkoss.zk.ui.Component getGadget(String uri, org.zkoss.zk.ui.Component parent, Map<?, ?> arg) {
@@ -91,7 +101,71 @@ public class AIChatGadgetFactory implements IDashboardGadgetFactory {
         }
 
         log.info("Creating AI Chat Widget for URI: " + uri);
-        return new AIChatWidget(true);
+
+        // Create Panel wrapper (previously in HelpController lines 165-172)
+        Panel pnlAIChat = new Panel();
+        pnlAIChat.setSclass("dashboard-widget ai-chat-panel");
+        pnlAIChat.setTitle(Msg.getMsg(Env.getCtx(), "AI Assistant"));
+        pnlAIChat.setMaximizable(false);
+        pnlAIChat.setCollapsible(true);
+        pnlAIChat.setOpen(true);
+        pnlAIChat.setBorder("normal");
+        pnlAIChat.setHeight("700px"); // Fixed height for chat
+
+        // Create panel content container (previously in HelpController lines 175-183)
+        Panelchildren content = new Panelchildren();
+        content.setStyle("height: 100%; padding: 0;");
+        pnlAIChat.appendChild(content);
+
+        // Create and add the AI Chat Widget
+        AIChatWidget aiChatWidget = new AIChatWidget(true);
+        content.appendChild(aiChatWidget);
+
+        // Add collapse event listener (previously in HelpController lines 186-198)
+        // This collapses tooltip and context help panels when AI chat opens
+        pnlAIChat.addEventListener(Events.ON_OPEN, new EventListener<Event>() {
+            @Override
+            public void onEvent(Event event) throws Exception {
+                if (event instanceof org.zkoss.zk.ui.event.OpenEvent) {
+                    org.zkoss.zk.ui.event.OpenEvent oe = (org.zkoss.zk.ui.event.OpenEvent) event;
+                    if (oe.isOpen() && parent != null) {
+                        // Find and collapse sibling help panels
+                        collapseSiblingHelpPanels(parent);
+                    }
+                }
+            }
+        });
+
+        return pnlAIChat;
+    }
+
+    /**
+     * Collapse other help panels (tooltip, context help) when AI chat opens.
+     *
+     * <p>This preserves the existing behavior where opening AI chat collapses
+     * other help panels to save screen space.
+     *
+     * @param parent Parent component containing sibling panels
+     */
+    private void collapseSiblingHelpPanels(Component parent) {
+        try {
+            // Find panels with specific IDs and collapse them
+            Component pnlToolTip = parent.getFellow("pnlToolTip");
+            if (pnlToolTip instanceof Panel) {
+                ((Panel) pnlToolTip).setOpen(false);
+            }
+        } catch (Exception e) {
+            // Silently ignore - panel may not exist
+        }
+
+        try {
+            Component pnlContextHelp = parent.getFellow("pnlContextHelp");
+            if (pnlContextHelp instanceof Panel) {
+                ((Panel) pnlContextHelp).setOpen(false);
+            }
+        } catch (Exception e) {
+            // Silently ignore - panel may not exist
+        }
     }
 
     /**
