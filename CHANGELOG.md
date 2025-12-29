@@ -7,7 +7,7 @@ and this project adheres to [Conventional Commits](https://conventionalcommits.o
 
 ## [Unreleased]
 
-### v0.32.0-SNAPSHOT - TBD
+### vNext - TBD
 
 **Added:**
 - None
@@ -20,6 +20,87 @@ and this project adheres to [Conventional Commits](https://conventionalcommits.o
 
 **Removed:**
 - None
+
+---
+
+## [10.0.0] - 2025-12-29
+
+### Initial Release: iDempiere v10 AI Plugin
+
+This is the first production release of the CloudEmpiere AI Plugin for iDempiere v10. This release includes a comprehensive AI integration framework with LangChain4j, multi-provider support, and enterprise-grade security features.
+
+#### Added
+
+- **Plugin Health Verification System**
+  - Automatic prerequisite checking (PostgreSQL driver, pgvector extension)
+  - Creates AD_Issues for missing optional dependencies with severity warnings
+  - Health status dashboard in AI Configuration window
+  - File: `AIPluginHealthService.java`
+
+- **LangChain4j Integration**
+  - Multi-provider architecture (Anthropic, AWS Bedrock, Ollama, OpenAI)
+  - Streaming chat responses with real-time UI updates
+  - RAG (Retrieval Augmented Generation) with pgvector embeddings
+  - Function calling and tool use capabilities
+  - File: `AIService.java`, `EmbeddingStoreProvider.java`
+
+- **Security & Access Control**
+  - Cross-tenant data isolation (AD_Client_ID validation)
+  - Role-based access control for chat history
+  - Secure database query execution
+  - File: `ChatAccessService.java`
+
+- **AI Chat Widget**
+  - ZK-based chat interface with streaming support
+  - Thread management for conversation context
+  - Message cancellation and error handling
+  - Batch rendering optimization (50ms batching)
+  - File: `AIChatWidget.java`, `AIChatStreamingMessage.java`
+
+- **Database Schema**
+  - Migration scripts for PostgreSQL and Oracle
+  - Consolidated schema: `202512291504_CLD-1601.sql`
+  - Vector embeddings support with pgvector
+  - Chat history and message persistence
+
+#### Fixed
+
+- **NoClassDefFoundError for PostgreSQL Driver**
+  - Added explicit dependency: `org.compiere.db.postgresql.provider` in MANIFEST.MF
+  - Ensures PostgreSQL JDBC driver is available at runtime
+  - Critical for embedding store initialization
+
+- **Production Readiness (P0 Blockers)**
+  - Cross-tenant data access vulnerability (Issue #1)
+  - NPE in streaming completion handler (Issue #2)
+  - Race condition in thread management (Issue #3)
+  - Invalid desktop reference in callbacks (Issue #4)
+  - Race condition in streaming cancellation (Issue #5)
+  - Memory leak in agent/model cache (Issue #6)
+  - Missing exception handler in guardrails (Issue #9)
+  - Batch render event listener missing (Issue #10)
+
+#### Technical Details
+
+- **Java Version**: Amazon Corretto 11 (JavaSE-11)
+- **iDempiere Version**: Release-10 (10.0.0)
+- **LangChain4j Version**: 0.35.0 (last Java 11 compatible)
+- **Build System**: Maven with Tycho (eclipse-plugin packaging)
+- **OSGi Bundle**: com.cloudempiere.ai v10.0.0
+
+#### Migration Notes
+
+- **From Previous Versions**: Not applicable (first release)
+- **Prerequisites**:
+  - iDempiere v10 (Release-10 branch)
+  - PostgreSQL 12+ with pgvector extension (optional, for RAG features)
+  - Java 11 (Amazon Corretto recommended)
+
+#### Known Limitations
+
+- Java 17 features blocked (MCP support, extended thinking, Google Gemini streaming)
+- Requires migration to iDempiere Release-11 for Java 17 upgrade
+- See ADR-035 for Java version strategy and migration path
 
 ---
 
