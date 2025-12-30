@@ -23,6 +23,23 @@ and this project adheres to [Conventional Commits](https://conventionalcommits.o
 
 ---
 
+## [10.0.1] - 2025-12-30
+
+### Bug Fixes and Improvements
+
+**Added:**
+- Migration script for AIG_Embedding Application Dictionary metadata (CLD-1601)
+
+**Changed:**
+- Refactored AI Chat Widget CSS architecture - removed all inline styles (CLD-1606)
+- Converted inline styles to CSS classes in AI chat widget for better maintainability (CLD-1601)
+- Moved AI Chat Panel creation to plugin factory pattern (CLD-1601)
+
+**Fixed:**
+- Improved CSS organization and maintainability in AI chat widget components
+
+---
+
 ## [10.0.0] - 2025-12-29
 
 ### Initial Release: iDempiere v10 AI Plugin
