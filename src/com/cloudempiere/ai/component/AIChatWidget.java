@@ -2612,8 +2612,8 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 	 * Called when AI processing completes or is cancelled.
 	 */
 	private void showSendButton() {
-		stopButton.setSclass("ai-stop-btn ai-visible");
-		sendButton.setSclass("ai-send-btn ai-hidden");
+		stopButton.setSclass("ai-stop-btn ai-hidden");
+		sendButton.setSclass("ai-send-btn ai-visible");
 	}
 
 	/**
