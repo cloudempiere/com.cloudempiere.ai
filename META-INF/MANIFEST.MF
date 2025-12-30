@@ -2,7 +2,7 @@ Manifest-Version: 1.0
 Bundle-ManifestVersion: 2
 Bundle-Name: AI
 Bundle-SymbolicName: com.cloudempiere.ai
-Bundle-Version: 10.0.0.qualifier
+Bundle-Version: 10.0.1.qualifier
 Bundle-Vendor: CLOUDEMPIERE
 Automatic-Module-Name: com.cloudempiere.ai
 Bundle-RequiredExecutionEnvironment: JavaSE-11

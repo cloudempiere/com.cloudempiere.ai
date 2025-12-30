@@ -55,10 +55,10 @@ import com.cloudempiere.ai.context.AIContextProviderRegistry;
 import com.cloudempiere.ai.context.ContextParameters;
 import com.cloudempiere.ai.context.IAIContextProvider;
 import com.cloudempiere.ai.error.AIErrorHandler;
+import com.cloudempiere.ai.error.AIErrorHandler.AIErrorResult;
 import com.cloudempiere.ai.health.AIPluginHealthService;
 import com.cloudempiere.ai.health.AIUIService;
 import com.cloudempiere.ai.health.Result;
-import com.cloudempiere.ai.error.AIErrorHandler.AIErrorResult;
 import com.cloudempiere.ai.model.MAIChat;
 import com.cloudempiere.ai.model.MAIChatEntry;
 import com.cloudempiere.ai.model.MAIProvider;
@@ -155,6 +155,12 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 	/** Current tab number */
 	private int currentTabNo = -1;
 
+	/** Reference to window container for tab event listening (self-managing context) */
+	private Component windowContainer = null;
+
+	/** Event listener for tab selection events (self-managing context) */
+	private EventListener<Event> tabSelectionListener = null;
+
 	/** Context indicator (if context enabled) */
 	private Html contextIndicator;
 
@@ -191,13 +197,11 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 	 * Initialize the widget
 	 */
 	private void init() {
-		setSclass("ai-chat-widget");
+		setSclass("ai-chat-widget"); // CSS defined in fragment/custom.css.dsp
 		ZKUpdateUtil.setVflex(this, "1");
 		ZKUpdateUtil.setHflex(this, "1");
-		// Use flexbox to fill available space with minimum 600px height
-		// The vflex="1" setting makes this widget respect parent container constraints
-		setStyle("display: flex; flex-direction: column; padding: 12px; background: #FDFDFD; " +
-				"border-radius: 12px; height: 700px;");
+		// Styles now applied via CSS class instead of inline styles
+		// See: com.cloudempiere.ai.theme/theme/default/css/fragment/custom.css.dsp
 
 		// Capture session context at initialization (important for language, client, etc.)
 		// Use Env.getCtx() which should have the session context when called from UI thread
@@ -217,6 +221,9 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 
 		// Load Markdown rendering libraries (marked.js + Prism.js for syntax highlighting)
 		loadMarkdownLibraries();
+
+		// Note: CSS is automatically loaded via fragment/custom.css.dsp extension point
+		// See: com.cloudempiere.ai.theme/theme/default/css/fragment/custom.css.dsp
 
 		// Initialize AI service (LangChain4j) - use defensive wrapper
 		Result<AIService> serviceResult = AIUIService.safeExecute(
@@ -254,12 +261,12 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 
 		// Thread control bar (thread selector + new thread button)
 		Hlayout threadControlBar = new Hlayout();
-		threadControlBar.setStyle("width: 100%; gap: 8px; align-items: center; margin-bottom: 8px; flex-shrink: 0;");
+		threadControlBar.setSclass("ai-thread-control-bar");
 
 		// Thread selector dropdown
 		threadSelector = new Combobox();
 		threadSelector.setPlaceholder("Select conversation...");
-		threadSelector.setStyle("border: 1px solid #E0E0E0; border-radius: 6px; font-size: 12px; background: #FFFFFF;");
+		threadSelector.setSclass("ai-thread-selector");
 		threadSelector.addEventListener(Events.ON_SELECT, this);
 
 		// New Thread button
@@ -281,9 +288,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 		messagesContainer = new Vlayout();
 		messagesContainer.setSclass("ai-messages");
 		ZKUpdateUtil.setVflex(messagesContainer, "1");
-		messagesContainer.setStyle("overflow-y: auto; overflow-x: hidden; margin-bottom: 12px; " +
-				"padding: 6px; gap: 8px; flex: 1 1 auto; min-height: 0;");
-		appendChild(messagesContainer);
+				appendChild(messagesContainer);
 
 		// Loading indicator (hidden by default)
 		loadingIndicator = new Html();
@@ -296,20 +301,18 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 
 		// Input area - stays at bottom (flex-shrink: 0)
 		Hlayout inputArea = new Hlayout();
-		inputArea.setStyle("width: 100%; gap: 8px; align-items: center; flex-shrink: 0;");
+		inputArea.setSclass("ai-input-area");
 
 		inputBox = new Textbox();
 		inputBox.setPlaceholder(Msg.getMsg(Env.getCtx(), "AIChatPlaceholder"));
 		ZKUpdateUtil.setHflex(inputBox, "1");
 		inputBox.setRows(1);
 		inputBox.setMultiline(false);
-		inputBox.setStyle("border: 1px solid rgba(122, 128, 140, 0.32); border-radius: 22px; padding: 12px 18px; " +
-			"font-size: 12px; line-height: 18px; color: #717680; background: #FFFFFF;");
 		inputBox.addEventListener(Events.ON_OK, this); // Enter key to send
 
 		// Button container - holds send/stop buttons in same position
 		Div buttonContainer = new Div();
-		buttonContainer.setStyle("position: relative; width: 42px; height: 42px;");
+		buttonContainer.setSclass("ai-button-container");
 
 		sendButton = new Button();
 		sendButton.addEventListener(Events.ON_CLICK, this);
@@ -318,9 +321,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 			sendButton.setIconSclass("z-icon-Send-White");
 		else
 			sendButton.setImage(ThemeManager.getThemeResource("images/Send-White.png"));
-		sendButton.setStyle("position: absolute; top: 0; left: 0; width: 42px; height: 42px; background: #181D27; border-radius: 100px; " +
-			"display: flex; align-items: center; justify-content: center; border: none; cursor: pointer;");
-
+		
 		// Stop button (hidden by default, shown during AI processing)
 		stopButton = new Button();
 		stopButton.addEventListener(Events.ON_CLICK, this);
@@ -329,8 +330,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 			stopButton.setIconSclass("z-icon-Square-White");
 		else
 			stopButton.setImage(ThemeManager.getThemeResource("images/Cancel24.png"));
-		stopButton.setStyle("position: absolute; top: 0; left: 0; width: 42px; height: 42px; background: #D32F2F; border-radius: 100px; " +
-			"display: none; align-items: center; justify-content: center; border: none; cursor: pointer;");
+		stopButton.setSclass("ai-stop-btn ai-hidden");
 		stopButton.setTooltiptext(Msg.getMsg(Env.getCtx(), "Stop"));
 
 		buttonContainer.appendChild(sendButton);
@@ -481,13 +481,10 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 		msgDiv.setSclass(isAI ? "ai-message" : "user-message");
 
 		// Updated styling based on Figma design screenshot (scaled to 12px base font)
-		String baseStyle = "display: flex; flex-direction: column; gap: 12px; max-width: 100%; ";
 		if (isAI) {
-			msgDiv.setStyle(baseStyle + "padding: 12px 18px; background: transparent; border-radius: 0; width: 100%;");
+			msgDiv.setSclass((msgDiv.getSclass() != null ? msgDiv.getSclass() : "") + " ai-message-content");
 		} else {
-			// User message: gray bubble, more compact
-			msgDiv.setStyle(baseStyle + "padding: 12px 15px; background: #E9EAEB; border-radius: 15px; " +
-				"max-width: 85%; align-self: flex-start;");
+			msgDiv.setSclass((msgDiv.getSclass() != null ? msgDiv.getSclass() : "") + " user-message-content");
 		}
 
 		Html content = new Html();
@@ -510,21 +507,21 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 		// Message header based on Figma design (scaled to 12px base)
 		if (isAI) {
 			// AI message header with logo and assistant name
-			sb.append("<div style='display: flex; flex-direction: row; align-items: center; padding: 0; gap: 8px; margin-bottom: 12px;'>");
+			sb.append("<div class='ai-message-header'>");
 			sb.append("<img src='");
 			// Use Executions.encodeURL to convert ZK ~./ resource path to browser-accessible URL
 			String logoUrl = ThemeManager.THEME_PATH_PREFIX+ThemeManager.getTheme()+"/images/clde-logo-icon-vector.svg";
 			sb.append(Executions.encodeURL(logoUrl));
-			sb.append("' style='width: 18px; height: 18px;'/>");
-			sb.append("<span style='font-family: Helvetica Neue; font-weight: 500; font-size: 12px; line-height: 15px; color: #181D27;'>");
+			sb.append("' class='ai-message-header-logo'/>");
+			sb.append("<span class='ai-message-header-name'>");
 			sb.append(Util.maskHTML(getUserName(entry), true));
 			sb.append("</span></div>");
 		}
 
 		// Message body with updated typography (scaled to 12px base)
-		sb.append("<div style='font-family: Helvetica Neue; font-weight: 400; font-size: 12px; line-height: 18px; color: ");
-		sb.append(isAI ? "#181D27" : "#535862");
-		sb.append(";'>");
+		sb.append("<div class='");
+		sb.append(isAI ? "ai-message-body" : "user-message-body");
+		sb.append("'>");
 
 		String messageText = entry.getCharacterData();
 		if (messageText != null) {
@@ -1062,14 +1059,14 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 			// Add AI message header
 			Div msgDiv = new Div();
 			msgDiv.setSclass("ai-message");
-			msgDiv.setStyle("display: flex; flex-direction: column; gap: 12px; max-width: 100%; width: 100%; padding: 12px 18px; background: transparent;");
+			msgDiv.setSclass((msgDiv.getSclass() != null ? msgDiv.getSclass() : "") + " ai-streaming-message");
 
 			// Header with logo and agent name
 			Html header = new Html();
 			String logoUrl = ThemeManager.THEME_PATH_PREFIX + ThemeManager.getTheme() + "/images/clde-logo-icon-vector.svg";
 			header.setContent(
 				"<div style='display: flex; align-items: center; gap: 8px; margin-bottom: 12px;'>" +
-				"<img src='" + Executions.encodeURL(logoUrl) + "' style='width: 18px; height: 18px;'/>" +
+				"<img src='" + Executions.encodeURL(logoUrl) + "' class='ai-message-header-logo'/>" +
 				"<span style='font-family: Helvetica Neue; font-weight: 500; font-size: 12px; color: #181D27;'>" + agentName + "</span>" +
 				"</div>"
 			);
@@ -1458,11 +1455,10 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 
 		// Create a centered container for the unavailable message
 		Vlayout container = new Vlayout();
-		container.setStyle("display: flex; flex-direction: column; align-items: center; " +
-				"justify-content: center; height: 100%; padding: 24px; text-align: center;");
+		container.setSclass("ai-unavailable-container");
 
 		// Icon
-		Html iconHtml = new Html("<div style='font-size: 48px; margin-bottom: 16px; opacity: 0.5;'>" +
+		Html iconHtml = new Html("<div class='ai-unavailable-icon'>" +
 				"\uD83D\uDEAB</div>"); // 🚫 emoji
 		container.appendChild(iconHtml);
 
@@ -1471,20 +1467,17 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 		if (title == null || title.equals("AIServiceUnavailable")) {
 			title = "AI Assistant Unavailable";
 		}
-		Html titleHtml = new Html("<div style='font-size: 16px; font-weight: 600; " +
-				"color: #424242; margin-bottom: 8px;'>" + Util.maskHTML(title, true) + "</div>");
+		Html titleHtml = new Html("<div class='ai-unavailable-title'>" + Util.maskHTML(title, true) + "</div>");
 		container.appendChild(titleHtml);
 
 		// Message
 		String displayMessage = message != null ? message : "AI features are currently unavailable. Please try again later.";
-		Html messageHtml = new Html("<div style='font-size: 13px; color: #757575; " +
-				"max-width: 300px; line-height: 1.5;'>" + Util.maskHTML(displayMessage, true) + "</div>");
+		Html messageHtml = new Html("<div class='ai-unavailable-message'>" + Util.maskHTML(displayMessage, true) + "</div>");
 		container.appendChild(messageHtml);
 
 		// Retry button (allows user to check availability again)
 		Button retryButton = new Button(Msg.getMsg(Env.getCtx(), "Retry"));
-		retryButton.setStyle("margin-top: 16px; padding: 8px 16px; background: #1976d2; " +
-				"color: white; border: none; border-radius: 4px; cursor: pointer;");
+		retryButton.setSclass("ai-retry-btn");
 		retryButton.addEventListener(Events.ON_CLICK, evt -> {
 			// Re-check availability and re-initialize if now available
 			AIPluginHealthService health = AIPluginHealthService.getInstance();
@@ -1725,7 +1718,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 			// Add separator
 			Comboitem separator = new Comboitem("─── " + Msg.getMsg(sessionCtx, "SharedWithMe") + " ───");
 			separator.setDisabled(true);
-			separator.setStyle("font-style: italic; color: #888;");
+			separator.setSclass("ai-thread-separator");
 			threadSelector.appendChild(separator);
 
 			// Add shared chats
@@ -1834,6 +1827,384 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 			updateContextIndicator(false);
 		}
 	}
+
+	// =========================================================================================
+	// SELF-MANAGING CONTEXT TRACKING (ZK Desktop Events)
+	// =========================================================================================
+	// ADR-052: Plugin is 100% standalone - no core code dependencies
+	// Widget discovers Desktop/WindowContainer and subscribes to tab events automatically
+
+	/**
+	 * ZK Lifecycle hook - called when component is attached to a page.
+	 * <p>Sets up automatic context tracking by discovering the window container
+	 * and subscribing to tab selection events.
+	 *
+	 * <p><strong>Timing:</strong> Component discovery is deferred using Executions.schedule()
+	 * to ensure the component tree is fully initialized before searching for WindowContainer.
+	 */
+	@Override
+	public void onPageAttached(org.zkoss.zk.ui.Page newpage, org.zkoss.zk.ui.Page oldpage) {
+		super.onPageAttached(newpage, oldpage);
+
+		// Only set up context tracking if enabled
+		if (!contextEnabled) {
+			return;
+		}
+
+		log.info("AI Chat Widget: Initializing context tracking");
+
+		// Defer component discovery to allow component tree to fully stabilize
+		// This prevents timing issues where WindowContainer may not be attached yet
+		Executions.schedule(getDesktop(), new EventListener<Event>() {
+			@Override
+			public void onEvent(Event event) throws Exception {
+				setupContextTracking();
+			}
+		}, new Event("onSetupContextTracking"));
+	}
+
+	/**
+	 * Set up context tracking after component tree has stabilized.
+	 * Called via Executions.schedule() from onPageAttached().
+	 */
+	private void setupContextTracking() {
+		try {
+			// Discover window container in component tree
+			windowContainer = discoverWindowContainer();
+
+			if (windowContainer != null) {
+				// Create tab selection listener
+				tabSelectionListener = new EventListener<Event>() {
+					@Override
+					public void onEvent(Event event) throws Exception {
+						handleTabSelectionEvent(event);
+					}
+				};
+
+				// Subscribe to tab selection events
+				// WindowContainer fires ON_SELECT when user switches tabs
+				windowContainer.addEventListener(Events.ON_SELECT, tabSelectionListener);
+				log.info("AI Chat Widget: Context tracking active (listening to tab changes)");
+
+				// Initialize context with currently active tab (if any)
+				detectAndSetActiveTab();
+			} else {
+				log.warning("AI Chat Widget: Could not find WindowContainer - context tracking disabled. " +
+					"This may occur if iDempiere UI structure has changed. See docs/STANDALONE_AI_CHAT_WIDGET.md");
+			}
+		} catch (Exception e) {
+			log.log(Level.WARNING, "AI Chat Widget: Failed to set up context tracking - " +
+				"see docs/STANDALONE_AI_CHAT_WIDGET.md for troubleshooting", e);
+		}
+	}
+
+	/**
+	 * ZK Lifecycle hook - called when component is detached from a page.
+	 * <p>Cleans up event listeners to prevent memory leaks.
+	 */
+	@Override
+	public void onPageDetached(org.zkoss.zk.ui.Page page) {
+		super.onPageDetached(page);
+
+		// Clean up event listener
+		if (windowContainer != null && tabSelectionListener != null) {
+			try {
+				windowContainer.removeEventListener(Events.ON_SELECT, tabSelectionListener);
+				log.info("AI Chat Widget: Context tracking cleaned up");
+			} catch (Exception e) {
+				log.log(Level.WARNING, "AI Chat Widget: Error cleaning up tab selection listener", e);
+			}
+		}
+
+		windowContainer = null;
+		tabSelectionListener = null;
+	}
+
+	/**
+	 * Discover WindowContainer by walking up the component tree.
+	 * <p>Component hierarchy: AIChatWidget -> Panelchildren -> Panel ->
+	 * Anchorchildren -> Anchorlayout -> East -> Borderlayout -> ... -> Desktop
+	 * <p>WindowContainer is typically a child of the Desktop's Center region.
+	 *
+	 * @return WindowContainer component, or null if not found
+	 */
+	private Component discoverWindowContainer() {
+		try {
+			// Walk up to Desktop
+			Component current = this;
+			org.zkoss.zk.ui.Desktop desktop = null;
+
+			while (current != null) {
+				desktop = current.getDesktop();
+				if (desktop != null) {
+					break;
+				}
+				current = current.getParent();
+			}
+
+			if (desktop == null) {
+				log.fine("Could not find Desktop from AI Chat Widget");
+				return null;
+			}
+
+			// Find Borderlayout (main desktop layout)
+			org.zkoss.zul.Borderlayout borderLayout = findComponentByType(
+				desktop.getFirstPage(), org.zkoss.zul.Borderlayout.class, "layout");
+
+			if (borderLayout == null) {
+				log.fine("Could not find Borderlayout in Desktop");
+				return null;
+			}
+
+			// Get Center region (where WindowContainer lives)
+			org.zkoss.zul.Center center = borderLayout.getCenter();
+			if (center == null) {
+				log.fine("Could not find Center region in Borderlayout");
+				return null;
+			}
+
+			// Find WindowContainer (TabbedDocumentPane) in Center
+			// Look for component with specific class name or ID pattern
+			return findWindowContainerInCenter(center);
+
+		} catch (Exception e) {
+			log.log(Level.FINE, "Error discovering WindowContainer", e);
+			return null;
+		}
+	}
+
+	/**
+	 * Find WindowContainer within Center region.
+	 * WindowContainer is typically an instance of TabbedDocumentPane.
+	 *
+	 * @param center Center region
+	 * @return WindowContainer component, or null if not found
+	 */
+	private Component findWindowContainerInCenter(org.zkoss.zul.Center center) {
+		// Try to find by class name (TabbedDocumentPane)
+		for (Component child : center.getChildren()) {
+			String className = child.getClass().getSimpleName();
+			if (className.contains("TabbedDocument") || className.contains("WindowContainer")) {
+				log.fine("Found WindowContainer: " + className);
+				return child;
+			}
+
+			// Recursively search children
+			Component found = findWindowContainerRecursive(child);
+			if (found != null) {
+				return found;
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * Recursively search for WindowContainer in component tree.
+	 *
+	 * @param parent Parent component
+	 * @return WindowContainer component, or null if not found
+	 */
+	private Component findWindowContainerRecursive(Component parent) {
+		for (Component child : parent.getChildren()) {
+			String className = child.getClass().getSimpleName();
+			if (className.contains("TabbedDocument") || className.contains("WindowContainer")) {
+				return child;
+			}
+
+			Component found = findWindowContainerRecursive(child);
+			if (found != null) {
+				return found;
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * Find component by type and optional ID.
+	 *
+	 * @param page Page to search
+	 * @param type Component type
+	 * @param id Optional ID (can be null)
+	 * @return Component, or null if not found
+	 */
+	@SuppressWarnings("unchecked")
+	private <T extends Component> T findComponentByType(org.zkoss.zk.ui.Page page, Class<T> type, String id) {
+		if (id != null) {
+			try {
+				Component comp = page.getFellow(id);
+				if (type.isInstance(comp)) {
+					return (T) comp;
+				}
+			} catch (Exception e) {
+				// ID not found, continue
+			}
+		}
+
+		// Recursively search all page components
+		for (Component root : page.getRoots()) {
+			T found = findComponentByTypeRecursive(root, type);
+			if (found != null) {
+				return found;
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * Recursively find component by type.
+	 */
+	@SuppressWarnings("unchecked")
+	private <T extends Component> T findComponentByTypeRecursive(Component parent, Class<T> type) {
+		if (type.isInstance(parent)) {
+			return (T) parent;
+		}
+
+		for (Component child : parent.getChildren()) {
+			T found = findComponentByTypeRecursive(child, type);
+			if (found != null) {
+				return found;
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * Handle tab selection event from WindowContainer.
+	 * Extracts windowNo and tabNo from the selected tab and updates context.
+	 *
+	 * @param event Tab selection event
+	 */
+	private void handleTabSelectionEvent(Event event) {
+		try {
+			// Event target should be a Tab or Tabpanel
+			Component target = event.getTarget();
+			log.fine("Tab selection event received from: " + target.getClass().getSimpleName());
+
+			// Extract windowNo and tabNo from the selected tab
+			// The exact approach depends on iDempiere's window implementation
+			// Try reflection to get windowNo and tabNo from tab content
+
+			if (target instanceof org.zkoss.zul.Tab) {
+				org.zkoss.zul.Tab tab = (org.zkoss.zul.Tab) target;
+				org.zkoss.zul.Tabpanel panel = tab.getLinkedPanel();
+
+				if (panel != null) {
+					extractContextFromTabpanel(panel);
+				}
+			} else if (target instanceof org.zkoss.zul.Tabpanel) {
+				extractContextFromTabpanel((org.zkoss.zul.Tabpanel) target);
+			}
+
+		} catch (Exception e) {
+			log.log(Level.FINE, "Error handling tab selection event", e);
+		}
+	}
+
+	/**
+	 * Extract windowNo and tabNo from a Tabpanel.
+	 * Uses reflection to find ADWindow components and extract context.
+	 *
+	 * @param panel Tabpanel
+	 */
+	private void extractContextFromTabpanel(org.zkoss.zul.Tabpanel panel) {
+		try {
+			// Look for ADWindow or ADWindowContent in the panel
+			for (Component child : panel.getChildren()) {
+				// Try to find ADWindow using class name check
+				String className = child.getClass().getName();
+
+				if (className.contains("ADWindow")) {
+					// Use reflection to get windowNo
+					try {
+						java.lang.reflect.Method getWindowNo = child.getClass().getMethod("getWindowNo");
+						int windowNo = (Integer) getWindowNo.invoke(child);
+
+						// Try to get active tab number
+						java.lang.reflect.Method getADWindowContent = child.getClass().getMethod("getADWindowContent");
+						Object content = getADWindowContent.invoke(child);
+
+						if (content != null) {
+							java.lang.reflect.Method getActiveGridTab = content.getClass().getMethod("getActiveGridTab");
+							Object gridTab = getActiveGridTab.invoke(content);
+
+							if (gridTab != null) {
+								java.lang.reflect.Method getTabNo = gridTab.getClass().getMethod("getTabNo");
+								int tabNo = (Integer) getTabNo.invoke(gridTab);
+
+								// Update context!
+								log.info("AI Chat Widget: Context updated (windowNo=" + windowNo + ", tabNo=" + tabNo + ")");
+								setWindowContext(windowNo, tabNo);
+								return;
+							}
+						}
+					} catch (Exception e) {
+						log.log(Level.FINE, "Reflection error while extracting context", e);
+					}
+				}
+			}
+		} catch (Exception e) {
+			log.log(Level.FINE, "Error extracting context from tabpanel", e);
+		}
+	}
+
+	/**
+	 * Detect and set the currently active tab on widget initialization.
+	 * Called when widget is first attached to discover initial context.
+	 */
+	private void detectAndSetActiveTab() {
+		try {
+			if (windowContainer == null) {
+				return;
+			}
+
+			// Find the selected/active tab in window container
+			// Look for Tabs component and get selected tab
+			Component tabsComponent = findTabsComponent(windowContainer);
+
+			if (tabsComponent instanceof org.zkoss.zul.Tabs) {
+				org.zkoss.zul.Tabs tabs = (org.zkoss.zul.Tabs) tabsComponent;
+				org.zkoss.zul.Tabbox tabbox = tabs.getTabbox();
+
+				if (tabbox != null) {
+					org.zkoss.zul.Tab selectedTab = (org.zkoss.zul.Tab) tabbox.getSelectedTab();
+
+					if (selectedTab != null) {
+						org.zkoss.zul.Tabpanel panel = selectedTab.getLinkedPanel();
+						if (panel != null) {
+							extractContextFromTabpanel(panel);
+						}
+					}
+				}
+			}
+		} catch (Exception e) {
+			log.log(Level.FINE, "Error detecting active tab on init", e);
+		}
+	}
+
+	/**
+	 * Find Tabs component within WindowContainer.
+	 */
+	private Component findTabsComponent(Component parent) {
+		if (parent instanceof org.zkoss.zul.Tabs) {
+			return parent;
+		}
+
+		for (Component child : parent.getChildren()) {
+			if (child instanceof org.zkoss.zul.Tabs) {
+				return child;
+			}
+
+			Component found = findTabsComponent(child);
+			if (found != null) {
+				return found;
+			}
+		}
+		return null;
+	}
+
+	// =========================================================================================
+	// END SELF-MANAGING CONTEXT TRACKING
+	// =========================================================================================
 
 	/**
 	 * Redact sensitive data from context
@@ -2235,8 +2606,8 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 	 * Called when AI processing starts.
 	 */
 	private void showStopButton() {
-		sendButton.setStyle(sendButton.getStyle().replace("display: flex", "display: none"));
-		stopButton.setStyle(stopButton.getStyle().replace("display: none", "display: flex"));
+		sendButton.setSclass("ai-send-btn ai-hidden");
+		stopButton.setSclass("ai-stop-btn ai-visible");
 	}
 
 	/**
@@ -2244,8 +2615,8 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 	 * Called when AI processing completes or is cancelled.
 	 */
 	private void showSendButton() {
-		stopButton.setStyle(stopButton.getStyle().replace("display: flex", "display: none"));
-		sendButton.setStyle(sendButton.getStyle().replace("display: none", "display: flex"));
+		stopButton.setSclass("ai-stop-btn ai-visible");
+		sendButton.setSclass("ai-send-btn ai-hidden");
 	}
 
 	/**

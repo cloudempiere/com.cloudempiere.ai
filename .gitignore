@@ -12,3 +12,8 @@ com.cloudempiere.cache.test*
 .DS_Store
 /.claude/agents
 /.claude
+
+# Backup files
+*.bak
+*.bak2
+*.bak3
