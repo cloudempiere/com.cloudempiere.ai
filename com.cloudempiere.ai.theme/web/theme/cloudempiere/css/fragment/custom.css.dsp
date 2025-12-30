@@ -168,12 +168,28 @@
 
 /* Error states */
 .ai-error-message {
-    padding: 12px;
-    background-color: #fef2f2;
-    border: 1px solid #fecaca;
-    border-radius: 8px;
-    color: #991b1b;
-    font-size: 14px;
+    color: #d32f2f;
+    padding: 8px;
+    background: #ffebee;
+    border-radius: 4px;
+    border-left: 3px solid #d32f2f;
+}
+
+.ai-warning-message {
+    color: #ed6c02;
+    padding: 8px;
+    background: #fff4e5;
+    border-radius: 4px;
+    border-left: 3px solid #ed6c02;
+}
+
+.ai-warning-inline {
+    color: #ed6c02;
+    padding: 6px 10px;
+    margin-bottom: 8px;
+    background: #fff4e5;
+    border-radius: 4px;
+    font-size: 12px;
 }
 
 /* Loading states */
@@ -210,6 +226,9 @@
 
 /* Thread control bar */
 .ai-thread-control-bar {
+    display: flex !important;
+    flex-direction: row !important;
+    justify-content: space-between !important;
     width: 100%;
     gap: 8px;
     align-items: center;
@@ -219,6 +238,7 @@
 
 /* Thread selector */
 .ai-thread-selector {
+    flex: 1 !important;
     border: 1px solid #E0E0E0;
     border-radius: 6px;
     font-size: 12px;
@@ -227,8 +247,9 @@
 
 /* New thread button */
 .ai-newthread-btn {
+    flex-shrink: 0 !important;
     background: #FFFFFF !important;
-    border: 1px solid #E0E0E0 !important;
+    border: none;
     border-radius: 6px !important;
     padding: 6px 12px !important;
     font-size: 13px !important;
@@ -238,6 +259,17 @@
     display: inline-flex !important;
     align-items: center !important;
     gap: 6px !important;
+    transition: all 0.2s ease !important;
+}
+
+.ai-newthread-btn:hover {
+    background: #F5F5F5 !important;
+    border-color: #CCCCCC !important;
+}
+
+.ai-newthread-btn:active {
+    background: #EEEEEE !important;
+    transform: scale(0.98);
 }
 
 /* Messages container */
@@ -291,6 +323,16 @@
     justify-content: center !important;
     border: none !important;
     cursor: pointer !important;
+    transition: all 0.2s ease !important;
+}
+
+.ai-send-btn:hover {
+    background: #2A2F3A !important;
+    transform: scale(1.05);
+}
+
+.ai-send-btn:active {
+    transform: scale(0.95);
 }
 
 /* Stop button */
@@ -307,6 +349,27 @@
     justify-content: center !important;
     border: none !important;
     cursor: pointer !important;
+    transition: all 0.2s ease !important;
+    animation: pulse-stop 2s ease-in-out infinite;
+}
+
+.ai-stop-btn:hover {
+    background: #E53935 !important;
+    transform: scale(1.05);
+    animation: none;
+}
+
+.ai-stop-btn:active {
+    transform: scale(0.95);
+}
+
+@keyframes pulse-stop {
+    0%, 100% {
+        box-shadow: 0 0 0 0 rgba(211, 47, 47, 0.7);
+    }
+    50% {
+        box-shadow: 0 0 0 8px rgba(211, 47, 47, 0);
+    }
 }
 
 /* Clear button */
@@ -365,10 +428,11 @@
 
 /* User message */
 .user-message {
-    margin-bottom: 12px;
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
+	margin: 6px 0;
+	margin-left: auto;
+	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+	word-wrap: break-word;
+	animation: slideInRight 0.3s ease-out;
 }
 
 /* Visibility control classes */
@@ -497,4 +561,53 @@
     font-size: 12px;
     line-height: 18px;
     color: #535862;
+}
+
+/* Message divider */
+.ai-message-divider {
+    width: 100%;
+    height: 0;
+    border: 1px solid rgba(24, 29, 39, 0.12);
+    margin: 0;
+}
+
+/* Copy button */
+.ai-copy-button-container {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    padding: 0;
+    gap: 18px;
+    margin-top: 12px;
+}
+
+.ai-copy-button {
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    align-items: center;
+    padding: 0;
+    gap: 6px;
+    cursor: pointer;
+}
+
+.ai-copy-icon {
+    font-size: 12px;
+    color: #717680;
+}
+
+.ai-copy-text {
+    font-family: Helvetica Neue;
+    font-weight: 500;
+    font-size: 10.5px;
+    line-height: 13.5px;
+    color: #717680;
+}
+
+.ai-copy-success {
+    font-family: Helvetica Neue;
+    font-weight: 500;
+    font-size: 10.5px;
+    line-height: 13.5px;
+    color: #4CAF50;
 }

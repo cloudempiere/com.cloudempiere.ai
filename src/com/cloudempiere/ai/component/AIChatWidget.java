@@ -244,8 +244,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 			contextIndicator = new Html();
 			contextIndicator.setId("aiContextIndicator_" + getUuid());
 			contextIndicator.setContent(
-				"<div style='padding: 6px 12px; background: #E8F5E9; border-radius: 4px; " +
-				"margin-bottom: 8px; font-size: 11px; color: #2E7D32; display: none;'>" +
+				"<div class='ai-context-indicator'>" +
 				"<i class='z-icon-InfoCircle'></i> Context: <span id='contextInfo_" + getUuid() + "'>No window open</span>" +
 				"</div>"
 			);
@@ -292,10 +291,10 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 
 		// Loading indicator (hidden by default)
 		loadingIndicator = new Html();
-		loadingIndicator.setContent("<div class='ai-loading' style='display:none; padding: 12px 18px; text-align: left;'>" +
-			"<div style='display: flex; align-items: center; gap: 8px;'>" +
-			"<div style='width: 18px; height: 18px; border-radius: 27px; background: #E9EAEB;'></div>" +
-			"<span style='font-family: Helvetica Neue; font-weight: 400; font-size: 12px; line-height: 18px; color: #717680;'>" +
+		loadingIndicator.setContent("<div class='ai-loading-container'>" +
+			"<div class='ai-loading-content'>" +
+			"<div class='ai-loading-avatar'></div>" +
+			"<span class='ai-loading-text'>" +
 			"<i>" + Msg.getMsg(Env.getCtx(), "AIThinking") + "</i></span></div></div>");
 		messagesContainer.appendChild(loadingIndicator);
 
@@ -304,6 +303,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 		inputArea.setSclass("ai-input-area");
 
 		inputBox = new Textbox();
+		inputBox.setSclass("ai-input-box");
 		inputBox.setPlaceholder(Msg.getMsg(Env.getCtx(), "AIChatPlaceholder"));
 		ZKUpdateUtil.setHflex(inputBox, "1");
 		inputBox.setRows(1);
@@ -473,7 +473,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 		// Add divider before message (except for first message)
 		if (messagesContainer.getChildren().size() > 1) { // More than just loading indicator
 			Html divider = new Html();
-			divider.setContent("<div style='width: 100%; height: 0; border: 1px solid rgba(24, 29, 39, 0.12); margin: 0;'></div>");
+			divider.setContent("<div class='ai-message-divider'></div>");
 			messagesContainer.insertBefore(divider, loadingIndicator);
 		}
 
@@ -584,23 +584,22 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 					.replace("\n", "\\n")
 					.replace("\r", "\\r") : "";
 
-			sb.append("<div style='display: flex; flex-direction: row; align-items: flex-start; padding: 0; gap: 18px; margin-top: 12px;'>");
-			sb.append("<div onclick=\"(function(btn){");
+			sb.append("<div class='ai-copy-button-container'>");
+			sb.append("<div class='ai-copy-button' onclick=\"(function(btn){");
 			sb.append("var orig=btn.innerHTML;");
 			sb.append("navigator.clipboard.writeText('").append(jsEscapedText).append("').then(function(){");
-			sb.append("btn.innerHTML='<span style=\\'font-family: Helvetica Neue; font-weight: 500; font-size: 10.5px; line-height: 13.5px; color: #4CAF50;\\'>Copied!</span>';");
+			sb.append("btn.innerHTML='<span class=\\'ai-copy-success\\'>Copied!</span>';");
 			sb.append("setTimeout(function(){btn.innerHTML=orig;},2000);");
 			sb.append("}).catch(function(err){console.error('Copy failed:',err);});");
-			sb.append("})(this);\" ");
-			sb.append("style='display: flex; flex-direction: row; justify-content: center; align-items: center; padding: 0; gap: 6px; cursor: pointer;'>");
+			sb.append("})(this);\">");
 			if (ThemeManager.isUseFontIconForImage()) {
-				sb.append("<i class='z-icon-Copy' style='font-size: 12px; color: #717680;'></i>");
+				sb.append("<i class='z-icon-Copy ai-copy-icon'></i>");
 			} else {
 				sb.append("<img src='");
 				sb.append(ThemeManager.getThemeResource("images/Copy.png"));
-				sb.append("' style='width: 12px; height: 12px;'/>");
+				sb.append("' class='ai-copy-icon'/>");
 			}
-			sb.append("<span style='font-family: Helvetica Neue; font-weight: 500; font-size: 10.5px; line-height: 13.5px; color: #717680;'>Copy</span>");
+			sb.append("<span class='ai-copy-text'>Copy</span>");
 			sb.append("</div></div>");
 		}
 
@@ -655,8 +654,11 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 	 * Show loading indicator
 	 */
 	private void showLoading() {
-		loadingIndicator.setContent("<div class='ai-loading' style='padding: 8px; text-align: center; color: #666;'>" +
-			"<i>" + Msg.getMsg(Env.getCtx(), "AIThinking") + "</i></div>");
+		loadingIndicator.setContent("<div class='ai-loading-container'>" +
+			"<div class='ai-loading-content'>" +
+			"<div class='ai-loading-avatar'></div>" +
+			"<span class='ai-loading-text'>" +
+			"<i>" + Msg.getMsg(Env.getCtx(), "AIThinking") + "</i></span></div></div>");
 		scrollToBottom();
 	}
 
@@ -664,7 +666,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 	 * Hide loading indicator
 	 */
 	private void hideLoading() {
-		loadingIndicator.setContent("<div class='ai-loading' style='display:none;'></div>");
+		loadingIndicator.setContent("<div class='ai-loading-container ai-hidden'></div>");
 	}
 
 	/**
@@ -1052,7 +1054,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 			// Add divider before message
 			if (messagesContainer.getChildren().size() > 1) {
 				Html divider = new Html();
-				divider.setContent("<div style='width: 100%; height: 0; border: 1px solid rgba(24, 29, 39, 0.12); margin: 0;'></div>");
+				divider.setContent("<div class='ai-message-divider'></div>");
 				messagesContainer.insertBefore(divider, loadingIndicator);
 			}
 
@@ -1065,9 +1067,9 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 			Html header = new Html();
 			String logoUrl = ThemeManager.THEME_PATH_PREFIX + ThemeManager.getTheme() + "/images/clde-logo-icon-vector.svg";
 			header.setContent(
-				"<div style='display: flex; align-items: center; gap: 8px; margin-bottom: 12px;'>" +
+				"<div class='ai-message-header'>" +
 				"<img src='" + Executions.encodeURL(logoUrl) + "' class='ai-message-header-logo'/>" +
-				"<span style='font-family: Helvetica Neue; font-weight: 500; font-size: 12px; color: #181D27;'>" + agentName + "</span>" +
+				"<span class='ai-message-header-name'>" + agentName + "</span>" +
 				"</div>"
 			);
 			msgDiv.appendChild(header);
@@ -1372,8 +1374,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 		Executions.schedule(desktop, ev -> {
 			hideLoading();
 
-			String warningHtml = "<div style='color: #ed6c02; padding: 8px; " +
-				"background: #fff4e5; border-radius: 4px; border-left: 3px solid #ed6c02;'>" +
+			String warningHtml = "<div class='ai-warning-message'>" +
 				"<strong>Request blocked:</strong> " + Util.maskHTML(result.getResponse(), true);
 
 			if (result.getViolationType() != null) {
@@ -1417,8 +1418,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 			hideLoading();
 
 			// Build user-friendly error display with debug tooltip
-			String errorMsg = "<div style='color: #d32f2f; padding: 8px; " +
-				"background: #ffebee; border-radius: 4px; border-left: 3px solid #d32f2f;'>" +
+			String errorMsg = "<div class='ai-error-message'>" +
 				Util.maskHTML(errorResult.getUserMessage(), true) +
 				" <span class=\"ai-error-ref\" title=\"" + errorResult.getDebugTooltip() +
 				"\" style=\"cursor:help; opacity:0.6;\">\u26A0\uFE0F</span></div>";
@@ -1509,8 +1509,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 			return;
 		}
 
-		String warningHtml = "<div style='color: #ed6c02; padding: 6px 10px; margin-bottom: 8px; " +
-			"background: #fff4e5; border-radius: 4px; font-size: 12px;'>" +
+		String warningHtml = "<div class='ai-warning-inline'>" +
 			"⚠️ " + Util.maskHTML(warningMessage, true) + "</div>";
 
 		Html warningDiv = new Html(warningHtml);
@@ -2278,21 +2277,19 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 	private String buildAccessIndicatorHtml(ChatAccess access) {
 		if (access == ChatAccess.OWNER || access == ChatAccess.WRITE) {
 			// No indicator needed for full access
-			return "<div id='accessBadge_" + getUuid() + "' style='display: none;'></div>";
+			return "<div id='accessBadge_" + getUuid() + "' class='ai-hidden'></div>";
 		}
 
 		if (access == ChatAccess.READ) {
 			// Read-only badge
-			return "<div id='accessBadge_" + getUuid() + "' style='display: flex; align-items: center; gap: 6px; " +
-				"padding: 6px 12px; background: #FFF3E0; border-radius: 4px; margin-bottom: 8px; " +
-				"font-size: 11px; color: #E65100;'>" +
+			return "<div id='accessBadge_" + getUuid() + "' class='ai-access-indicator'>" +
 				"<i class='z-icon-Lock' style='font-size: 12px;'></i> " +
 				"<span>" + Msg.getMsg(sessionCtx, "ReadOnly") + "</span>" +
 				"</div>";
 		}
 
 		// No access - should not normally be shown
-		return "<div id='accessBadge_" + getUuid() + "' style='display: none;'></div>";
+		return "<div id='accessBadge_" + getUuid() + "' class='ai-hidden'></div>";
 	}
 
 	/**
