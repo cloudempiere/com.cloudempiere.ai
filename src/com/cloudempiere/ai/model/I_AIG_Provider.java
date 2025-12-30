@@ -152,6 +152,28 @@ public interface I_AIG_Provider
 	  */
 	public boolean isActive();
 
+    /** Column name IsDefault */
+    public static final String COLUMNNAME_IsDefault = "IsDefault";
+
+	/** Set Default.
+	  * Default value
+	  */
+	public void setIsDefault (boolean IsDefault);
+
+	/** Get Default.
+	  * Default value
+	  */
+	public boolean isDefault();
+
+    /** Column name ModelName */
+    public static final String COLUMNNAME_ModelName = "ModelName";
+
+	/** Set Model Name	  */
+	public void setModelName (String ModelName);
+
+	/** Get Model Name	  */
+	public String getModelName();
+
     /** Column name Name */
     public static final String COLUMNNAME_Name = "Name";
 
@@ -180,4 +202,17 @@ public interface I_AIG_Provider
 	  * User who updated this records
 	  */
 	public int getUpdatedBy();
+
+    /** Column name URL */
+    public static final String COLUMNNAME_URL = "URL";
+
+	/** Set URL.
+	  * URL
+	  */
+	public void setURL (String URL);
+
+	/** Get URL.
+	  * URL
+	  */
+	public String getURL();
 }

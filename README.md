@@ -10,13 +10,12 @@
 
 ## ⚠️ Important: iDempiere Dependency
 
-**This plugin depends on the `iDempiereCLDE` branch:**
+**This plugin depends on the `iDempiereCLDE` project:**
 
-- **Repository**: `../iDempiereCLDE/`
-- **Branch**: `iDempiereCLDE`
+- **Repository**: `cloudempiere/iDempiereCLDE`
 - **Version**: iDempiere v10 (10.0.0-SNAPSHOT)
 - **Java**: Amazon Corretto 11
-- **Location**: `/Users/norbertbede/github/iDempiereCLDE`
+- **Location**: `../iDempiereCLDE/`
 
 **Before building this plugin:**
 ```bash
@@ -35,7 +34,7 @@ cd ../com.cloudempiere.ai
 
 ## Overview
 
-AI plugin for CloudEmpiere that integrates advanced AI capabilities into iDempiere ERP. Supports multiple AI providers (Anthropic Claude, AWS Bedrock, Ollama, OpenAI) with secure, role-based database access.
+AI plugin for Cloudempiere that integrates advanced AI capabilities into iDempiere ERP. Supports multiple AI providers (Anthropic Claude, AWS Bedrock, Ollama, OpenAI) with secure, role-based database access.
 
 ### Key Features
 
@@ -138,11 +137,21 @@ String bpInfo = aiService.getBusinessPartner("BP001");
 
 ## Documentation
 
+### Architecture & Design
+- **[ARCHITECTURE.md](docs/ARCHITECTURE.md)**: Component diagrams, data flow, security layers
+- **[ADRs](docs/adr/)**: Architecture Decision Records (48 decisions)
+- **[DEPRECATION_ROADMAP.md](docs/DEPRECATION_ROADMAP.md)**: Migration plan for legacy code
+
+### Project Management
 - **[PROJECT.md](PROJECT.md)**: Complete project overview
 - **[FEATURES.md](FEATURES.md)**: Feature matrix and capabilities
 - **[CHANGELOG.md](CHANGELOG.md)**: Version history and changes
+- **[ROADMAP.md](docs/ROADMAP.md)**: Version phases and milestones
+- **[GOVERNANCE.md](docs/GOVERNANCE.md)**: Decision authority and conventions
+
+### Development
 - **[CLAUDE.md](.claude/CLAUDE.md)**: Development guide for Claude Code
-- **[ADRs](docs/adr/)**: Architecture Decision Records
+- **[Implementation Guides](docs/guides/)**: Streaming, LangChain4j, ZK UI guides
 - **[MCP Server Docs](docs/mcpserver/)**: Model Context Protocol integration
 
 ---
@@ -187,42 +196,15 @@ com.cloudempiere.ai/
 
 ---
 
-## Version History
-
-- **v0.9.0** (2025-12-01): LangChain4j native providers
-- **v0.8.0** (2025-12-01): MCP server & strategic architecture
-- **v0.7.0** (2025-12-01): Documentation & Claude agents
-- **v0.6.0** (2025-11-28): LangChain4j agent framework
-- **v0.5.0** (2025-11-26): LangChain integration
-- **v0.4.0** (2025-11-26): AI chat widget
-- **v0.3.0** (2025-11-20): Security layer & context providers
-- **v0.2.0** (2025-11-18): AWS Bedrock integration
-- **v0.1.0** (2025-11-18): Initial provider infrastructure
-
-See [CHANGELOG.md](CHANGELOG.md) for detailed changes.
-
----
-
-## Roadmap
-
-| Phase | Version | Status | Milestone |
-|-------|---------|--------|-----------|
-| Phase 9 | v0.9.0 | ✅ Released | LangChain4j Native Providers |
-| Phase 10 | v0.10.0 | In Progress | Domain Agents |
-| Phase 11 | v0.11.0 | Planned | Production Database Schema |
-| Phase 12 | v1.0.0 | Planned | Production Release |
-
----
-
 ## Contributing
 
-This is a proprietary plugin for CloudEmpiere. For feature requests or bug reports, please contact the CloudEmpiere team.
+This is a proprietary plugin for Cloudempiere. For feature requests or bug reports, please contact the Cloudempiere team.
 
 ---
 
 ## License
 
-Proprietary - CloudEmpiere
+Proprietary - Cloudempiere
 
 ---
 
@@ -230,4 +212,4 @@ Proprietary - CloudEmpiere
 
 - **Documentation**: See [docs/](docs/) directory
 - **Issues**: Internal tracking
-- **Contact**: CloudEmpiere Development Team
+- **Contact**: Cloudempiere Development Team

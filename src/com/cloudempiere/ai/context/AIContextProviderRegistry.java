@@ -23,6 +23,7 @@ import org.compiere.util.CLogger;
 
 import com.cloudempiere.ai.context.impl.ChartContextProvider;
 import com.cloudempiere.ai.context.impl.WindowContextProvider;
+import com.cloudempiere.ai.context.impl.KnowledgeBaseContextProvider;
 
 /**
  * Registry for AI context providers
@@ -96,6 +97,9 @@ public class AIContextProviderRegistry {
 
             // Register window provider
             register(new WindowContextProvider());
+
+            // Register knowledge base provider
+            register(new KnowledgeBaseContextProvider());
 
             // Additional providers can be registered here as they are implemented:
             // register(new ProcessContextProvider());

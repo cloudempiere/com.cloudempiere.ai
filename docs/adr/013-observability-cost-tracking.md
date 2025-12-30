@@ -12,7 +12,7 @@ Accepted
 
 ## Deciders
 
-CloudEmpiere AI Team
+Cloudempiere AI Team
 
 ## Context and Problem Statement
 
@@ -39,11 +39,14 @@ AI/LLM operations introduce unique operational challenges: unpredictable token-b
 ### Confirmation
 
 The decision will be confirmed when:
-- [ ] `AIG_UsageMetrics` table exists and receives records for every LLM call
-- [ ] `AIMetricsListener` logs all token usage, cost, and latency metrics
-- [ ] `CostGuard` blocks requests when daily/monthly budget exceeded
-- [ ] Unit tests verify metrics recording accuracy
+- [x] `AIG_UsageMetrics` table exists and receives records for every LLM call *(Implemented 2025-12-03, CLD-1628)*
+- [x] `AIMetricsListener` logs all token usage, cost, and latency metrics *(Implemented in `observability/AIMetricsListener.java`)*
+- [x] `CostGuard` blocks requests when daily/monthly budget exceeded *(Implemented in `observability/CostGuard.java`)*
+- [x] Listener wired into ChatLanguageModel builders *(Implemented in `LangChain4jProviderFactory.java`)*
+- [ ] Unit tests verify metrics recording accuracy *(Tests pending - to be added in `src-temp/test/java/com/cloudempiere/ai/observability/`)*
 - [ ] Query: `SELECT COUNT(*) FROM AIG_UsageMetrics WHERE Created > CURRENT_DATE - 1` returns expected count
+
+> **Note:** Unit tests should be created in `src-temp/test/java/` temporarily until Maven test configuration is fixed.
 
 ## Pros and Cons of the Options
 
@@ -116,6 +119,46 @@ Log to files/message queue, process async.
 | Tokens/Request | Usage patterns | >4000 tokens avg |
 | Latency P95 | Performance | >5000ms |
 | Error Rate | Reliability | >5% |
+
+### Currency Unit Conventions
+
+**IMPORTANT:** Different tables use different currency units for precision and compatibility:
+
+| Table | Column | Unit | Conversion | Example |
+|-------|--------|------|------------|---------|
+| `AIG_UsageMetrics` | `CostUSD` | **Microdollars** | ÷ 1,000,000 = USD | 121,758 = $0.121758 |
+| `AIG_Budget` | `DailyLimitUSD` | **Cents** | ÷ 100 = USD | 10,000,000 = $100,000.00 |
+| `AIG_Budget` | `MonthlyLimitUSD` | **Cents** | ÷ 100 = USD | 50,000,000 = $500,000.00 |
+| `AIG_Budget` | `CurrentDailyUSD` | **Cents** | ÷ 100 = USD | 5,000 = $50.00 |
+| `AIG_Budget` | `CurrentMonthlyUSD` | **Cents** | ÷ 100 = USD | 25,000 = $250.00 |
+
+**Why different units?**
+
+- **Microdollars (1M = $1)** in `AIG_UsageMetrics`: AI token costs are extremely small (e.g., $0.000003 per input token for Claude Haiku). Microdollars provide 6 decimal places of precision without floating-point issues.
+
+- **Cents (100 = $1)** in `AIG_Budget`: Budget limits are typically whole dollar amounts ($50, $500, $10,000). Cents provide sufficient precision while being more intuitive for configuration.
+
+**Conversion in Code:**
+
+```java
+// AIMetricsListener.getTodayCost() - converts microdollars to dollars
+BigDecimal microdollars = DB.getSQLValueBD(null, sql, clientId);
+return microdollars.divide(new BigDecimal("1000000"), 6, ROUND_HALF_UP);
+
+// MAIBudget.getDailyLimitAsBigDecimal() - converts cents to dollars
+return BigDecimal.valueOf(getDailyLimitUSD()).divide(BigDecimal.valueOf(100), 2, ROUND_HALF_UP);
+```
+
+**Budget Comparison Flow:**
+```
+AIG_UsageMetrics.CostUSD (microdollars)
+        ↓ ÷ 1,000,000
+     Dollars (usage)
+        ↓ compare
+     Dollars (limit)
+        ↑ ÷ 100
+AIG_Budget.DailyLimitUSD (cents)
+```
 
 ### Implementation Notes
 

@@ -3,7 +3,7 @@
 **Status:** Accepted (Phase 1 Implemented in v0.9.0)
 **Date:** 2025-12-01
 **Updated:** 2025-12-01
-**Deciders:** CloudEmpiere AI Team
+**Deciders:** Cloudempiere AI Team
 **Context:** Plugin architecture evolution for v0.8.0+
 
 ---
@@ -18,7 +18,7 @@ The `com.cloudempiere.ai` plugin has evolved organically with two parallel imple
 |-------|----------------------|------------------------|
 | Provider Interface | `IAIProvider` (30+ methods) | `ChatLanguageModel` (3 methods) |
 | Provider Factory | `AIProviderFactory` (reflection-based) | Native LangChain4j modules |
-| Agent Loop | `BaseAgent` (manual iteration) | `AiServices.builder()` (automatic) |
+| Agent Loop | Custom agent loop (manual iteration) | `AiServices.builder()` (automatic) |
 | Tool Discovery | `ToolRegistry` + `ITool` interface | `@Tool` annotations |
 | Memory | Custom conversation tracking | `MessageWindowChatMemory` |
 | Message Format | `AIMessage`, `AIRequest`, `AIResponse` | `ChatMessage`, `ChatRequest`, `ChatResponse` |
@@ -113,11 +113,12 @@ The `com.cloudempiere.ai` plugin has evolved organically with two parallel imple
 
 **Note:** `BedrockChatModel` is a unified class supporting all Bedrock foundation models (Claude, Amazon Nova, Mistral, Llama, etc.) via the modelId parameter.
 
-**Implementation Details (v0.9.0):**
+**Implementation Details (v0.9.0 → v0.19.0):**
 - `LangChain4jProviderFactory.java` - Factory creates ChatLanguageModel from MAIProvider config
-- `ERPTools.java` - @Tool annotated methods for database operations
-- `IDempiereAgent.java` - AiServices interface with system prompt
-- `IDempiereAIService.java` - Main facade for AI interactions
+- `ERPTools.java` - @Tool annotated methods for database operations (unified with optional callbacks)
+- `ERPAgent.java` / `ERPStreamingAgent.java` - AiServices interfaces with system prompt
+- `SimpleAgent.java` / `SimpleStreamingAgent.java` - Fallback agents for providers without streaming tools
+- `AIService.java` - Main facade with streaming-first architecture
 - Old providers (`AnthropicProvider`, `AWSBedrockProvider`) deprecated, not deleted
 
 **Benefits:**
@@ -181,25 +182,31 @@ public class BaseAgent {
 }
 ```
 
-**Recommended (LangChain4j):**
+**Implemented (LangChain4j):**
 ```java
-public interface IDempiereAgent {
-    @SystemMessage("""
-        You are an iDempiere ERP assistant with access to database queries.
-        Always respect user permissions. Never expose sensitive data.
-        """)
-    String execute(@MemoryId String sessionId, @UserMessage String goal);
+// Actual implementation: IERPAgent.java
+public interface IERPAgent {
+    @SystemMessage({...})  // See ERPAgent.SYSTEM_PROMPT
+    TokenStream chat(@MemoryId String memoryId, @UserMessage String userMessage);
 }
 
-// Usage
-IDempiereAgent agent = AiServices.builder(IDempiereAgent.class)
-    .chatLanguageModel(model)
-    .tools(new ERPTools(secureExecutor))
-    .chatMemory(MessageWindowChatMemory.withMaxMessages(20))
-    .build();
+// Actual implementation: ERPAgent.java
+public class ERPAgent {
+    public static IERPAgent createAgent(
+        StreamingChatLanguageModel model,
+        ERPTools tools,
+        ThreadAwareChatMemory memory
+    ) {
+        return AiServices.builder(IERPAgent.class)
+            .streamingChatLanguageModel(model)
+            .tools(tools)
+            .chatMemory(memory)
+            .build();
+    }
+}
 ```
 
-**Code Reduction:** ~500 lines (BaseAgent + AgentLoop logic)
+**Actual Code Reduction:** Custom agent loop replaced with LangChain4j AiServices
 
 #### 2.2 Migrate ToolRegistry to @Tool Annotations
 
@@ -365,44 +372,47 @@ ChatLanguageModel model = AnthropicChatModel.builder()
 
 ## Dependencies to Add
 
+**Note:** Due to Java 11 constraints (iDempiere v10), we use LangChain4j 0.35.0.
+See [ADR-035](035-java-version-strategy.md) for migration path to Java 17 + LangChain4j 1.x.
+
 ```xml
-<!-- LangChain4j Core (already present) -->
+<!-- LangChain4j Core -->
 <dependency>
     <groupId>dev.langchain4j</groupId>
     <artifactId>langchain4j</artifactId>
-    <version>1.0.0-beta3</version>
+    <version>0.35.0</version>  <!-- Last Java 11 compatible version -->
 </dependency>
 
 <!-- Native Providers -->
 <dependency>
     <groupId>dev.langchain4j</groupId>
     <artifactId>langchain4j-anthropic</artifactId>
-    <version>1.0.0-beta3</version>
+    <version>0.35.0</version>
 </dependency>
 
 <dependency>
     <groupId>dev.langchain4j</groupId>
     <artifactId>langchain4j-bedrock</artifactId>
-    <version>1.0.0-beta3</version>
+    <version>0.35.0</version>
 </dependency>
 
 <dependency>
     <groupId>dev.langchain4j</groupId>
     <artifactId>langchain4j-ollama</artifactId>
-    <version>1.0.0-beta3</version>
+    <version>0.35.0</version>
 </dependency>
 
 <dependency>
     <groupId>dev.langchain4j</groupId>
     <artifactId>langchain4j-open-ai</artifactId>
-    <version>1.0.0-beta3</version>
+    <version>0.35.0</version>
 </dependency>
 
 <!-- Embeddings for RAG -->
 <dependency>
     <groupId>dev.langchain4j</groupId>
     <artifactId>langchain4j-embeddings</artifactId>
-    <version>1.0.0-beta3</version>
+    <version>0.35.0</version>
 </dependency>
 ```
 

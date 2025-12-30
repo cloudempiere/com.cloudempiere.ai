@@ -2,7 +2,7 @@
 
 **Status:** Accepted
 **Date:** 2025-12-01
-**Deciders:** CloudEmpiere AI Team
+**Deciders:** Cloudempiere AI Team
 **Implemented:** v0.10.0
 
 ---
@@ -219,29 +219,59 @@ private String buildSystemPromptWithRouting(Properties ctx, JSONObject contextDa
 
 **Implementation:** AIConversationService.java:606-620
 
-### Pattern 6: Configurable Prompts (Database-Driven)
+### Pattern 6: Hybrid System Prompt Architecture (Database + Java)
 
-**Load system prompt from AIG_Prompt_Config table:**
+**Current Status (v0.19.0):** The system uses a **hybrid approach** for system prompts:
+
+| Component | Prompt Source | Use Case |
+|-----------|--------------|----------|
+| `RAGConversationService` | Database (`AIG_Prompt_Config`) | Configurable per-client prompts |
+| `ERPAgent` / `ERPStreamingAgent` | Java `@SystemMessage` | LangChain4j agents with tools |
+| `SimpleAgent` / `SimpleStreamingAgent` | Java `@SystemMessage` | Ollama/Llama (no tools) |
+| `IERPAgent` | Java `@SystemMessage` | Agent framework interface |
+
+**Database-Driven Prompts (RAGConversationService):**
 ```java
 private String loadSystemPromptFromDatabase() {
     try {
-        MAIPromptConfig config = MAIPromptConfig.getByKey("SYSTEM_PROMPT");
-        if (config != null && config.getAIGPromptText() != null) {
-            return config.getAIGPromptText();
-        }
+        return MAIPromptConfig.getPromptText(Env.getCtx(), "SYSTEM", null);
     } catch (Exception e) {
-        log.log(Level.WARNING, "Failed to load system prompt from database", e);
+        log.log(Level.FINE, "Could not load system prompt from database", e);
+        return null;
     }
-    return null; // Fallback to hardcoded
 }
 ```
 
-**Benefits:**
-- A/B testing different prompts without code changes
-- Business users can refine prompts
-- Domain-specific customization (Inventory vs. Sales agents)
+**Java-Hardcoded Prompts (LangChain4j Agents):**
+```java
+// ERPAgent.java - Full prompt with tool instructions
+public interface ERPAgent {
+    String SYSTEM_PROMPT =
+        "You are an intelligent assistant for the iDempiere ERP system.\n\n" +
+        "CRITICAL RULE - ALWAYS USE TOOLS FOR DATA:\n" +
+        "When the user asks about data (customers, orders, products, invoices, etc.), " +
+        "you MUST use the provided tools to query the database...";
 
-**Implementation:** AIConversationService.java:690-696
+    @SystemMessage(SYSTEM_PROMPT)
+    String chat(@MemoryId String sessionId, @UserMessage String userMessage);
+}
+
+// SimpleAgent.java - Simplified prompt without tool instructions
+String SIMPLE_SYSTEM_PROMPT = "You are a helpful AI assistant...";
+```
+
+**Why Hybrid Approach:**
+- **Database prompts**: Per-client customization, A/B testing, no code deployment needed
+- **Java prompts**: LangChain4j `@SystemMessage` annotation requires compile-time constants
+- **Trade-off**: LangChain4j agents use hardcoded prompts; RAG service uses database prompts
+
+**Implementation Files:**
+- Database: `RAGConversationService.java:411-418`
+- Java: `ERPAgent.java:39-70`, `SimpleAgent.java:26-31`, `IERPAgent.java:57-76`
+
+**Model Classes:**
+- `MAIPromptConfig.java` - `getByPromptKey()`, `getPromptText()` methods
+- Migration: `202511241200_CLD-1606.sql` - Default SYSTEM prompt inserted
 
 ---
 

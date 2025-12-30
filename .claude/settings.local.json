@@ -8,7 +8,22 @@
       "WebFetch(domain:www.anthropic.com)",
       "WebFetch(domain:platform.claude.com)",
       "WebFetch(domain:aws.amazon.com)",
-      "WebFetch(domain:hbr.org)"
+      "WebFetch(domain:hbr.org)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:docs.langchain4j.dev)",
+      "WebFetch(domain:bazlur.ca)",
+      "WebFetch(domain:quarkus.io)",
+      "WebFetch(domain:docs.quarkiverse.io)",
+      "Bash(xargs:*)",
+      "Bash(git add:*)",
+      "Bash(grep:*)",
+      "Bash(tr:*)",
+      "Bash(java -version:*)",
+      "WebFetch(domain:docs.anthropic.com)",
+      "WebFetch(domain:docs.claude.com)",
+      "Bash(sort -u grep -A1 groupId)",
+      "Bash(find:*)"
     ],
     "deny": [],
     "ask": []

@@ -115,16 +115,15 @@ public class MAIChatEntry extends MChatEntry {
 	}
 
 	/**
-	 * Get AI System User ID from the provider configuration
+	 * Get AI System User ID from the default provider configuration
 	 * @param ctx context
 	 * @return user ID or null
 	 */
 	private static Integer getAISystemUserId(Properties ctx) {
 		if (AI_SYSTEM_USER_ID == null) {
-			// Get AI user from the default provider (ID 1000001)
-			// FIXME: Should get this from chat's associated provider instead of hardcoding
-			MAIProvider provider = new MAIProvider(ctx, 1000001, null); // FIXME: hardcoded ID
-			if (provider.getAIG_Provider_ID() > 0 && provider.getAD_User_ID() > 0) {
+			// Get AI user from the default provider
+			MAIProvider provider = MAIProvider.getDefault(ctx, null);
+			if (provider != null && provider.getAD_User_ID() > 0) {
 				AI_SYSTEM_USER_ID = provider.getAD_User_ID();
 			} else {
 				// Fallback: Use a system user marker (0 = System)

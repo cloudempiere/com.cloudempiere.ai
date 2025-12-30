@@ -2,7 +2,7 @@
 
 **Status:** Accepted
 **Date:** 2025-12-01
-**Deciders:** CloudEmpiere AI Team
+**Deciders:** Cloudempiere AI Team
 **Implemented:** v0.10.0
 
 ---
@@ -185,7 +185,7 @@ for all AI queries         ┌────────────────�
 |--------|------|-------------|
 | AIG_Prompt_Config_ID | ID | Primary key |
 | Name | String | Prompt name |
-| AIGPromptKey | String | Unique key (e.g., "INVENTORY_AGENT") |
+| AIGPromptKey | String | Unique key (e.g., "SYSTEM", "INVENTORY_AGENT") |
 | AIGPromptText | Text | Prompt template content |
 | Description | String | Purpose and usage notes |
 
@@ -194,8 +194,26 @@ for all AI queries         ┌────────────────�
 - Version control for prompts
 - Domain-specific prompt templates
 - A/B testing support (multiple prompts per key)
+- Per-client customization via AD_Client_ID
 
-**Implementation:** Used by `AIConversationService.java:45-60`
+**Current Usage Status (v0.19.0):**
+
+| Component | Uses AIG_Prompt_Config? | Notes |
+|-----------|------------------------|-------|
+| `RAGConversationService` | ✅ Yes | Loads "SYSTEM" prompt from database |
+| `ERPAgent` / `ERPStreamingAgent` | ❌ No | Uses Java `@SystemMessage` constant |
+| `SimpleAgent` / `SimpleStreamingAgent` | ❌ No | Uses Java `@SystemMessage` constant |
+| `IERPAgent` | ❌ No | Uses Java `@SystemMessage` constant |
+
+**Hybrid Architecture Rationale:**
+- **Database prompts**: Used by `RAGConversationService` for per-client customization
+- **Java prompts**: LangChain4j `@SystemMessage` annotation requires compile-time String constants
+- **Future**: Consider dynamic prompt injection via `SystemMessage.from()` when upgrading to LangChain4j 1.x
+
+**Implementation:**
+- Model: `MAIPromptConfig.java` with `getByPromptKey()` and `getPromptText()` methods
+- Usage: `RAGConversationService.java:411-418` (`loadSystemPromptFromDatabase()`)
+- Migration: `202511241200_CLD-1606.sql` inserts default "SYSTEM" prompt
 
 ---
 

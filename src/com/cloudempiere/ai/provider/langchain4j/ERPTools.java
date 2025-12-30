@@ -14,6 +14,7 @@ import com.cloudempiere.ai.database.SecureDatabaseQueryExecutor;
 import com.cloudempiere.ai.database.dto.SecureQueryRequest;
 import com.cloudempiere.ai.database.dto.SecureQueryResult;
 import com.cloudempiere.ai.model.MAIProvider;
+import com.cloudempiere.ai.provider.dto.AIStreamCallback;
 
 import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
@@ -21,14 +22,17 @@ import dev.langchain4j.agent.tool.Tool;
 /**
  * ERP Tools for LangChain4j agents using @Tool annotations.
  *
- * These tools are automatically discovered by LangChain4j AiServices
+ * <p>These tools are automatically discovered by LangChain4j AiServices
  * and exposed to the AI model for function calling.
  *
- * All database operations go through SecureDatabaseQueryExecutor
+ * <p>All database operations go through SecureDatabaseQueryExecutor
  * which enforces role-based access control.
  *
- * @author CloudEmpiere
- * @version 0.9.0
+ * <p>Supports optional streaming callbacks for tool execution events.
+ * When a callback is provided, tool start/complete/error events are fired.
+ *
+ * @author Cloudempiere
+ * @version 0.19.0
  * @since ADR-002 LangChain4j Strategic Adoption
  */
 public class ERPTools {
@@ -39,16 +43,31 @@ public class ERPTools {
     private final MAIProvider provider;
     private final Properties ctx;
 
+    /** Optional callback for streaming tool events */
+    private final AIStreamCallback callback;
+
     /**
-     * Create ERPTools with security context.
+     * Create ERPTools with security context (no streaming callbacks).
      *
      * @param provider AI Provider configuration (for audit logging)
      * @param ctx iDempiere context (contains AD_Client_ID, AD_Org_ID, AD_Role_ID)
      */
     public ERPTools(MAIProvider provider, Properties ctx) {
+        this(provider, ctx, null);
+    }
+
+    /**
+     * Create ERPTools with security context and optional streaming callback.
+     *
+     * @param provider AI Provider configuration (for audit logging)
+     * @param ctx iDempiere context (contains AD_Client_ID, AD_Org_ID, AD_Role_ID)
+     * @param callback Optional callback for tool execution events (can be null)
+     */
+    public ERPTools(MAIProvider provider, Properties ctx, AIStreamCallback callback) {
         this.provider = provider;
         this.ctx = ctx;
         this.executor = new SecureDatabaseQueryExecutor();
+        this.callback = callback;
     }
 
     // ========================================================================
@@ -62,7 +81,11 @@ public class ERPTools {
         @P("Maximum number of rows to return (default 50, max 500)") Integer maxRows,
         @P("Purpose of the query for audit logging") String purpose
     ) {
-        log.info("ERPTools.queryDatabase: " + sql);
+        String toolName = "queryDatabase";
+        String args = "{\"sql\": \"" + truncate(sql, 100) + "\", \"maxRows\": " + maxRows + "}";
+
+        fireToolStart(toolName, args);
+        long startTime = System.currentTimeMillis();
 
         try {
             SecureQueryRequest request = new SecureQueryRequest();
@@ -75,12 +98,17 @@ public class ERPTools {
             SecureQueryResult result = executor.executeQuery(request);
 
             if (result.isSuccess()) {
-                return result.getRows().toString();
+                String resultStr = result.getRows().toString();
+                long elapsed = System.currentTimeMillis() - startTime;
+                fireToolComplete(toolName, truncate(resultStr, 200) + " (" + elapsed + "ms)");
+                return resultStr;
             } else {
+                fireToolError(toolName, result.getErrorMessage());
                 return createErrorResponse(result.getErrorMessage());
             }
         } catch (Exception e) {
             log.severe("Query execution failed: " + e.getMessage());
+            fireToolError(toolName, e.getMessage());
             return createErrorResponse(e.getMessage());
         }
     }
@@ -91,7 +119,11 @@ public class ERPTools {
         @P("Table name (e.g., C_Order, C_BPartner, M_Product)") String tableName,
         @P("Record ID to look up") int recordId
     ) {
-        log.info("ERPTools.lookupRecord: " + tableName + " ID=" + recordId);
+        String toolName = "lookupRecord";
+        String args = "{\"tableName\": \"" + tableName + "\", \"recordId\": " + recordId + "}";
+
+        fireToolStart(toolName, args);
+        long startTime = System.currentTimeMillis();
 
         try {
             // Build secure SELECT query
@@ -110,12 +142,17 @@ public class ERPTools {
             SecureQueryResult result = executor.executeQuery(request);
 
             if (result.isSuccess()) {
-                return result.getRows().toString();
+                String resultStr = result.getRows().toString();
+                long elapsed = System.currentTimeMillis() - startTime;
+                fireToolComplete(toolName, truncate(resultStr, 200) + " (" + elapsed + "ms)");
+                return resultStr;
             } else {
+                fireToolError(toolName, result.getErrorMessage());
                 return createErrorResponse(result.getErrorMessage());
             }
         } catch (Exception e) {
             log.severe("Record lookup failed: " + e.getMessage());
+            fireToolError(toolName, e.getMessage());
             return createErrorResponse(e.getMessage());
         }
     }
@@ -127,7 +164,11 @@ public class ERPTools {
         @P("WHERE clause without 'WHERE' keyword (e.g., \"IsActive='Y' AND Name LIKE '%test%'\")") String whereClause,
         @P("Maximum rows to return (default 50)") Integer maxRows
     ) {
-        log.info("ERPTools.searchRecords: " + tableName + " WHERE " + whereClause);
+        String toolName = "searchRecords";
+        String args = "{\"tableName\": \"" + tableName + "\", \"whereClause\": \"" + truncate(whereClause, 50) + "\"}";
+
+        fireToolStart(toolName, args);
+        long startTime = System.currentTimeMillis();
 
         try {
             String sql = String.format("SELECT * FROM %s WHERE %s", tableName, whereClause);
@@ -142,12 +183,17 @@ public class ERPTools {
             SecureQueryResult result = executor.executeQuery(request);
 
             if (result.isSuccess()) {
-                return result.getRows().toString();
+                String resultStr = result.getRows().toString();
+                long elapsed = System.currentTimeMillis() - startTime;
+                fireToolComplete(toolName, truncate(resultStr, 200) + " (" + elapsed + "ms)");
+                return resultStr;
             } else {
+                fireToolError(toolName, result.getErrorMessage());
                 return createErrorResponse(result.getErrorMessage());
             }
         } catch (Exception e) {
             log.severe("Search failed: " + e.getMessage());
+            fireToolError(toolName, e.getMessage());
             return createErrorResponse(e.getMessage());
         }
     }
@@ -160,11 +206,16 @@ public class ERPTools {
     public String getTableMetadata(
         @P("Table name (e.g., C_Order, C_BPartner, M_Product)") String tableName
     ) {
-        log.info("ERPTools.getTableMetadata: " + tableName);
+        String toolName = "getTableMetadata";
+        String args = "{\"tableName\": \"" + tableName + "\"}";
+
+        fireToolStart(toolName, args);
+        long startTime = System.currentTimeMillis();
 
         try {
             MTable table = MTable.get(ctx, tableName);
             if (table == null || table.getAD_Table_ID() == 0) {
+                fireToolError(toolName, "Table not found: " + tableName);
                 return createErrorResponse("Table not found: " + tableName);
             }
 
@@ -191,9 +242,12 @@ public class ERPTools {
                 metadata.put("columns", result.getRows());
             }
 
+            long elapsed = System.currentTimeMillis() - startTime;
+            fireToolComplete(toolName, "Metadata for " + tableName + " (" + elapsed + "ms)");
             return metadata.toString(2);
         } catch (Exception e) {
             log.severe("Metadata lookup failed: " + e.getMessage());
+            fireToolError(toolName, e.getMessage());
             return createErrorResponse(e.getMessage());
         }
     }
@@ -202,7 +256,11 @@ public class ERPTools {
     public String listTables(
         @P("Filter by table name pattern (optional, e.g., 'C_%' for client tables)") String namePattern
     ) {
-        log.info("ERPTools.listTables: pattern=" + namePattern);
+        String toolName = "listTables";
+        String args = "{\"namePattern\": \"" + (namePattern != null ? namePattern : "") + "\"}";
+
+        fireToolStart(toolName, args);
+        long startTime = System.currentTimeMillis();
 
         try {
             StringBuilder sql = new StringBuilder();
@@ -225,12 +283,16 @@ public class ERPTools {
             SecureQueryResult result = executor.executeQuery(request);
 
             if (result.isSuccess()) {
+                long elapsed = System.currentTimeMillis() - startTime;
+                fireToolComplete(toolName, "Listed tables (" + elapsed + "ms)");
                 return result.getRows().toString();
             } else {
+                fireToolError(toolName, result.getErrorMessage());
                 return createErrorResponse(result.getErrorMessage());
             }
         } catch (Exception e) {
             log.severe("List tables failed: " + e.getMessage());
+            fireToolError(toolName, e.getMessage());
             return createErrorResponse(e.getMessage());
         }
     }
@@ -243,7 +305,11 @@ public class ERPTools {
     public String getBusinessPartner(
         @P("Business Partner ID or Value (search key)") String identifier
     ) {
-        log.info("ERPTools.getBusinessPartner: " + identifier);
+        String toolName = "getBusinessPartner";
+        String args = "{\"identifier\": \"" + identifier + "\"}";
+
+        fireToolStart(toolName, args);
+        long startTime = System.currentTimeMillis();
 
         try {
             String whereClause;
@@ -268,12 +334,17 @@ public class ERPTools {
             SecureQueryResult result = executor.executeQuery(request);
 
             if (result.isSuccess()) {
-                return result.getRows().toString();
+                String resultStr = result.getRows().toString();
+                long elapsed = System.currentTimeMillis() - startTime;
+                fireToolComplete(toolName, truncate(resultStr, 200) + " (" + elapsed + "ms)");
+                return resultStr;
             } else {
+                fireToolError(toolName, result.getErrorMessage());
                 return createErrorResponse(result.getErrorMessage());
             }
         } catch (Exception e) {
             log.severe("Business Partner lookup failed: " + e.getMessage());
+            fireToolError(toolName, e.getMessage());
             return createErrorResponse(e.getMessage());
         }
     }
@@ -282,7 +353,11 @@ public class ERPTools {
     public String getProduct(
         @P("Product ID or Value (search key)") String identifier
     ) {
-        log.info("ERPTools.getProduct: " + identifier);
+        String toolName = "getProduct";
+        String args = "{\"identifier\": \"" + identifier + "\"}";
+
+        fireToolStart(toolName, args);
+        long startTime = System.currentTimeMillis();
 
         try {
             String whereClause;
@@ -307,12 +382,17 @@ public class ERPTools {
             SecureQueryResult result = executor.executeQuery(request);
 
             if (result.isSuccess()) {
-                return result.getRows().toString();
+                String resultStr = result.getRows().toString();
+                long elapsed = System.currentTimeMillis() - startTime;
+                fireToolComplete(toolName, truncate(resultStr, 200) + " (" + elapsed + "ms)");
+                return resultStr;
             } else {
+                fireToolError(toolName, result.getErrorMessage());
                 return createErrorResponse(result.getErrorMessage());
             }
         } catch (Exception e) {
             log.severe("Product lookup failed: " + e.getMessage());
+            fireToolError(toolName, e.getMessage());
             return createErrorResponse(e.getMessage());
         }
     }
@@ -321,7 +401,11 @@ public class ERPTools {
     public String getOrder(
         @P("Order ID or DocumentNo") String identifier
     ) {
-        log.info("ERPTools.getOrder: " + identifier);
+        String toolName = "getOrder";
+        String args = "{\"identifier\": \"" + identifier + "\"}";
+
+        fireToolStart(toolName, args);
+        long startTime = System.currentTimeMillis();
 
         try {
             String whereClause;
@@ -346,12 +430,17 @@ public class ERPTools {
             SecureQueryResult result = executor.executeQuery(request);
 
             if (result.isSuccess()) {
-                return result.getRows().toString();
+                String resultStr = result.getRows().toString();
+                long elapsed = System.currentTimeMillis() - startTime;
+                fireToolComplete(toolName, truncate(resultStr, 200) + " (" + elapsed + "ms)");
+                return resultStr;
             } else {
+                fireToolError(toolName, result.getErrorMessage());
                 return createErrorResponse(result.getErrorMessage());
             }
         } catch (Exception e) {
             log.severe("Order lookup failed: " + e.getMessage());
+            fireToolError(toolName, e.getMessage());
             return createErrorResponse(e.getMessage());
         }
     }
@@ -365,5 +454,56 @@ public class ERPTools {
         error.put("error", true);
         error.put("message", message);
         return error.toString();
+    }
+
+    /**
+     * Fire tool start callback if callback is configured.
+     */
+    private void fireToolStart(String toolName, String args) {
+        log.info("[TOOL] Starting: " + toolName);
+        if (callback != null) {
+            try {
+                callback.onToolStart(toolName, args);
+            } catch (Exception e) {
+                log.warning("Error in onToolStart callback: " + e.getMessage());
+            }
+        }
+    }
+
+    /**
+     * Fire tool complete callback if callback is configured.
+     */
+    private void fireToolComplete(String toolName, String result) {
+        log.info("[TOOL] Completed: " + toolName);
+        if (callback != null) {
+            try {
+                callback.onToolComplete(toolName, result);
+            } catch (Exception e) {
+                log.warning("Error in onToolComplete callback: " + e.getMessage());
+            }
+        }
+    }
+
+    /**
+     * Fire tool error callback if callback is configured.
+     */
+    private void fireToolError(String toolName, String error) {
+        log.warning("[TOOL] Error in " + toolName + ": " + error);
+        if (callback != null) {
+            try {
+                callback.onToolError(toolName, error);
+            } catch (Exception e) {
+                log.warning("Error in onToolError callback: " + e.getMessage());
+            }
+        }
+    }
+
+    /**
+     * Truncate string for logging.
+     */
+    private String truncate(String s, int maxLength) {
+        if (s == null) return "";
+        if (s.length() <= maxLength) return s;
+        return s.substring(0, maxLength) + "...";
     }
 }

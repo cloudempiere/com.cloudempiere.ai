@@ -237,6 +237,75 @@ Audit: All PO drafts logged with AI signature
 
 ---
 
+#### KnowledgeBaseAgent
+
+**Purpose**: AI-assisted content management for documentation and help articles
+
+**Scope**:
+```
+Domain: Knowledge Base Content Management
+Risk Level: LOW
+Users: Technical Writers, Support Staff, Administrators
+```
+
+**Data Access**:
+```yaml
+Read Tables:
+  - KB_Article (articles)
+  - KB_Category (categories)
+  - KB_Tag (tags)
+  - KB_Article_Category (mappings)
+  - AD_Table, AD_Column (for context)
+
+Write Tables:
+  - KB_Article (draft only)
+  - KB_Article_Category (mappings)
+
+Forbidden Tables:
+  - AD_User (personnel)
+  - C_BPartner (customer data)
+  - Financial tables
+```
+
+**Tools**:
+```java
+@Agent(
+    name = "KnowledgeBaseAgent",
+    domain = "KNOWLEDGE_BASE",
+    riskLevel = RiskLevel.LOW
+)
+public class KnowledgeBaseTools {
+    // Available tools:
+    - searchArticles()       // Full-text search
+    - getArticle()           // Retrieve by ID
+    - listCategories()       // Category hierarchy
+    - analyzeContent()       // Editor.js metrics
+    - findSimilar()          // Similarity search
+    - validateSyntax()       // Block validation
+    - suggestPlacement()     // AI placement recommendations
+    - createArticle()        // Draft creation
+    - updateArticle()        // Draft updates
+}
+```
+
+**Boundaries**:
+```yaml
+Organizational: Accessible KB categories only
+Time Period: All articles (no time limit)
+Max Tokens/Request: 8,000
+Daily Budget: $50
+Actions:
+  - Create: KB_Article (draft only)
+  - Update: KB_Article (draft only)
+  - Read: All accessible KB tables
+  - Cannot: Delete articles, publish without approval
+Audit: All KB changes logged with AI signature
+```
+
+**Related**: [ADR-016](016-knowledge-base-agent.md) - Knowledge Base Agent Domain
+
+---
+
 ### Tier 2: Specialized Domain Agents (Phase 2)
 
 Medium-risk agents requiring additional governance:

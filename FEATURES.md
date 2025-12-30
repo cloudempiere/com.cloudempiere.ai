@@ -8,10 +8,12 @@ This document tracks features, implementation status, and version compatibility 
 
 ---
 
-## Current Version: v0.9.0
+## Current Version: v0.32.0-SNAPSHOT
 
-**Status:** ✅ Foundation Complete - LangChain4j native providers implemented
-**Next:** v0.10.0 - RAG, Structured Outputs, Observability
+**Status:** 🚧 In Progress - TBD
+**Previous:** v0.31.1 - Critical Streaming Rendering Fix
+
+**Strategic Focus:** The Chat Widget is our primary AI implementation. All features will be integrated and tested through the chat widget before other use cases (charts, reports, etc.).
 
 ---
 
@@ -19,16 +21,40 @@ This document tracks features, implementation status, and version compatibility 
 
 | Version | Date | Key Features | Focus Area |
 |---------|------|--------------|------------|
+| **0.31.1** | 2025-12-22 | **Batch Render Event Listener Fix** | **Critical Bug Fix** |
+| 0.31.0 | 2025-12-19 | Critical P0 Blockers (Security & Stability) | Production Readiness |
+| 0.30.0 | 2025-12-18 | Cell-by-Cell Streaming Table Rendering | UX Enhancement |
+| 0.29.0 | 2025-12-18 | Zoom Links in Markdown Tables Fix | Bug Fix |
+| 0.28.0 | 2025-12-18 | AD_Message Localization for Progress/Tool Messages | Internationalization |
+| 0.27.0 | 2025-12-18 | In-Plugin Mock AI Hub Provider | Testing & Development |
+| 0.26.0 | 2025-12-18 | Service Configuration Cleanup | Code Quality |
+| 0.25.0 | 2025-12-11 | P1 Context Layer Vector Embedding Storage | RAG Infrastructure |
+| 0.24.0 | 2025-12-11 | AI Hub Provider & Language Detection | Multi-Provider |
+| 0.23.0 | 2025-12-11 | AI Hub Provider Integration (ADR-042) | Multi-Provider |
+| 0.22.0 | 2025-12-11 | Clickable Record Links in Chat with Table Support (ADR-039) | UX & Navigation |
+| 0.21.0 | 2025-12-10 | Real-Time Streaming Improvements (Tables & Emojis) | UX |
+| 0.20.0 | 2025-12-10 | Language Detection & User-Friendly Error Handling | UX & i18n |
+| 0.19.0 | 2025-12-08 | Streaming-First Architecture & Tool Support | Architecture |
+| 0.18.0 | 2025-12-08 | Llama Provider & Model Selection | Multi-Provider |
+| 0.17.2 | 2025-12-08 | Unit Test Infrastructure | Testing & Docs |
+| 0.17.1 | 2025-12-08 | Window Context Fix | Bug Fix |
+| 0.17.0 | 2025-12-07 | Streaming Tool Callbacks & Markdown | User Experience |
+| 0.16.0 | 2025-12-04 | Chat Ownership & Sharing | Multi-User Collaboration |
+| 0.15.0 | 2025-12-04 | Stop Button & Error Handling | User Experience |
+| 0.14.0 | 2025-12-04 | Real-Time Chat Streaming | User Experience |
+| 0.13.0 | 2025-12-03 | Naming Standards, Integration Wiring | Code Quality |
+| 0.12.0 | 2025-12-03 | Observability, Guardrails, Multi-Tenant | P1 Infrastructure |
+| 0.11.0 | 2025-12-03 | RAG Infrastructure & Domain Boundaries | Context & Security |
 | 0.10.0 | 2025-12-01 | Security Fixes & Migration Scripts | Security |
-| 0.9.0 | 2025-12-01 | **LangChain4j Native Providers** | **Foundation** |
+| 0.9.0 | 2025-12-01 | LangChain4j Native Providers | Foundation |
 | 0.8.0 | 2025-12-01 | MCP Server & Strategic Architecture | Documentation |
 | 0.7.0 | 2025-12-01 | Documentation & Claude Agents | Developer Experience |
 | 0.6.0 | 2025-11-28 | LangChain4j Agent Framework | Agent Infrastructure |
 | 0.5.0 | 2025-11-26 | LangChain Integration | Tool Layer |
-| 0.4.0 | 2025-11-26 | AI Chat Widget (CLD-1606) | **User Interface** |
-| 0.3.0 | 2025-11-20 | Security Layer & Context Providers | **Security** |
+| 0.4.0 | 2025-11-26 | AI Chat Widget (CLD-1606) | User Interface |
+| 0.3.0 | 2025-11-20 | Security Layer & Context Providers | Security |
 | 0.2.0 | 2025-11-18 | AWS Bedrock Integration | Multi-Provider |
-| 0.1.0 | 2025-11-18 | Initial Provider Infrastructure | **Foundation** |
+| 0.1.0 | 2025-11-18 | Initial Provider Infrastructure | Foundation |
 
 ---
 
@@ -61,13 +87,16 @@ This document tracks features, implementation status, and version compatibility 
 | **AI Chat Widget (ZK)** | 0.4.0 | ✅ Done | Interactive chat component in iDempiere WebUI |
 | **Contextual Chat** | 0.4.0 | ✅ Done | Window/tab context awareness |
 | **Role-Based Security** | 0.3.0 | ✅ Done | Queries filtered by AD_Client_ID, AD_Org_ID, AD_Role_ID |
+| **Chat Ownership & Sharing** | 0.16.0 | ✅ Done | Multi-user chat access control (ADR-036) |
 | **Natural Language Queries** | 0.9.0 | ✅ Done | "Show me pending orders over $10k" |
 | **9 ERP Tools** | 0.9.0 | ✅ Done | Database query, lookup, search, metadata |
 | **Business Object Shortcuts** | 0.9.0 | ✅ Done | getBusinessPartner, getProduct, getOrder |
 | **Conversation Memory** | 0.6.0 | ✅ Done | Session-based chat history (20 messages) |
 | **Streaming Responses** | 0.9.0 | ✅ Done | Real-time token streaming for better UX |
-| **Zoom Link Support** | 0.4.0 | ✅ Done | Clickable links to records |
-| **RAG (Context Retrieval)** | - | 📝 v0.10.0 | ADR-012: LangChain4j ContentRetriever with semantic search |
+| **Zoom Link Support** | 0.22.0 | ✅ Done | Clickable record links in chat (ADR-039 Phase 1) |
+| **Table Cell Zoom Links** | 0.22.0 | ✅ Done | Zoom links work in markdown table cells |
+| **RAG (Context Retrieval)** | 0.10.0 | 🚧 In Progress | ADR-012: LangChain4j ContentRetriever with semantic search |
+| **Share Dialog** | - | 🔜 v0.17.0 | Share button with user/role picker (ADR-036 Phase 3) |
 | **Structured Outputs** | - | 🔴 v0.10.0 | OrderSummary, InventoryReport records |
 | **Domain Agents** | - | 🔴 v0.11.0 | InventoryAgent, SalesAgent, PurchasingAgent |
 | **Process Execution** | - | 🟡 v0.11.0 | AI can trigger iDempiere processes (with approval) |
@@ -106,10 +135,26 @@ This document tracks features, implementation status, and version compatibility 
 |----------|---------|--------|------------|-------------|
 | **Anthropic Claude** | 0.9.0 | ✅ Done | LangChain4j | Native integration (Sonnet 4, 3.5, 3, Opus, Haiku) |
 | **AWS Bedrock** | 0.9.0 | ✅ Done | LangChain4j | Claude, Nova, Mistral, Llama via BedrockChatModel |
-| **Ollama (Local)** | 0.9.0 | ✅ Done | LangChain4j | Local LLM support (llama3.2, mistral, etc.) |
+| **Ollama (Local)** | 0.9.0 | ✅ Done | LangChain4j | Local LLM support (llama3.2, mistral, etc.) ⚠️* |
+| **Llama (via Ollama)** | 0.18.0 | ✅ Done | LangChain4j | Llama models via Ollama backend ⚠️* |
 | **OpenAI** | 0.9.0 | ✅ Done | LangChain4j | GPT-4o, GPT-4-turbo via OpenAiChatModel |
+| **iDempiere AI Hub** | 0.23.0 | 🚧 In Progress | REST API | AI requests routed through iDempiere AI Hub Service (Java 17+, LangChain4j 1.x) 🚀 |
+| **Mock AI Hub (In-Plugin)** | 0.27.0 | ✅ Done | LangChain4j | Zero-config mock for development (no HTTP server) ⭐ |
 | **Azure OpenAI** | - | 🟡 v0.11.0 | LangChain4j | Enterprise OpenAI deployment |
 | **Custom Providers** | 0.9.0 | ✅ Done | LangChain4j | Extensible via ChatLanguageModel interface |
+
+**\*Ollama/Llama Tool Support Limitation:** Streaming mode uses `SimpleStreamingAgent` without tools due to LangChain4j 0.35.0 limitations. Full streaming+tools requires LangChain4j 0.37.0+ (Java 17). Use Anthropic/OpenAI/Bedrock for full tool support.
+
+**🚀 AI Hub Provider Benefits (ADR-042):**
+The iDempiere AI Hub Service enables iDempiere v10 (Java 11) to access advanced AI features from LangChain4j 1.x (Java 17+):
+- **Extended Thinking/Reasoning Timeline** - Display AI reasoning process in real-time
+- **MCP (Model Context Protocol)** Support - Connect to external knowledge sources
+- **System/Tool Message Caching** - Reduce costs by caching prompts (Anthropic/OpenAI)
+- **Enhanced Observability** - Advanced listeners and metrics
+- **Google Gemini Streaming** - Stream responses from Google's Gemini models
+- **LangChain4j 1.x Features** - Access latest framework capabilities without upgrading iDempiere to Java 17
+
+The AI Hub architecture decouples AI provider versions from iDempiere runtime, enabling progressive enhancement.
 
 **Legacy Providers (Deprecated in v0.9.0):**
 - ❌ Custom `AnthropicProvider` → Replaced by `AnthropicChatModel`
@@ -127,8 +172,8 @@ This document tracks features, implementation status, and version compatibility 
 | **ChatMemory** | 0.6.0 | ✅ Done | LangChain4j | MessageWindowChatMemory (per session) |
 | **ContentRetriever (RAG)** | - | 🔴 v0.10.0 | LangChain4j | Semantic search & context injection |
 | **Structured Outputs** | - | 🔴 v0.10.0 | LangChain4j | Java records as response schemas |
-| **Input/Output Guards** | - | 🟡 v0.11.0 | LangChain4j | Boundary validation (cost, PII, SQL injection) |
-| **Listeners (Observability)** | - | 🔴 v0.10.0 | LangChain4j | TokenUsage, Latency, Audit listeners |
+| **Input/Output Guards** | 0.12.0 | ✅ Done | LangChain4j | InputGuard, OutputGuard, ExecutionGuard |
+| **Listeners (Observability)** | 0.12.0 | ✅ Done | LangChain4j | AIMetricsListener, CostGuard |
 | **Agentic Patterns** | - | 🔴 v0.11.0 | LangChain4j | Sequential, parallel, conditional workflows |
 | **Agents as Tools** | - | 🟡 v0.11.0 | LangChain4j | Agent-to-Agent delegation |
 
@@ -169,8 +214,11 @@ This document tracks features, implementation status, and version compatibility 
 | **Audit Logging** | 0.3.0 | ✅ Done | AIG_QueryAudit table (who, what, when) |
 | **Org/Client Filtering** | 0.3.0 | ✅ Done | Automatic multi-tenant isolation |
 | **Sensitive Metadata Filtering** | 0.10.0 | ✅ Done | Filter user_id, role_id from AI responses |
-| **Cost Boundaries** | - | 🟡 v0.11.0 | Token limits, daily budgets per agent |
-| **PII Detection** | - | 🟡 v0.11.0 | Prevent exposure of passwords, credit cards |
+| **Cost Boundaries** | 0.12.0 | ✅ Done | CostGuard with budget enforcement, rate limiting |
+| **PII Detection** | 0.12.0 | ✅ Done | InputGuard detects SSN, credit cards, emails |
+| **Prompt Injection Prevention** | 0.12.0 | ✅ Done | InputGuard blocks injection attempts |
+| **Credential Leak Prevention** | 0.12.0 | ✅ Done | OutputGuard blocks API keys, passwords |
+| **Multi-Tenant Access Tiers** | 0.12.0 | ✅ Done | AIGAccessTier (TENANT, TENANT_DICTIONARY, SERVICE_PROVIDER) |
 
 ---
 
@@ -195,77 +243,50 @@ This document tracks features, implementation status, and version compatibility 
 | **AIG_QueryAudit** | 0.3.0 | ✅ Done | Query audit trail |
 | **AIG_Chat** | 0.10.0 | ✅ Done | Chat session metadata |
 | **AIG_ChatEntry** | 0.10.0 | ✅ Done | Chat message history |
-| **AIG_Agent** | - | 🔜 v0.11.0 | Agent configuration |
-| **AIG_AgentBoundary** | - | 🔜 v0.11.0 | Agent permission boundaries |
-| **AIG_Conversation** | - | 🔜 v0.12.0 | Persistent conversation store |
-| **AIG_Document** | - | 🟡 v0.10.0 | RAG document store |
+| **AIG_UsageMetrics** | 0.12.0 | ✅ Done | Token usage, cost, latency tracking |
+| **AIG_Budget** | 0.12.0 | ✅ Done | Budget limits (daily, monthly, per-agent) |
+| **AIG_Agent** | - | 🔜 v0.13.0 | Agent configuration |
+| **AIG_AgentBoundary** | - | 🔜 v0.13.0 | Agent permission boundaries |
+| **AIG_Conversation** | - | 🔜 v0.14.0 | Persistent conversation store |
+| **AIG_Document** | - | 🟡 v0.14.0 | RAG document store |
 
 ---
 
 ## Advanced Features (Roadmap)
 
-### v0.10.0 - RAG & Observability (Q1 2026)
+### v0.14.0 - Chat Widget LangChain4j Migration (ADR-031)
 
-**Timeline:** 6 weeks total
-
-**Phase 1: RAG Migration (ADR-012) - 2 weeks**
-
-| Week | Feature | Implementation | Success Metrics |
-|------|---------|---------------|-----------------|
-| **Week 1** | RAG Infrastructure Setup | Add deps: `langchain4j-embeddings`, `langchain4j-ollama`<br>Create `RAGContextManager` (~50 lines)<br>Create `ContentRetriever` config<br>Parallel testing (RAG vs custom) | Environment setup complete<br>RAG context manager working<br>Parallel tests running |
-| **Week 2** | Migration & Cleanup | Update `AIConversationService` to use RAG<br>Remove custom routing (630 lines)<br>Feature flag for rollback<br>Performance validation | Cache hit rate >50%<br>Accuracy >95%<br>Response time <1.5s |
-
-**Phase 2-4: Additional Features - 4 weeks**
-
-| Feature | Priority | Technology | Timeline | Description |
-|---------|----------|------------|----------|-------------|
-| **Structured Outputs** | 🔴 Critical | LangChain4j Records | Week 3 | OrderSummary, InventoryReport schemas |
-| **Observability Listeners** | 🔴 Critical | LangChain4j Listeners | Week 4 | Cost, latency, error tracking |
-| **MCP REST API** | 🔴 Critical | JAX-RS | Weeks 5-6 | HTTP API for external clients |
-| **Enhanced Context** | 🟡 Medium | Context Providers | Week 6 | Form state, process parameters |
-| **Query Optimization** | 🟡 Medium | Custom | Week 6 | Query caching, connection pooling |
-
-### v0.11.0 - LangChain4j Enhancements & Domain Agents (Q1-Q2 2026)
-
-**Timeline:** 8 weeks total (4 weeks ADR-008 enhancements + 4 weeks domain agents)
-
-**Phase 1: Instruction Following Enhancements (ADR-008) - 4 weeks**
-
-| Week | Feature | Priority | Technology | Implementation | Success Metrics |
-|------|---------|----------|------------|----------------|-----------------|
-| **Week 1** | Temperature Control | 🟢 Quick Win | LangChain4j | Set `temperature(0.0)` in ChatLanguageModel<br>1 line of code, 15-minute implementation | Reproducible results<br>Consistent behavior |
-| **Week 2-3** | Structured Outputs | 🔴 Critical | LangChain4j | Define typed interfaces (`ERPQueryResult`, `Record`)<br>Replace manual JSON parsing<br>Automatic schema validation | 80% less parsing code<br>Type-safe responses<br>Auto-retry on invalid structure |
-| **Week 4** | Validation Loop | 🟡 Medium | LangChain4j | Implement `OutputParser` with `formatInstructions()`<br>Self-correcting AI on validation errors | 70% less validation code<br>Auto-correction of AI errors<br>95% → 98% accuracy |
-
-**Expected Results (Phase 1):**
-- ✅ 80% less parsing code (100 → 20 lines)
-- ✅ Type-safe responses with compile-time validation
-- ✅ Deterministic function calling
-- ✅ Auto-correction of AI errors
-- ✅ 95% → 98% accuracy improvement
-
-**Phase 2: Domain Agents & Workflows - 4 weeks**
+**Focus:** Wire AIChatWidget to use LangChain4j infrastructure with guardrails and metrics.
 
 | Feature | Priority | Technology | Description |
 |---------|----------|------------|-------------|
-| **InventoryAgent** | 🔴 Critical | Agentic Patterns | Stock analysis, reorder suggestions |
-| **SalesAgent** | 🔴 Critical | Agentic Patterns | Order analysis, revenue insights |
-| **PurchasingAgent** | 🔴 Critical | Agentic Patterns | Vendor analysis, PO creation |
-| **HelpDeskAgent** | 🟡 Medium | Agentic Patterns | Error diagnosis, troubleshooting |
-| **Sequential Workflows** | 🔴 Critical | LangChain4j Agentic | Multi-step business processes |
-| **Parallel Workflows** | 🟡 Medium | LangChain4j Agentic | Concurrent data retrieval |
-| **Conditional Routing** | 🟡 Medium | LangChain4j Agentic | Smart agent delegation |
-| **Input/Output Guards** | 🔴 Critical | LangChain4j Guards | Cost limits, PII detection |
-| **Process Execution Tool** | 🟡 Medium | ERPTools | Trigger iDempiere processes |
+| **AIChatWidget → AIService** | 🔴 Critical | LangChain4j | Replace legacy AIConversationService |
+| **Guardrails in Chat Flow** | 🔴 Critical | CostGuard, InputGuard, OutputGuard | Pre/post processing |
+| **Metrics in Chat Flow** | 🔴 Critical | AIMetricsListener | Token/cost tracking per message |
+| **ThreadAwareChatMemory** | 🔴 Critical | LangChain4j ChatMemory | Thread-isolated conversation memory |
+| **Feature Flag** | 🟡 Medium | System Property | `ai.chat.service=LANGCHAIN4J|LEGACY` |
 
-### v0.12.0 - Production Preparation (Q2 2026)
+### v0.15.0 - RAG & Streaming in Chat
 
-| Feature | Priority | Description |
-|---------|----------|-------------|
-| **Production DB Schema** | 🔴 Critical | Finalized table designs, indexes |
-| **Comprehensive Testing** | 🔴 Critical | Unit, integration, security, performance tests |
-| **Multi-Agent Collaboration** | 🟡 Medium | A2A (Agent-to-Agent) communication |
-| **Advanced RAG** | 🟡 Medium | Query transformation, re-ranking |
+**Focus:** Semantic context retrieval and real-time response streaming.
+
+| Feature | Priority | Technology | Description |
+|---------|----------|------------|-------------|
+| **RAG in Chat Flow** | 🔴 Critical | RAGContextManager | Semantic context retrieval |
+| **Streaming Responses** | 🔴 Critical | StreamingChatModel | Token-by-token rendering |
+| **Legacy Code Removal** | 🟡 Medium | Refactoring | Remove AIConversationService (~1,500 lines) |
+
+### v0.16.0+ - Business Use Cases & Domain Agents
+
+**Focus:** Extend proven chat infrastructure to other UI contexts.
+
+| Feature | Priority | Technology | Description |
+|---------|----------|------------|-------------|
+| **ADR-017: Chart Executive Overview** | 🟡 Medium | LangChain4j AiServices | Chart data analysis |
+| **ADR-018: Sales Opportunity Summary** | 🟡 Medium | Structured Outputs | Typed response objects |
+| **ADR-011: Domain Agents** | 🟡 Medium | Agentic Patterns | Inventory, Sales, Purchasing |
+| **ADR-026: pgvector** | 🟡 Medium | PostgreSQL Extension | Production embedding persistence |
+| **MCP REST API** | 🟡 Medium | JAX-RS | HTTP API for external clients |
 
 ### v1.0.0 - Production Release (Q2 2026)
 
@@ -300,19 +321,24 @@ Based on validation reports:
 - **ADR-005** (Intelligent Routing) - ✅ Superseded by ADR-012 (RAG-Based Context Retrieval)
 - **ADR-012** (RAG-Based Context Retrieval) - ✅ Created 2025-12-01, planned implementation in v0.10.0
 
+### ✅ Completed (v0.12.0)
+- **ADR-009** (Boundaries) - ✅ Done: 7 boundary classes + ADR-029 integration
+- **ADR-013** (Observability) - ✅ Done: AIMetricsListener, CostGuard, MAIUsageMetrics, MAIBudget
+- **ADR-014** (Guardrails) - ✅ Done: InputGuard, OutputGuard, ExecutionGuard, GuardResult
+- **ADR-029** (Multi-Tenant) - ✅ Done: AIGAccessTier, tiered access filters
+
 ### ⚠️ Needs Update
-- **ADR-009** (Boundaries) - ⚠️ Should leverage LangChain4j Guards pattern
 - **ADR-010** (Orchestration) - ⚠️ Should reference `langchain4j-agentic-patterns` module
 
-### 🔴 Critical Gaps Identified
+### 🔴 Remaining Gaps
 - ✅ **RAG implementation** - Addressed by ADR-012 (86% code reduction via ContentRetriever)
 - ✅ **Database access** - Already implemented via ADR-002 ERPTools (36% code reduction vs planned)
-- ⚠️ **Structured outputs** - Planned v0.11.0 (80% less parsing code via LangChain4j)
-- ⚠️ **Temperature control** - Planned v0.11.0 (1-line quick win for deterministic function calling)
-- ⚠️ **Validation loop** - Planned v0.11.0 (70% less validation code via OutputParser)
-- ❌ **Agentic patterns module** (discovered at Devoxx 2025 - not yet implemented)
-- ❌ **Observability listeners** (LangChain4j has full support - not yet implemented)
-- ❌ **Guards for boundary enforcement** (LangChain4j has full support - not yet implemented)
+- ✅ **Observability listeners** - Done v0.12.0 via AIMetricsListener
+- ✅ **Guards for boundary enforcement** - Done v0.12.0 via InputGuard, OutputGuard, ExecutionGuard
+- ⚠️ **Structured outputs** - Planned v0.13.0 (80% less parsing code via LangChain4j)
+- ⚠️ **Temperature control** - Planned v0.13.0 (1-line quick win for deterministic function calling)
+- ⚠️ **Validation loop** - Planned v0.13.0 (70% less validation code via OutputParser)
+- ⏳ **Agentic patterns module** - Planned v0.15.0 (langchain4j-agentic)
 
 **Code Reduction Achieved:**
 - 630 lines (ADR-012 RAG migration)
@@ -412,6 +438,6 @@ Based on validation reports:
 
 ---
 
-**Last Updated:** 2025-12-01
-**Current Version:** v0.9.0
-**Next Release:** v0.10.0 (Q1 2026) - RAG & Observability
+**Last Updated:** 2025-12-18
+**Current Version:** v0.28.0-SNAPSHOT (In Development)
+**Next Release:** v0.28.0 - TBD
