@@ -189,6 +189,8 @@
 								    <version>0.35.0</version>
 								</artifactItem>
 								<!-- AWS SDK v2 Bedrock Runtime - required by langchain4j-bedrock 0.35.0 -->
+								<!-- CLDE: Core AWS SDK dependencies now provided by com.cloudempiere.aws.provider -->
+								<!-- Keep only Bedrock-specific and Netty dependencies for async streaming -->
 								<artifactItem>
 								    <groupId>software.amazon.awssdk</groupId>
 								    <artifactId>bedrockruntime</artifactId>
@@ -197,72 +199,6 @@
 								<artifactItem>
 								    <groupId>software.amazon.awssdk</groupId>
 								    <artifactId>bedrock</artifactId>
-								    <version>2.20.162</version>
-								</artifactItem>
-								<!-- AWS SDK v2 Core dependencies -->
-								<artifactItem>
-								    <groupId>software.amazon.awssdk</groupId>
-								    <artifactId>sdk-core</artifactId>
-								    <version>2.20.162</version>
-								</artifactItem>
-								<artifactItem>
-								    <groupId>software.amazon.awssdk</groupId>
-								    <artifactId>auth</artifactId>
-								    <version>2.20.162</version>
-								</artifactItem>
-								<artifactItem>
-								    <groupId>software.amazon.awssdk</groupId>
-								    <artifactId>regions</artifactId>
-								    <version>2.20.162</version>
-								</artifactItem>
-								<artifactItem>
-								    <groupId>software.amazon.awssdk</groupId>
-								    <artifactId>utils</artifactId>
-								    <version>2.20.162</version>
-								</artifactItem>
-								<artifactItem>
-								    <groupId>software.amazon.awssdk</groupId>
-								    <artifactId>http-client-spi</artifactId>
-								    <version>2.20.162</version>
-								</artifactItem>
-								<artifactItem>
-								    <groupId>software.amazon.awssdk</groupId>
-								    <artifactId>aws-core</artifactId>
-								    <version>2.20.162</version>
-								</artifactItem>
-								<artifactItem>
-								    <groupId>software.amazon.awssdk</groupId>
-								    <artifactId>protocol-core</artifactId>
-								    <version>2.20.162</version>
-								</artifactItem>
-								<artifactItem>
-								    <groupId>software.amazon.awssdk</groupId>
-								    <artifactId>json-utils</artifactId>
-								    <version>2.20.162</version>
-								</artifactItem>
-								<artifactItem>
-								    <groupId>software.amazon.awssdk</groupId>
-								    <artifactId>profiles</artifactId>
-								    <version>2.20.162</version>
-								</artifactItem>
-								<artifactItem>
-								    <groupId>software.amazon.awssdk</groupId>
-								    <artifactId>metrics-spi</artifactId>
-								    <version>2.20.162</version>
-								</artifactItem>
-								<artifactItem>
-								    <groupId>software.amazon.awssdk</groupId>
-								    <artifactId>endpoints-spi</artifactId>
-								    <version>2.20.162</version>
-								</artifactItem>
-								<artifactItem>
-								    <groupId>software.amazon.awssdk</groupId>
-								    <artifactId>aws-json-protocol</artifactId>
-								    <version>2.20.162</version>
-								</artifactItem>
-								<artifactItem>
-								    <groupId>software.amazon.awssdk</groupId>
-								    <artifactId>apache-client</artifactId>
 								    <version>2.20.162</version>
 								</artifactItem>
 								<artifactItem>
@@ -275,17 +211,7 @@
 								    <artifactId>annotations</artifactId>
 								    <version>2.20.162</version>
 								</artifactItem>
-								<!-- AWS SDK third-party dependencies -->
-								<artifactItem>
-								    <groupId>org.apache.httpcomponents</groupId>
-								    <artifactId>httpclient</artifactId>
-								    <version>4.5.14</version>
-								</artifactItem>
-								<artifactItem>
-								    <groupId>org.apache.httpcomponents</groupId>
-								    <artifactId>httpcore</artifactId>
-								    <version>4.4.16</version>
-								</artifactItem>
+								<!-- Netty dependencies for async HTTP client -->
 								<artifactItem>
 								    <groupId>io.netty</groupId>
 								    <artifactId>netty-codec-http</artifactId>
