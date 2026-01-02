@@ -17,3 +17,4 @@ com.cloudempiere.cache.test*
 *.bak
 *.bak2
 *.bak3
+/com.cloudempiere.ai.plugin/lib
