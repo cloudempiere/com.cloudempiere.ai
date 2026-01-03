@@ -1,6 +1,6 @@
-/target/
+*/target/
 /bin/
-/lib/*.jar
+*/lib/*.jar
 
 # Third-party analysis and reference implementations
 de.bxservice*/
@@ -17,4 +17,3 @@ com.cloudempiere.cache.test*
 *.bak
 *.bak2
 *.bak3
-/com.cloudempiere.ai.plugin/lib
