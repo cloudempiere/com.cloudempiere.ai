@@ -1,6 +1,6 @@
-/target/
+*/target/
 /bin/
-/lib/*.jar
+*/lib/*.jar
 
 # Third-party analysis and reference implementations
 de.bxservice*/
