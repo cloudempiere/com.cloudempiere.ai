@@ -7,3 +7,5 @@ de.bxservice*/
 
 # macOS system files
 .DS_Store
+*/target
+*.jar
