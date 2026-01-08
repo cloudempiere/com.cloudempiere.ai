@@ -30,6 +30,8 @@ pipeline {
                     credentialsId:"${gitCredentialId}",
                     branch:"${clde_branch_staging}"
                 sh "sed -i -e 's+iDempiereCLDE+clde-server_staging-cloudempiere/iDempiereCLDE+g' com.cloudempiere.ai.parent/pom.xml "
+                sh "sed -i -e 's+com.cloudempiere.core/com.cloudempiere.core.extensions.p2+com.cloudempiere.core_staging/com.cloudempiere.core.extensions.p2+g' com.cloudempiere.ai.parent/pom.xml "
+                sh "sed -i -e 's+com.cloudempiere.aws/com.cloudempiere.aws.p2+com.cloudempiere.aws_staging/com.cloudempiere.aws.p2+g' com.cloudempiere.ai.parent/pom.xml "
             }
         }
         stage('Get-Prod-Plugin') {
@@ -41,6 +43,8 @@ pipeline {
                     credentialsId:"${gitCredentialId}",
                     branch:"${clde_branch_master}"
                 sh "sed -i -e 's+iDempiereCLDE+clde-server_master-cloudempiere/iDempiereCLDE+g' com.cloudempiere.ai.parent/pom.xml "
+                sh "sed -i -e 's+com.cloudempiere.core/com.cloudempiere.core.extensions.p2+com.cloudempiere.core_master/com.cloudempiere.core.extensions.p2+g' com.cloudempiere.ai.parent/pom.xml "
+                sh "sed -i -e 's+com.cloudempiere.aws/com.cloudempiere.aws.p2+com.cloudempiere.aws_master/com.cloudempiere.aws.p2+g' com.cloudempiere.ai.parent/pom.xml "
             }
         }
         stage('Build') {
