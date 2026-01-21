@@ -10,10 +10,5 @@ com.cloudempiere.cache.test*
 
 # macOS system files
 .DS_Store
-/.claude/agents
-/.claude
-
-# Backup files
-*.bak
-*.bak2
-*.bak3
+*/target
+*.jar
