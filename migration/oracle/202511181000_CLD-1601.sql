@@ -3,6 +3,7 @@
 -- Purpose: Add database access infrastructure for AI agents
 -- Author: Cloudempiere
 -- Date: 2025-11-18
+SELECT register_migration_script('202511181000_CLD-1601.sql') FROM dual;
 
 -- =====================================================================
 -- 1. Add AD_User_ID to AIG_Provider table

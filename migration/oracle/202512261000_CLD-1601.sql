@@ -1,5 +1,5 @@
 -- Rename Satellite provider to AI Hub for clarity
-SELECT register_migration_script('202512261000_Rename_Satellite_to_AIHub.sql') FROM dual;
+SELECT register_migration_script('202512261000_CLD-1601.sql') FROM dual;
 
 -- Update AD_Ref_List name from "Quarkus Satellite" to "iDempiere AI Hub"
 UPDATE AD_Ref_List

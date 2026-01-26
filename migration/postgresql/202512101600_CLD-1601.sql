@@ -12,6 +12,9 @@ SELECT register_migration_script('202512101600_CLD-1601.sql') FROM dual;
 -- Run as superuser: CREATE EXTENSION IF NOT EXISTS vector;
 -- ============================================================================
 
+-- Create pgvector extension if not exists (requires superuser or extension privileges)
+CREATE EXTENSION IF NOT EXISTS vector;
+
 -- NOTE: This migration creates tables directly via DDL instead of using
 -- Application Dictionary because:
 -- 1. pgvector 'vector' data type is not supported by iDempiere's AD framework

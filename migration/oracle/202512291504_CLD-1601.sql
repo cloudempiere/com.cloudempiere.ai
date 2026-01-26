@@ -4,6 +4,10 @@ SELECT register_migration_script('202512291504_CLD-1601.sql') FROM dual;
 SET SQLBLANKLINES ON
 SET DEFINE OFF
 
+-- Dec 3, 2025, 2:02:53 PM CET
+INSERT INTO AD_Element (AD_Element_ID,AD_Client_ID,AD_Org_ID,IsActive,Created,CreatedBy,Updated,UpdatedBy,ColumnName,EntityType,Name,PrintName,Description,Help,PO_Name,PO_PrintName,PO_Description,PO_Help,AD_Element_UU,Placeholder) VALUES (800723,0,0,'Y',TO_TIMESTAMP('2025-12-03 14:00:28','YYYY-MM-DD HH24:MI:SS'),1134855,TO_TIMESTAMP('2025-12-03 14:02:53','YYYY-MM-DD HH24:MI:SS'),1134855,'ErrorMessage','MM02','Error Message','Error Message',NULL,NULL,NULL,NULL,NULL,NULL,'f608b66e-9b03-4864-bf7f-7cef24e3f001',NULL)
+;
+
 -- Dec 29, 2025, 3:06:07 PM CET
 INSERT INTO AD_Table (AD_Table_ID,Name,TableName,LoadSeq,AccessLevel,AD_Client_ID,AD_Org_ID,IsActive,Created,CreatedBy,Updated,UpdatedBy,IsSecurityEnabled,IsDeleteable,IsHighVolume,IsView,EntityType,ImportTable,IsChangeLog,ReplicationType,CopyColumnsFromTable,IsCentrallyMaintained,AD_Table_UU,Processing,DatabaseViewDrop,CopyComponentsFromView,CreateWindowFromTable,IsShowInDrillOptions,IsPartition,CreatePartition) VALUES (800210,'AI Ingestion Metadata','AIG_IngestionMetadata',0,'6',0,0,'Y',TO_TIMESTAMP('2025-12-29 15:06:07','YYYY-MM-DD HH24:MI:SS'),toRecordId('AD_User','7803d4f7-a42f-4a02-bc1e-c1d748a3bb80'),TO_TIMESTAMP('2025-12-29 15:06:07','YYYY-MM-DD HH24:MI:SS'),toRecordId('AD_User','7803d4f7-a42f-4a02-bc1e-c1d748a3bb80'),'N','Y','N','N','MM02','N','Y','L','N','Y','3b9a2934-11f7-4fbc-a2f8-cef3b3795450','N','N','N','N','N','N','N')
 ;
