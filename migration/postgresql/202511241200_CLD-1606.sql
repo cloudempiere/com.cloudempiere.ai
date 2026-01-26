@@ -31,6 +31,18 @@ ALTER TABLE AIG_Prompt_Config ADD CONSTRAINT UpdatedBy_AIGPromptConfig FOREIGN K
 -- Add index on AIGPromptKey for fast lookup
 CREATE INDEX idx_aig_prompt_config_key ON AIG_Prompt_Config(AIGPromptKey);
 
+-- Nov 24, 2025, 1:47:02 PM CET
+INSERT INTO AD_Table (AD_Table_ID,Name,Description,TableName,LoadSeq,AccessLevel,AD_Client_ID,AD_Org_ID,IsActive,Created,CreatedBy,Updated,UpdatedBy,IsSecurityEnabled,IsDeleteable,IsHighVolume,IsView,EntityType,ImportTable,IsChangeLog,ReplicationType,CopyColumnsFromTable,IsCentrallyMaintained,AD_Table_UU,Processing,DatabaseViewDrop,CopyComponentsFromView,CreateWindowFromTable,IsShowInDrillOptions,IsPartition,CreatePartition) VALUES (800204,'Prompt Configuration','Configuration table for storing AI prompts','AIG_Prompt_Config',0,'6',0,0,'Y',TO_TIMESTAMP('2025-11-24 13:47:02','YYYY-MM-DD HH24:MI:SS'),toRecordId('AD_User','7803d4f7-a42f-4a02-bc1e-c1d748a3bb80'),TO_TIMESTAMP('2025-11-24 13:47:02','YYYY-MM-DD HH24:MI:SS'),toRecordId('AD_User','7803d4f7-a42f-4a02-bc1e-c1d748a3bb80'),'N','Y','N','N','MM02','N','Y','L','N','Y','26e7d622-0849-45c1-accd-64d6d492e729','N','N','N','N','N','N','N')
+;
+
+-- Nov 24, 2025, 1:47:02 PM CET
+INSERT INTO AD_Sequence (Name,CurrentNext,IsAudited,StartNewYear,Description,IsActive,IsTableID,AD_Client_ID,AD_Org_ID,Created,CreatedBy,Updated,UpdatedBy,AD_Sequence_ID,IsAutoSequence,StartNo,IncrementNo,CurrentNextSys,AD_Sequence_UU) VALUES ('AIG_Prompt_Config',1000000,'N','N','Table AIG_Prompt_Config','Y','Y',0,0,TO_TIMESTAMP('2025-11-24 13:47:02','YYYY-MM-DD HH24:MI:SS'),toRecordId('AD_User','7803d4f7-a42f-4a02-bc1e-c1d748a3bb80'),TO_TIMESTAMP('2025-11-24 13:47:02','YYYY-MM-DD HH24:MI:SS'),toRecordId('AD_User','7803d4f7-a42f-4a02-bc1e-c1d748a3bb80'),800263,'Y',1000000,1,200000,'1c435b84-a76c-4511-ac42-23e845d26cb0')
+;
+
+-- Nov 24, 2025, 1:47:02 PM CET
+CREATE SEQUENCE AIG_PROMPT_CONFIG_SQ INCREMENT 1 MINVALUE 1000000 MAXVALUE 2147483647 START 1000000
+;
+
 -- Insert default SYSTEM prompt (currently hardcoded in AIConversationService.buildSystemPrompt)
 INSERT INTO AIG_Prompt_Config (AIG_Prompt_Config_ID, AD_Client_ID, AD_Org_ID, AIG_Prompt_Config_UU, Name, Description, AIGPromptKey, AIGPromptText, Created, CreatedBy, Updated, UpdatedBy, IsActive)
 VALUES (
@@ -88,18 +100,6 @@ When users ask questions that require data from the system, use the query_databa
     100,
     'Y'
 );
-
--- Nov 24, 2025, 1:47:02 PM CET
-INSERT INTO AD_Table (AD_Table_ID,Name,Description,TableName,LoadSeq,AccessLevel,AD_Client_ID,AD_Org_ID,IsActive,Created,CreatedBy,Updated,UpdatedBy,IsSecurityEnabled,IsDeleteable,IsHighVolume,IsView,EntityType,ImportTable,IsChangeLog,ReplicationType,CopyColumnsFromTable,IsCentrallyMaintained,AD_Table_UU,Processing,DatabaseViewDrop,CopyComponentsFromView,CreateWindowFromTable,IsShowInDrillOptions,IsPartition,CreatePartition) VALUES (800204,'Prompt Configuration','Configuration table for storing AI prompts','AIG_Prompt_Config',0,'6',0,0,'Y',TO_TIMESTAMP('2025-11-24 13:47:02','YYYY-MM-DD HH24:MI:SS'),toRecordId('AD_User','7803d4f7-a42f-4a02-bc1e-c1d748a3bb80'),TO_TIMESTAMP('2025-11-24 13:47:02','YYYY-MM-DD HH24:MI:SS'),toRecordId('AD_User','7803d4f7-a42f-4a02-bc1e-c1d748a3bb80'),'N','Y','N','N','MM02','N','Y','L','N','Y','26e7d622-0849-45c1-accd-64d6d492e729','N','N','N','N','N','N','N')
-;
-
--- Nov 24, 2025, 1:47:02 PM CET
-INSERT INTO AD_Sequence (Name,CurrentNext,IsAudited,StartNewYear,Description,IsActive,IsTableID,AD_Client_ID,AD_Org_ID,Created,CreatedBy,Updated,UpdatedBy,AD_Sequence_ID,IsAutoSequence,StartNo,IncrementNo,CurrentNextSys,AD_Sequence_UU) VALUES ('AIG_Prompt_Config',1000000,'N','N','Table AIG_Prompt_Config','Y','Y',0,0,TO_TIMESTAMP('2025-11-24 13:47:02','YYYY-MM-DD HH24:MI:SS'),toRecordId('AD_User','7803d4f7-a42f-4a02-bc1e-c1d748a3bb80'),TO_TIMESTAMP('2025-11-24 13:47:02','YYYY-MM-DD HH24:MI:SS'),toRecordId('AD_User','7803d4f7-a42f-4a02-bc1e-c1d748a3bb80'),800263,'Y',1000000,1,200000,'1c435b84-a76c-4511-ac42-23e845d26cb0')
-;
-
--- Nov 24, 2025, 1:47:02 PM CET
-CREATE SEQUENCE AIG_PROMPT_CONFIG_SQ INCREMENT 1 MINVALUE 1000000 MAXVALUE 2147483647 START 1000000
-;
 
 -- Nov 24, 2025, 1:48:52 PM CET
 INSERT INTO AD_Column (AD_Column_ID,Version,Name,Description,Help,AD_Table_ID,AD_Val_Rule_ID,ColumnName,DefaultValue,FieldLength,IsKey,IsParent,IsMandatory,IsTranslated,IsIdentifier,IsEncrypted,AD_Reference_ID,AD_Client_ID,AD_Org_ID,IsActive,Created,CreatedBy,Updated,UpdatedBy,AD_Element_ID,IsUpdateable,IsSelectionColumn,EntityType,IsAlwaysUpdateable,AD_Column_UU,IsToolbarButton,FKConstraintType) VALUES (803481,0.0,'Tenant','Tenant for this installation.','A Tenant is a company or a legal entity. You cannot share data between Tenants.',800204,129,'AD_Client_ID','@#AD_Client_ID@',10,'N','N','Y','N','N','N',19,0,0,'Y',TO_TIMESTAMP('2025-11-24 13:48:51','YYYY-MM-DD HH24:MI:SS'),toRecordId('AD_User','7803d4f7-a42f-4a02-bc1e-c1d748a3bb80'),TO_TIMESTAMP('2025-11-24 13:48:51','YYYY-MM-DD HH24:MI:SS'),toRecordId('AD_User','7803d4f7-a42f-4a02-bc1e-c1d748a3bb80'),102,'N','N','MM02','N','2662cebf-e73b-45ba-a716-2d17b980860b','N','D')
