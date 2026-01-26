@@ -5,6 +5,93 @@ SELECT register_migration_script('202511241200_CLD-1606.sql') FROM dual;
 SET SQLBLANKLINES ON
 SET DEFINE OFF
 
+-- Create physical table (Oracle syntax with CLOB)
+CREATE TABLE AIG_Prompt_Config (
+    AD_Client_ID NUMBER(10) NOT NULL,
+    AD_Org_ID NUMBER(10) NOT NULL,
+    AIG_Prompt_Config_ID NUMBER(10) NOT NULL,
+    AIG_Prompt_Config_UU VARCHAR2(36 CHAR) DEFAULT NULL,
+    Name VARCHAR2(60 CHAR) NOT NULL,
+    Description VARCHAR2(255 CHAR) DEFAULT NULL,
+    AIGPromptKey VARCHAR2(40 CHAR) NOT NULL,
+    AIGPromptText CLOB NOT NULL,
+    Created DATE NOT NULL,
+    CreatedBy NUMBER(10) NOT NULL,
+    Updated DATE NOT NULL,
+    UpdatedBy NUMBER(10) NOT NULL,
+    IsActive CHAR(1) DEFAULT 'Y' CHECK (IsActive IN ('Y','N')) NOT NULL,
+    CONSTRAINT AIG_Prompt_Config_Key PRIMARY KEY (AIG_Prompt_Config_ID),
+    CONSTRAINT AIG_Prompt_Config_UU_idx UNIQUE (AIG_Prompt_Config_UU),
+    CONSTRAINT AIG_Prompt_Config_PromptKey_idx UNIQUE (AIGPromptKey, AD_Client_ID)
+);
+
+-- Add foreign key constraints
+ALTER TABLE AIG_Prompt_Config ADD CONSTRAINT ADClient_AIGPromptConfig FOREIGN KEY (AD_Client_ID) REFERENCES ad_client(ad_client_id) DEFERRABLE INITIALLY DEFERRED;
+ALTER TABLE AIG_Prompt_Config ADD CONSTRAINT ADOrg_AIGPromptConfig FOREIGN KEY (AD_Org_ID) REFERENCES ad_org(ad_org_id) DEFERRABLE INITIALLY DEFERRED;
+ALTER TABLE AIG_Prompt_Config ADD CONSTRAINT CreatedBy_AIGPromptConfig FOREIGN KEY (CreatedBy) REFERENCES ad_user(ad_user_id) DEFERRABLE INITIALLY DEFERRED;
+ALTER TABLE AIG_Prompt_Config ADD CONSTRAINT UpdatedBy_AIGPromptConfig FOREIGN KEY (UpdatedBy) REFERENCES ad_user(ad_user_id) DEFERRABLE INITIALLY DEFERRED;
+
+-- Add index on AIGPromptKey for fast lookup
+CREATE INDEX idx_aig_prompt_config_key ON AIG_Prompt_Config(AIGPromptKey);
+
+-- Insert default SYSTEM prompt
+INSERT INTO AIG_Prompt_Config (AIG_Prompt_Config_ID, AD_Client_ID, AD_Org_ID, AIG_Prompt_Config_UU, Name, Description, AIGPromptKey, AIGPromptText, Created, CreatedBy, Updated, UpdatedBy, IsActive)
+VALUES (
+    AIG_PROMPT_CONFIG_SQ.NEXTVAL,
+    0,
+    0,
+    Generate_UUID(),
+    'Chat System Prompt',
+    'Main system instructions for AI chat assistant',
+    'SYSTEM',
+    'You are a helpful AI assistant for iDempiere ERP system. You have access to query the database to answer user questions.
+
+## Database Access
+When users ask questions that require data from the system, use the query_database function to retrieve the information.
+
+**When to use database queries:**
+- User asks about specific records (orders, products, customers, etc.)
+- User wants to see lists or summaries of data
+- User asks ''how many'', ''show me'', ''list'', ''find'', etc.
+- Questions about current state of business data
+
+**When NOT to use database queries:**
+- General questions about iDempiere features or concepts
+- How-to questions that don''t need current data
+- Questions already answered by provided context
+
+## Common iDempiere Tables
+
+**Business Partners:**
+- C_BPartner: Business partners (customers, vendors)
+- AD_User: Users and contacts
+
+**Sales & Orders:**
+- C_Order: Sales and purchase orders
+- C_OrderLine: Order lines/items
+- C_Invoice: Invoices
+
+**Products:**
+- M_Product: Products and services
+- M_Product_Category: Product categories
+
+**Common Columns:**
+- Most tables have: IsActive, Created, Updated
+- Name, Value, Description are common descriptive fields
+- DocumentNo is used for document numbers
+
+## Guidelines
+- Be conversational and helpful
+- When showing query results, format them clearly (use tables or lists)
+- If a query returns no results, suggest alternatives
+- Keep responses concise but informative',
+    TO_DATE('2025-11-24 12:00:06','YYYY-MM-DD HH24:MI:SS'),
+    100,
+    TO_DATE('2025-11-24 12:00:06','YYYY-MM-DD HH24:MI:SS'),
+    100,
+    'Y'
+);
+
 -- Nov 24, 2025, 1:47:02 PM CET
 INSERT INTO AD_Table (AD_Table_ID,Name,Description,TableName,LoadSeq,AccessLevel,AD_Client_ID,AD_Org_ID,IsActive,Created,CreatedBy,Updated,UpdatedBy,IsSecurityEnabled,IsDeleteable,IsHighVolume,IsView,EntityType,ImportTable,IsChangeLog,ReplicationType,CopyColumnsFromTable,IsCentrallyMaintained,AD_Table_UU,Processing,DatabaseViewDrop,CopyComponentsFromView,CreateWindowFromTable,IsShowInDrillOptions,IsPartition,CreatePartition) VALUES (800204,'Prompt Configuration','Configuration table for storing AI prompts','AIG_Prompt_Config',0,'6',0,0,'Y',TO_TIMESTAMP('2025-11-24 13:47:02','YYYY-MM-DD HH24:MI:SS'),toRecordId('AD_User','7803d4f7-a42f-4a02-bc1e-c1d748a3bb80'),TO_TIMESTAMP('2025-11-24 13:47:02','YYYY-MM-DD HH24:MI:SS'),toRecordId('AD_User','7803d4f7-a42f-4a02-bc1e-c1d748a3bb80'),'N','Y','N','N','MM02','N','Y','L','N','Y','26e7d622-0849-45c1-accd-64d6d492e729','N','N','N','N','N','N','N')
 ;
@@ -93,10 +180,6 @@ INSERT INTO AD_Element (AD_Element_ID,AD_Client_ID,AD_Org_ID,IsActive,Created,Cr
 ;
 
 -- Nov 24, 2025, 1:51:43 PM CET
-ALTER TABLE AIG_Prompt_Config RENAME COLUMN promptkey TO AIGPromptKey
-;
-
--- Nov 24, 2025, 1:51:43 PM CET
 UPDATE AD_Column SET Name='Prompt Key', Description=NULL, Help=NULL, ColumnName='AIGPromptKey', AD_Element_ID=800711, Placeholder=NULL,Updated=TO_TIMESTAMP('2025-11-24 13:51:43','YYYY-MM-DD HH24:MI:SS'),UpdatedBy=1134855 WHERE AD_Column_ID=803487
 ;
 
@@ -106,10 +189,6 @@ DELETE FROM AD_Element WHERE AD_Element_UU='4dfc9d6b-9909-4990-abab-9ebbfeda27d1
 
 -- Nov 24, 2025, 1:52:37 PM CET
 INSERT INTO AD_Element (AD_Element_ID,AD_Client_ID,AD_Org_ID,IsActive,Created,CreatedBy,Updated,UpdatedBy,ColumnName,Name,PrintName,EntityType,AD_Element_UU) VALUES (800712,0,0,'Y',TO_TIMESTAMP('2025-11-24 13:52:36','YYYY-MM-DD HH24:MI:SS'),toRecordId('AD_User','7803d4f7-a42f-4a02-bc1e-c1d748a3bb80'),TO_TIMESTAMP('2025-11-24 13:52:36','YYYY-MM-DD HH24:MI:SS'),toRecordId('AD_User','7803d4f7-a42f-4a02-bc1e-c1d748a3bb80'),'AIGPromptText','Prompt Text','Prompt Text','U','e2b93605-1f55-4ac3-ba68-aca89bcae2b0')
-;
-
--- Nov 24, 2025, 1:52:59 PM CET
-ALTER TABLE AIG_Prompt_Config RENAME COLUMN prompttext TO AIGPromptText
 ;
 
 -- Nov 24, 2025, 1:52:59 PM CET
@@ -178,90 +257,3 @@ INSERT INTO AD_TreeNodeMM (AD_Client_ID,AD_Org_ID, IsActive,Created,CreatedBy,Up
 -- Nov 24, 2025, 1:54:40 PM CET
 UPDATE AD_Table SET AD_Window_ID=800074,Updated=TO_TIMESTAMP('2025-11-24 13:54:40','YYYY-MM-DD HH24:MI:SS'),UpdatedBy=1134855 WHERE AD_Table_ID=800204
 ;
-
--- Create physical table (Oracle syntax with CLOB)
-CREATE TABLE AIG_Prompt_Config (
-    AD_Client_ID NUMBER(10) NOT NULL,
-    AD_Org_ID NUMBER(10) NOT NULL,
-    AIG_Prompt_Config_ID NUMBER(10) NOT NULL,
-    AIG_Prompt_Config_UU VARCHAR2(36 CHAR) DEFAULT NULL,
-    Name VARCHAR2(60 CHAR) NOT NULL,
-    Description VARCHAR2(255 CHAR) DEFAULT NULL,
-    AIGPromptKey VARCHAR2(40 CHAR) NOT NULL,
-    AIGPromptText CLOB NOT NULL,
-    Created DATE NOT NULL,
-    CreatedBy NUMBER(10) NOT NULL,
-    Updated DATE NOT NULL,
-    UpdatedBy NUMBER(10) NOT NULL,
-    IsActive CHAR(1) DEFAULT 'Y' CHECK (IsActive IN ('Y','N')) NOT NULL,
-    CONSTRAINT AIG_Prompt_Config_Key PRIMARY KEY (AIG_Prompt_Config_ID),
-    CONSTRAINT AIG_Prompt_Config_UU_idx UNIQUE (AIG_Prompt_Config_UU),
-    CONSTRAINT AIG_Prompt_Config_PromptKey_idx UNIQUE (PromptKey, AD_Client_ID)
-);
-
--- Add foreign key constraints
-ALTER TABLE AIG_Prompt_Config ADD CONSTRAINT ADClient_AIGPromptConfig FOREIGN KEY (AD_Client_ID) REFERENCES ad_client(ad_client_id) DEFERRABLE INITIALLY DEFERRED;
-ALTER TABLE AIG_Prompt_Config ADD CONSTRAINT ADOrg_AIGPromptConfig FOREIGN KEY (AD_Org_ID) REFERENCES ad_org(ad_org_id) DEFERRABLE INITIALLY DEFERRED;
-ALTER TABLE AIG_Prompt_Config ADD CONSTRAINT CreatedBy_AIGPromptConfig FOREIGN KEY (CreatedBy) REFERENCES ad_user(ad_user_id) DEFERRABLE INITIALLY DEFERRED;
-ALTER TABLE AIG_Prompt_Config ADD CONSTRAINT UpdatedBy_AIGPromptConfig FOREIGN KEY (UpdatedBy) REFERENCES ad_user(ad_user_id) DEFERRABLE INITIALLY DEFERRED;
-
--- Add index on PromptKey for fast lookup
-CREATE INDEX idx_aig_prompt_config_key ON AIG_Prompt_Config(PromptKey);
-
--- Insert default SYSTEM prompt
-INSERT INTO AIG_Prompt_Config (AIG_Prompt_Config_ID, AD_Client_ID, AD_Org_ID, AIG_Prompt_Config_UU, Name, Description, PromptKey, PromptText, Created, CreatedBy, Updated, UpdatedBy, IsActive)
-VALUES (
-    AIG_PROMPT_CONFIG_SQ.NEXTVAL,
-    0,
-    0,
-    Generate_UUID(),
-    'Chat System Prompt',
-    'Main system instructions for AI chat assistant',
-    'SYSTEM',
-    'You are a helpful AI assistant for iDempiere ERP system. You have access to query the database to answer user questions.
-
-## Database Access
-When users ask questions that require data from the system, use the query_database function to retrieve the information.
-
-**When to use database queries:**
-- User asks about specific records (orders, products, customers, etc.)
-- User wants to see lists or summaries of data
-- User asks ''how many'', ''show me'', ''list'', ''find'', etc.
-- Questions about current state of business data
-
-**When NOT to use database queries:**
-- General questions about iDempiere features or concepts
-- How-to questions that don''t need current data
-- Questions already answered by provided context
-
-## Common iDempiere Tables
-
-**Business Partners:**
-- C_BPartner: Business partners (customers, vendors)
-- AD_User: Users and contacts
-
-**Sales & Orders:**
-- C_Order: Sales and purchase orders
-- C_OrderLine: Order lines/items
-- C_Invoice: Invoices
-
-**Products:**
-- M_Product: Products and services
-- M_Product_Category: Product categories
-
-**Common Columns:**
-- Most tables have: IsActive, Created, Updated
-- Name, Value, Description are common descriptive fields
-- DocumentNo is used for document numbers
-
-## Guidelines
-- Be conversational and helpful
-- When showing query results, format them clearly (use tables or lists)
-- If a query returns no results, suggest alternatives
-- Keep responses concise but informative',
-    TO_DATE('2025-11-24 12:00:06','YYYY-MM-DD HH24:MI:SS'),
-    100,
-    TO_DATE('2025-11-24 12:00:06','YYYY-MM-DD HH24:MI:SS'),
-    100,
-    'Y'
-);

@@ -4,6 +4,10 @@ SELECT register_migration_script('202512081358_CLD-1628.sql') FROM dual;
 SET SQLBLANKLINES ON
 SET DEFINE OFF
 
+-- Dec 8, 2025, 1:58:44 PM CET
+INSERT INTO AD_Element (AD_Element_ID,AD_Client_ID,AD_Org_ID,IsActive,Created,CreatedBy,Updated,UpdatedBy,ColumnName,EntityType,Name,PrintName,Description,Help,PO_Name,PO_PrintName,PO_Description,PO_Help,AD_Element_UU,Placeholder) VALUES (800716,0,0,'Y',TO_TIMESTAMP('2025-12-03 14:00:26','YYYY-MM-DD HH24:MI:SS'),1134855,TO_TIMESTAMP('2025-12-03 14:04:23','YYYY-MM-DD HH24:MI:SS'),1134855,'ModelName','MM02','Model Name','Model Name',NULL,NULL,NULL,NULL,NULL,NULL,'704951d5-0046-403e-b04f-2d8eb37c8a87',NULL)
+;
+
 -- Dec 8, 2025, 1:58:45 PM CET
 INSERT INTO AD_Column (AD_Column_ID,Version,Name,AD_Table_ID,ColumnName,FieldLength,IsKey,IsParent,IsMandatory,IsTranslated,IsIdentifier,SeqNo,IsEncrypted,AD_Reference_ID,AD_Client_ID,AD_Org_ID,IsActive,Created,CreatedBy,Updated,UpdatedBy,AD_Element_ID,IsUpdateable,IsSelectionColumn,EntityType,IsSyncDatabase,IsAlwaysUpdateable,IsAutocomplete,IsAllowLogging,AD_Column_UU,IsAllowCopy,SeqNoSelection,IsToolbarButton,IsSecure,FKConstraintType,IsHtml,IsPartitionKey) VALUES (803558,0,'Model Name',800202,'ModelName',100,'N','N','N','N','N',0,'N',10,0,0,'Y',TO_TIMESTAMP('2025-12-08 13:58:45','YYYY-MM-DD HH24:MI:SS'),toRecordId('AD_User','7803d4f7-a42f-4a02-bc1e-c1d748a3bb80'),TO_TIMESTAMP('2025-12-08 13:58:45','YYYY-MM-DD HH24:MI:SS'),toRecordId('AD_User','7803d4f7-a42f-4a02-bc1e-c1d748a3bb80'),800716,'Y','Y','MM02','N','N','N','Y','26de8adb-42b1-4fd2-aee3-bcb080a41a68','Y',20,'N','N','N','N','N')
 ;
