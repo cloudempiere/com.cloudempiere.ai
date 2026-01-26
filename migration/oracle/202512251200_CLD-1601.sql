@@ -1,5 +1,5 @@
 -- CLD-1601: Plugin Health and Prerequisite Verification (ADR-050, ADR-051)
-SELECT register_migration_script('202512251200_CLD-1601_HealthMessages.sql') FROM dual;
+SELECT register_migration_script('202512251200_CLD-1601.sql') FROM dual;
 
 -- Dec 25, 2025: AD_Message entries for AI plugin health and defensive programming
 

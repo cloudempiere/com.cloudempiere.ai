@@ -1,6 +1,9 @@
 -- CLD-1601
 SELECT register_migration_script('202512291504_CLD-1601.sql') FROM dual;
 
+-- Dec 3, 2025, 2:02:53 PM CET
+INSERT INTO ad_element (ad_element_id,ad_client_id,ad_org_id,isactive,created,createdby,updated,updatedby,columnname,entitytype,"name",printname,description,help,po_name,po_printname,po_description,po_help,ad_element_uu,placeholder) VALUES (800723,0,0,'Y','2025-12-03 14:00:28',1134855,'2025-12-03 14:02:53',1134855,'ErrorMessage','MM02','Error Message','Error Message',NULL,NULL,NULL,NULL,NULL,NULL,'f608b66e-9b03-4864-bf7f-7cef24e3f001',NULL);
+
 -- Dec 29, 2025, 3:06:07 PM CET
 INSERT INTO AD_Table (AD_Table_ID,Name,TableName,LoadSeq,AccessLevel,AD_Client_ID,AD_Org_ID,IsActive,Created,CreatedBy,Updated,UpdatedBy,IsSecurityEnabled,IsDeleteable,IsHighVolume,IsView,EntityType,ImportTable,IsChangeLog,ReplicationType,CopyColumnsFromTable,IsCentrallyMaintained,AD_Table_UU,Processing,DatabaseViewDrop,CopyComponentsFromView,CreateWindowFromTable,IsShowInDrillOptions,IsPartition,CreatePartition) VALUES (800210,'AI Ingestion Metadata','AIG_IngestionMetadata',0,'6',0,0,'Y',TO_TIMESTAMP('2025-12-29 15:06:07','YYYY-MM-DD HH24:MI:SS'),toRecordId('AD_User','7803d4f7-a42f-4a02-bc1e-c1d748a3bb80'),TO_TIMESTAMP('2025-12-29 15:06:07','YYYY-MM-DD HH24:MI:SS'),toRecordId('AD_User','7803d4f7-a42f-4a02-bc1e-c1d748a3bb80'),'N','Y','N','N','MM02','N','Y','L','N','Y','3b9a2934-11f7-4fbc-a2f8-cef3b3795450','N','N','N','N','N','N','N')
 ;
