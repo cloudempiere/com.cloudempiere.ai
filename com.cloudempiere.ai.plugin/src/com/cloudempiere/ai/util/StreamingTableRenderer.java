@@ -108,6 +108,9 @@ public class StreamingTableRenderer {
     /** Buffer for detecting table start/end */
     private StringBuilder lineBuffer = new StringBuilder();
 
+    /** Track if we just started a new line (for table end detection) */
+    private boolean lineStart = true;
+
     /** Locale for number formatting */
     private Locale locale = Locale.getDefault();
 
@@ -167,10 +170,40 @@ public class StreamingTableRenderer {
 
             if (ch == '\n') {
                 processLineEnd();
+                lineStart = true; // Mark that we're starting a new line
                 continue;
             }
 
             if (inTable) {
+                // BUG FIX (CLD-1704): Check if this is first non-whitespace char on new line
+                // If it's not a pipe, we've reached the end of the table
+                if (lineStart) {
+                    if (ch != '|' && !Character.isWhitespace(ch)) {
+                        // First non-whitespace char is not a pipe - table has ended!
+                        // Flush any pending row data before exiting table mode
+                        if (currentCell.length() > 0 || !currentRow.isEmpty()) {
+                            String cellContent = currentCell.toString().trim();
+                            if (!cellContent.isEmpty()) {
+                                currentRow.add(cellContent);
+                            }
+                            if (!currentRow.isEmpty() && !isSeparatorRow(currentRow)) {
+                                completedRows.add(currentRow.toArray(new String[0]));
+                            }
+                            currentRow = new ArrayList<>();
+                            currentCell.setLength(0);
+                        }
+
+                        inTable = false;
+                        lineBuffer.append(ch);
+                        lineStart = false;
+                        continue;
+                    } else if (!Character.isWhitespace(ch)) {
+                        // First non-whitespace is a pipe - still in table
+                        lineStart = false;
+                    }
+                    // If whitespace, keep lineStart=true until we see non-whitespace
+                }
+
                 // Use shared parser for consistent escape handling (ADR-047 - Single Source of Truth)
                 TableCellParser.ParseResult parseResult = TableCellParser.parseChar(chunk, i);
 
@@ -192,6 +225,7 @@ public class StreamingTableRenderer {
                     if (bufferedContent.isEmpty()) {
                         // First non-whitespace char on line is pipe - start table!
                         inTable = true;
+                        lineStart = false;
 
                         // Process any leading whitespace as pre-table content if this is first table
                         if (completedRows.isEmpty() && lineBuffer.length() > 0) {
@@ -204,10 +238,14 @@ public class StreamingTableRenderer {
                     } else {
                         // Pipe in middle of line - not a table, just append
                         lineBuffer.append(ch);
+                        lineStart = false;
                     }
                 } else {
                     // Regular character - append to line buffer
                     lineBuffer.append(ch);
+                    if (!Character.isWhitespace(ch)) {
+                        lineStart = false;
+                    }
                 }
             }
         }
@@ -623,5 +661,6 @@ public class StreamingTableRenderer {
         currentRowIsSeparator = false;
         separatorFound = false;
         lineBuffer.setLength(0);
+        lineStart = true;
     }
 }

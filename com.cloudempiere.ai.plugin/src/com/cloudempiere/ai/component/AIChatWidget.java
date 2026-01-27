@@ -554,43 +554,21 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 		String messageText = entry.getCharacterData();
 		if (messageText != null) {
 			if (isAI) {
-				// AI messages: Pre-render tables with zoom links, then process remaining zoom links
-				// This matches the approach in AIChatStreamingMessage.renderFinalMarkdown() (ADR-039)
+				// AI messages: Use unified renderer for consistent output (CLD-1704)
+				// This is the same renderer used by AIChatStreamingMessage.renderFinalMarkdown()
+				// Ensures reload path produces identical HTML to post-streaming finalization
+				log.fine("[RELOAD-RENDER] Using unified AIMessageRenderer | message length: " + messageText.length());
 
-				String processedText = messageText;
-				log.warning("[ZOOM-DEBUG] Original message text: " + messageText.substring(0, Math.min(200, messageText.length())));
+				// Get user's locale for number formatting in tables
+				java.util.Locale userLocale = org.compiere.util.Env.getLanguage(sessionCtx).getLocale();
 
-				// Step 1: Pre-render tables (with zoom links in cells)
-				if (MarkdownTableRenderer.containsTable(processedText)) {
-					log.warning("[ZOOM-DEBUG] Table detected, rendering...");
-					MarkdownTableRenderer.setContext(sessionCtx);
-					MarkdownTableRenderer.setWidgetId(getUuid());
-					try {
-						processedText = MarkdownTableRenderer.renderTables(processedText);
-						log.warning("[ZOOM-DEBUG] After table rendering: " + processedText.substring(0, Math.min(200, processedText.length())));
-					} finally {
-						MarkdownTableRenderer.clearZoomContext();
-					}
-				}
+				// Delegate to unified renderer (single source of truth)
+				// This handles: whitespace normalization, function call removal, table rendering,
+				// zoom link processing, and markdown parsing
+				String renderedHtml = com.cloudempiere.ai.util.AIMessageRenderer.render(
+					messageText, sessionCtx, getUuid(), userLocale);
 
-				// Step 2: Process zoom links outside tables
-				String beforeZoomProcessing = processedText;
-				processedText = ZoomLinkProcessor.processZoomLinks(processedText, sessionCtx, getUuid());
-				if (!processedText.equals(beforeZoomProcessing)) {
-					log.warning("[ZOOM-DEBUG] Zoom links processed - text changed");
-					log.warning("[ZOOM-DEBUG] After zoom processing: " + processedText.substring(0, Math.min(200, processedText.length())));
-				} else {
-					log.warning("[ZOOM-DEBUG] No zoom links found or processed");
-				}
-
-				// FUTURE (ADR-039): Pattern-based extraction for natural references like "SO-1234", "Invoice 5678"
-				// Currently bypassed - requires vector DB for fast lookup across 2000+ tables/AD elements.
-				// See RecordReferenceExtractor and ChatRecordLinkRenderer for the implementation.
-				// Uncomment when vector DB caching is available:
-				// processedText = ChatRecordLinkRenderer.extractAndRender(processedText, sessionCtx, getUuid());
-
-				// Step 3: Render markdown while preserving HTML (tables and zoom links)
-				sb.append(renderMarkdownPreservingHTML(processedText));
+				sb.append(renderedHtml);
 			} else {
 				// User messages: Escape HTML for security, but preserve line breaks
 				String escaped = Util.maskHTML(messageText, true);

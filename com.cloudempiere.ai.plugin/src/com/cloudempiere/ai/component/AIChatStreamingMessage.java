@@ -848,7 +848,7 @@ public class AIChatStreamingMessage extends Div {
     }
 
     /**
-     * Render final content using CommonMark Java library for full markdown support.
+     * Render final content using unified AIMessageRenderer.
      *
      * <p><b>FIX CLD-1653:</b> Full markdown rendering happens ONLY on completion, not during
      * streaming. This prevents 8 critical bugs caused by processing partial markdown and
@@ -864,81 +864,34 @@ public class AIChatStreamingMessage extends Div {
      *   <li>State tracking issues across 50ms batches</li>
      * </ul>
      *
-     * <p><b>Implementation Note:</b> We use the existing content_[componentId] element that was
-     * created in init() rather than generating a new container ID. This ensures the DOM element
-     * already exists when the JavaScript executes, avoiding race conditions between ZK's DOM
-     * update and our script execution.
+     * <p><b>Architecture (CLD-1704):</b> Now uses unified {@link AIMessageRenderer} for
+     * consistent rendering. Special case: if table was streamed via {@link StreamingTableRenderer},
+     * we pre-process it before passing to unified renderer.
      */
     private void renderFinalMarkdown() {
         String markdownText = content.flush();
 
-        // Normalize excessive line breaks (3+ newlines → 2 newlines for proper paragraph spacing)
-        markdownText = markdownText.replaceAll("\n{3,}", "\n\n");
-
-        // Remove hallucinated function call XML blocks
-        markdownText = markdownText.replaceAll("(?s)<function_calls>.*?</function_calls>", "");
-        markdownText = markdownText.replaceAll("(?s)<function_result>.*?</function_result>", "");
-        markdownText = markdownText.replaceAll("(?s)<function_calls>.*$", "");
-        markdownText = markdownText.replaceAll("(?s)<function_result>.*$", "");
-        markdownText = markdownText.replaceAll("(?s)<invoke[^>]*>.*?</invoke>", "");
-        markdownText = markdownText.replaceAll("(?s)<parameter[^>]*>.*?</parameter>", "");
-
-        // Pre-render tables using the streaming table renderer's final output
+        // SPECIAL CASE: If table was streamed, use streaming table renderer's final output
         // This provides consistent rendering between streaming and final display
+        // Note: StreamingTableRenderer.renderFinal() reconstructs the markdown table and
+        // renders it via MarkdownTableRenderer, so output is identical to non-streamed path
         if (tableRenderer != null && tableRenderer.isInTable()) {
-            // Use streaming table renderer for final output (already processed)
+            log.info("[FINAL-RENDER] Using streaming table renderer for final output");
             markdownText = tableRenderer.renderFinal();
-        } else if (MarkdownTableRenderer.containsTable(markdownText)) {
-            // Fall back to standard renderer if table wasn't streamed
-            int clientId = org.compiere.util.Env.getAD_Client_ID(ctx);
-            log.warn("[FINAL-RENDER] Setting context on MarkdownTableRenderer | AD_Client_ID=" + clientId);
-            MarkdownTableRenderer.setLocale(locale);
-            MarkdownTableRenderer.setContext(ctx);
-            MarkdownTableRenderer.setWidgetId(parentWidgetId);
-            try {
-                markdownText = MarkdownTableRenderer.renderTables(markdownText);
-            } finally {
-                MarkdownTableRenderer.clearLocale();
-                MarkdownTableRenderer.clearZoomContext();
-            }
         }
-
-        // Process zoom links if parent widget ID is available (ADR-039)
-        // Uses explicit syntax [[Table:ID|Display]] - AI is instructed to format references this way.
-        // Note: This processes links OUTSIDE tables. Links inside tables are handled above.
-        if (parentWidgetId != null) {
-            markdownText = ZoomLinkProcessor.processZoomLinks(markdownText, ctx, parentWidgetId);
-
-            // FUTURE (ADR-039): Pattern-based extraction for natural references like "SO-1234"
-            // Currently bypassed - requires vector DB for fast lookup across 2000+ tables.
-            // See RecordReferenceExtractor and ChatRecordLinkRenderer for implementation.
-            // Uncomment when vector DB caching is available:
-            // markdownText = ChatRecordLinkRenderer.extractAndRender(markdownText, ctx, parentWidgetId);
-        }
-
-        // Normalize excessive line breaks AGAIN after table/link rendering (ADR-047 Phase 1)
-        // Table rendering may have preserved or added extra newlines around tables
-        markdownText = markdownText.replaceAll("\n{3,}", "\n\n");
-
-        // Ensure headings have proper line breaks before them for markdown parsing
-        // Fix cases where AI doesn't put newline before heading: "text## Heading" → "text\n## Heading"
-        markdownText = markdownText.replaceAll("([^\n])(\n?)(#{1,3} )", "$1\n\n$3");
 
         // Use the existing streamingContent element's ID (content_[componentId])
         // This element was created in init() and already exists in the DOM
         String contentId = "content_" + componentId;
 
-        // At this point, markdownText contains:
-        // - Pre-rendered HTML tables (with zoom links)
-        // - HTML zoom links outside tables
-        // - Raw markdown for everything else (headings, bold, lists, etc.)
-        //
-        // We need to process the remaining markdown WITHOUT corrupting the HTML we've already generated.
-        // Solution: Process markdown ONLY on non-HTML parts
-        String finalHtml = processMarkdownPreservingHTML(markdownText);
+        // Delegate to unified renderer (single source of truth for complete message rendering)
+        // This handles: whitespace normalization, function call removal, table rendering,
+        // zoom link processing, and markdown parsing
+        String finalHtml = com.cloudempiere.ai.util.AIMessageRenderer.render(
+            markdownText, ctx, parentWidgetId, locale);
 
         // Set the final HTML content directly (no JavaScript escaping needed for setContent)
-        streamingContent.setContent("<div class='ai-markdown-content'>" + finalHtml + "</div>");
+        streamingContent.setContent(finalHtml);
 
         // Apply syntax highlighting if available (via JavaScript)
         String script =

@@ -58,8 +58,10 @@ public class CommonMarkRenderer {
     private static final CLogger log = CLogger.getCLogger(CommonMarkRenderer.class);
 
     /** Placeholder prefix for extracted HTML blocks */
-    private static final String HTML_PLACEHOLDER_PREFIX = "___HTML_BLOCK_";
-    private static final String HTML_PLACEHOLDER_SUFFIX = "___";
+    // BUG FIX (CLD-1704): Use {{}} instead of ___ to avoid markdown emphasis parsing
+    // Triple underscores (___text___) are interpreted as bold+italic markdown!
+    private static final String HTML_PLACEHOLDER_PREFIX = "{{HTML_BLOCK_";
+    private static final String HTML_PLACEHOLDER_SUFFIX = "}}";
 
     /**
      * Represents an extracted HTML block with its placeholder.
@@ -215,8 +217,21 @@ public class CommonMarkRenderer {
                     HtmlBlock block = new HtmlBlock(blockIndex++, htmlBlock);
                     htmlBlocks.add(block);
 
-                    // Replace with placeholder
-                    result.append(block.placeholder);
+                    // BUG FIX (CLD-1704): Add newlines around placeholder for block-level elements (tables)
+                    // This prevents CommonMark from wrapping placeholder in <p> tags
+                    // For inline elements (links), don't add newlines
+                    if (isBlockLevelTag(tagName)) {
+                        // Ensure placeholder is on its own line
+                        // Check if previous char is newline
+                        if (result.length() > 0 && result.charAt(result.length() - 1) != '\n') {
+                            result.append("\n\n");
+                        }
+                        result.append(block.placeholder);
+                        result.append("\n\n");
+                    } else {
+                        // Inline element - no newlines
+                        result.append(block.placeholder);
+                    }
 
                     pos = closingPos + closingTag.length();
                     continue;
@@ -242,6 +257,21 @@ public class CommonMarkRenderer {
 
         return tagName.equals("table") ||  // Pre-rendered tables
                tagName.equals("a");         // Zoom links
+    }
+
+    /**
+     * Check if HTML tag is block-level (needs newlines around placeholder).
+     *
+     * @param tagName tag name (lowercase)
+     * @return true if tag is block-level
+     */
+    private static boolean isBlockLevelTag(String tagName) {
+        if (tagName == null) return false;
+
+        return tagName.equals("table") ||   // Tables are block-level
+               tagName.equals("div") ||
+               tagName.equals("pre") ||
+               tagName.equals("blockquote");
     }
 
     /**
@@ -308,6 +338,11 @@ public class CommonMarkRenderer {
     /**
      * Restore pre-rendered HTML blocks from placeholders.
      *
+     * <p><b>BUG FIX (CLD-1704):</b> CommonMark parser may wrap placeholders in paragraph tags
+     * (e.g., `&lt;p&gt;___HTML_BLOCK_0___&lt;/p&gt;`), so we need to handle both bare placeholders
+     * and wrapped ones. We also need to remove the wrapping paragraph tags to prevent
+     * invalid HTML (can't have `&lt;table&gt;` inside `&lt;p&gt;`).
+     *
      * @param html rendered HTML with placeholders
      * @param htmlBlocks extracted HTML blocks
      * @return HTML with restored blocks
@@ -316,7 +351,27 @@ public class CommonMarkRenderer {
         String result = html;
 
         for (HtmlBlock block : htmlBlocks) {
-            result = result.replace(block.placeholder, block.html);
+            // Try exact match first (placeholder not wrapped)
+            if (result.contains(block.placeholder)) {
+                result = result.replace(block.placeholder, block.html);
+            } else {
+                // Try to find placeholder wrapped in paragraph tags: <p>___HTML_BLOCK_N___</p>
+                // We need to replace the entire <p>...</p> with just the HTML block
+                String wrappedPattern = "<p>" + block.placeholder + "</p>";
+                if (result.contains(wrappedPattern)) {
+                    result = result.replace(wrappedPattern, block.html);
+                } else {
+                    // Try with newlines (CommonMark might add them)
+                    String wrappedWithNewlines = "<p>" + block.placeholder + "\n</p>";
+                    if (result.contains(wrappedWithNewlines)) {
+                        result = result.replace(wrappedWithNewlines, block.html);
+                    } else {
+                        // Last resort: use regex to find placeholder anywhere (even with whitespace)
+                        String regex = "<p>\\s*" + java.util.regex.Pattern.quote(block.placeholder) + "\\s*</p>";
+                        result = result.replaceAll(regex, java.util.regex.Matcher.quoteReplacement(block.html));
+                    }
+                }
+            }
         }
 
         return result;
