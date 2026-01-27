@@ -86,18 +86,18 @@ public class MAIChat extends MChat {
 	/**
 	 * Get or Create Global AI Chat for current user in CURRENT TENANT
 	 * <p>
-	 * TENANT ISOLATION (ADR-036):
+	 * TENANT ISOLATION (ADR-036, CLD-1606):
 	 * - Each tenant has its own global chats per user
 	 * - System users (Client_ID=0) get separate chats per tenant they log into
 	 * - Non-system users only see their own tenant's chats
-	 * - Chat is created in the current context's AD_Client_ID
+	 * - Database constraint: UNIQUE(AD_Client_ID, AD_Table_ID, Record_ID) enforces isolation
 	 * <p>
-	 * IMPORTANT: This method ALWAYS filters by AD_Client_ID to enforce tenant isolation.
-	 * Chat entries (CM_ChatEntry) also filtered by AD_Client_ID via standard iDempiere security.
+	 * MIGRATION NOTE: Requires migration script CLD-1606 which updates cm_chat_record constraint
+	 * to include AD_Client_ID for proper multi-tenancy support.
 	 *
 	 * @param ctx context (must contain valid AD_Client_ID and AD_User_ID)
 	 * @param trxName transaction
-	 * @return AI Chat instance for current user in current tenant, or null if not found and dontCreate is true
+	 * @return AI Chat instance for current user in current tenant
 	 */
 	public static MAIChat getOrCreateGlobalChat(Properties ctx, String trxName) {
 		return getOrCreateGlobalChat(ctx, trxName, false);
@@ -106,73 +106,56 @@ public class MAIChat extends MChat {
 	/**
 	 * Get or Create Global AI Chat for current user in CURRENT TENANT
 	 * <p>
-	 * TENANT ISOLATION (ADR-036):
+	 * TENANT ISOLATION (ADR-036, CLD-1606):
 	 * - Each tenant has its own global chats per user
 	 * - System users (Client_ID=0) get separate chats per tenant they log into
-	 * - Non-system users only see their own tenant's chats
-	 * - Chat is created in the current context's AD_Client_ID
+	 * - Database constraint: UNIQUE(AD_Client_ID, AD_Table_ID, Record_ID) enforces isolation
 	 * <p>
-	 * IMPORTANT: This method ALWAYS filters by AD_Client_ID to enforce tenant isolation.
-	 * Chat entries (CM_ChatEntry) also filtered by AD_Client_ID via standard iDempiere security.
+	 * LAZY CREATION: When dontCreate=true, returns null instead of creating new chat.
+	 * This prevents unnecessary chat creation during widget initialization.
 	 *
 	 * @param ctx context (must contain valid AD_Client_ID and AD_User_ID)
 	 * @param trxName transaction
-	 * @param dontCreate if true, returns null instead of creating new chat
+	 * @param dontCreate if true, returns null instead of creating new chat (lazy creation)
 	 * @return AI Chat instance for current user in current tenant, or null if not found and dontCreate is true
 	 */
 	public static MAIChat getOrCreateGlobalChat(Properties ctx, String trxName, boolean dontCreate) {
 		int userId = Env.getAD_User_ID(ctx);
 		int clientId = Env.getAD_Client_ID(ctx);
 
-		// CRITICAL: Always filter by BOTH user AND client for tenant isolation
-		// System users (Client_ID=0) get separate chats per tenant they work in
-		int chatId = getGlobalChatID(ctx, AI_GLOBAL_TABLE_ID, userId, clientId);
+		// Query by table+record+client (constraint ensures uniqueness per tenant)
+		String whereClause = "AD_Table_ID=? AND Record_ID=? AND AD_Client_ID=?";
+		MChat chat = new org.compiere.model.Query(ctx, MChat.Table_Name, whereClause, null)
+			.setParameters(AI_GLOBAL_TABLE_ID, userId, clientId)
+			.first();
 
-		if (chatId > 0) {
-			return new MAIChat(ctx, chatId, trxName);
+		if (chat != null) {
+			return new MAIChat(ctx, chat.get_ID(), trxName);
 		}
 
-		// If not found and lazy creation is enabled, return null
+		// Lazy creation: return null if chat doesn't exist and creation disabled
 		if (dontCreate) {
 			return null;
 		}
 
 		// Create new global AI chat for this user in current tenant
-		MAIChat chat = new MAIChat(ctx, "AI Assistant - " + Env.getContext(ctx, "#AD_User_Name"), trxName);
-		chat.setAD_Client_ID(clientId);
-		chat.setConfidentialType(CONFIDENTIALTYPE_PrivateInformation); // Private by default (ADR-036)
-		chat.saveEx();
-		return chat;
-	}
-
-	/**
-	 * Get Global Chat ID for user in CURRENT TENANT
-	 * <p>
-	 * TENANT ISOLATION: This method ALWAYS filters by AD_Client_ID.
-	 * Each tenant has separate global chats, even for the same user.
-	 * System users get separate chats per tenant they log into.
-	 *
-	 * @param ctx context (must contain valid AD_Client_ID)
-	 * @param AD_Table_ID table ID (should be AD_User table)
-	 * @param Record_ID record ID (user ID)
-	 * @param AD_Client_ID client ID (tenant)
-	 * @return CM_Chat_ID or 0 if not found
-	 */
-	private static int getGlobalChatID(Properties ctx, int AD_Table_ID, int Record_ID, int AD_Client_ID) {
-		// CRITICAL: Filter by BOTH table/record AND client for tenant isolation
-		String whereClause = "AD_Table_ID=? AND Record_ID=? AND AD_Client_ID=?";
-		MChat chat = new org.compiere.model.Query(ctx, MChat.Table_Name, whereClause, null)
-			.setParameters(AD_Table_ID, Record_ID, AD_Client_ID)
-			.first();
-
-		return chat != null ? chat.get_ID() : 0;
+		// Record_ID = userId makes it user-specific
+		// AD_Client_ID makes it tenant-specific (enforced by constraint)
+		MAIChat newChat = new MAIChat(ctx, AI_GLOBAL_TABLE_ID, userId,
+			"AI Assistant - " + Env.getContext(ctx, "#AD_User_Name"), trxName);
+		newChat.setAD_Client_ID(clientId);
+		newChat.setConfidentialType(CONFIDENTIALTYPE_PrivateInformation); // Private by default (ADR-036)
+		newChat.saveEx();
+		return newChat;
 	}
 
 	/**
 	 * Get or Create AI Chat for specific record in CURRENT TENANT
 	 * <p>
-	 * TENANT ISOLATION: Each tenant has separate context chats for the same record.
-	 * This ensures tenant data isolation and prevents cross-tenant data leaks.
+	 * TENANT ISOLATION (CLD-1606):
+	 * - Each tenant has separate context chats for the same record
+	 * - Database constraint: UNIQUE(AD_Client_ID, AD_Table_ID, Record_ID) enforces isolation
+	 * - Same Record_ID in different tenants = different chats
 	 *
 	 * @param ctx context (must contain valid AD_Client_ID)
 	 * @param AD_Table_ID table
@@ -186,7 +169,7 @@ public class MAIChat extends MChat {
 
 		int clientId = Env.getAD_Client_ID(ctx);
 
-		// Find existing chat for this record in current tenant
+		// Query by table+record+client (constraint ensures uniqueness per tenant)
 		String whereClause = "AD_Table_ID=? AND Record_ID=? AND AD_Client_ID=?";
 		MChat existingChat = new org.compiere.model.Query(ctx, MChat.Table_Name, whereClause, trxName)
 			.setParameters(AD_Table_ID, Record_ID, clientId)
@@ -196,7 +179,7 @@ public class MAIChat extends MChat {
 			return new MAIChat(ctx, existingChat.get_ID(), trxName);
 		}
 
-		// Create new chat in current tenant
+		// Create new context chat in current tenant
 		MAIChat chat = new MAIChat(ctx, AD_Table_ID, Record_ID, description, trxName);
 		chat.setAD_Client_ID(clientId);
 		chat.saveEx();
@@ -315,26 +298,33 @@ public class MAIChat extends MChat {
 
 	/**
 	 * Get or Create Private Context Chat for CURRENT USER
+	 * <p>
 	 * Each user gets their own private chat for the same record.
 	 * Per ADR-036: Multiple users can have separate private chats about same record.
+	 * <p>
+	 * NOTE: This method uses CreatedBy to distinguish between users since
+	 * the cm_chat_record constraint doesn't support multiple chats per (client, table, record).
+	 * Consider using record-specific chat IDs or extending the schema if this pattern
+	 * is heavily used.
 	 *
 	 * @param ctx context
 	 * @param AD_Table_ID table
 	 * @param Record_ID record
 	 * @param description description
 	 * @param trxName transaction
-	 * @return AI Chat instance for current user
+	 * @return AI Chat instance for current user in current tenant
 	 */
 	public static MAIChat getOrCreatePrivateContextChat(Properties ctx, int AD_Table_ID,
 			int Record_ID, String description, String trxName) {
 
 		int userId = Env.getAD_User_ID(ctx);
+		int clientId = Env.getAD_Client_ID(ctx);
 
-		// Query includes CreatedBy to get user's own chat
-		String whereClause = "AD_Table_ID=? AND Record_ID=? AND CreatedBy=? AND ConfidentialType='P'";
+		// Query includes CreatedBy to get user's own private chat
+		// AND AD_Client_ID for tenant isolation
+		String whereClause = "AD_Table_ID=? AND Record_ID=? AND CreatedBy=? AND ConfidentialType='P' AND AD_Client_ID=?";
 		MChat chat = new org.compiere.model.Query(ctx, MChat.Table_Name, whereClause, trxName)
-				.setParameters(AD_Table_ID, Record_ID, userId)
-				.setClient_ID()
+				.setParameters(AD_Table_ID, Record_ID, userId, clientId)
 				.first();
 
 		if (chat != null) {
@@ -343,6 +333,7 @@ public class MAIChat extends MChat {
 
 		// Create new private chat
 		MAIChat newChat = new MAIChat(ctx, AD_Table_ID, Record_ID, description, trxName);
+		newChat.setAD_Client_ID(clientId);
 		newChat.setConfidentialType(CONFIDENTIALTYPE_PrivateInformation);  // Private
 		newChat.saveEx();
 		return newChat;
@@ -350,23 +341,26 @@ public class MAIChat extends MChat {
 
 	/**
 	 * Get or Create Shared Context Chat (visible to all with record access)
-	 * Per ADR-036: One shared chat per record, internal visibility.
+	 * <p>
+	 * Per ADR-036: One shared chat per record per tenant, internal visibility.
+	 * Database constraint ensures only one chat per (client, table, record).
 	 *
 	 * @param ctx context
 	 * @param AD_Table_ID table
 	 * @param Record_ID record
 	 * @param description description
 	 * @param trxName transaction
-	 * @return Shared AI Chat instance
+	 * @return Shared AI Chat instance for current tenant
 	 */
 	public static MAIChat getOrCreateSharedContextChat(Properties ctx, int AD_Table_ID,
 			int Record_ID, String description, String trxName) {
 
-		// Shared context chat - one per record, internal visibility
-		String whereClause = "AD_Table_ID=? AND Record_ID=? AND ConfidentialType='I'";
+		int clientId = Env.getAD_Client_ID(ctx);
+
+		// Shared context chat - one per record per tenant, internal visibility
+		String whereClause = "AD_Table_ID=? AND Record_ID=? AND ConfidentialType='I' AND AD_Client_ID=?";
 		MChat chat = new org.compiere.model.Query(ctx, MChat.Table_Name, whereClause, trxName)
-				.setParameters(AD_Table_ID, Record_ID)
-				.setClient_ID()
+				.setParameters(AD_Table_ID, Record_ID, clientId)
 				.first();
 
 		if (chat != null) {
@@ -374,6 +368,7 @@ public class MAIChat extends MChat {
 		}
 
 		MAIChat newChat = new MAIChat(ctx, AD_Table_ID, Record_ID, description, trxName);
+		newChat.setAD_Client_ID(clientId);
 		newChat.setConfidentialType(CONFIDENTIALTYPE_Internal);  // Internal - org can see
 		newChat.saveEx();
 		return newChat;
