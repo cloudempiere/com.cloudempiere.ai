@@ -346,25 +346,51 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 //		inputArea.appendChild(clearButton); // the clear chat button is disabled for now
 		appendChild(inputArea);
 
-		// Load or create chat
-		loadOrCreateChat();
+		// LAZY CHAT CREATION: Don't create chat on init, wait for first message
+		// This prevents NPE and cross-tenant errors on widget initialization
+		loadExistingChat();
 	}
 
 	/**
-	 * Load existing chat or create new one for current user
+	 * Load existing chat if available (lazy creation pattern - ADR-036)
+	 * <p>
+	 * IMPORTANT: Chat is NOT created here. Creation happens on first message submission.
+	 * This prevents:
+	 * 1. Cross-tenant errors when widget initializes in different tenant
+	 * 2. Unnecessary chat creation for users who don't interact with AI
+	 * 3. NPE when chat fails to load due to access/tenant issues
+	 * <p>
+	 * If no chat exists, widget shows empty state with placeholder.
 	 */
-	private void loadOrCreateChat() {
+	private void loadExistingChat() {
 		try {
-			// Use MAIChat for AI-specific functionality
-			chat = MAIChat.getOrCreateGlobalChat(sessionCtx, null);
+			// Try to load existing chat WITHOUT creating it (lazy creation)
+			chat = MAIChat.getOrCreateGlobalChat(sessionCtx, null, true);
+
+			if (chat == null) {
+				// No chat exists yet - this is OK!
+				// Widget will create one on first message submission
+				log.fine("No existing chat found for user " + Env.getAD_User_ID(sessionCtx) +
+					" in client " + Env.getAD_Client_ID(sessionCtx) + " - will create on first message");
+
+				// Set default access (will be re-evaluated when chat is created)
+				currentAccess = ChatAccess.OWNER;
+
+				// Update UI to show empty state
+				updateAccessIndicator();
+				inputBox.setPlaceholder(Msg.getMsg(sessionCtx, "AIChatPlaceholder"));
+				return;
+			}
 
 			// Check user's access level (ADR-036)
 			currentAccess = ChatAccessService.get().getAccess(sessionCtx, chat);
 			log.fine("Chat access level: " + currentAccess + " for chat " + chat.get_ID());
 
-			// If no access, show error and return
+			// If no access, show error and disable input
 			if (currentAccess == ChatAccess.NONE) {
 				log.warning("User has no access to chat " + chat.get_ID());
+				inputBox.setDisabled(true);
+				sendButton.setDisabled(true);
 				Clients.showNotification(
 					Msg.getMsg(sessionCtx, "AccessCannotRead"),
 					"error", this, "middle_center", 5000);
@@ -380,7 +406,9 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 			// Render messages for current thread
 			renderMessages();
 		} catch (Exception e) {
-			log.log(Level.SEVERE, "Failed to load/create chat", e);
+			log.log(Level.SEVERE, "Failed to load chat", e);
+			// Don't fail initialization - user can still start new chat
+			inputBox.setPlaceholder(Msg.getMsg(sessionCtx, "AIChatPlaceholder"));
 		}
 	}
 
@@ -907,11 +935,47 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 	/**
 	 * Send user message and get AI response.
 	 * Dispatches to either legacy or LangChain4j service based on feature flag.
+	 * <p>
+	 * LAZY CHAT CREATION (ADR-036): If no chat exists, creates one on first message.
+	 * This prevents NPE and ensures tenant isolation.
 	 */
 	public void sendMessage() {
 		String message = inputBox.getText();
 		if (Util.isEmpty(message, true)) {
 			return;
+		}
+
+		// LAZY CHAT CREATION: Create chat on first message if it doesn't exist
+		if (chat == null) {
+			try {
+				log.fine("Creating chat on first message for user " + Env.getAD_User_ID(sessionCtx) +
+					" in client " + Env.getAD_Client_ID(sessionCtx));
+
+				// Create chat in current tenant
+				chat = MAIChat.getOrCreateGlobalChat(sessionCtx, null, false);
+
+				if (chat == null) {
+					// This should not happen, but handle defensively
+					log.severe("Failed to create chat - MAIChat.getOrCreateGlobalChat returned null");
+					Clients.showNotification(
+						"Failed to create chat. Please contact administrator.",
+						"error", inputBox, "top_center", 5000);
+					return;
+				}
+
+				// Set access level for newly created chat
+				currentAccess = ChatAccess.OWNER; // Creator is always owner
+				updateAccessIndicator();
+
+				log.fine("Chat created successfully: ID=" + chat.get_ID() +
+					", Client=" + chat.getAD_Client_ID());
+			} catch (Exception e) {
+				log.log(Level.SEVERE, "Failed to create chat on first message", e);
+				Clients.showNotification(
+					"Failed to create chat: " + e.getMessage(),
+					"error", inputBox, "top_center", 5000);
+				return;
+			}
 		}
 
 		// Check write permission (ADR-036)
