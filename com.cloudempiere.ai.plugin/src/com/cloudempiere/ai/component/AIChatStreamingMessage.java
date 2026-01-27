@@ -28,6 +28,7 @@ import org.zkoss.zk.ui.event.EventListener;
 import org.zkoss.zk.ui.event.Events;
 import org.zkoss.zul.Div;
 import org.zkoss.zul.Html;
+import org.zkoss.zul.Timer;
 
 import com.cloudempiere.ai.util.ChunkCleaner;
 import com.cloudempiere.ai.util.CommonMarkRenderer;
@@ -139,6 +140,9 @@ public class AIChatStreamingMessage extends Div {
 
     /** Lock object for synchronizing chunk queue access */
     private final Object queueLock = new Object();
+
+    /** Timer for reliable batched rendering (alternative to JavaScript setTimeout) */
+    private Timer renderTimer;
 
     /**
      * Create a new streaming message component.
@@ -316,16 +320,21 @@ public class AIChatStreamingMessage extends Div {
             "padding: 4px 8px; margin-top: 8px; width: fit-content;");
         appendChild(copyButton);
 
-        // CRITICAL FIX: Register onBatchRender event listener
-        // Without this listener, the batched rendering system is completely broken.
-        // JavaScript fires 'onBatchRender' event every 50ms via scheduleRender(),
-        // but it's silently dropped if no listener is registered.
-        addEventListener("onBatchRender", new EventListener<Event>() {
+        // Initialize ZK Timer for batched rendering (ADR-047)
+        // Uses native ZK component instead of JavaScript setTimeout for reliable event delivery
+        // Timer fires Events.ON_TIMER after 50ms delay (20 FPS) for smooth streaming
+        renderTimer = new Timer();
+        renderTimer.setId(componentId + "_timer");
+        renderTimer.setDelay(50);  // 50ms = 20 FPS
+        renderTimer.setRepeats(false);  // One-shot timer (restarts manually if needed)
+        renderTimer.addEventListener(Events.ON_TIMER, new EventListener<Event>() {
             @Override
             public void onEvent(Event event) throws Exception {
                 onBatchRender();
             }
         });
+        appendChild(renderTimer);
+        log.info("[BATCH-RENDER] ZK Timer initialized for component: " + componentId);
     }
 
     /**
@@ -367,7 +376,7 @@ public class AIChatStreamingMessage extends Div {
     /**
      * Schedule a batched render update after 50ms delay.
      *
-     * <p>Uses ZK's client-side timer mechanism to throttle DOM updates.
+     * <p>Uses ZK Timer component for reliable event delivery.
      * Multiple chunks are batched together and rendered once per interval.
      *
      * <p><b>Performance Impact:</b>
@@ -376,35 +385,30 @@ public class AIChatStreamingMessage extends Div {
      *   <li>After: ~20 DOM updates/sec (every 50ms)</li>
      *   <li>Result: 80% reduction in browser reflows</li>
      * </ul>
+     *
+     * <p><b>Implementation:</b> Uses native ZK Timer instead of JavaScript setTimeout
+     * to avoid widget ID lookup issues and ensure thread-safe event delivery.
      */
     private void scheduleRender() {
-        // Use JavaScript setTimeout to schedule server callback after 50ms
-        // This ensures smooth 20 FPS rendering without overwhelming the browser
-        String script = String.format(
-            "setTimeout(function() {" +
-            "  var w = zk.Widget.$('%s');" +
-            "  if (w) {" +
-            "    zAu.send(new zk.Event(w, 'onBatchRender'));" +
-            "  }" +
-            "}, 50);",  // 50ms = 20 FPS (smooth without overhead)
-            getId()
-        );
-
-        org.zkoss.zk.ui.util.Clients.evalJavaScript(script);
+        // Start timer if not already running
+        // Timer will fire Events.ON_TIMER after 50ms, triggering onBatchRender()
+        if (!renderTimer.isRunning()) {
+            renderTimer.start();
+        }
     }
 
     /**
-     * Handle batched render event (triggered every 50ms by scheduleRender).
+     * Handle batched render event (triggered every 50ms by ZK Timer).
      *
      * <p>This method:
      * <ol>
      *   <li>Collects all queued chunks</li>
      *   <li>Processes them through content buffer and table renderer</li>
      *   <li>Updates DOM once for entire batch</li>
-     *   <li>Reschedules if more chunks arrived during processing</li>
+     *   <li>Restarts timer if more chunks arrived during processing</li>
      * </ol>
      *
-     * <p>Called via ZK event system from client-side JavaScript timer.
+     * <p>Called via ZK Events.ON_TIMER from native Timer component.
      */
     public void onBatchRender() {
         // Collect batch of chunks
@@ -414,9 +418,6 @@ public class AIChatStreamingMessage extends Div {
                 renderScheduled = false;
                 return;
             }
-
-            // Debug logging to verify event listener is working
-            log.warn("[BATCH-RENDER] onBatchRender() called, processing " + chunkQueue.size() + " chunks");
 
             // Copy and clear queue
             batch = new ArrayList<>(chunkQueue);
@@ -434,10 +435,10 @@ public class AIChatStreamingMessage extends Div {
         // Update DOM once for entire batch
         updateContentDisplay();
 
-        // Reschedule if more chunks arrived during processing
+        // Restart timer if more chunks arrived during processing
         synchronized (queueLock) {
-            if (!chunkQueue.isEmpty()) {
-                scheduleRender();
+            if (!chunkQueue.isEmpty() && !renderTimer.isRunning()) {
+                renderTimer.start();
             } else {
                 renderScheduled = false;
             }
