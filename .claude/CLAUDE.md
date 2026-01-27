@@ -4,11 +4,66 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**com.cloudempiere.ai** is an iDempiere ERP plugin that integrates AI capabilities into the CloudEmpiere enterprise platform. It implements a multi-provider architecture supporting both external AI APIs (Anthropic Claude, AWS Bedrock) and local LLMs (Ollama) with secure database query execution.
+**com.cloudempiere.ai** is an iDempiere ERP plugin that integrates AI capabilities into the Cloudempiere enterprise platform. It implements a multi-provider architecture supporting both external AI APIs (Anthropic Claude, AWS Bedrock) and local LLMs (Ollama) with secure database query execution.
 
 **Project Type**: Eclipse Plugin / Maven OSGi Bundle
 **Language**: Java (33 source files)
 **Build System**: Maven with PDE (Tycho) integration
+
+## Dependencies
+
+### iDempiere Core Dependency
+
+**IMPORTANT:** This plugin depends on the **iDempiereCLDE branch** of the iDempiere project:
+
+- **Repository**: `../iDempiereCLDE/` (relative path from plugin root)
+- **Branch**: `iDempiereCLDE`
+- **Version**: iDempiere v10 (10.0.0-SNAPSHOT)
+- **Java Version**: Amazon Corretto 11
+- **Location**: `/Users/norbertbede/github/iDempiereCLDE`
+
+Before building or testing this plugin, ensure:
+1. iDempiereCLDE repository is cloned at `../iDempiereCLDE/`
+2. The iDempiereCLDE branch is checked out
+3. Java 11 (Corretto) is being used: `JAVA_HOME=/Library/Java/JavaVirtualMachines/amazon-corretto-11.jdk/Contents/Home`
+4. iDempiere parent and target platform are built:
+   ```bash
+   cd ../iDempiereCLDE/org.idempiere.parent && mvn clean install -DskipTests
+   cd ../iDempiereCLDE/org.idempiere.p2.targetplatform && mvn clean install -DskipTests
+   ```
+
+The plugin references the iDempiere parent POM at `../iDempiereCLDE/org.idempiere.parent/pom.xml` (see pom.xml line 10).
+
+### CRITICAL: Java and LangChain4j Version Constraints
+
+**See [ADR-035](docs/adr/035-java-version-strategy.md) for full details.**
+
+| Component | Current | Constraint | Notes |
+|-----------|---------|------------|-------|
+| **Java Runtime** | Amazon Corretto 11 | Java 11 | iDempiere v10 requirement |
+| **LangChain4j** | **0.35.0** | Must use 0.35.0 | Last Java 11 compatible version |
+| **iDempiere** | v10 (10.0.0-SNAPSHOT) | Release-10 | Release-11 requires Java 17 |
+
+**WARNING:** LangChain4j versions 0.36.0 and later (including 1.x) require Java 17!
+
+**Version Compatibility:**
+| LangChain4j Version | Java Requirement |
+|---------------------|------------------|
+| 0.35.0 and earlier | Java 8+ |
+| 0.36.0+ | Java 17+ |
+| 1.0.0-beta1+ | Java 17+ |
+| 1.0.0+ (stable) | Java 17+ |
+
+**Migration Path:**
+1. **Phase 1 (Current)**: Java 11 + LangChain4j 0.35.0 for MVP
+2. **Phase 2 (Future)**: Upgrade to iDempiere Release-11 + Java 17 + LangChain4j 1.x
+
+**Features blocked until Java 17 migration:**
+- MCP (Model Context Protocol) support - ADR-003
+- Extended thinking/reasoning timeline - ADR-033
+- System/tool message caching (cost optimization)
+- Enhanced observability listeners
+- Google Gemini streaming - ADR-034
 
 ## Build and Development Commands
 
@@ -319,11 +374,96 @@ mvn install -DskipTests
 - ✅ Database security layer with audit logging
 - ✅ Context provider system for window/chart data
 
-### Next Phases
-- Phase 2: Complete AWS Bedrock provider and add Ollama integration
-- Phase 3: Production-ready database schema and migrations
-- Phase 4: Comprehensive testing suite
-- Phase 5: Complete Javadoc and user documentation
+## Upcoming Phases
+
+| Phase | Version | Target | Status | Key Features |
+|-------|---------|--------|--------|--------------|
+| Phase 1 | v0.1.0 | 2025-12-01 | ✅ Done | Provider architecture, Anthropic integration, security layer |
+| Phase 2 | v0.2.0 | Q1 2026 | Planned | AWS Bedrock completion, Ollama integration |
+| Phase 3 | v0.3.0 | Q1 2026 | Planned | LangChain4j agent framework, domain boundaries |
+| Phase 4 | v0.4.0 | Q1 2026 | Planned | InventoryAgent, SalesAgent, PurchasingAgent |
+| Phase 5 | v0.5.0 | Q2 2026 | Planned | Production database schema, migrations |
+| Phase 6 | v0.6.0 | Q2 2026 | Planned | Comprehensive testing, documentation |
+| Phase 7 | v1.0.0 | Q2 2026 | Planned | Production release |
+
+## Commit Convention
+
+Follow [Conventional Commits](https://conventionalcommits.org/):
+- `feat:` new feature
+- `fix:` bug fix
+- `docs:` documentation
+- `refactor:` code refactor
+- `chore:` maintenance
+- `test:` adding tests
+- `perf:` performance improvement
+
+**Always update:**
+1. `CHANGELOG.md` - Document changes
+2. `FEATURES.md` - Update feature matrix
+
+**Release workflow:**
+1. Update version in `pom.xml`, `MANIFEST.MF`
+2. Update `CHANGELOG.md` with release date
+3. Commit and create tag: `git tag -a vX.Y.Z -m "Release vX.Y.Z"`
+4. Bump to next SNAPSHOT version
+
+## Architecture Decision Records
+
+### Core Architecture
+- [ADR-001](docs/adr/001-initial-architecture.md) - Initial architecture and project standards
+- [ADR-002](docs/adr/002-langchain4j-strategic-adoption.md) - LangChain4j Strategic Adoption
+- [ADR-003](docs/adr/003-mcp-server-integration.md) - MCP Server Integration
+- [ADR-004](docs/adr/004-java-agent-framework.md) - Java Agent Framework Selection (LangChain4j)
+- [ADR-027](docs/adr/027-implementation-roadmap-priority.md) - Implementation Roadmap and Priority Matrix
+- [ADR-034](docs/adr/034-google-gemini-provider-integration.md) - Google Gemini Provider Integration
+- [ADR-035](docs/adr/035-java-version-strategy.md) - Java Version Strategy and Migration Path
+- [ADR-042](docs/adr/042-ai-hub-provider-integration.md) - AI Hub Provider Integration
+- [ADR-049](docs/adr/049-mcp-client-external-tools-integration.md) - MCP Client Integration for External Tools (Ready for v11)
+
+### Data & Intelligence
+- [ADR-005](docs/adr/005-intelligent-data-source-routing.md) - Intelligent Data Source Routing (Superseded by ADR-012)
+- [ADR-006](docs/adr/006-data-model-architecture.md) - Data Model Architecture
+- [ADR-007](docs/adr/007-database-security-model.md) - Database Security Model
+- [ADR-008](docs/adr/008-llm-instruction-following.md) - LLM Instruction Following Strategy
+- [ADR-012](docs/adr/012-rag-based-context-retrieval.md) - RAG-Based Context Retrieval
+- [ADR-026](docs/adr/026-vector-database-strategy.md) - Vector Database Strategy (AWS pgvector vs alternatives)
+- [ADR-040](docs/adr/040-embedding-ingestion-evolution.md) - Embedding Ingestion Evolution Strategy
+
+### Agent Architecture
+- [ADR-009](docs/adr/009-domain-boundaries-agent-scope.md) - Domain Boundaries and Agent Scope Architecture
+- [ADR-010](docs/adr/010-agent-orchestration-architecture.md) - Agent Orchestration Architecture
+- [ADR-011](docs/adr/011-specialized-agent-scopes.md) - Specialized Agent Scopes by Business Domain
+- [ADR-016](docs/adr/016-knowledge-base-agent.md) - Knowledge Base Agent Domain
+
+### Operations & UX
+- [ADR-013](docs/adr/013-observability-cost-tracking.md) - Observability and Cost Tracking
+- [ADR-014](docs/adr/014-guardrails-and-safety.md) - Guardrails and Safety
+- [ADR-015](docs/adr/015-conversational-ux-patterns.md) - Conversational UX Patterns
+- [ADR-031](docs/adr/031-chat-panel-langchain4j-chatmodel-integration.md) - Chat Panel LangChain4j ChatModel Integration
+- [ADR-032](docs/adr/032-testing-strategy.md) - Testing Strategy
+- [ADR-033](docs/adr/033-streaming-thinking-timeline-ux.md) - Streaming Responses and Thinking Timeline UX
+- [ADR-036](docs/adr/036-chat-ownership-and-sharing-model.md) - Chat Ownership and Sharing Model
+- [ADR-037](docs/adr/037-language-detection-session-management.md) - Language Detection and Session Language Management
+- [ADR-038](docs/adr/038-user-friendly-error-handling.md) - User-Friendly Error Handling and Issue Tracking
+- [ADR-039](docs/adr/039-chat-panel-record-zoom-drill.md) - Chat Panel Record Zoom and Drill Integration
+- [ADR-041](docs/adr/041-chain-maintainability-ui-configuration.md) - Chain Maintainability and UI Configuration
+- [ADR-047](docs/adr/047-streaming-chat-rendering-best-practices.md) - Streaming Chat Rendering Best Practices
+- [ADR-048](docs/adr/048-comprehensive-security-strategy.md) - Comprehensive Security Strategy
+
+### Use Cases - Phase 1 (MVP)
+- [ADR-017](docs/adr/017-chart-executive-overview.md) - Chart Executive Overview
+- [ADR-018](docs/adr/018-sales-opportunity-summary.md) - Sales Opportunity Summary
+- [ADR-019](docs/adr/019-support-ticket-classification.md) - Support Ticket Classification
+- [ADR-020](docs/adr/020-email-gateway-enhancement.md) - Email Gateway Enhancement
+
+### Use Cases - Phase 2
+- [ADR-021](docs/adr/021-product-catalog-enhancement.md) - Product Catalog Enhancement
+- [ADR-022](docs/adr/022-translation-wizard.md) - Translation Wizard
+
+### Use Cases - Phase 3
+- [ADR-023](docs/adr/023-ocr-invoice-processing.md) - OCR Invoice Processing
+- [ADR-024](docs/adr/024-import-data-normalization.md) - Import Data Normalization
+- [ADR-025](docs/adr/025-idempiere-development-assistant.md) - iDempiere Development Assistant
 
 ## Notes
 

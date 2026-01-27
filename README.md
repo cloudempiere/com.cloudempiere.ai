@@ -1,0 +1,215 @@
+# com.cloudempiere.ai
+
+**AI Plugin for iDempiere ERP**
+
+[![Version](https://img.shields.io/badge/version-0.9.0-blue.svg)](CHANGELOG.md)
+[![iDempiere](https://img.shields.io/badge/iDempiere-v10-green.svg)](https://www.idempiere.org/)
+[![License](https://img.shields.io/badge/license-Proprietary-red.svg)](LICENSE)
+
+---
+
+## ⚠️ Important: iDempiere Dependency
+
+**This plugin depends on the `iDempiereCLDE` project:**
+
+- **Repository**: `cloudempiere/iDempiereCLDE`
+- **Version**: iDempiere v10 (10.0.0-SNAPSHOT)
+- **Java**: Amazon Corretto 11
+- **Location**: `../iDempiereCLDE/`
+
+**Before building this plugin:**
+```bash
+# Set Java 11
+export JAVA_HOME=/Library/Java/JavaVirtualMachines/amazon-corretto-11.jdk/Contents/Home
+
+# Build iDempiere dependencies
+cd ../iDempiereCLDE/org.idempiere.parent && mvn clean install -DskipTests
+cd ../iDempiereCLDE/org.idempiere.p2.targetplatform && mvn clean install -DskipTests
+
+# Return to plugin directory
+cd ../com.cloudempiere.ai
+```
+
+---
+
+## Overview
+
+AI plugin for Cloudempiere that integrates advanced AI capabilities into iDempiere ERP. Supports multiple AI providers (Anthropic Claude, AWS Bedrock, Ollama, OpenAI) with secure, role-based database access.
+
+### Key Features
+
+- **Multi-Provider Architecture**: Support for Anthropic, AWS Bedrock, Ollama, OpenAI
+- **LangChain4j Integration**: Agent framework for complex AI workflows
+- **Secure Database Access**: AI queries respect user roles and permissions
+- **AI Chat Widget**: Interactive chat component for ZK UI
+- **Context-Aware**: Extracts business context from iDempiere windows/charts
+- **ERP Tools**: @Tool-annotated methods for database operations
+- **Audit Trail**: Complete logging of AI-initiated actions
+
+---
+
+## Quick Start
+
+### Installation
+
+1. **Clone and setup iDempiere dependency:**
+   ```bash
+   cd ~/github
+   git clone https://github.com/cloudempiere/iDempiere.git iDempiereCLDE
+   cd iDempiereCLDE
+   git checkout iDempiereCLDE
+
+   # Build parent and target platform
+   cd org.idempiere.parent && mvn clean install -DskipTests
+   cd ../org.idempiere.p2.targetplatform && mvn clean install -DskipTests
+   ```
+
+2. **Clone this plugin:**
+   ```bash
+   cd ~/github
+   git clone https://github.com/cloudempiere/com.cloudempiere.ai.git
+   cd com.cloudempiere.ai
+   ```
+
+3. **Build the plugin:**
+   ```bash
+   export JAVA_HOME=/Library/Java/JavaVirtualMachines/amazon-corretto-11.jdk/Contents/Home
+   mvn clean install -DskipTests
+   ```
+
+4. **Configure AI Provider:**
+   - Deploy plugin to iDempiere server
+   - Configure AI Provider in System Configurator
+   - Add API credentials (Anthropic, AWS, etc.)
+
+### Configuration
+
+Configure an AI provider in iDempiere:
+
+1. Navigate to **System Configurator → AI Providers**
+2. Create new **AIG_Provider** record:
+   - **Name**: "Production Claude"
+   - **Type**: Anthropic (ANT)
+   - **Model**: claude-3-5-sonnet-20241022
+   - **API Key**: Your Anthropic API key
+   - **AI User**: Select user account for AI operations
+   - **Active**: Yes
+
+### Usage
+
+```java
+// Get AI service
+IDempiereAIService aiService = IDempiereAIService.getInstance();
+
+// Generate text
+String response = aiService.chat(providerConfig, "Explain sales order 12345");
+
+// Query database with AI
+String result = aiService.queryDatabase("Show me top 10 customers by revenue");
+
+// Get business partner info
+String bpInfo = aiService.getBusinessPartner("BP001");
+```
+
+---
+
+## Architecture
+
+### Provider Layer
+
+- **IAIProvider**: Provider abstraction interface (deprecated, use ChatLanguageModel)
+- **LangChain4jProviderFactory**: Creates ChatLanguageModel from configuration
+- **Implementations**: AnthropicProvider, AWSBedrockProvider, OllamaProvider, OpenAIProvider
+
+### Agent Framework
+
+- **IDempiereAgent**: AiServices interface with system prompt
+- **IDempiereAIService**: Main facade for AI interactions
+- **ERPTools**: @Tool-annotated methods for ERP operations
+
+### Security Layer
+
+- **SecureDatabaseQueryExecutor**: Role-based query execution
+- **AI User Model**: Queries execute as configured AI user + caller's role
+- **Audit Trail**: Complete logging in AIG_QueryAudit table
+
+---
+
+## Documentation
+
+### Architecture & Design
+- **[ARCHITECTURE.md](docs/ARCHITECTURE.md)**: Component diagrams, data flow, security layers
+- **[ADRs](docs/adr/)**: Architecture Decision Records (48 decisions)
+- **[DEPRECATION_ROADMAP.md](docs/DEPRECATION_ROADMAP.md)**: Migration plan for legacy code
+
+### Project Management
+- **[PROJECT.md](PROJECT.md)**: Complete project overview
+- **[FEATURES.md](FEATURES.md)**: Feature matrix and capabilities
+- **[CHANGELOG.md](CHANGELOG.md)**: Version history and changes
+- **[ROADMAP.md](docs/ROADMAP.md)**: Version phases and milestones
+- **[GOVERNANCE.md](docs/GOVERNANCE.md)**: Decision authority and conventions
+
+### Development
+- **[CLAUDE.md](.claude/CLAUDE.md)**: Development guide for Claude Code
+- **[Implementation Guides](docs/guides/)**: Streaming, LangChain4j, ZK UI guides
+- **[MCP Server Docs](docs/mcpserver/)**: Model Context Protocol integration
+
+---
+
+## Development
+
+### Build Commands
+
+```bash
+# Clean build
+mvn clean install
+
+# Build without tests
+mvn clean install -DskipTests
+
+# Run tests (requires Eclipse environment)
+mvn test
+
+# Package plugin
+mvn package
+```
+
+### Project Structure
+
+```
+com.cloudempiere.ai/
+├── src/
+│   ├── com/cloudempiere/ai/
+│   │   ├── provider/          # AI provider implementations
+│   │   ├── model/             # Data models (MAIProvider)
+│   │   ├── service/           # AI services
+│   │   ├── component/         # UI components (chat widget)
+│   │   ├── context/           # Context providers
+│   │   └── database/          # Secure query executor
+│   └── test/                  # Unit tests
+├── lib/                       # Embedded dependencies
+├── docs/                      # Documentation
+├── .claude/                   # Claude Code configuration
+├── pom.xml                    # Maven configuration
+└── META-INF/MANIFEST.MF       # OSGi bundle manifest
+```
+
+---
+
+## Contributing
+
+This is a proprietary plugin for Cloudempiere. For feature requests or bug reports, please contact the Cloudempiere team.
+
+---
+
+## License
+
+Proprietary - Cloudempiere
+
+---
+
+## Support
+
+- **Documentation**: See [docs/](docs/) directory
+- **Issues**: Internal tracking
+- **Contact**: Cloudempiere Development Team

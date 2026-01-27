@@ -1,0 +1,8 @@
+target/
+bin/
+.DS_Store
+*.class
+*.jar
+!lib/*.jar
+.metadata
+.settings/org.eclipse.m2e.core.prefs

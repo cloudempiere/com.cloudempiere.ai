@@ -1,0 +1,123 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "description": "Test input queries for MCP E2E tests",
+  "testCases": {
+    "listTables": [
+      {
+        "name": "List all C_ tables",
+        "input": {
+          "pattern": "C_%"
+        },
+        "expectedMinCount": 50,
+        "expectedTables": [
+          "C_Order",
+          "C_OrderLine",
+          "C_Invoice",
+          "C_BPartner",
+          "C_Payment"
+        ]
+      },
+      {
+        "name": "List all M_ tables",
+        "input": {
+          "pattern": "M_%"
+        },
+        "expectedMinCount": 20,
+        "expectedTables": [
+          "M_Product",
+          "M_Warehouse",
+          "M_Inventory"
+        ]
+      },
+      {
+        "name": "List all AD_ tables",
+        "input": {
+          "pattern": "AD_%"
+        },
+        "expectedMinCount": 100,
+        "expectedTables": [
+          "AD_Table",
+          "AD_Column",
+          "AD_Window",
+          "AD_User",
+          "AD_Role"
+        ]
+      },
+      {
+        "name": "Empty pattern",
+        "input": {
+          "pattern": ""
+        },
+        "expectedMinCount": 500,
+        "description": "Should return all tables"
+      }
+    ],
+    "describeTable": [
+      {
+        "name": "Describe C_Order",
+        "input": {
+          "tableName": "C_Order"
+        },
+        "expectedColumns": [
+          "C_Order_ID",
+          "AD_Client_ID",
+          "AD_Org_ID",
+          "DocumentNo",
+          "C_BPartner_ID",
+          "DateOrdered",
+          "GrandTotal",
+          "DocStatus",
+          "IsActive"
+        ]
+      },
+      {
+        "name": "Describe M_Product",
+        "input": {
+          "tableName": "M_Product"
+        },
+        "expectedColumns": [
+          "M_Product_ID",
+          "AD_Client_ID",
+          "AD_Org_ID",
+          "Value",
+          "Name",
+          "M_Product_Category_ID"
+        ]
+      },
+      {
+        "name": "Describe AD_User",
+        "input": {
+          "tableName": "AD_User"
+        },
+        "expectedColumns": [
+          "AD_User_ID",
+          "AD_Client_ID",
+          "AD_Org_ID",
+          "Name",
+          "EMail",
+          "IsActive"
+        ]
+      }
+    ],
+    "errorCases": [
+      {
+        "name": "Non-existent table",
+        "tool": "describeTable",
+        "input": {
+          "tableName": "NON_EXISTENT_TABLE_XYZ"
+        },
+        "expectedError": true,
+        "expectedErrorMessage": "Table not found"
+      },
+      {
+        "name": "Invalid pattern",
+        "tool": "listTables",
+        "input": {
+          "pattern": "'; DROP TABLE AD_Table; --"
+        },
+        "expectedError": false,
+        "description": "SQL injection should be safely handled, returning 0 results"
+      }
+    ]
+  }
+}

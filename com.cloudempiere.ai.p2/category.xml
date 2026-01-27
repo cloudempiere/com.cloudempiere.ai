@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<site>
+   <feature id="com.cloudempiere.ai.feature">
+      <category name="com.cloudempiere.ai"/>
+   </feature>
+   <category-def name="com.cloudempiere.ai" label="CloudEmpiere AI Plugin">
+      <description>
+         CloudEmpiere AI Plugin - Multi-provider AI integration for iDempiere ERP
+      </description>
+   </category-def>
+</site>
