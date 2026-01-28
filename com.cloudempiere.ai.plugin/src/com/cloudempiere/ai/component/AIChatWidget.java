@@ -1077,6 +1077,10 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 				chat != null ? chat.getCM_Chat_ID() : 0);
 		currentStreamingMessage = streamingMsg;
 
+		// Transition to WAITING_FOR_LLM state (CLD-1704 - State Management)
+		// Request sent to AI, waiting for first token
+		streamingMsg.transitionTo(AIChatStreamingMessage.StreamingState.WAITING_FOR_LLM);
+
 		// Get agent name from provider's AD_User (capture for use in lambda)
 		String aiUserName = "AI Assistant";
 		try {

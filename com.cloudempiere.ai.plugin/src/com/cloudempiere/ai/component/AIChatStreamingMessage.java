@@ -30,12 +30,11 @@ import org.zkoss.zul.Div;
 import org.zkoss.zul.Html;
 import org.zkoss.zul.Timer;
 
+import com.cloudempiere.ai.util.AIMessageRenderer;
 import com.cloudempiere.ai.util.ChunkCleaner;
 import com.cloudempiere.ai.util.CommonMarkRenderer;
-import com.cloudempiere.ai.util.MarkdownTableRenderer;
 import com.cloudempiere.ai.util.StreamingTableRenderer;
 import com.cloudempiere.ai.util.StreamingTextBuffer;
-import com.cloudempiere.ai.util.ZoomLinkProcessor;
 
 /**
  * ZK component for rendering streaming AI responses with tool timeline and thinking.
@@ -100,11 +99,14 @@ public class AIChatStreamingMessage extends Div {
     /** Whether thinking section is expanded */
     private boolean isThinkingExpanded = false;
 
-    /** Whether streaming is complete */
-    private boolean isComplete = false;
+    // ============= State Management (CLD-1704) =============
 
-    /** Whether request was cancelled by user */
-    private boolean isCancelled = false;
+    /**
+     * Current streaming state.
+     * <p>Single source of truth for component lifecycle state.
+     * Replaces multiple boolean flags (isComplete, isCancelled) with explicit state machine.
+     */
+    private volatile StreamingState state = StreamingState.IDLE;
 
     /** Unique ID for JavaScript operations */
     private final String componentId;
@@ -185,6 +187,121 @@ public class AIChatStreamingMessage extends Div {
         injectCSS();
         init();
     }
+
+    // ============= State Management Methods (Phase 2 - CLD-1704) =============
+
+    /**
+     * Transition to a new state with validation.
+     *
+     * <p>Validates that the transition is allowed and logs the state change.
+     * Invalid transitions are logged as warnings but not blocked (fail-safe).
+     *
+     * <p><b>Visibility:</b> Package-private to allow AIChatWidget to manage state.
+     *
+     * @param newState the target state
+     */
+    void transitionTo(StreamingState newState) {
+        if (state == newState) {
+            return; // Already in target state
+        }
+
+        if (!isValidTransition(state, newState)) {
+            log.warn("Invalid state transition: " + state + " → " + newState + " (component: " + componentId + ")");
+            // Don't block - fail-safe approach
+        }
+
+        StreamingState oldState = state;
+        state = newState;
+
+        log.debug("State transition: " + oldState + " → " + newState + " (component: " + componentId + ")");
+
+        // Notify state change listeners (can add UI updates here)
+        onStateChanged(oldState, newState);
+    }
+
+    /**
+     * Check if a state transition is valid.
+     *
+     * @param from current state
+     * @param to target state
+     * @return true if transition is allowed
+     */
+    private boolean isValidTransition(StreamingState from, StreamingState to) {
+        switch (from) {
+            case IDLE:
+                return to == StreamingState.WAITING_FOR_LLM;
+
+            case WAITING_FOR_LLM:
+                return to == StreamingState.THINKING ||
+                       to == StreamingState.STREAMING_TEXT ||
+                       to == StreamingState.STREAMING_TABLE ||  // Can start with table immediately
+                       to == StreamingState.TOOL_EXECUTING ||
+                       to == StreamingState.ERROR ||
+                       to == StreamingState.CANCELLED;
+
+            case TOOL_EXECUTING:
+                return to == StreamingState.STREAMING_TEXT ||
+                       to == StreamingState.STREAMING_TABLE ||  // Tool result can be table
+                       to == StreamingState.TOOL_EXECUTING ||  // Multiple tool calls
+                       to == StreamingState.COMPLETE ||  // Tool result final
+                       to == StreamingState.ERROR ||
+                       to == StreamingState.CANCELLED;
+
+            case THINKING:
+                return to == StreamingState.STREAMING_TEXT ||
+                       to == StreamingState.STREAMING_TABLE ||  // Can stream table after thinking
+                       to == StreamingState.ERROR ||
+                       to == StreamingState.CANCELLED;
+
+            case STREAMING_TEXT:
+                return to == StreamingState.STREAMING_TABLE ||
+                       to == StreamingState.FINALIZING ||
+                       to == StreamingState.ERROR ||
+                       to == StreamingState.CANCELLED;
+
+            case STREAMING_TABLE:
+                return to == StreamingState.STREAMING_TEXT ||  // Table ended
+                       to == StreamingState.FINALIZING ||
+                       to == StreamingState.ERROR ||
+                       to == StreamingState.CANCELLED;
+
+            case FINALIZING:
+                return to == StreamingState.COMPLETE ||
+                       to == StreamingState.ERROR;
+
+            case COMPLETE:
+            case CANCELLED:
+            case ERROR:
+                return to == StreamingState.IDLE;  // Only allow reset to IDLE
+
+            default:
+                return false;
+        }
+    }
+
+    /**
+     * Hook for state change notifications.
+     *
+     * <p>Can be extended to update UI elements, notify parent components, etc.
+     *
+     * @param oldState previous state
+     * @param newState new state
+     */
+    private void onStateChanged(StreamingState oldState, StreamingState newState) {
+        // Future: Update UI indicators, notify listeners
+        // For now, just log
+    }
+
+    /**
+     * Get current state.
+     *
+     * @return current streaming state
+     */
+    public StreamingState getState() {
+        return state;
+    }
+
+    // ============= End State Management Methods =============
 
     /**
      * Inject streaming CSS styles (once per page).
@@ -350,11 +467,21 @@ public class AIChatStreamingMessage extends Div {
      */
     public void appendChunk(String chunk) {
         // Ignore chunks if cancelled or already complete
-        if (isCancelled || isComplete) {
+        if (state == StreamingState.CANCELLED || state == StreamingState.COMPLETE || state == StreamingState.ERROR) {
             return;
         }
         if (chunk == null || chunk.isEmpty()) {
             return;
+        }
+
+        // Content chunk arrival: transition to STREAMING_TEXT if not already streaming
+        // Note: STREAMING_TABLE transition happens in processBatch() after tableRenderer detects table
+        // Handles: initial response, after thinking, after tool execution
+        if (state == StreamingState.WAITING_FOR_LLM ||
+            state == StreamingState.IDLE ||
+            state == StreamingState.THINKING ||
+            state == StreamingState.TOOL_EXECUTING) {
+            transitionTo(StreamingState.STREAMING_TEXT);
         }
 
         // Queue chunk for batched rendering (ADR-047 Phase 2)
@@ -432,6 +559,13 @@ public class AIChatStreamingMessage extends Div {
             tableRenderer.appendChunk(chunk);
         }
 
+        // Check for table state transitions
+        if (state == StreamingState.STREAMING_TEXT && tableRenderer.isInTable()) {
+            transitionTo(StreamingState.STREAMING_TABLE);
+        } else if (state == StreamingState.STREAMING_TABLE && !tableRenderer.isInTable()) {
+            transitionTo(StreamingState.STREAMING_TEXT);
+        }
+
         // Update DOM once for entire batch
         updateContentDisplay();
 
@@ -452,6 +586,11 @@ public class AIChatStreamingMessage extends Div {
      * @param arguments tool arguments (JSON string)
      */
     public void showToolStart(String toolName, String arguments) {
+        // Transition to TOOL_EXECUTING if not already there
+        if (state != StreamingState.TOOL_EXECUTING) {
+            transitionTo(StreamingState.TOOL_EXECUTING);
+        }
+
         toolsSection.setVisible(true);
         toolEvents.add(new ToolEvent(toolName, ToolStatus.RUNNING, arguments, null));
         updateToolsDisplay();
@@ -525,9 +664,12 @@ public class AIChatStreamingMessage extends Div {
      * with Java's Object.finalize() which is called by the garbage collector.
      */
     public void complete() {
-        if (isComplete) {
-            return; // Already completed
+        if (state == StreamingState.COMPLETE || state == StreamingState.CANCELLED) {
+            return; // Already completed or cancelled
         }
+
+        // Transition to FINALIZING state
+        transitionTo(StreamingState.FINALIZING);
 
         // Flush any remaining chunks in queue (ADR-047)
         // FIX BUG #8: Add exception handling to prevent inconsistent state
@@ -547,10 +689,12 @@ public class AIChatStreamingMessage extends Div {
             renderScheduled = false;
         }
 
-        isComplete = true;
         // Use marked.js for full markdown rendering (tables, code blocks, etc.)
         renderFinalMarkdown();
         enableCopyButton();
+
+        // Transition to COMPLETE state
+        transitionTo(StreamingState.COMPLETE);
     }
 
     /**
@@ -580,7 +724,7 @@ public class AIChatStreamingMessage extends Div {
      * @return true if complete
      */
     public boolean isComplete() {
-        return isComplete;
+        return state == StreamingState.COMPLETE;
     }
 
     /**
@@ -589,7 +733,7 @@ public class AIChatStreamingMessage extends Div {
      * @return true if cancelled
      */
     public boolean isCancelled() {
-        return isCancelled;
+        return state == StreamingState.CANCELLED;
     }
 
     /**
@@ -622,9 +766,12 @@ public class AIChatStreamingMessage extends Div {
      * <p>Appends "AI request cancelled" and stops accepting new chunks.
      */
     public void markCancelled() {
-        if (isCancelled || isComplete) {
+        if (state == StreamingState.CANCELLED || state == StreamingState.COMPLETE) {
             return;
         }
+
+        // Transition to CANCELLED state
+        transitionTo(StreamingState.CANCELLED);
 
         // Flush any remaining chunks in queue (ADR-047)
         // FIX BUG #8: Add exception handling to prevent inconsistent state
@@ -643,9 +790,6 @@ public class AIChatStreamingMessage extends Div {
             }
             renderScheduled = false;
         }
-
-        isCancelled = true;
-        isComplete = true;
 
         // Update display to remove cursor and show termination notice on new line
         String html = renderPartialMarkdown(content.getDisplayableText());
@@ -705,7 +849,8 @@ public class AIChatStreamingMessage extends Div {
                 .replace("\n", "<br/>")
                 .replace("  ", " &nbsp;");
 
-            if (!isComplete) {
+            // Show cursor if still streaming
+            if (state != StreamingState.COMPLETE && state != StreamingState.CANCELLED && state != StreamingState.ERROR) {
                 html += "<span class='streaming-cursor'>|</span>";
             }
         }
@@ -1180,6 +1325,61 @@ public class AIChatStreamingMessage extends Div {
     enum ToolStatus {
         RUNNING,
         COMPLETE,
+        ERROR
+    }
+
+    /**
+     * Streaming message lifecycle state.
+     *
+     * <p><b>State Machine (CLD-1704):</b> Explicit state management replacing boolean flags.
+     * Provides single source of truth for component lifecycle and enables clear state transitions.
+     *
+     * <p><b>Valid Transitions:</b>
+     * <pre>
+     * IDLE → WAITING_FOR_LLM
+     * WAITING_FOR_LLM → {THINKING, STREAMING_TEXT, STREAMING_TABLE, TOOL_EXECUTING}
+     * TOOL_EXECUTING → {STREAMING_TEXT, STREAMING_TABLE, TOOL_EXECUTING, COMPLETE}
+     * THINKING → {STREAMING_TEXT, STREAMING_TABLE}
+     * STREAMING_TEXT ↔ STREAMING_TABLE (bidirectional - detecting table start/end)
+     * STREAMING_* → FINALIZING → COMPLETE
+     * Any state → CANCELLED (user action)
+     * Any state → ERROR (failure)
+     *
+     * Note: STREAMING_TEXT and STREAMING_TABLE are equivalent from transition perspective.
+     * LLM can start streaming a table immediately without intro text.
+     * </pre>
+     *
+     * <p>Package-private to avoid OSGi classloading issues with private inner enums.
+     */
+    enum StreamingState {
+        /** No active operation, ready for new request */
+        IDLE,
+
+        /** Request sent to LLM, waiting for first token */
+        WAITING_FOR_LLM,
+
+        /** LLM requested tool use, executing database query or other tool */
+        TOOL_EXECUTING,
+
+        /** Extended thinking mode (not streaming text yet) */
+        THINKING,
+
+        /** Streaming regular content chunks (plain text during streaming) */
+        STREAMING_TEXT,
+
+        /** Streaming table content (cell-by-cell rendering) */
+        STREAMING_TABLE,
+
+        /** All chunks received, rendering final markdown */
+        FINALIZING,
+
+        /** Successfully completed, final markdown rendered */
+        COMPLETE,
+
+        /** User cancelled the request */
+        CANCELLED,
+
+        /** Failed (network, API, validation error) */
         ERROR
     }
 }
