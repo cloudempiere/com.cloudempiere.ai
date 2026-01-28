@@ -686,9 +686,12 @@ public class AIChatStreamingMessage extends Div {
     private void updateContentDisplay() {
         String html;
 
-        // Use streaming table renderer if we're currently in a table
-        if (tableRenderer != null && tableRenderer.isInTable()) {
-            // Cell-by-cell rendering for smooth table streaming
+        // BUG FIX (CLD-1704): Use hasContent() instead of isInTable()
+        // Once table rendering starts, continue using table renderer for entire message
+        // (pre-table, table, post-table). The table renderer handles all phases correctly.
+        // Using isInTable() caused table to disappear when post-table text started streaming.
+        if (tableRenderer != null && tableRenderer.hasContent()) {
+            // Table renderer handles: pre-table (plain) + table (HTML) + post-table (plain)
             html = tableRenderer.renderCurrentState();
         } else {
             // Use getDisplayableText() to avoid incomplete surrogates

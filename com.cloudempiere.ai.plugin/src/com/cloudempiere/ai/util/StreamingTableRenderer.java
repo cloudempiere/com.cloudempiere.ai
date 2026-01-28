@@ -648,6 +648,21 @@ public class StreamingTableRenderer {
     }
 
     /**
+     * Check if renderer has any table content to display.
+     *
+     * <p><b>BUG FIX (CLD-1704):</b> This returns true if the renderer has started processing
+     * a table and has any content (completed rows, current row, or cells). This should be used
+     * instead of {@link #isInTable()} for display decisions, because once a table starts,
+     * we should continue using the table renderer for the entire message (pre-table, table,
+     * post-table content), not switch back to plain text rendering.
+     *
+     * @return true if renderer has table content to display
+     */
+    public boolean hasContent() {
+        return !completedRows.isEmpty() || !currentRow.isEmpty() || currentCell.length() > 0;
+    }
+
+    /**
      * Reset the renderer state.
      */
     public void reset() {
