@@ -13,6 +13,8 @@
  *****************************************************************************/
 package com.cloudempiere.ai.service;
 
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -24,7 +26,9 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import org.compiere.model.MClient;
+import org.compiere.model.MLanguage;
 import org.compiere.util.CLogger;
+import org.compiere.util.DB;
 import org.compiere.util.Env;
 import org.compiere.util.Language;
 
@@ -107,127 +111,12 @@ public class LanguageDetectionService {
         Pattern.compile("(?i)\\b(?:po|w)\\s+(polsku|angielsku|niemiecku|francusku|hiszpańsku)\\b")
     );
 
-    /** Language name to code mapping (lowercase name -> AD_Language code) */
-    private static final Map<String, String> LANGUAGE_MAP = new HashMap<>();
-
-    static {
-        // English names
-        LANGUAGE_MAP.put("english", "en_US");
-        LANGUAGE_MAP.put("german", "de_DE");
-        LANGUAGE_MAP.put("spanish", "es_ES");
-        LANGUAGE_MAP.put("french", "fr_FR");
-        LANGUAGE_MAP.put("italian", "it_IT");
-        LANGUAGE_MAP.put("portuguese", "pt_BR");
-        LANGUAGE_MAP.put("dutch", "nl_NL");
-        LANGUAGE_MAP.put("polish", "pl_PL");
-        LANGUAGE_MAP.put("russian", "ru_RU");
-        LANGUAGE_MAP.put("chinese", "zh_CN");
-        LANGUAGE_MAP.put("japanese", "ja_JP");
-        LANGUAGE_MAP.put("korean", "ko_KR");
-        LANGUAGE_MAP.put("arabic", "ar_SA");
-        LANGUAGE_MAP.put("hebrew", "he_IL");
-        LANGUAGE_MAP.put("turkish", "tr_TR");
-        LANGUAGE_MAP.put("czech", "cs_CZ");
-        LANGUAGE_MAP.put("slovak", "sk_SK");
-        LANGUAGE_MAP.put("hungarian", "hu_HU");
-        LANGUAGE_MAP.put("romanian", "ro_RO");
-        LANGUAGE_MAP.put("bulgarian", "bg_BG");
-        LANGUAGE_MAP.put("croatian", "hr_HR");
-        LANGUAGE_MAP.put("slovenian", "sl_SI");
-        LANGUAGE_MAP.put("serbian", "sr_RS");
-        LANGUAGE_MAP.put("ukrainian", "uk_UA");
-        LANGUAGE_MAP.put("thai", "th_TH");
-        LANGUAGE_MAP.put("vietnamese", "vi_VN");
-        LANGUAGE_MAP.put("indonesian", "id_ID");
-        LANGUAGE_MAP.put("malay", "ms_MY");
-        LANGUAGE_MAP.put("greek", "el_GR");
-        LANGUAGE_MAP.put("finnish", "fi_FI");
-        LANGUAGE_MAP.put("swedish", "sv_SE");
-        LANGUAGE_MAP.put("norwegian", "no_NO");
-        LANGUAGE_MAP.put("danish", "da_DK");
-
-        // Native language names
-        LANGUAGE_MAP.put("deutsch", "de_DE");
-        LANGUAGE_MAP.put("español", "es_ES");
-        LANGUAGE_MAP.put("espanol", "es_ES");
-        LANGUAGE_MAP.put("français", "fr_FR");
-        LANGUAGE_MAP.put("francais", "fr_FR");
-        LANGUAGE_MAP.put("italiano", "it_IT");
-        LANGUAGE_MAP.put("português", "pt_BR");
-        LANGUAGE_MAP.put("portugues", "pt_BR");
-        LANGUAGE_MAP.put("polski", "pl_PL");
-        LANGUAGE_MAP.put("polsku", "pl_PL");
-        LANGUAGE_MAP.put("русский", "ru_RU");
-        LANGUAGE_MAP.put("中文", "zh_CN");
-        LANGUAGE_MAP.put("日本語", "ja_JP");
-        LANGUAGE_MAP.put("한국어", "ko_KR");
-        LANGUAGE_MAP.put("العربية", "ar_SA");
-        LANGUAGE_MAP.put("עברית", "he_IL");
-        LANGUAGE_MAP.put("türkçe", "tr_TR");
-        LANGUAGE_MAP.put("čeština", "cs_CZ");
-        LANGUAGE_MAP.put("česky", "cs_CZ");
-        LANGUAGE_MAP.put("cesky", "cs_CZ");
-        LANGUAGE_MAP.put("slovenčina", "sk_SK");
-        LANGUAGE_MAP.put("slovenský", "sk_SK");
-        LANGUAGE_MAP.put("slovensky", "sk_SK");
-        LANGUAGE_MAP.put("slovenciny", "sk_SK"); // genitive form
-        LANGUAGE_MAP.put("magyar", "hu_HU");
-        LANGUAGE_MAP.put("magyarul", "hu_HU");
-        LANGUAGE_MAP.put("română", "ro_RO");
-        LANGUAGE_MAP.put("български", "bg_BG");
-        LANGUAGE_MAP.put("hrvatski", "hr_HR");
-        LANGUAGE_MAP.put("slovenščina", "sl_SI");
-        LANGUAGE_MAP.put("srpski", "sr_RS");
-        LANGUAGE_MAP.put("українська", "uk_UA");
-        LANGUAGE_MAP.put("ภาษาไทย", "th_TH");
-        LANGUAGE_MAP.put("tiếng việt", "vi_VN");
-
-        // German language names
-        LANGUAGE_MAP.put("englisch", "en_US");
-        LANGUAGE_MAP.put("spanisch", "es_ES");
-        LANGUAGE_MAP.put("französisch", "fr_FR");
-        LANGUAGE_MAP.put("franzosisch", "fr_FR");
-        LANGUAGE_MAP.put("italienisch", "it_IT");
-
-        // Slovak language names (used in patterns)
-        LANGUAGE_MAP.put("anglicky", "en_US");
-        LANGUAGE_MAP.put("nemecky", "de_DE");
-        LANGUAGE_MAP.put("maďarsky", "hu_HU");
-        LANGUAGE_MAP.put("poľsky", "pl_PL");
-
-        // Czech language names (used in patterns)
-        LANGUAGE_MAP.put("německy", "de_DE");
-        LANGUAGE_MAP.put("maďarsky", "hu_HU");
-        LANGUAGE_MAP.put("polsky", "pl_PL");
-
-        // Hungarian language names (used in patterns)
-        LANGUAGE_MAP.put("angolul", "en_US");
-        LANGUAGE_MAP.put("németül", "de_DE");
-        LANGUAGE_MAP.put("franciául", "fr_FR");
-        LANGUAGE_MAP.put("spanyolul", "es_ES");
-        LANGUAGE_MAP.put("szlovákul", "sk_SK");
-        LANGUAGE_MAP.put("csehül", "cs_CZ");
-
-        // Polish language names (used in patterns)
-        LANGUAGE_MAP.put("angielsku", "en_US");
-        LANGUAGE_MAP.put("niemiecku", "de_DE");
-        LANGUAGE_MAP.put("francusku", "fr_FR");
-        LANGUAGE_MAP.put("hiszpańsku", "es_ES");
-
-        // Spanish language names
-        LANGUAGE_MAP.put("inglés", "en_US");
-        LANGUAGE_MAP.put("ingles", "en_US");
-        LANGUAGE_MAP.put("alemán", "de_DE");
-        LANGUAGE_MAP.put("aleman", "de_DE");
-        LANGUAGE_MAP.put("francés", "fr_FR");
-        LANGUAGE_MAP.put("frances", "fr_FR");
-
-        // French language names
-        LANGUAGE_MAP.put("anglais", "en_US");
-        LANGUAGE_MAP.put("allemand", "de_DE");
-        LANGUAGE_MAP.put("espagnol", "es_ES");
-        LANGUAGE_MAP.put("italien", "it_IT");
-    }
+    /**
+     * Language name to code mapping (lowercase name -> AD_Language code).
+     * Lazy-initialized from AD_Language table on first use.
+     * Maps display names, ISO codes, and native language names to AD_Language codes.
+     */
+    private volatile Map<String, String> languageMap = null;
 
     /**
      * Private constructor for singleton.
@@ -250,6 +139,128 @@ public class LanguageDetectionService {
             }
         }
         return instance;
+    }
+
+    /**
+     * Build language name to code mapping from AD_Language table.
+     * This method queries active and system languages from the database and builds
+     * a comprehensive map including:
+     * <ul>
+     *   <li>Display names (e.g., "English" -> "en_US")</li>
+     *   <li>ISO language codes (e.g., "en" -> "en_US")</li>
+     *   <li>AD_Language codes (e.g., "en_US" -> "en_US")</li>
+     *   <li>Native language names via iDempiere's Language utility</li>
+     * </ul>
+     *
+     * <p>This approach eliminates hardcoded language lists and respects
+     * iDempiere's configured languages.</p>
+     *
+     * @return Map of lowercase language name to AD_Language code
+     */
+    private Map<String, String> buildLanguageMap() {
+        Map<String, String> map = new HashMap<>();
+
+        if (!DB.isConnected()) {
+            log.warning("[LANGUAGE] Database not connected, using minimal fallback map");
+            // Minimal fallback for offline scenarios
+            map.put("english", "en_US");
+            map.put("en", "en_US");
+            map.put("en_us", "en_US");
+            return map;
+        }
+
+        String sql = "SELECT AD_Language, Name, LanguageISO, CountryCode " +
+                     "FROM AD_Language " +
+                     "WHERE IsActive='Y' AND IsSystemLanguage='Y' " +
+                     "ORDER BY AD_Language";
+
+        PreparedStatement pstmt = null;
+        ResultSet rs = null;
+
+        try {
+            pstmt = DB.prepareStatement(sql, null);
+            rs = pstmt.executeQuery();
+
+            while (rs.next()) {
+                String adLanguage = rs.getString("AD_Language");
+                String name = rs.getString("Name");
+                String languageISO = rs.getString("LanguageISO");
+                String countryCode = rs.getString("CountryCode");
+
+                if (adLanguage == null || adLanguage.isBlank()) {
+                    continue;
+                }
+
+                // Map AD_Language code (e.g., "en_US" -> "en_US")
+                map.put(adLanguage.toLowerCase(), adLanguage);
+
+                // Map display name (e.g., "English" -> "en_US")
+                if (name != null && !name.isBlank()) {
+                    map.put(name.toLowerCase(), adLanguage);
+                }
+
+                // Map ISO language code (e.g., "en" -> "en_US")
+                if (languageISO != null && !languageISO.isBlank()) {
+                    map.put(languageISO.toLowerCase(), adLanguage);
+                }
+
+                // Map ISO + country (e.g., "en-US" -> "en_US")
+                if (languageISO != null && countryCode != null) {
+                    String isoWithCountry = languageISO.toLowerCase() + "-" + countryCode.toLowerCase();
+                    map.put(isoWithCountry, adLanguage);
+                }
+
+                // Get native language name from Language utility
+                Language lang = Language.getLanguage(adLanguage);
+                if (lang != null) {
+                    String nativeName = lang.getName();
+                    if (nativeName != null && !nativeName.isBlank()) {
+                        map.put(nativeName.toLowerCase(), adLanguage);
+                    }
+                }
+            }
+
+            log.info("[LANGUAGE] Built language map with " + map.size() + " entries from AD_Language table");
+
+        } catch (Exception e) {
+            log.severe("[LANGUAGE] Error building language map from database: " + e.getMessage());
+            // Minimal fallback
+            map.put("english", "en_US");
+            map.put("en", "en_US");
+            map.put("en_us", "en_US");
+        } finally {
+            DB.close(rs, pstmt);
+        }
+
+        return map;
+    }
+
+    /**
+     * Get the language map, initializing from database if needed.
+     * Thread-safe lazy initialization.
+     *
+     * @return Language name to AD_Language code map
+     */
+    private Map<String, String> getLanguageMap() {
+        if (languageMap == null) {
+            synchronized (this) {
+                if (languageMap == null) {
+                    languageMap = buildLanguageMap();
+                }
+            }
+        }
+        return languageMap;
+    }
+
+    /**
+     * Reload language map from database.
+     * Useful after language configuration changes.
+     */
+    public void reloadLanguageMap() {
+        synchronized (this) {
+            languageMap = buildLanguageMap();
+            log.info("[LANGUAGE] Language map reloaded from database");
+        }
     }
 
     /**
@@ -338,6 +349,9 @@ public class LanguageDetectionService {
      *   <li>"en français"</li>
      * </ul>
      *
+     * <p>Uses both pattern matching and iDempiere's Language.getLanguage()
+     * for maximum flexibility.</p>
+     *
      * @param userMessage The user's message
      * @return Optional containing the detected language code, or empty if no change requested
      */
@@ -350,13 +364,23 @@ public class LanguageDetectionService {
             Matcher matcher = pattern.matcher(userMessage);
             if (matcher.find()) {
                 String languageName = matcher.group(1).toLowerCase();
-                String langCode = LANGUAGE_MAP.get(languageName);
+
+                // Try language map first (includes database-loaded languages)
+                String langCode = getLanguageMap().get(languageName);
                 if (langCode != null) {
                     log.warning("[LANGUAGE] Detected language change request: '" + languageName + "' -> " + langCode);
                     return Optional.of(langCode);
-                } else {
-                    log.warning("[LANGUAGE] Unrecognized language name in request: " + languageName);
                 }
+
+                // Try iDempiere's Language.getLanguage() as fallback
+                // This handles AD_Language codes, ISO codes, and display names
+                Language lang = Language.getLanguage(languageName);
+                if (lang != null && !lang.getAD_Language().equals("en_US") || languageName.equals("english") || languageName.equals("en")) {
+                    log.warning("[LANGUAGE] Detected language change via Language.getLanguage(): '" + languageName + "' -> " + lang.getAD_Language());
+                    return Optional.of(lang.getAD_Language());
+                }
+
+                log.warning("[LANGUAGE] Unrecognized language name in request: " + languageName);
             }
         }
 
@@ -414,7 +438,18 @@ public class LanguageDetectionService {
             return Optional.of("el_GR");
         }
 
-        // 2. Latin-script languages - check diacritics and common words
+        // 2. Latin-script languages
+        // Priority: Check English FIRST before other Latin languages to avoid false positives
+
+        // English - check common words EARLY to prevent false positives with other languages
+        if (normalized.matches(".*\\b(the|this|that|these|those|find|top|customer|customers|order|orders|product|products|" +
+                "is|are|was|were|have|has|had|do|does|did|will|would|could|should|can|may|must|" +
+                "what|where|when|why|how|hello|hi|please|thank|thanks|my|your)\\b.*")) {
+            log.warning("[LANGUAGE] Detected English from text patterns");
+            return Optional.of("en_US");
+        }
+
+        // 3. Other Latin-script languages - check diacritics and distinctive words
 
         // Slovak-specific patterns (ľ, ĺ, ŕ, ô, ä with háčky and dĺžne)
         if (normalized.matches(".*[ľĺŕťďňô].*") ||
@@ -495,9 +530,11 @@ public class LanguageDetectionService {
             return Optional.of("da_DK");
         }
 
-        // Finnish-specific patterns (lots of double vowels, ä, ö, and distinctive endings)
-        if (normalized.matches(".*\\b(minä|sinä|hän|me|te|he|olen|on|olemme|kiitos|hei|miten|mitä|missä|milloin|miksi|" +
-                "yli|ylivoimaisesti|miljoonan|euron|myynnillä|tilauksella|lähes|asiakas|suurin)\\b.*")) {
+        // Finnish-specific patterns (double vowels, ä, ö, distinctive endings)
+        // NOTE: Removed short words that conflict with English (me, te, he, on)
+        if (normalized.matches(".*[äö]{2,}.*") || // Double ä or ö
+            normalized.matches(".*\\b(minä|sinä|hän|olen|olemme|kiitos|miten|mitä|missä|milloin|miksi|" +
+                "ylivoimaisesti|miljoonan|euron|myynnillä|tilauksella|lähes|asiakas|suurin)\\b.*")) {
             log.warning("[LANGUAGE] Detected Finnish from word patterns");
             return Optional.of("fi_FI");
         }
@@ -515,14 +552,8 @@ public class LanguageDetectionService {
         }
 
         // Slovenian-specific patterns
-        if (normalized.matches(".*\\b(jaz|ti|on|ona|mi|vi|oni|sem|je|smo|so|hvala|zdravo|kako|kaj|kje|kdaj|zakaj)\\b.*")) {
+        if (normalized.matches(".*\\b(jaz|ti|ona|mi|vi|oni|sem|smo|so|hvala|zdravo|kako|kaj|kje|kdaj|zakaj)\\b.*")) {
             return Optional.of("sl_SI");
-        }
-
-        // English - check common words as fallback
-        if (normalized.matches(".*\\b(the|is|are|was|were|have|has|had|do|does|did|will|would|could|should|can|may|must|i|you|he|she|it|we|they|what|where|when|why|how|hello|hi|please|thank|thanks)\\b.*")) {
-            log.warning("[LANGUAGE] Detected English from text patterns");
-            return Optional.of("en_US");
         }
 
         // Cannot determine - log error and return empty
