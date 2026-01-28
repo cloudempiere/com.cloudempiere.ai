@@ -78,6 +78,12 @@ public class StreamingTableRenderer {
 
     // ============= State Tracking =============
 
+    /** Markdown renderer for pre-table and post-table content */
+    private StreamingMarkdownRenderer preTableRenderer = new StreamingMarkdownRenderer();
+
+    /** Markdown renderer for post-table content (created when table ends) */
+    private StreamingMarkdownRenderer postTableRenderer = null;
+
     /** Buffered content before table */
     private StringBuilder preTableContent = new StringBuilder();
 
@@ -229,7 +235,9 @@ public class StreamingTableRenderer {
 
                         // Process any leading whitespace as pre-table content if this is first table
                         if (completedRows.isEmpty() && lineBuffer.length() > 0) {
-                            preTableContent.append(lineBuffer);
+                            String leadingContent = lineBuffer.toString();
+                            preTableContent.append(leadingContent);
+                            preTableRenderer.appendChunk(leadingContent);
                             lineBuffer.setLength(0);
                         }
 
@@ -312,9 +320,17 @@ public class StreamingTableRenderer {
             // Content before/after table
             String line = lineBuffer.toString();
             if (completedRows.isEmpty()) {
+                // Pre-table content
                 preTableContent.append(line).append("\n");
+                preTableRenderer.appendChunk(line + "\n");
             } else {
+                // Post-table content
                 postTableContent.append(line).append("\n");
+                // Initialize post-table renderer if needed
+                if (postTableRenderer == null) {
+                    postTableRenderer = new StreamingMarkdownRenderer();
+                }
+                postTableRenderer.appendChunk(line + "\n");
             }
             lineBuffer.setLength(0);
         }
@@ -375,9 +391,9 @@ public class StreamingTableRenderer {
     public String renderCurrentState() {
         StringBuilder html = new StringBuilder();
 
-        // Pre-table content
-        if (preTableContent.length() > 0) {
-            html.append(Util.maskHTML(preTableContent.toString(), true).replace("\n", "<br/>"));
+        // Pre-table content (use markdown renderer for progressive formatting)
+        if (preTableRenderer.hasContent()) {
+            html.append(preTableRenderer.renderCurrentState());
         }
 
         // Render table if we have any content
@@ -404,9 +420,9 @@ public class StreamingTableRenderer {
             html.append("</table>");
         }
 
-        // Post-table content
-        if (postTableContent.length() > 0) {
-            html.append(Util.maskHTML(postTableContent.toString(), true).replace("\n", "<br/>"));
+        // Post-table content (use markdown renderer for progressive formatting)
+        if (postTableRenderer != null && postTableRenderer.hasContent()) {
+            html.append(postTableRenderer.renderCurrentState());
         }
 
         return html.toString();
@@ -668,6 +684,8 @@ public class StreamingTableRenderer {
     public void reset() {
         preTableContent.setLength(0);
         postTableContent.setLength(0);
+        preTableRenderer.reset();
+        postTableRenderer = null;
         inTable = false;
         completedRows.clear();
         currentRow.clear();

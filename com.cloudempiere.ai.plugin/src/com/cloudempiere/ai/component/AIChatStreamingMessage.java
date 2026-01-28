@@ -33,8 +33,10 @@ import org.zkoss.zul.Timer;
 import com.cloudempiere.ai.util.AIMessageRenderer;
 import com.cloudempiere.ai.util.ChunkCleaner;
 import com.cloudempiere.ai.util.CommonMarkRenderer;
+import com.cloudempiere.ai.util.StreamingMarkdownRenderer;
 import com.cloudempiere.ai.util.StreamingTableRenderer;
 import com.cloudempiere.ai.util.StreamingTextBuffer;
+import com.cloudempiere.ai.util.ZoomLinkProcessor;
 
 /**
  * ZK component for rendering streaming AI responses with tool timeline and thinking.
@@ -132,6 +134,9 @@ public class AIChatStreamingMessage extends Div {
     /** Streaming table renderer for cell-by-cell table rendering */
     private StreamingTableRenderer tableRenderer;
 
+    /** Streaming markdown renderer for progressive markdown formatting */
+    private StreamingMarkdownRenderer markdownRenderer;
+
     // ============= Throttled Rendering (ADR-047) =============
 
     /** Queue for batching chunks before rendering (throttling to 50ms intervals) */
@@ -183,6 +188,11 @@ public class AIChatStreamingMessage extends Div {
         int clientId = org.compiere.util.Env.getAD_Client_ID(ctx);
         log.warn("[STREAM-INIT] Setting context on StreamingTableRenderer | AD_Client_ID=" + clientId);
         this.tableRenderer.setContext(ctx, parentWidgetId);
+
+        // Initialize streaming markdown renderer for progressive formatting
+        this.markdownRenderer = new StreamingMarkdownRenderer();
+        this.markdownRenderer.setContext(ctx, parentWidgetId);
+        log.info("[STREAM-INIT] Initialized StreamingMarkdownRenderer | AD_Client_ID=" + clientId);
 
         injectCSS();
         init();
@@ -557,6 +567,9 @@ public class AIChatStreamingMessage extends Div {
 
             // Feed chunk to streaming table renderer for cell-by-cell rendering
             tableRenderer.appendChunk(chunk);
+
+            // Feed chunk to streaming markdown renderer for progressive formatting
+            markdownRenderer.appendChunk(chunk);
         }
 
         // Check for table state transitions
@@ -679,8 +692,9 @@ public class AIChatStreamingMessage extends Div {
                     content.append(chunk);
                     try {
                         tableRenderer.appendChunk(chunk);
+                        markdownRenderer.appendChunk(chunk);
                     } catch (Exception e) {
-                        log.warn("Error appending chunk to table renderer during completion: " + e.getMessage());
+                        log.warn("Error appending chunk to renderers during completion: " + e.getMessage());
                         // Continue processing remaining chunks
                     }
                 }
@@ -781,8 +795,9 @@ public class AIChatStreamingMessage extends Div {
                     content.append(chunk);
                     try {
                         tableRenderer.appendChunk(chunk);
+                        markdownRenderer.appendChunk(chunk);
                     } catch (Exception e) {
-                        log.warn("Error appending chunk to table renderer during cancellation: " + e.getMessage());
+                        log.warn("Error appending chunk to renderers during cancellation: " + e.getMessage());
                         // Continue processing remaining chunks
                     }
                 }
@@ -792,7 +807,15 @@ public class AIChatStreamingMessage extends Div {
         }
 
         // Update display to remove cursor and show termination notice on new line
-        String html = renderPartialMarkdown(content.getDisplayableText());
+        // Use markdown renderer's current state (progressive rendering)
+        String html;
+        if (tableRenderer != null && tableRenderer.hasContent()) {
+            html = tableRenderer.renderFinal();
+        } else if (markdownRenderer != null && markdownRenderer.hasContent()) {
+            html = markdownRenderer.renderFinal();
+        } else {
+            html = Util.maskHTML(content.getDisplayableText(), true).replace("\n", "<br/>");
+        }
         String terminatedHtml = "<div style='margin-top: 12px; color: #888; font-style: italic;'>AI request cancelled</div>";
         streamingContent.setContent("<div class='ai-markdown-content'>" + html + "</div>" + terminatedHtml);
 
@@ -813,38 +836,49 @@ public class AIChatStreamingMessage extends Div {
     /**
      * Update the main content display during streaming.
      *
-     * <p><b>FIX CLD-1653:</b> During streaming, shows PLAIN TEXT ONLY with basic HTML escaping.
-     * No markdown rendering during streaming to prevent 8 critical bugs from incomplete HTML tags
-     * and partial markdown syntax. Full markdown rendering happens only on completion in
-     * {@link #renderFinalMarkdown()}.
+     * <p><b>PROGRESSIVE MARKDOWN RENDERING:</b> During streaming, renders markdown progressively
+     * as closing markers arrive (bold, italic, code, etc.). This matches ChatGPT's UX where
+     * **bold** appears as &lt;strong&gt; immediately when closing ** arrives.
      *
      * <p><b>Behavior:</b>
      * <ul>
-     *   <li>During streaming: Plain text with newlines converted to &lt;br/&gt;</li>
-     *   <li>On completion: {@link #renderFinalMarkdown()} renders full markdown</li>
+     *   <li>During streaming: Progressive markdown rendering via {@link StreamingMarkdownRenderer}</li>
+     *   <li>On completion: Keep streamed HTML as-is (no re-parsing) + post-process zoom links</li>
      *   <li>Exception: Table streaming uses {@link StreamingTableRenderer} for cell-by-cell rendering</li>
      * </ul>
      *
-     * <p>This matches how ChatGPT, Claude.ai, and other chat UIs work.
+     * <p><b>Priority:</b>
+     * <ol>
+     *   <li>Table renderer (if table detected)</li>
+     *   <li>Markdown renderer (progressive formatting)</li>
+     * </ol>
      */
     private void updateContentDisplay() {
         String html;
 
+        // Priority 1: Table streaming (if table detected)
         // BUG FIX (CLD-1704): Use hasContent() instead of isInTable()
         // Once table rendering starts, continue using table renderer for entire message
         // (pre-table, table, post-table). The table renderer handles all phases correctly.
-        // Using isInTable() caused table to disappear when post-table text started streaming.
         if (tableRenderer != null && tableRenderer.hasContent()) {
             // Table renderer handles: pre-table (plain) + table (HTML) + post-table (plain)
             html = tableRenderer.renderCurrentState();
-        } else {
+        }
+        // Priority 2: Markdown streaming (progressive formatting)
+        else if (markdownRenderer != null && markdownRenderer.hasContent()) {
+            // Render progressive markdown (bold, italic, code, etc. appear as markers close)
+            html = markdownRenderer.renderCurrentState();
+
+            // Show cursor if still streaming
+            if (state != StreamingState.COMPLETE && state != StreamingState.CANCELLED && state != StreamingState.ERROR) {
+                html += "<span class='streaming-cursor'>|</span>";
+            }
+        }
+        // Fallback: Plain text (shouldn't happen normally)
+        else {
             // Use getDisplayableText() to avoid incomplete surrogates
             String text = content.getDisplayableText();
 
-            // FIX CLD-1653: During streaming, show plain text only (no markdown rendering)
-            // This prevents bugs from incomplete HTML tags and partial markdown syntax.
-            // Full markdown rendering happens only on completion in renderFinalMarkdown().
-            // This matches ChatGPT, Claude.ai, and other chat UIs.
             html = Util.maskHTML(text, true)
                 .replace("\n", "<br/>")
                 .replace("  ", " &nbsp;");
@@ -996,47 +1030,59 @@ public class AIChatStreamingMessage extends Div {
     }
 
     /**
-     * Render final content using unified AIMessageRenderer.
+     * Render final content using streaming renderers.
      *
-     * <p><b>FIX CLD-1653:</b> Full markdown rendering happens ONLY on completion, not during
-     * streaming. This prevents 8 critical bugs caused by processing partial markdown and
-     * incomplete HTML tags during streaming. During streaming, {@link #updateContentDisplay()}
-     * shows plain text only with basic HTML escaping.
+     * <p><b>PROGRESSIVE MARKDOWN APPROACH:</b> Unlike previous implementation (CLD-1653),
+     * we now render markdown progressively during streaming via {@link StreamingMarkdownRenderer}.
+     * This matches ChatGPT's UX where formatting appears immediately as markers close.
      *
-     * <p><b>ADR-047:</b> This matches how ChatGPT, Claude.ai, and other chat UIs work - stream
-     * plain text, render markdown on completion. This eliminates:
+     * <p><b>On Completion:</b> We DON'T re-parse markdown. We keep the HTML that was
+     * progressively built during streaming and only apply post-processing:
      * <ul>
-     *   <li>Race conditions from incomplete HTML tags split across chunks</li>
-     *   <li>Partial markdown parsing (unclosed code blocks, split bold markers)</li>
-     *   <li>HTML escaping mismatches between chunks</li>
-     *   <li>State tracking issues across 50ms batches</li>
+     *   <li>Zoom link processing (requires context, can't be done mid-stream)</li>
+     *   <li>Syntax highlighting (Prism.js via JavaScript)</li>
      * </ul>
      *
-     * <p><b>Architecture (CLD-1704):</b> Now uses unified {@link AIMessageRenderer} for
-     * consistent rendering. Special case: if table was streamed via {@link StreamingTableRenderer},
-     * we pre-process it before passing to unified renderer.
+     * <p><b>Rendering Priority:</b>
+     * <ol>
+     *   <li>Table renderer (if table was streamed)</li>
+     *   <li>Markdown renderer (if markdown was streamed)</li>
+     *   <li>Fallback to AIMessageRenderer (legacy path)</li>
+     * </ol>
      */
     private void renderFinalMarkdown() {
-        String markdownText = content.flush();
+        String finalHtml;
 
-        // SPECIAL CASE: If table was streamed, use streaming table renderer's final output
-        // This provides consistent rendering between streaming and final display
-        // Note: StreamingTableRenderer.renderFinal() reconstructs the markdown table and
-        // renders it via MarkdownTableRenderer, so output is identical to non-streamed path
-        if (tableRenderer != null && tableRenderer.isInTable()) {
+        // Priority 1: If table was streamed, use streaming table renderer's final output
+        if (tableRenderer != null && tableRenderer.hasContent()) {
             log.info("[FINAL-RENDER] Using streaming table renderer for final output");
-            markdownText = tableRenderer.renderFinal();
+            finalHtml = tableRenderer.renderFinal();
+        }
+        // Priority 2: If markdown was streamed, use streaming markdown renderer's final output
+        else if (markdownRenderer != null && markdownRenderer.hasContent()) {
+            log.info("[FINAL-RENDER] Using streaming markdown renderer for final output");
+            // Get HTML that was progressively built during streaming (no re-parsing!)
+            finalHtml = markdownRenderer.renderFinal();
+
+            // Post-process: Convert zoom link syntax to clickable links
+            // This requires context and can't be done during streaming
+            if (ctx != null && parentWidgetId != null) {
+                finalHtml = ZoomLinkProcessor.processZoomLinks(finalHtml, ctx, parentWidgetId);
+            }
+
+            // Wrap in markdown content div
+            finalHtml = "<div class='ai-markdown-content'>" + finalHtml + "</div>";
+        }
+        // Fallback: Use unified renderer (for messages loaded from DB without streaming)
+        else {
+            log.info("[FINAL-RENDER] Using AIMessageRenderer (fallback for non-streamed messages)");
+            String markdownText = content.flush();
+            finalHtml = com.cloudempiere.ai.util.AIMessageRenderer.render(
+                markdownText, ctx, parentWidgetId, locale);
         }
 
         // Use the existing streamingContent element's ID (content_[componentId])
-        // This element was created in init() and already exists in the DOM
         String contentId = "content_" + componentId;
-
-        // Delegate to unified renderer (single source of truth for complete message rendering)
-        // This handles: whitespace normalization, function call removal, table rendering,
-        // zoom link processing, and markdown parsing
-        String finalHtml = com.cloudempiere.ai.util.AIMessageRenderer.render(
-            markdownText, ctx, parentWidgetId, locale);
 
         // Set the final HTML content directly (no JavaScript escaping needed for setContent)
         streamingContent.setContent(finalHtml);
