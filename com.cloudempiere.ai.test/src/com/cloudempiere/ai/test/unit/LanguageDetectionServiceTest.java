@@ -482,6 +482,235 @@ class LanguageDetectionServiceTest {
     }
 
     // ========================================================================
+    // Input Language Auto-Detection Tests (Bug Fix Verification)
+    // ========================================================================
+
+    @Nested
+    @UnitTest
+    @DisplayName("Input Language Auto-Detection")
+    class InputLanguageDetectionTests {
+
+        @Test
+        @UnitTest
+        @DisplayName("BUG FIX: 'find me my top 10 customers' detects as English (not Finnish)")
+        void shouldDetectEnglishBusinessQuery() {
+            String input = "find me my top 10 customers";
+            log.input("Business Query", input);
+
+            Optional<String> detected = service.detectInputLanguage(input);
+            log.output("Detected Language", detected.orElse("(none)"));
+
+            assertThat(detected).isPresent();
+            assertThat(detected.get()).isEqualTo("en_US");
+        }
+
+        @ParameterizedTest(name = "English: \"{0}\"")
+        @UnitTest
+        @DisplayName("English business queries detect correctly")
+        @ValueSource(strings = {
+            "show me the top 10 orders",
+            "find customers with outstanding invoices",
+            "what are my best selling products",
+            "list all pending orders",
+            "show me sales for this month",
+            "find products that need reordering",
+            "who are my biggest customers"
+        })
+        void shouldDetectEnglishBusinessQueries(String input) {
+            Optional<String> detected = service.detectInputLanguage(input);
+
+            assertThat(detected)
+                .as("Business query '%s' should detect as English", input)
+                .isPresent()
+                .contains("en_US");
+        }
+
+        @Test
+        @UnitTest
+        @DisplayName("Finnish text still detects as Finnish")
+        void shouldDetectFinnish() {
+            String input = "kiitos, mitä tämä tarkoittaa? Haluan nähdä tilaukset.";
+            log.input("Finnish Text", input);
+
+            Optional<String> detected = service.detectInputLanguage(input);
+            log.output("Detected Language", detected.orElse("(none)"));
+
+            assertThat(detected).isPresent();
+            assertThat(detected.get()).isEqualTo("fi_FI");
+        }
+
+        @ParameterizedTest(name = "Finnish: \"{0}\"")
+        @UnitTest
+        @DisplayName("Finnish specific words detect correctly")
+        @ValueSource(strings = {
+            "kiitos paljon",
+            "mitä kuuluu",
+            "hyvää päivää",
+            "minä haluan nähdä tilaukset",
+            "olemme valmiita"
+        })
+        void shouldDetectFinnishText(String input) {
+            Optional<String> detected = service.detectInputLanguage(input);
+
+            assertThat(detected)
+                .as("Finnish text '%s' should detect as Finnish", input)
+                .isPresent()
+                .contains("fi_FI");
+        }
+
+        @ParameterizedTest(name = "{1}: \"{0}\"")
+        @UnitTest
+        @DisplayName("Common European languages detect correctly")
+        @CsvSource({
+            "wie geht es dir heute?, de_DE",
+            "¿cómo estás hoy?, es_ES",
+            "comment allez-vous aujourd'hui?, fr_FR",
+            "come stai oggi?, it_IT",
+            "prosím pomôžte mi, sk_SK",
+            "prosím pomozte mi, cs_CZ",
+            "proszę pomóż mi, pl_PL",
+            "kérem segítsen nekem, hu_HU"
+        })
+        void shouldDetectEuropeanLanguages(String input, String expectedLang) {
+            Optional<String> detected = service.detectInputLanguage(input);
+
+            assertThat(detected)
+                .as("Text '%s' should detect as %s", input, expectedLang)
+                .isPresent()
+                .contains(expectedLang);
+        }
+
+        @ParameterizedTest(name = "{1}: \"{0}\"")
+        @UnitTest
+        @DisplayName("Script-based detection works for non-Latin scripts")
+        @CsvSource({
+            "Привет как дела?, ru_RU",
+            "こんにちは、お元気ですか？, ja_JP",
+            "안녕하세요 잘 지내세요?, ko_KR",
+            "Γεια σας πώς είστε?, el_GR"
+        })
+        void shouldDetectNonLatinScripts(String input, String expectedLang) {
+            Optional<String> detected = service.detectInputLanguage(input);
+
+            assertThat(detected)
+                .as("Text '%s' should detect as %s", input, expectedLang)
+                .isPresent()
+                .contains(expectedLang);
+        }
+
+        @Test
+        @UnitTest
+        @DisplayName("English detection has priority over ambiguous patterns")
+        void shouldPrioritizeEnglishDetection() {
+            // These contain words that could match other languages but should be English
+            String[] englishPhrases = {
+                "the order is ready",
+                "we have ten customers",
+                "can you help me please",
+                "this is my report"
+            };
+
+            for (String phrase : englishPhrases) {
+                Optional<String> detected = service.detectInputLanguage(phrase);
+                assertThat(detected)
+                    .as("Phrase '%s' should detect as English", phrase)
+                    .isPresent()
+                    .contains("en_US");
+            }
+        }
+
+        @Test
+        @UnitTest
+        @DisplayName("Empty or null input returns empty")
+        void shouldReturnEmptyForInvalidInput() {
+            assertThat(service.detectInputLanguage(null)).isEmpty();
+            assertThat(service.detectInputLanguage("")).isEmpty();
+            assertThat(service.detectInputLanguage("   ")).isEmpty();
+        }
+
+        @Test
+        @UnitTest
+        @DisplayName("Ambiguous short text falls back gracefully")
+        void shouldHandleAmbiguousText() {
+            // Very short text with no distinctive patterns
+            Optional<String> detected = service.detectInputLanguage("ok");
+
+            // Should either detect something or return empty (both acceptable)
+            // The important thing is it doesn't crash
+            assertThat(detected).isNotNull();
+        }
+    }
+
+    // ========================================================================
+    // Language Map Database Integration Tests
+    // ========================================================================
+
+    @Nested
+    @UnitTest
+    @DisplayName("Language Map Database Integration")
+    class LanguageMapTests {
+
+        @Test
+        @UnitTest
+        @DisplayName("Language map can be reloaded from database")
+        void shouldReloadLanguageMap() {
+            // This will trigger lazy initialization
+            service.detectLanguageChangeRequest("respond in German");
+
+            // Should not throw exception
+            assertThat(() -> service.reloadLanguageMap()).doesNotThrowAnyException();
+
+            // Should still work after reload
+            Optional<String> detected = service.detectLanguageChangeRequest("respond in German");
+            assertThat(detected).isPresent();
+        }
+
+        @Test
+        @UnitTest
+        @DisplayName("detectLanguageChangeRequest works without database connection")
+        void shouldWorkOffline() {
+            // Should use fallback map and Language.getLanguage()
+            Optional<String> detected = service.detectLanguageChangeRequest("respond in English");
+
+            // Should either work or return empty, but not crash
+            assertThat(detected).isNotNull();
+        }
+
+        @Test
+        @UnitTest
+        @DisplayName("Language.getLanguage() fallback works for AD_Language codes")
+        void shouldHandleADLanguageCodes() {
+            // Test with actual AD_Language code format
+            Optional<String> detected = service.detectLanguageChangeRequest("respond in en_US");
+
+            // Language.getLanguage() should handle this
+            assertThat(detected).isPresent();
+            assertThat(detected.get()).isEqualTo("en_US");
+        }
+
+        @Test
+        @UnitTest
+        @DisplayName("Language.getLanguage() fallback works for ISO codes")
+        void shouldHandleISOCodes() {
+            // Test with ISO language codes
+            Optional<String> detected = service.detectLanguageChangeRequest("respond in de");
+
+            // Language.getLanguage() should handle this
+            assertThat(detected).isPresent();
+            assertThat(detected.get()).isEqualTo("de_DE");
+        }
+
+        @Test
+        @UnitTest
+        @DisplayName("Unrecognized language returns empty")
+        void shouldReturnEmptyForUnrecognizedLanguage() {
+            Optional<String> detected = service.detectLanguageChangeRequest("respond in Klingon");
+
+            assertThat(detected).isEmpty();
+        }
+    }
+
+    // ========================================================================
     // Edge Cases
     // ========================================================================
 
