@@ -44,6 +44,7 @@ import org.zkoss.zk.ui.event.EventListener;
 import org.zkoss.zk.ui.event.Events;
 import org.zkoss.zk.ui.util.Clients;
 import org.zkoss.zul.Button;
+import org.zkoss.zul.Combobox;
 import org.zkoss.zul.Comboitem;
 import org.zkoss.zul.Div;
 import org.zkoss.zul.Hlayout;
@@ -65,8 +66,9 @@ import com.cloudempiere.ai.model.MAIProvider;
 import com.cloudempiere.ai.provider.dto.AIStreamCallback;
 import com.cloudempiere.ai.provider.langchain4j.AIService;
 import com.cloudempiere.ai.provider.langchain4j.AIService.ChatResult;
-import com.cloudempiere.ai.service.ChatAccessService;
-import com.cloudempiere.ai.service.IChatAccessService.ChatAccess;
+// TEMPORARILY DISABLED - ChatAccessService will be implemented in future phase (ADR-036)
+// import com.cloudempiere.ai.service.ChatAccessService;
+// import com.cloudempiere.ai.service.IChatAccessService.ChatAccess;
 import com.cloudempiere.ai.util.MarkdownTableRenderer;
 import com.cloudempiere.ai.util.ZoomLinkProcessor;
 
@@ -78,6 +80,26 @@ import com.cloudempiere.ai.util.ZoomLinkProcessor;
  * @author Cloudempiere
  */
 public class AIChatWidget extends Div implements EventListener<Event> {
+
+	// TEMPORARILY DISABLED - ChatAccess stub until ChatAccessService is implemented (ADR-036)
+	// This allows code to compile without the real access control service
+	private enum ChatAccess {
+		NONE, READ, WRITE, OWNER
+	}
+
+	// TEMPORARILY DISABLED - Stub service until ChatAccessService is implemented (ADR-036)
+	private static class ChatAccessServiceStub {
+		public ChatAccess getAccess(Properties ctx, MChat chat) {
+			return ChatAccess.OWNER; // Stub: always return owner access
+		}
+		public java.util.List<MChat> getSharedChats(Properties ctx, String trxName) {
+			return java.util.Collections.emptyList(); // Stub: no shared chats
+		}
+	}
+
+	private static ChatAccessServiceStub getChatAccessServiceStub() {
+		return new ChatAccessServiceStub();
+	}
 
 	private static final long serialVersionUID = 1L;
 	private static final CLogger log = CLogger.getCLogger(AIChatWidget.class);
@@ -383,7 +405,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 			}
 
 			// Check user's access level (ADR-036)
-			currentAccess = ChatAccessService.get().getAccess(sessionCtx, chat);
+			currentAccess = getChatAccessServiceStub().getAccess(sessionCtx, chat);
 			log.fine("Chat access level: " + currentAccess + " for chat " + chat.get_ID());
 
 			// If no access, show error and disable input
@@ -1660,7 +1682,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 			}
 
 			// Check access
-			ChatAccess sharedAccess = ChatAccessService.get().getAccess(sessionCtx, sharedChat);
+			ChatAccess sharedAccess = getChatAccessServiceStub().getAccess(sessionCtx, sharedChat);
 			if (sharedAccess == ChatAccess.NONE) {
 				Clients.showNotification(
 					Msg.getMsg(sessionCtx, "AccessCannotRead"),
@@ -1769,7 +1791,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 	 */
 	private void loadSharedChatsSection() {
 		try {
-			List<MChat> sharedChats = ChatAccessService.get().getSharedChats(sessionCtx, null);
+			List<MChat> sharedChats = getChatAccessServiceStub().getSharedChats(sessionCtx, null);
 
 			if (sharedChats.isEmpty()) {
 				return;
@@ -1783,7 +1805,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 
 			// Add shared chats
 			for (MChat sharedChat : sharedChats) {
-				ChatAccess sharedAccess = ChatAccessService.get().getAccess(sessionCtx, sharedChat);
+				ChatAccess sharedAccess = getChatAccessServiceStub().getAccess(sessionCtx, sharedChat);
 
 				// Build label with access indicator
 				String accessIcon = (sharedAccess == ChatAccess.READ) ? "📖 " : "✏️ ";

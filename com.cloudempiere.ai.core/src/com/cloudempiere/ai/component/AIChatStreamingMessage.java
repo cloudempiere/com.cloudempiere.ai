@@ -130,7 +130,8 @@ public class AIChatStreamingMessage extends Div {
     private int chatId;
 
     /** Language detection service for session language (ADR-037) */
-    private com.cloudempiere.ai.service.LanguageDetectionService languageService;
+    // TEMPORARILY DISABLED - LanguageDetectionService will be implemented in future phase
+    // private com.cloudempiere.ai.service.LanguageDetectionService languageService;
 
     /** Streaming table renderer for cell-by-cell table rendering */
     private StreamingTableRenderer tableRenderer;
@@ -185,7 +186,8 @@ public class AIChatStreamingMessage extends Div {
         this.ctx = ctx != null ? ctx : Env.getCtx();
         this.parentWidgetId = parentWidgetId;
         this.chatId = chatId;
-        this.languageService = chatId > 0 ? com.cloudempiere.ai.service.LanguageDetectionService.getInstance() : null;
+        // TEMPORARILY DISABLED - LanguageDetectionService will be implemented in future phase
+        // this.languageService = chatId > 0 ? com.cloudempiere.ai.service.LanguageDetectionService.getInstance() : null;
 
         // Initialize streaming table renderer for cell-by-cell rendering
         this.tableRenderer = new StreamingTableRenderer();
@@ -1025,13 +1027,9 @@ public class AIChatStreamingMessage extends Div {
      * Map internal tool names to user-friendly display names.
      */
     private String getToolDisplayName(String toolName) {
-        // Get language code for localization - use session language if available (ADR-037)
-        String langCode;
-        if (languageService != null && chatId > 0) {
-            langCode = languageService.getSessionLanguage(ctx, chatId);
-        } else {
-            langCode = Env.getAD_Language(ctx);
-        }
+        // Get language code for localization - use context language (ADR-037)
+        // TEMPORARILY using Env.getAD_Language() - session-level language detection will be added in future phase
+        String langCode = Env.getAD_Language(ctx);
         if (langCode == null) langCode = "en_US";
 
         // Map tool names to AD_Message keys

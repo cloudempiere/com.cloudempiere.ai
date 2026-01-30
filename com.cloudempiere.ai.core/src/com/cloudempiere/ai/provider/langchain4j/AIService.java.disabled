@@ -29,16 +29,20 @@ import org.osgi.service.component.annotations.Reference;
 import org.osgi.service.component.annotations.ReferenceCardinality;
 import org.osgi.service.component.annotations.ReferencePolicy;
 
-import com.cloudempiere.ai.guardrails.InputGuard;
-import com.cloudempiere.ai.guardrails.OutputGuard;
-import com.cloudempiere.ai.guardrails.dto.GuardResult;
+// TEMPORARILY DISABLED - Guardrails will be implemented in future phase (ADR-014)
+// import com.cloudempiere.ai.guardrails.InputGuard;
+// import com.cloudempiere.ai.guardrails.OutputGuard;
+// import com.cloudempiere.ai.guardrails.dto.GuardResult;
 import com.cloudempiere.ai.model.MAIProvider;
 import com.cloudempiere.ai.model.MAIUsageMetrics;
-import com.cloudempiere.ai.observability.CostGuard;
+// TEMPORARILY DISABLED - Observability will be implemented in future phase (ADR-013)
+// import com.cloudempiere.ai.observability.CostGuard;
 import com.cloudempiere.ai.provider.dto.AIStreamCallback;
-import com.cloudempiere.ai.provider.langchain4j.tools.RagTools;
-import com.cloudempiere.ai.rag.IRagService;
-import com.cloudempiere.ai.service.LanguageDetectionService;
+// TEMPORARILY DISABLED - RAG service will be implemented in future phase (ADR-012)
+// import com.cloudempiere.ai.provider.langchain4j.tools.RagTools;
+// import com.cloudempiere.ai.rag.IRagService;
+// TEMPORARILY DISABLED - Language detection will be implemented in future phase (ADR-037)
+// import com.cloudempiere.ai.service.LanguageDetectionService;
 
 import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.data.message.ChatMessage;

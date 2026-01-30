@@ -70,8 +70,8 @@ public class MarkdownSyntaxSanitizer {
     // URL Protocol Patterns
     // ============================================================================
 
-    /** Allowed URL protocols (http and https only) */
-    private static final Pattern ALLOWED_PROTOCOL = Pattern.compile("^https?://.*", Pattern.CASE_INSENSITIVE);
+    /** Allowed URL protocols (http, https, and mailto) */
+    private static final Pattern ALLOWED_PROTOCOL = Pattern.compile("^(https?://.*|mailto:.*)", Pattern.CASE_INSENSITIVE);
 
     /** Blocked URL protocols (security risk) */
     private static final Pattern BLOCKED_PROTOCOL = Pattern.compile(
@@ -167,6 +167,10 @@ public class MarkdownSyntaxSanitizer {
             CodeBlockProtector protector = new CodeBlockProtector();
             sanitized = protector.protect(sanitized);
 
+            // Step 1b: Protect zoom links from markdown processing (FIX BUG #3)
+            ZoomLinkProtector zoomProtector = new ZoomLinkProtector();
+            sanitized = zoomProtector.protect(sanitized);
+
             // Step 2: Escape raw HTML tags (prevent XSS)
             sanitized = escapeRawHtml(sanitized);
 
@@ -178,6 +182,9 @@ public class MarkdownSyntaxSanitizer {
 
             // Step 5: Restore code blocks and inline code
             sanitized = protector.restore(sanitized);
+
+            // Step 5b: Restore zoom links (FIX BUG #3)
+            sanitized = zoomProtector.restore(sanitized);
 
             // Step 6: Validate markdown structure (use existing validator)
             sanitized = MarkdownValidator.validate(sanitized);
@@ -282,14 +289,13 @@ public class MarkdownSyntaxSanitizer {
 
             // Validate URL
             if (isUrlSafe(url)) {
-                // Keep link with escaped URL
-                String sanitizedUrl = SecuritySanitizer.escapeUrl(url);
+                // Keep link with validated URL (no escaping needed for markdown URLs)
                 String replacement;
                 if (title != null) {
                     String sanitizedTitle = SecuritySanitizer.escapeHtmlAttribute(title);
-                    replacement = "[" + text + "](" + sanitizedUrl + " \"" + sanitizedTitle + "\")";
+                    replacement = "[" + text + "](" + url + " \"" + sanitizedTitle + "\")";
                 } else {
-                    replacement = "[" + text + "](" + sanitizedUrl + ")";
+                    replacement = "[" + text + "](" + url + ")";
                 }
                 matcher.appendReplacement(result, Matcher.quoteReplacement(replacement));
             } else {
@@ -315,16 +321,15 @@ public class MarkdownSyntaxSanitizer {
             String url = matcher.group(2);
             String title = matcher.group(3); // Optional title
 
-            // Validate URL (stricter for images - check base64)
-            if (isUrlSafe(url) && isImageUrlSafe(url)) {
-                // Keep image with escaped URL
-                String sanitizedUrl = SecuritySanitizer.escapeUrl(url);
+            // Validate URL (context-aware for images - allows data: URLs when configured)
+            if (isUrlSafe(url, true)) {
+                // Keep image with validated URL (no escaping needed for markdown URLs)
                 String replacement;
                 if (title != null) {
                     String sanitizedTitle = SecuritySanitizer.escapeHtmlAttribute(title);
-                    replacement = "![" + alt + "](" + sanitizedUrl + " \"" + sanitizedTitle + "\")";
+                    replacement = "![" + alt + "](" + url + " \"" + sanitizedTitle + "\")";
                 } else {
-                    replacement = "![" + alt + "](" + sanitizedUrl + ")";
+                    replacement = "![" + alt + "](" + url + ")";
                 }
                 matcher.appendReplacement(result, Matcher.quoteReplacement(replacement));
             } else {
@@ -346,17 +351,37 @@ public class MarkdownSyntaxSanitizer {
      * @return true if URL protocol is safe (http/https)
      */
     private static boolean isUrlSafe(String url) {
+        return isUrlSafe(url, false);
+    }
+
+    /**
+     * Check if URL is safe (protocol validation) with context awareness.
+     *
+     * @param url URL to validate
+     * @param isImage true if this is an image URL (allows data: URLs when configured)
+     * @return true if URL protocol is safe
+     */
+    private static boolean isUrlSafe(String url, boolean isImage) {
         if (url == null || url.isEmpty()) {
             return false;
         }
 
-        // Block dangerous protocols
-        if (BLOCKED_PROTOCOL.matcher(url).find()) {
-            return false;
+        // Special case: data: URLs in images when allowed
+        if (url.startsWith("data:")) {
+            if (isImage && allowBase64Images) {
+                return true;  // Allow data: URLs in images when configured
+            } else {
+                return false;  // Block data: URLs in links or when not allowed
+            }
         }
 
-        // Allow only http/https
-        return ALLOWED_PROTOCOL.matcher(url).matches();
+        // Allow http, https, and mailto protocols
+        if (ALLOWED_PROTOCOL.matcher(url).matches()) {
+            return true;
+        }
+
+        // Block all other protocols (javascript, file, vbscript, about, etc.)
+        return false;
     }
 
     /**
@@ -539,6 +564,73 @@ public class MarkdownSyntaxSanitizer {
             matcher.appendTail(result);
 
             return result.toString();
+        }
+    }
+
+    // ============================================================================
+    // Zoom Link Protector (FIX BUG #3)
+    // ============================================================================
+
+    /**
+     * Protects iDempiere zoom link syntax from markdown processing.
+     *
+     * <p><b>Problem:</b> Zoom links use syntax like {@code [[C_BPartner:123|Name]]}.
+     * The underscore in {@code C_BPartner} would be interpreted as italic markdown,
+     * corrupting the zoom link syntax before {@code ZoomLinkProcessor} can handle it.
+     *
+     * <p><b>Solution:</b> Replace zoom links with placeholders during markdown processing,
+     * then restore them afterwards.
+     *
+     * <p><b>Example:</b>
+     * <ul>
+     *   <li>Input: {@code **[[C_BPartner:123|Name]]**}</li>
+     *   <li>Protected: {@code **___ZOOM_LINK_0___**}</li>
+     *   <li>After markdown: {@code <strong>___ZOOM_LINK_0___</strong>}</li>
+     *   <li>Restored: {@code <strong>[[C_BPartner:123|Name]]</strong>}</li>
+     * </ul>
+     */
+    private static class ZoomLinkProtector {
+        private final List<String> zoomLinks = new ArrayList<>();
+
+        private static final String ZOOM_LINK_PLACEHOLDER = "___ZOOM_LINK_%d___";
+
+        /** Pattern for zoom links: [[Table:ID|Label]] or [[Table:ID]] */
+        private static final Pattern ZOOM_LINK_PATTERN = Pattern.compile(
+            "\\[\\[([^\\]]+)\\]\\]"
+        );
+
+        /**
+         * Protect zoom links by replacing with placeholders.
+         */
+        public String protect(String markdown) {
+            Matcher matcher = ZOOM_LINK_PATTERN.matcher(markdown);
+            StringBuffer result = new StringBuffer();
+            int index = 0;
+
+            while (matcher.find()) {
+                String zoomLink = matcher.group();
+                zoomLinks.add(zoomLink);
+                String placeholder = String.format(ZOOM_LINK_PLACEHOLDER, index++);
+                matcher.appendReplacement(result, Matcher.quoteReplacement(placeholder));
+            }
+            matcher.appendTail(result);
+
+            return result.toString();
+        }
+
+        /**
+         * Restore zoom links from placeholders.
+         */
+        public String restore(String markdown) {
+            String result = markdown;
+
+            // Restore zoom links
+            for (int i = 0; i < zoomLinks.size(); i++) {
+                String placeholder = String.format(ZOOM_LINK_PLACEHOLDER, i);
+                result = result.replace(placeholder, zoomLinks.get(i));
+            }
+
+            return result;
         }
     }
 

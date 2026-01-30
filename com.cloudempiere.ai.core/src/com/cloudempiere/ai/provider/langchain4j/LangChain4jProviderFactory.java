@@ -16,7 +16,8 @@ import org.osgi.service.component.annotations.Deactivate;
 
 import com.cloudempiere.ai.model.MAIProvider;
 import com.cloudempiere.ai.model.X_AIG_Provider;
-import com.cloudempiere.ai.observability.AIMetricsListener;
+// TEMPORARILY DISABLED - Metrics/observability will be implemented in future phase
+// import com.cloudempiere.ai.observability.AIMetricsListener;
 
 import dev.langchain4j.model.anthropic.AnthropicChatModel;
 import dev.langchain4j.model.anthropic.AnthropicStreamingChatModel;
@@ -538,9 +539,10 @@ public class LangChain4jProviderFactory implements ILangChain4jProviderFactory {
             .logResponses(true);
 
         // Add observability listener (ADR-013)
-        if (metricsEnabled) {
+        // TEMPORARILY DISABLED - Metrics/observability will be implemented in future phase
+        /* if (metricsEnabled) {
             builder.listeners(List.of(createMetricsListener("anthropic")));
-        }
+        } */
 
         return builder.build();
     }
@@ -564,9 +566,10 @@ public class LangChain4jProviderFactory implements ILangChain4jProviderFactory {
             .temperature(0.7);
 
         // Add observability listener (ADR-013)
-        if (metricsEnabled) {
+        // TEMPORARILY DISABLED - Metrics/observability will be implemented in future phase
+        /* if (metricsEnabled) {
             builder.listeners(List.of(createMetricsListener("ollama")));
-        }
+        } */
 
         return builder.build();
     }
@@ -602,9 +605,10 @@ public class LangChain4jProviderFactory implements ILangChain4jProviderFactory {
             .temperature(0.7);
 
         // Add observability listener (ADR-013)
-        if (metricsEnabled) {
+        // TEMPORARILY DISABLED - Metrics/observability will be implemented in future phase
+        /* if (metricsEnabled) {
             builder.listeners(List.of(createMetricsListener("llama")));
-        }
+        } */
 
         return builder.build();
     }
@@ -657,9 +661,10 @@ public class LangChain4jProviderFactory implements ILangChain4jProviderFactory {
             .logResponses(true);
 
         // Add observability listener (ADR-013)
-        if (metricsEnabled) {
+        // TEMPORARILY DISABLED - Metrics/observability will be implemented in future phase
+        /* if (metricsEnabled) {
             builder.listeners(List.of(createMetricsListener("mock-openai")));
-        }
+        } */
 
         return builder.build();
     }
@@ -693,9 +698,10 @@ public class LangChain4jProviderFactory implements ILangChain4jProviderFactory {
             .logResponses(true);
 
         // Add observability listener (ADR-013)
-        if (metricsEnabled) {
+        // TEMPORARILY DISABLED - Metrics/observability will be implemented in future phase
+        /* if (metricsEnabled) {
             builder.listeners(List.of(createMetricsListener("openai")));
-        }
+        } */
 
         return builder.build();
     }
@@ -903,6 +909,8 @@ public class LangChain4jProviderFactory implements ILangChain4jProviderFactory {
     // Observability (ADR-013)
     // ========================================================================
 
+    // TEMPORARILY DISABLED - Metrics/observability will be implemented in future phase
+    /*
     /**
      * Create a metrics listener for the given agent name.
      *
@@ -912,11 +920,13 @@ public class LangChain4jProviderFactory implements ILangChain4jProviderFactory {
      * @param agentName Agent/provider name for tracking
      * @return AIMetricsListener instance
      */
+    /*
     private static AIMetricsListener createMetricsListener(String agentName) {
         // Generate a session ID based on current context
         String sessionId = "provider-" + System.currentTimeMillis();
         return new AIMetricsListener(agentName, sessionId);
     }
+    */
 
     /**
      * Enable or disable metrics collection.

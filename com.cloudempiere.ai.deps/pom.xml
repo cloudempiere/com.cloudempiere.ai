@@ -146,6 +146,30 @@
                                     <version>2.20.162</version>
                                     <destFileName>annotations-2.20.162.jar</destFileName>
                                 </artifactItem>
+                                <artifactItem>
+                                    <groupId>software.amazon.awssdk</groupId>
+                                    <artifactId>http-client-spi</artifactId>
+                                    <version>2.20.162</version>
+                                    <destFileName>http-client-spi-2.20.162.jar</destFileName>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>software.amazon.awssdk</groupId>
+                                    <artifactId>apache-client</artifactId>
+                                    <version>2.20.162</version>
+                                    <destFileName>apache-client-2.20.162.jar</destFileName>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>software.amazon.awssdk</groupId>
+                                    <artifactId>utils</artifactId>
+                                    <version>2.20.162</version>
+                                    <destFileName>utils-2.20.162.jar</destFileName>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>software.amazon.awssdk</groupId>
+                                    <artifactId>protocol-core</artifactId>
+                                    <version>2.20.162</version>
+                                    <destFileName>protocol-core-2.20.162.jar</destFileName>
+                                </artifactItem>
 
                                 <!-- Jackson -->
                                 <artifactItem>

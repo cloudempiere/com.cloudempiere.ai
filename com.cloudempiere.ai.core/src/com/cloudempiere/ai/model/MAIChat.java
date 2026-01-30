@@ -21,8 +21,9 @@ import org.compiere.model.I_AD_User;
 import org.compiere.model.MChat;
 import org.compiere.util.Env;
 
-import com.cloudempiere.ai.service.ChatAccessService;
-import com.cloudempiere.ai.service.IChatAccessService.ChatAccess;
+// TEMPORARILY DISABLED - ChatAccessService will be implemented in future phase (ADR-036)
+// import com.cloudempiere.ai.service.ChatAccessService;
+// import com.cloudempiere.ai.service.IChatAccessService.ChatAccess;
 
 /**
  * AI Chat Model - extends standard iDempiere Chat
@@ -218,10 +219,17 @@ public class MAIChat extends MChat {
 	// Access Control Methods (ADR-036)
 	// ========================================================================
 
+	// ===================================================================
+	// ACCESS CONTROL METHODS
+	// TEMPORARILY DISABLED - ChatAccessService will be implemented in future phase (ADR-036)
+	// ===================================================================
+
+	/*
 	/**
 	 * Get the current user's access level to this chat
 	 * @return ChatAccess level (NONE, READ, WRITE, or OWNER)
 	 */
+	/*
 	public ChatAccess getAccess() {
 		return ChatAccessService.get().getAccess(getCtx(), this);
 	}
@@ -230,6 +238,7 @@ public class MAIChat extends MChat {
 	 * Check if current user can read this chat
 	 * @return true if user has READ, WRITE, or OWNER access
 	 */
+	/*
 	public boolean canRead() {
 		return ChatAccessService.get().canRead(getCtx(), get_ID(), get_TrxName());
 	}
@@ -238,6 +247,7 @@ public class MAIChat extends MChat {
 	 * Check if current user can write to this chat (add messages)
 	 * @return true if user has WRITE or OWNER access
 	 */
+	/*
 	public boolean canWrite() {
 		return ChatAccessService.get().canWrite(getCtx(), get_ID(), get_TrxName());
 	}
@@ -246,6 +256,7 @@ public class MAIChat extends MChat {
 	 * Check if current user can share this chat with others
 	 * @return true if user has OWNER access
 	 */
+	/*
 	public boolean canShare() {
 		return ChatAccessService.get().canShare(getCtx(), get_ID(), get_TrxName());
 	}
@@ -254,6 +265,7 @@ public class MAIChat extends MChat {
 	 * Check if current user can delete this chat
 	 * @return true if user has OWNER access
 	 */
+	/*
 	public boolean canDelete() {
 		return ChatAccessService.get().canDelete(getCtx(), get_ID(), get_TrxName());
 	}
@@ -262,6 +274,7 @@ public class MAIChat extends MChat {
 	 * Check if current user is the owner of this chat
 	 * @return true if user has OWNER access
 	 */
+	/*
 	public boolean isOwner() {
 		return getAccess() == ChatAccess.OWNER;
 	}
@@ -273,6 +286,7 @@ public class MAIChat extends MChat {
 	 * @return created ownership record
 	 * @throws IllegalStateException if current user cannot share
 	 */
+	/*
 	public MAIChatOwnership shareWith(int AD_User_ID, ChatAccess access) {
 		return ChatAccessService.get().shareWithUser(getCtx(), get_ID(), AD_User_ID, access, get_TrxName());
 	}
@@ -284,6 +298,7 @@ public class MAIChat extends MChat {
 	 * @return created ownership record
 	 * @throws IllegalStateException if current user cannot share
 	 */
+	/*
 	public MAIChatOwnership shareWithRole(int AD_Role_ID, ChatAccess access) {
 		return ChatAccessService.get().shareWithRole(getCtx(), get_ID(), AD_Role_ID, access, get_TrxName());
 	}
@@ -292,9 +307,11 @@ public class MAIChat extends MChat {
 	 * Get list of ownership records for this chat (who has access)
 	 * @return list of ownership records (empty if user cannot view sharing info)
 	 */
+	/*
 	public List<MAIChatOwnership> getSharingInfo() {
 		return ChatAccessService.get().getSharingInfo(getCtx(), get_ID(), get_TrxName());
 	}
+	*/
 
 	/**
 	 * Get or Create Private Context Chat for CURRENT USER
