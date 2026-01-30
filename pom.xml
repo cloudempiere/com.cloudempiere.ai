@@ -11,6 +11,8 @@
 
 	<modules>
 		<module>com.cloudempiere.ai.parent</module>
+		<module>com.cloudempiere.ai.deps</module>
+		<module>com.cloudempiere.ai.core</module>
 		<module>com.cloudempiere.ai.plugin</module>
 		<module>com.cloudempiere.ai.theme</module>
 		<module>com.cloudempiere.ai.feature</module>

@@ -112,6 +112,30 @@
                                 </artifactItem>
                                 <artifactItem>
                                     <groupId>software.amazon.awssdk</groupId>
+                                    <artifactId>regions</artifactId>
+                                    <version>2.20.162</version>
+                                    <destFileName>regions-2.20.162.jar</destFileName>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>software.amazon.awssdk</groupId>
+                                    <artifactId>aws-core</artifactId>
+                                    <version>2.20.162</version>
+                                    <destFileName>aws-core-2.20.162.jar</destFileName>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>software.amazon.awssdk</groupId>
+                                    <artifactId>sdk-core</artifactId>
+                                    <version>2.20.162</version>
+                                    <destFileName>sdk-core-2.20.162.jar</destFileName>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>software.amazon.awssdk</groupId>
+                                    <artifactId>auth</artifactId>
+                                    <version>2.20.162</version>
+                                    <destFileName>auth-2.20.162.jar</destFileName>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>software.amazon.awssdk</groupId>
                                     <artifactId>netty-nio-client</artifactId>
                                     <version>2.20.162</version>
                                     <destFileName>netty-nio-client-2.20.162.jar</destFileName>
