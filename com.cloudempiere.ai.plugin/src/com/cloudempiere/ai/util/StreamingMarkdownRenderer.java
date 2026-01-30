@@ -361,6 +361,9 @@ public class StreamingMarkdownRenderer {
             codeBlockLanguage = null;
             // Don't emit <pre><code> yet - collect language hint first
             contentBuffer.setLength(0);
+            // FIX BUG #1: Preserve first character after ``` (start of language hint)
+            // Without this, "java" becomes "ava" because 'j' is lost
+            contentBuffer.append(nextChar);
         } else if (marker.equals("`")) {
             // Open inline code (push state)
             htmlOutput.append("<code>");
@@ -370,18 +373,27 @@ public class StreamingMarkdownRenderer {
             htmlOutput.append(escapeHtml(nextChar));
         } else if (marker.startsWith("#")) {
             // Heading - count level
-            // Check if next char is space (required for valid heading)
-            if (nextChar == ' ' || nextChar == '\t') {
+            // FIXED: Validate heading requires space, tab, or newline after #
+            // This prevents false positives like ###text (no space)
+            if (nextChar == ' ' || nextChar == '\t' || nextChar == '\n') {
                 headingLevel = marker.length();
                 if (headingLevel > 6) headingLevel = 6;
                 htmlOutput.append("<h").append(headingLevel).append(">");
                 // Push IN_HEADING state to allow nested formatting
                 pushState(State.IN_HEADING);
                 markerBuffer.setLength(0);
-                // Skip the space - don't add it to content
+
+                // Handle the next character appropriately
+                if (nextChar == '\n') {
+                    // Empty heading - close immediately
+                    htmlOutput.append("</h").append(headingLevel).append("><br/>");
+                    popState();
+                    headingLevel = 0;
+                }
+                // Skip space/tab - don't add it to content
                 // Next character will be processed in IN_HEADING state
             } else {
-                // Not a valid heading (no space after #) - emit as literal text
+                // Not a valid heading (no space/tab/newline after #) - emit as literal text
                 flushMarkerAsText();
                 htmlOutput.append(escapeHtml(nextChar));
             }

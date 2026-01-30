@@ -317,7 +317,11 @@ public class ThreadAwareChatMemory implements ChatMemory {
             String content = getMessageContent(message);
 
             if (message instanceof AiMessage) {
-                entry = MAIChatEntry.createAIResponse(chat, content);
+                // ADR-054: Render AI message markdown to HTML before persisting
+                java.util.Locale userLocale = org.compiere.util.Env.getLanguage(ctx).getLocale();
+                String contentHtml = com.cloudempiere.ai.util.AIMessageRenderer.render(
+                    content, ctx, null, userLocale);
+                entry = MAIChatEntry.createAIResponse(chat, contentHtml);
             } else {
                 entry = new MAIChatEntry(chat, content);
             }

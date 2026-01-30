@@ -554,21 +554,31 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 		String messageText = entry.getCharacterData();
 		if (messageText != null) {
 			if (isAI) {
-				// AI messages: Use unified renderer for consistent output (CLD-1704)
-				// This is the same renderer used by AIChatStreamingMessage.renderFinalMarkdown()
-				// Ensures reload path produces identical HTML to post-streaming finalization
-				log.fine("[RELOAD-RENDER] Using unified AIMessageRenderer | message length: " + messageText.length());
+				// ADR-054: Detect if content is HTML (new format) or Markdown (legacy format)
+				boolean isHtml = messageText.trim().startsWith("<div") ||
+				                 messageText.contains("<p>") ||
+				                 messageText.contains("<table>") ||
+				                 messageText.contains("<pre>");
 
-				// Get user's locale for number formatting in tables
-				java.util.Locale userLocale = org.compiere.util.Env.getLanguage(sessionCtx).getLocale();
+				if (isHtml) {
+					// NEW messages (ADR-054): Use stored HTML directly - zero rendering overhead!
+					log.fine("[RELOAD-DISPLAY] Using pre-rendered HTML | length: " + messageText.length());
+					sb.append(messageText);
+				} else {
+					// OLD messages (legacy): Fallback to rendering markdown
+					log.fine("[RELOAD-RENDER] Rendering legacy markdown | length: " + messageText.length());
 
-				// Delegate to unified renderer (single source of truth)
-				// This handles: whitespace normalization, function call removal, table rendering,
-				// zoom link processing, and markdown parsing
-				String renderedHtml = com.cloudempiere.ai.util.AIMessageRenderer.render(
-					messageText, sessionCtx, getUuid(), userLocale);
+					// Get user's locale for number formatting in tables
+					java.util.Locale userLocale = org.compiere.util.Env.getLanguage(sessionCtx).getLocale();
 
-				sb.append(renderedHtml);
+					// Delegate to unified renderer (single source of truth)
+					// This handles: whitespace normalization, function call removal, table rendering,
+					// zoom link processing, and markdown parsing
+					String renderedHtml = com.cloudempiere.ai.util.AIMessageRenderer.render(
+						messageText, sessionCtx, getUuid(), userLocale);
+
+					sb.append(renderedHtml);
+				}
 			} else {
 				// User messages: Escape HTML for security, but preserve line breaks
 				String escaped = Util.maskHTML(messageText, true);
@@ -1215,9 +1225,9 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 						// Finalize streaming message
 						streamingMsg.complete();
 
-						// Save AI response to database
-						String response = streamingMsg.getContent();
-						log.warning("[UI-STREAM] Saving response, length=" + response.length());
+						// Save AI response to database (ADR-054: Store HTML instead of markdown)
+						String response = streamingMsg.getRenderedHtml();
+						log.warning("[UI-STREAM] Saving rendered HTML, length=" + response.length());
 						MAIChatEntry aiEntry = MAIChatEntry.createAIResponse(aiChat, response);
 						if (threadRootIdSnapshot > 0) {
 							aiEntry.setCM_ChatEntryParent_ID(threadRootIdSnapshot);
@@ -1270,8 +1280,8 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 						streamingMsg.appendChunk(errorDisplay);
 						streamingMsg.complete();
 
-						// Persist partial response with error to database
-						persistErrorResponse(streamingMsg.getContent(), errorResult.getUserMessage(), threadRootIdSnapshot);
+						// Persist partial response with error to database (ADR-054: Use rendered HTML)
+						persistErrorResponse(streamingMsg.getRenderedHtml(), errorResult.getUserMessage(), threadRootIdSnapshot);
 
 						// Re-enable input and show send button
 						streamingInProgress = false;
@@ -1375,13 +1385,18 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 				// Success - create AI response entry
 				String response = result.getResponse();
 
+				// ADR-054: Render markdown response to HTML before saving
+				java.util.Locale userLocale = org.compiere.util.Env.getLanguage(sessionCtx).getLocale();
+				String responseHtml = com.cloudempiere.ai.util.AIMessageRenderer.render(
+					response, sessionCtx, getUuid(), userLocale);
+
 				// Update thread root ID if it changed (new thread was created)
 				if (result.getThreadRootId() != threadRootIdSnapshot && result.getThreadRootId() > 0) {
 					currentThreadRootId = result.getThreadRootId();
 				}
 
-				// Create AI chat entry with proper thread parent
-				MAIChatEntry aiEntry = MAIChatEntry.createAIResponse(aiChat, response);
+				// Create AI chat entry with proper thread parent (HTML format)
+				MAIChatEntry aiEntry = MAIChatEntry.createAIResponse(aiChat, responseHtml);
 
 				if (threadRootIdSnapshot > 0) {
 					aiEntry.setCM_ChatEntryParent_ID(threadRootIdSnapshot);
@@ -2715,23 +2730,35 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 		}
 
 		try {
-			// Get the partial content (may be empty if cancelled immediately)
-			String partialContent = currentStreamingMessage.getContent();
-			if (partialContent == null) {
-				partialContent = "";
+			// ADR-054: Get the partial HTML content if available, otherwise render markdown
+			String partialHtml = currentStreamingMessage.getRenderedHtml();
+			String partialMarkdown = currentStreamingMessage.getContent();
+
+			if (partialMarkdown == null) {
+				partialMarkdown = "";
 			}
 
-			// Append cancellation notice to persisted content
-			String persistedContent = partialContent.isEmpty()
-				? "_AI request cancelled_"
-				: partialContent + "\n\n_AI request cancelled_";
+			// If HTML not available (cancelled before completion), render markdown as fallback
+			if (partialHtml == null || partialHtml.isEmpty()) {
+				if (!partialMarkdown.isEmpty()) {
+					java.util.Locale userLocale = org.compiere.util.Env.getLanguage(sessionCtx).getLocale();
+					partialHtml = com.cloudempiere.ai.util.AIMessageRenderer.render(
+						partialMarkdown, sessionCtx, getUuid(), userLocale);
+				}
+			}
+
+			// Append cancellation notice as HTML
+			String cancelNoticeHtml = "<p><em>AI request cancelled</em></p>";
+			String persistedContent = (partialHtml == null || partialHtml.isEmpty())
+				? cancelNoticeHtml
+				: partialHtml + cancelNoticeHtml;
 
 			// Get MAIChat instance
 			MAIChat aiChat = (chat instanceof MAIChat) ?
 				(MAIChat) chat :
 				new MAIChat(sessionCtx, chat.getCM_Chat_ID(), null);
 
-			// Create AI chat entry with partial response
+			// Create AI chat entry with partial response (HTML format)
 			MAIChatEntry aiEntry = MAIChatEntry.createAIResponse(aiChat, persistedContent);
 
 			// Set thread parent if applicable
@@ -2742,7 +2769,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 			aiEntry.saveEx();
 			aiChat.saveEx();
 
-			log.info("[CANCEL] Partial response persisted, length=" + partialContent.length());
+			log.info("[CANCEL] Partial HTML response persisted, length=" + persistedContent.length());
 		} catch (Exception e) {
 			log.log(Level.WARNING, "Failed to persist cancelled response", e);
 		}
@@ -2782,22 +2809,19 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 	 * Persist the error AI response to the database.
 	 * Called when streaming encounters an error.
 	 *
-	 * @param partialContent the partial content received before the error
-	 * @param errorMessage the user-friendly error message
+	 * <p><b>ADR-054:</b> Expects rendered HTML content instead of markdown.
+	 *
+	 * @param partialHtml the partial HTML content (already rendered) received before the error
+	 * @param errorMessage the user-friendly error message (for logging only)
 	 * @param threadRootId the thread root ID for proper threading
 	 */
-	private void persistErrorResponse(String partialContent, String errorMessage, int threadRootId) {
+	private void persistErrorResponse(String partialHtml, String errorMessage, int threadRootId) {
 		try {
-			// Build content with error appended
-			String content = partialContent;
-			if (content == null) {
-				content = "";
-			}
-
-			// The error is already appended to partialContent via appendChunk,
-			// so we just need to persist it as-is
-			if (content.isEmpty()) {
-				content = "**Error:** " + errorMessage;
+			// ADR-054: partialHtml is already rendered HTML (error is already appended)
+			String content = partialHtml;
+			if (content == null || content.isEmpty()) {
+				// Fallback: render error message as HTML if no content
+				content = "<p><strong>Error:</strong> " + Util.maskHTML(errorMessage, true) + "</p>";
 			}
 
 			// Get MAIChat instance
@@ -2805,7 +2829,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 				(MAIChat) chat :
 				new MAIChat(sessionCtx, chat.getCM_Chat_ID(), null);
 
-			// Create AI chat entry with error response
+			// Create AI chat entry with error response (HTML format)
 			MAIChatEntry aiEntry = MAIChatEntry.createAIResponse(aiChat, content);
 
 			// Set thread parent if applicable
@@ -2816,7 +2840,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 			aiEntry.saveEx();
 			aiChat.saveEx();
 
-			log.info("[ERROR] Error response persisted, length=" + content.length());
+			log.info("[ERROR] Error HTML response persisted, length=" + content.length());
 		} catch (Exception e) {
 			log.log(Level.WARNING, "Failed to persist error response", e);
 		}
