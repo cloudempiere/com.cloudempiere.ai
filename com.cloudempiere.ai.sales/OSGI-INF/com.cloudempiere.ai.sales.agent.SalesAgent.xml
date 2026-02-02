@@ -6,6 +6,7 @@
    <implementation class="com.cloudempiere.ai.sales.agent.SalesAgent"/>
    <service>
       <provide interface="com.cloudempiere.ai.sales.agent.SalesAgent"/>
+      <provide interface="com.cloudempiere.ai.boundary.IDomainAgent"/>
    </service>
    <reference bind="setProviderFactory"
               cardinality="1..1"
