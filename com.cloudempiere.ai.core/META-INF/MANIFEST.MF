@@ -69,6 +69,10 @@ Export-Package: com.cloudempiere.ai;version="0.32.0",
  com.cloudempiere.ai.provider.dto;version="0.32.0",
  com.cloudempiere.ai.provider.langchain4j;version="0.32.0",
  com.cloudempiere.ai.provider.langchain4j.tools;version="0.32.0",
+ com.cloudempiere.ai.rag;version="0.32.0",
+ com.cloudempiere.ai.rag.dto;version="0.32.0",
+ com.cloudempiere.ai.rag.embedding;version="0.32.0",
+ com.cloudempiere.ai.rag.ingest;version="0.32.0",
  com.cloudempiere.ai.util;version="0.32.0"
 Service-Component: OSGI-INF/*.xml
 Bundle-ActivationPolicy: lazy
