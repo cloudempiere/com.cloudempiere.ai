@@ -58,7 +58,9 @@ Bundle-ClassPath: .,
  lib/jtokkit-1.0.0.jar,
  lib/commonmark-0.22.0.jar,
  lib/commonmark-ext-gfm-tables-0.22.0.jar,
- lib/commonmark-ext-gfm-strikethrough-0.22.0.jar
+ lib/commonmark-ext-gfm-strikethrough-0.22.0.jar,
+ lib/slf4j-api-1.7.36.jar,
+ lib/slf4j-nop-1.7.36.jar
 Export-Package: dev.langchain4j;version="0.35.0",
  dev.langchain4j.agent;version="0.35.0",
  dev.langchain4j.agent.tool;version="0.35.0",
@@ -146,4 +148,7 @@ Export-Package: dev.langchain4j;version="0.35.0",
  org.commonmark.renderer;version="0.22.0",
  org.commonmark.renderer.html;version="0.22.0",
  org.commonmark.ext.gfm.tables;version="0.22.0",
- org.commonmark.ext.gfm.strikethrough;version="0.22.0"
+ org.commonmark.ext.gfm.strikethrough;version="0.22.0",
+ org.slf4j;version="1.7.36",
+ org.slf4j.spi;version="1.7.36",
+ org.slf4j.helpers;version="1.7.36"
