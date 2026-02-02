@@ -1,20 +1,16 @@
 package com.cloudempiere.ai.support.agent;
 
+import java.util.logging.Logger;
+
 import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
 
-import com.cloudempiere.ai.provider.IAIProvider;
-import com.cloudempiere.ai.provider.factory.IAIProviderFactory;
+import com.cloudempiere.ai.provider.langchain4j.ILangChain4jProviderFactory;
 import com.cloudempiere.ai.support.tools.SupportTools;
 
-import dev.langchain4j.service.AiServices;
 import dev.langchain4j.service.SystemMessage;
 import dev.langchain4j.service.UserMessage;
-import dev.langchain4j.memory.chat.MessageWindowChatMemory;
-
-import java.util.Properties;
-import java.util.logging.Logger;
 
 /**
  * Support domain AI agent.
@@ -48,7 +44,7 @@ public class SupportAgent {
     private static final Logger log = Logger.getLogger(SupportAgent.class.getName());
 
     @Reference
-    private volatile IAIProviderFactory providerFactory;
+    private volatile ILangChain4jProviderFactory providerFactory;
 
     @Reference
     private volatile SupportTools supportTools;
@@ -67,22 +63,20 @@ public class SupportAgent {
         log.info("Activating Support Agent...");
 
         try {
-            // Get default AI provider (TODO: make configurable per client)
-            IAIProvider provider = providerFactory.getDefaultProvider();
+            // TODO: Implement provider configuration loading
+            // Need to get MAIProvider from database or configuration
+            // Then call: ChatLanguageModel model = providerFactory.createModel(config);
 
-            if (provider == null) {
-                log.warning("No AI provider configured. Support agent will not be available.");
-                return;
-            }
+            log.warning("Support Agent activation deferred - provider configuration not yet implemented");
 
-            // Build agent with LangChain4j
-            agent = AiServices.builder(SupportAgentInterface.class)
-                .chatLanguageModel(provider.getChatModel())
-                .tools(supportTools)
-                .chatMemory(MessageWindowChatMemory.withMaxMessages(20))
-                .build();
-
-            log.info("Support Agent activated successfully with provider: " + provider.getProviderName());
+            // Stub for future implementation:
+            // MAIProvider config = loadProviderConfig();
+            // ChatLanguageModel model = providerFactory.createModel(config);
+            // agent = AiServices.builder(SupportAgentInterface.class)
+            //     .chatLanguageModel(model)
+            //     .tools(supportTools)
+            //     .chatMemory(MessageWindowChatMemory.withMaxMessages(20))
+            //     .build();
 
         } catch (Exception e) {
             log.severe("Failed to activate Support Agent: " + e.getMessage());
@@ -140,48 +134,40 @@ public class SupportAgent {
         /**
          * System message defining the agent's role and capabilities.
          */
-        @SystemMessage("""
-            You are a support specialist AI for iDempiere ERP customer support.
-
-            Your role is to help support teams with:
-            - Classifying and routing support tickets
-            - Assessing ticket priority and urgency
-            - Analyzing customer support history and patterns
-            - Detecting escalation scenarios
-            - Recommending responses and next actions
-            - Identifying trends in support issues
-
-            You have access to the following data through tools:
-            - Support tickets (requests, status, priority, category)
-            - Ticket history (actions, updates, resolution)
-            - Customer information (business partners, contact details)
-            - Request types and categories
-            - Escalation status
-
-            When analyzing tickets:
-            1. Always verify ticket data exists before classification
-            2. Consider customer history and previous tickets
-            3. Assess priority based on impact and urgency
-            4. Identify patterns that may indicate systemic issues
-            5. Recommend specific actions with clear reasoning
-            6. Flag tickets that require immediate attention or escalation
-
-            Classification guidelines:
-            - Technical issues → Route to technical support
-            - Billing/financial → Route to accounting
-            - Product questions → Route to sales/product team
-            - Critical/urgent → Escalate immediately
-            - Recurring issues → Flag for root cause analysis
-
-            Security boundaries:
-            - You can READ tickets, customer data, and history
-            - You can CREATE/UPDATE ticket actions and comments
-            - You CANNOT modify customer master data
-            - You CANNOT access financial, sales, or inventory data beyond what's needed for context
-            - You CANNOT delete tickets or close without human approval
-
-            Always be empathetic, solution-focused, and provide clear action items.
-            """)
+        @SystemMessage("You are a support specialist AI for iDempiere ERP customer support.\n\n" +
+            "Your role is to help support teams with:\n" +
+            "- Classifying and routing support tickets\n" +
+            "- Assessing ticket priority and urgency\n" +
+            "- Analyzing customer support history and patterns\n" +
+            "- Detecting escalation scenarios\n" +
+            "- Recommending responses and next actions\n" +
+            "- Identifying trends in support issues\n\n" +
+            "You have access to the following data through tools:\n" +
+            "- Support tickets (requests, status, priority, category)\n" +
+            "- Ticket history (actions, updates, resolution)\n" +
+            "- Customer information (business partners, contact details)\n" +
+            "- Request types and categories\n" +
+            "- Escalation status\n\n" +
+            "When analyzing tickets:\n" +
+            "1. Always verify ticket data exists before classification\n" +
+            "2. Consider customer history and previous tickets\n" +
+            "3. Assess priority based on impact and urgency\n" +
+            "4. Identify patterns that may indicate systemic issues\n" +
+            "5. Recommend specific actions with clear reasoning\n" +
+            "6. Flag tickets that require immediate attention or escalation\n\n" +
+            "Classification guidelines:\n" +
+            "- Technical issues → Route to technical support\n" +
+            "- Billing/financial → Route to accounting\n" +
+            "- Product questions → Route to sales/product team\n" +
+            "- Critical/urgent → Escalate immediately\n" +
+            "- Recurring issues → Flag for root cause analysis\n\n" +
+            "Security boundaries:\n" +
+            "- You can READ tickets, customer data, and history\n" +
+            "- You can CREATE/UPDATE ticket actions and comments\n" +
+            "- You CANNOT modify customer master data\n" +
+            "- You CANNOT access financial, sales, or inventory data beyond what's needed for context\n" +
+            "- You CANNOT delete tickets or close without human approval\n\n" +
+            "Always be empathetic, solution-focused, and provide clear action items.")
         String chat(@UserMessage String query);
 
         /**
@@ -190,18 +176,15 @@ public class SupportAgent {
          * @param requestId the ticket to classify
          * @return classification and routing recommendation
          */
-        @UserMessage("""
-            Classify support ticket {{requestId}}. Provide:
-            1. Ticket summary (description, priority, status, created date)
-            2. Category classification (Technical, Billing, Product, etc.)
-            3. Priority assessment (justify based on impact and urgency)
-            4. Routing recommendation (which team should handle it)
-            5. Customer context (history, previous tickets, patterns)
-            6. Escalation recommendation (should it be escalated? why?)
-            7. Suggested response or next actions
-
-            Be specific with your classification and provide clear reasoning.
-            """)
+        @UserMessage("Classify support ticket {{requestId}}. Provide:\n" +
+            "1. Ticket summary (description, priority, status, created date)\n" +
+            "2. Category classification (Technical, Billing, Product, etc.)\n" +
+            "3. Priority assessment (justify based on impact and urgency)\n" +
+            "4. Routing recommendation (which team should handle it)\n" +
+            "5. Customer context (history, previous tickets, patterns)\n" +
+            "6. Escalation recommendation (should it be escalated? why?)\n" +
+            "7. Suggested response or next actions\n\n" +
+            "Be specific with your classification and provide clear reasoning.")
         String classifyTicket(int requestId);
 
         /**
@@ -210,18 +193,15 @@ public class SupportAgent {
          * @param partnerId the customer to analyze
          * @return support history analysis
          */
-        @UserMessage("""
-            Analyze support history for customer {{partnerId}}. Provide:
-            1. Customer profile summary
-            2. Total tickets and resolution rate
-            3. Common issue categories and patterns
-            4. Escalated tickets and critical issues
-            5. Response time and satisfaction trends
-            6. Current open tickets requiring attention
-            7. Recommendations for proactive support or account management
-
-            Support your analysis with specific data and identify actionable insights.
-            """)
+        @UserMessage("Analyze support history for customer {{partnerId}}. Provide:\n" +
+            "1. Customer profile summary\n" +
+            "2. Total tickets and resolution rate\n" +
+            "3. Common issue categories and patterns\n" +
+            "4. Escalated tickets and critical issues\n" +
+            "5. Response time and satisfaction trends\n" +
+            "6. Current open tickets requiring attention\n" +
+            "7. Recommendations for proactive support or account management\n\n" +
+            "Support your analysis with specific data and identify actionable insights.")
         String analyzeCustomerSupport(int partnerId);
     }
 }

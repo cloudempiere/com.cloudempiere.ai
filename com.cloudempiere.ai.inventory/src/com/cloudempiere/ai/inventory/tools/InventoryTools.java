@@ -6,11 +6,10 @@ import org.osgi.service.component.annotations.ReferenceCardinality;
 
 import com.cloudempiere.ai.database.SecureDatabaseQueryExecutor;
 import com.cloudempiere.ai.database.dto.SecureQueryRequest;
-import com.cloudempiere.ai.database.dto.SecureQueryResult;
 import com.cloudempiere.ai.inventory.boundary.InventoryDomainBoundary;
 
-import dev.langchain4j.agent.tool.Tool;
 import dev.langchain4j.agent.tool.P;
+import dev.langchain4j.agent.tool.Tool;
 
 /**
  * Inventory domain tools for AI agents.

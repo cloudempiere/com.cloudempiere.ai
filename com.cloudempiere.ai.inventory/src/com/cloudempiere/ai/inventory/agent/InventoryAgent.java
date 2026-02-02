@@ -1,19 +1,23 @@
 package com.cloudempiere.ai.inventory.agent;
 
-import org.osgi.service.component.annotations.*;
-import com.cloudempiere.ai.provider.factory.IAIProviderFactory;
-import com.cloudempiere.ai.provider.IAIProvider;
-import com.cloudempiere.ai.inventory.tools.InventoryTools;
-import dev.langchain4j.service.*;
-import dev.langchain4j.memory.chat.MessageWindowChatMemory;
 import java.util.logging.Logger;
+
+import org.osgi.service.component.annotations.Activate;
+import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.Reference;
+
+import com.cloudempiere.ai.inventory.tools.InventoryTools;
+import com.cloudempiere.ai.provider.langchain4j.ILangChain4jProviderFactory;
+
+import dev.langchain4j.service.SystemMessage;
+import dev.langchain4j.service.UserMessage;
 
 @Component(service = InventoryAgent.class, immediate = true)
 public class InventoryAgent {
     private static final Logger log = Logger.getLogger(InventoryAgent.class.getName());
 
     @Reference
-    private volatile IAIProviderFactory providerFactory;
+    private volatile ILangChain4jProviderFactory providerFactory;
 
     @Reference
     private volatile InventoryTools inventoryTools;
@@ -23,15 +27,10 @@ public class InventoryAgent {
     @Activate
     protected void activate() {
         log.info("Activating Inventory Agent...");
-        IAIProvider provider = providerFactory.getDefaultProvider();
-        if (provider != null) {
-            agent = AiServices.builder(InventoryAgentInterface.class)
-                .chatLanguageModel(provider.getChatModel())
-                .tools(inventoryTools)
-                .chatMemory(MessageWindowChatMemory.withMaxMessages(20))
-                .build();
-            log.info("Inventory Agent activated");
-        }
+        // TODO: Implement provider configuration loading
+        // Need to get MAIProvider from database or configuration
+        // Then call: ChatLanguageModel model = providerFactory.createModel(config);
+        log.warning("Inventory Agent activation deferred - provider configuration not yet implemented");
     }
 
     public String analyzeStock(int productId) {

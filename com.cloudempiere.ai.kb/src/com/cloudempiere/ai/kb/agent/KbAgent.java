@@ -1,20 +1,16 @@
 package com.cloudempiere.ai.kb.agent;
 
+import java.util.logging.Logger;
+
 import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
 
-import com.cloudempiere.ai.provider.IAIProvider;
-import com.cloudempiere.ai.provider.factory.IAIProviderFactory;
 import com.cloudempiere.ai.kb.tools.KbTools;
+import com.cloudempiere.ai.provider.langchain4j.ILangChain4jProviderFactory;
 
-import dev.langchain4j.service.AiServices;
 import dev.langchain4j.service.SystemMessage;
 import dev.langchain4j.service.UserMessage;
-import dev.langchain4j.memory.chat.MessageWindowChatMemory;
-
-import java.util.Properties;
-import java.util.logging.Logger;
 
 /**
  * Knowledge Base domain AI agent.
@@ -48,7 +44,7 @@ public class KbAgent {
     private static final Logger log = Logger.getLogger(KbAgent.class.getName());
 
     @Reference
-    private volatile IAIProviderFactory providerFactory;
+    private volatile ILangChain4jProviderFactory providerFactory;
 
     @Reference
     private volatile KbTools kbTools;
@@ -67,22 +63,20 @@ public class KbAgent {
         log.info("Activating Knowledge Base Agent...");
 
         try {
-            // Get default AI provider (TODO: make configurable per client)
-            IAIProvider provider = providerFactory.getDefaultProvider();
+            // TODO: Implement provider configuration loading
+            // Need to get MAIProvider from database or configuration
+            // Then call: ChatLanguageModel model = providerFactory.createModel(config);
 
-            if (provider == null) {
-                log.warning("No AI provider configured. Knowledge Base agent will not be available.");
-                return;
-            }
+            log.warning("Knowledge Base Agent activation deferred - provider configuration not yet implemented");
 
-            // Build agent with LangChain4j
-            agent = AiServices.builder(KbAgentInterface.class)
-                .chatLanguageModel(provider.getChatModel())
-                .tools(kbTools)
-                .chatMemory(MessageWindowChatMemory.withMaxMessages(20))
-                .build();
-
-            log.info("Knowledge Base Agent activated successfully with provider: " + provider.getProviderName());
+            // Stub for future implementation:
+            // MAIProvider config = loadProviderConfig();
+            // ChatLanguageModel model = providerFactory.createModel(config);
+            // agent = AiServices.builder(KbAgentInterface.class)
+            //     .chatLanguageModel(model)
+            //     .tools(kbTools)
+            //     .chatMemory(MessageWindowChatMemory.withMaxMessages(20))
+            //     .build();
 
         } catch (Exception e) {
             log.severe("Failed to activate Knowledge Base Agent: " + e.getMessage());
@@ -140,47 +134,39 @@ public class KbAgent {
         /**
          * System message defining the agent's role and capabilities.
          */
-        @SystemMessage("""
-            You are a knowledge base specialist AI for iDempiere ERP documentation and support.
-
-            Your role is to help users find and understand knowledge base content:
-            - Searching articles by keywords, topics, and context
-            - Summarizing article content and key points
-            - Recommending related articles and resources
-            - Identifying knowledge gaps and suggesting improvements
-            - Connecting support tickets to relevant documentation
-
-            You have access to the following through tools:
-            - Knowledge base articles (titles, summaries, full content)
-            - Article categories and classifications
-            - Article ratings and user comments
-            - Related articles and cross-references
-            - Top-rated and most helpful articles
-
-            When helping users:
-            1. Always search for relevant articles before providing information
-            2. Summarize content clearly and concisely
-            3. Provide article IDs and titles for reference
-            4. Suggest related articles for deeper learning
-            5. Identify when information is missing or outdated
-            6. Consider article ratings and user feedback
-
-            Search strategy:
-            - Use multiple search terms if initial search yields no results
-            - Search by category when topic is clear
-            - Recommend top-rated articles for common questions
-            - Combine information from multiple articles when needed
-
-            Security boundaries:
-            - You can READ all published knowledge base articles
-            - You can CREATE draft articles (requires human review before publishing)
-            - You can ADD comments to articles
-            - You CANNOT modify categories or configuration
-            - You CANNOT publish articles (requires human approval)
-            - You CANNOT access restricted or unpublished content
-
-            Always cite sources with article IDs and provide clear navigation to relevant content.
-            """)
+        @SystemMessage("You are a knowledge base specialist AI for iDempiere ERP documentation and support.\n\n" +
+            "Your role is to help users find and understand knowledge base content:\n" +
+            "- Searching articles by keywords, topics, and context\n" +
+            "- Summarizing article content and key points\n" +
+            "- Recommending related articles and resources\n" +
+            "- Identifying knowledge gaps and suggesting improvements\n" +
+            "- Connecting support tickets to relevant documentation\n\n" +
+            "You have access to the following through tools:\n" +
+            "- Knowledge base articles (titles, summaries, full content)\n" +
+            "- Article categories and classifications\n" +
+            "- Article ratings and user comments\n" +
+            "- Related articles and cross-references\n" +
+            "- Top-rated and most helpful articles\n\n" +
+            "When helping users:\n" +
+            "1. Always search for relevant articles before providing information\n" +
+            "2. Summarize content clearly and concisely\n" +
+            "3. Provide article IDs and titles for reference\n" +
+            "4. Suggest related articles for deeper learning\n" +
+            "5. Identify when information is missing or outdated\n" +
+            "6. Consider article ratings and user feedback\n\n" +
+            "Search strategy:\n" +
+            "- Use multiple search terms if initial search yields no results\n" +
+            "- Search by category when topic is clear\n" +
+            "- Recommend top-rated articles for common questions\n" +
+            "- Combine information from multiple articles when needed\n\n" +
+            "Security boundaries:\n" +
+            "- You can READ all published knowledge base articles\n" +
+            "- You can CREATE draft articles (requires human review before publishing)\n" +
+            "- You can ADD comments to articles\n" +
+            "- You CANNOT modify categories or configuration\n" +
+            "- You CANNOT publish articles (requires human approval)\n" +
+            "- You CANNOT access restricted or unpublished content\n\n" +
+            "Always cite sources with article IDs and provide clear navigation to relevant content.")
         String chat(@UserMessage String query);
 
         /**
@@ -189,18 +175,14 @@ public class KbAgent {
          * @param query the search query
          * @return search results with recommendations
          */
-        @UserMessage("""
-            Search the knowledge base for: {{query}}
-
-            Provide:
-            1. Most relevant articles (with IDs and summaries)
-            2. Article ratings and reliability
-            3. Related categories to explore
-            4. Additional search suggestions if results are limited
-            5. Recommended reading order if multiple articles apply
-
-            If no exact matches found, suggest alternative search terms or related topics.
-            """)
+        @UserMessage("Search the knowledge base for: {{query}}\n\n" +
+            "Provide:\n" +
+            "1. Most relevant articles (with IDs and summaries)\n" +
+            "2. Article ratings and reliability\n" +
+            "3. Related categories to explore\n" +
+            "4. Additional search suggestions if results are limited\n" +
+            "5. Recommended reading order if multiple articles apply\n\n" +
+            "If no exact matches found, suggest alternative search terms or related topics.")
         String searchKnowledgeBase(String query);
 
         /**
@@ -209,17 +191,14 @@ public class KbAgent {
          * @param entryId the article to summarize
          * @return article summary and analysis
          */
-        @UserMessage("""
-            Summarize knowledge base article {{entryId}}. Provide:
-            1. Article title and metadata (category, author, rating)
-            2. Key points summary (3-5 bullet points)
-            3. Full content overview
-            4. Related articles and cross-references
-            5. User comments and feedback highlights
-            6. Recommendations for further reading
-
-            Make the summary concise but comprehensive enough to understand the article's value.
-            """)
+        @UserMessage("Summarize knowledge base article {{entryId}}. Provide:\n" +
+            "1. Article title and metadata (category, author, rating)\n" +
+            "2. Key points summary (3-5 bullet points)\n" +
+            "3. Full content overview\n" +
+            "4. Related articles and cross-references\n" +
+            "5. User comments and feedback highlights\n" +
+            "6. Recommendations for further reading\n\n" +
+            "Make the summary concise but comprehensive enough to understand the article's value.")
         String summarizeArticle(int entryId);
     }
 }

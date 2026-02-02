@@ -1,20 +1,16 @@
 package com.cloudempiere.ai.purchasing.agent;
 
+import java.util.logging.Logger;
+
 import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
 
-import com.cloudempiere.ai.provider.IAIProvider;
-import com.cloudempiere.ai.provider.factory.IAIProviderFactory;
+import com.cloudempiere.ai.provider.langchain4j.ILangChain4jProviderFactory;
 import com.cloudempiere.ai.purchasing.tools.PurchasingTools;
 
-import dev.langchain4j.service.AiServices;
 import dev.langchain4j.service.SystemMessage;
 import dev.langchain4j.service.UserMessage;
-import dev.langchain4j.memory.chat.MessageWindowChatMemory;
-
-import java.util.Properties;
-import java.util.logging.Logger;
 
 /**
  * Purchasing domain AI agent.
@@ -48,7 +44,7 @@ public class PurchasingAgent {
     private static final Logger log = Logger.getLogger(PurchasingAgent.class.getName());
 
     @Reference
-    private volatile IAIProviderFactory providerFactory;
+    private volatile ILangChain4jProviderFactory providerFactory;
 
     @Reference
     private volatile PurchasingTools purchasingTools;
@@ -67,22 +63,20 @@ public class PurchasingAgent {
         log.info("Activating Purchasing Agent...");
 
         try {
-            // Get default AI provider (TODO: make configurable per client)
-            IAIProvider provider = providerFactory.getDefaultProvider();
+            // TODO: Implement provider configuration loading
+            // Need to get MAIProvider from database or configuration
+            // Then call: ChatLanguageModel model = providerFactory.createModel(config);
 
-            if (provider == null) {
-                log.warning("No AI provider configured. Purchasing agent will not be available.");
-                return;
-            }
+            log.warning("Purchasing Agent activation deferred - provider configuration not yet implemented");
 
-            // Build agent with LangChain4j
-            agent = AiServices.builder(PurchasingAgentInterface.class)
-                .chatLanguageModel(provider.getChatModel())
-                .tools(purchasingTools)
-                .chatMemory(MessageWindowChatMemory.withMaxMessages(20))
-                .build();
-
-            log.info("Purchasing Agent activated successfully with provider: " + provider.getProviderName());
+            // Stub for future implementation:
+            // MAIProvider config = loadProviderConfig();
+            // ChatLanguageModel model = providerFactory.createModel(config);
+            // agent = AiServices.builder(PurchasingAgentInterface.class)
+            //     .chatLanguageModel(model)
+            //     .tools(purchasingTools)
+            //     .chatMemory(MessageWindowChatMemory.withMaxMessages(20))
+            //     .build();
 
         } catch (Exception e) {
             log.severe("Failed to activate Purchasing Agent: " + e.getMessage());
@@ -140,38 +134,31 @@ public class PurchasingAgent {
         /**
          * System message defining the agent's role and capabilities.
          */
-        @SystemMessage("""
-            You are a procurement analyst AI specialized in iDempiere ERP purchasing data analysis.
-
-            Your role is to help procurement teams with:
-            - Analyzing purchase orders and spending patterns
-            - Evaluating vendor performance and reliability
-            - Identifying cost optimization opportunities
-            - Tracking procurement timelines and delivery performance
-            - Providing insights on supply chain efficiency
-
-            You have access to the following data through tools:
-            - Vendor information (suppliers, payment terms, pricing)
-            - Purchase orders (historical and current)
-            - Vendor invoices (payment history, outstanding amounts)
-            - Product catalog (for procurement planning)
-            - Purchasing performance metrics
-
-            When analyzing data:
-            1. Always verify data exists before drawing conclusions
-            2. Provide specific numbers, dates, and amounts
-            3. Identify spending trends and cost-saving opportunities
-            4. Assess vendor reliability and performance
-            5. Consider payment terms, delivery schedules, and quality
-
-            Security boundaries:
-            - You can READ purchasing, order, and vendor data
-            - You CANNOT modify orders or invoices
-            - You CANNOT access sales, inventory financial data beyond what's needed for analysis
-            - You CANNOT approve or complete documents
-
-            Always be professional, analytical, and focused on cost optimization and efficiency.
-            """)
+        @SystemMessage("You are a procurement analyst AI specialized in iDempiere ERP purchasing data analysis.\n\n" +
+            "Your role is to help procurement teams with:\n" +
+            "- Analyzing purchase orders and spending patterns\n" +
+            "- Evaluating vendor performance and reliability\n" +
+            "- Identifying cost optimization opportunities\n" +
+            "- Tracking procurement timelines and delivery performance\n" +
+            "- Providing insights on supply chain efficiency\n\n" +
+            "You have access to the following data through tools:\n" +
+            "- Vendor information (suppliers, payment terms, pricing)\n" +
+            "- Purchase orders (historical and current)\n" +
+            "- Vendor invoices (payment history, outstanding amounts)\n" +
+            "- Product catalog (for procurement planning)\n" +
+            "- Purchasing performance metrics\n\n" +
+            "When analyzing data:\n" +
+            "1. Always verify data exists before drawing conclusions\n" +
+            "2. Provide specific numbers, dates, and amounts\n" +
+            "3. Identify spending trends and cost-saving opportunities\n" +
+            "4. Assess vendor reliability and performance\n" +
+            "5. Consider payment terms, delivery schedules, and quality\n\n" +
+            "Security boundaries:\n" +
+            "- You can READ purchasing, order, and vendor data\n" +
+            "- You CANNOT modify orders or invoices\n" +
+            "- You CANNOT access sales, inventory financial data beyond what's needed for analysis\n" +
+            "- You CANNOT approve or complete documents\n\n" +
+            "Always be professional, analytical, and focused on cost optimization and efficiency.")
         String chat(@UserMessage String query);
 
         /**
@@ -180,17 +167,14 @@ public class PurchasingAgent {
          * @param orderId the order to analyze
          * @return analysis summary
          */
-        @UserMessage("""
-            Analyze purchase order {{orderId}}. Provide:
-            1. Order summary (total, status, vendor, promised date)
-            2. Line items breakdown (products, quantities, prices)
-            3. Vendor background and historical performance
-            4. Delivery timeline and risks
-            5. Price comparison with historical orders
-            6. Recommended actions or concerns
-
-            Be specific with numbers, dates, and actionable insights.
-            """)
+        @UserMessage("Analyze purchase order {{orderId}}. Provide:\n" +
+            "1. Order summary (total, status, vendor, promised date)\n" +
+            "2. Line items breakdown (products, quantities, prices)\n" +
+            "3. Vendor background and historical performance\n" +
+            "4. Delivery timeline and risks\n" +
+            "5. Price comparison with historical orders\n" +
+            "6. Recommended actions or concerns\n\n" +
+            "Be specific with numbers, dates, and actionable insights.")
         String analyzePurchaseOrder(int orderId);
 
         /**
@@ -199,18 +183,15 @@ public class PurchasingAgent {
          * @param partnerId the vendor to analyze
          * @return performance analysis
          */
-        @UserMessage("""
-            Analyze vendor performance for business partner {{partnerId}}. Provide:
-            1. Vendor profile (payment terms, pricing agreements)
-            2. Historical purchasing volume and trends
-            3. Order frequency and delivery performance
-            4. Invoice payment history and outstanding amounts
-            5. Product categories supplied
-            6. Quality and reliability assessment
-            7. Cost optimization opportunities and recommendations
-
-            Support your analysis with specific data, trends, and benchmarks.
-            """)
+        @UserMessage("Analyze vendor performance for business partner {{partnerId}}. Provide:\n" +
+            "1. Vendor profile (payment terms, pricing agreements)\n" +
+            "2. Historical purchasing volume and trends\n" +
+            "3. Order frequency and delivery performance\n" +
+            "4. Invoice payment history and outstanding amounts\n" +
+            "5. Product categories supplied\n" +
+            "6. Quality and reliability assessment\n" +
+            "7. Cost optimization opportunities and recommendations\n\n" +
+            "Support your analysis with specific data, trends, and benchmarks.")
         String analyzeVendorPerformance(int partnerId);
     }
 }
