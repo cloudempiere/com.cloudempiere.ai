@@ -8,9 +8,15 @@ import org.osgi.service.component.annotations.Reference;
 
 import com.cloudempiere.ai.provider.langchain4j.ILangChain4jProviderFactory;
 import com.cloudempiere.ai.support.tools.SupportTools;
+import com.cloudempiere.ai.model.MAIProvider;
 
+import org.compiere.util.Env;
+
+import dev.langchain4j.model.chat.ChatLanguageModel;
+import dev.langchain4j.service.AiServices;
 import dev.langchain4j.service.SystemMessage;
 import dev.langchain4j.service.UserMessage;
+import dev.langchain4j.memory.chat.MessageWindowChatMemory;
 
 /**
  * Support domain AI agent.
@@ -55,32 +61,40 @@ public class SupportAgent {
      * Activate the support agent.
      *
      * <p>This method is called by OSGi when the component is activated.
-     * It initializes the LangChain4j agent with the configured AI provider
-     * and support tools.</p>
+     * The actual agent initialization is deferred until first use.</p>
      */
     @Activate
     protected void activate() {
-        log.info("Activating Support Agent...");
+        log.info("Support Agent OSGi component activated and ready");
+    }
+
+    private synchronized void ensureInitialized() {
+        if (agent != null) {
+            return;
+        }
 
         try {
-            // TODO: Implement provider configuration loading
-            // Need to get MAIProvider from database or configuration
-            // Then call: ChatLanguageModel model = providerFactory.createModel(config);
+            MAIProvider providerConfig = MAIProvider.getDefault(Env.getCtx(), null);
 
-            log.warning("Support Agent activation deferred - provider configuration not yet implemented");
+            if (providerConfig == null) {
+                throw new RuntimeException("No AI provider configured. Please create an AIG_Provider record with IsDefault='Y'");
+            }
 
-            // Stub for future implementation:
-            // MAIProvider config = loadProviderConfig();
-            // ChatLanguageModel model = providerFactory.createModel(config);
-            // agent = AiServices.builder(SupportAgentInterface.class)
-            //     .chatLanguageModel(model)
-            //     .tools(supportTools)
-            //     .chatMemory(MessageWindowChatMemory.withMaxMessages(20))
-            //     .build();
+            log.info("Initializing Support Agent with provider: " + providerConfig.getName());
+
+            ChatLanguageModel model = providerFactory.createModel(providerConfig);
+
+            agent = AiServices.builder(SupportAgentInterface.class)
+                .chatLanguageModel(model)
+                .tools(supportTools)
+                .chatMemory(MessageWindowChatMemory.withMaxMessages(20))
+                .build();
+
+            log.info("Support Agent initialized successfully");
 
         } catch (Exception e) {
-            log.severe("Failed to activate Support Agent: " + e.getMessage());
-            throw new RuntimeException("Support Agent activation failed", e);
+            log.severe("Failed to initialize Support Agent: " + e.getMessage());
+            throw new RuntimeException("Support Agent initialization failed: " + e.getMessage(), e);
         }
     }
 
@@ -91,9 +105,7 @@ public class SupportAgent {
      * @return classification and routing recommendation
      */
     public String classifyTicket(int requestId) {
-        if (agent == null) {
-            return "Support agent not available. Please configure an AI provider.";
-        }
+        ensureInitialized();
         return agent.classifyTicket(requestId);
     }
 
@@ -104,9 +116,7 @@ public class SupportAgent {
      * @return customer support analysis
      */
     public String analyzeCustomerSupport(int partnerId) {
-        if (agent == null) {
-            return "Support agent not available. Please configure an AI provider.";
-        }
+        ensureInitialized();
         return agent.analyzeCustomerSupport(partnerId);
     }
 
@@ -117,9 +127,7 @@ public class SupportAgent {
      * @return AI-generated response with insights
      */
     public String chat(String query) {
-        if (agent == null) {
-            return "Support agent not available. Please configure an AI provider.";
-        }
+        ensureInitialized();
         return agent.chat(query);
     }
 

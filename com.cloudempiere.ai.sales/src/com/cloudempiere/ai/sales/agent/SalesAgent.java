@@ -8,9 +8,15 @@ import org.osgi.service.component.annotations.Reference;
 
 import com.cloudempiere.ai.provider.langchain4j.ILangChain4jProviderFactory;
 import com.cloudempiere.ai.sales.tools.SalesTools;
+import com.cloudempiere.ai.model.MAIProvider;
 
+import org.compiere.util.Env;
+
+import dev.langchain4j.model.chat.ChatLanguageModel;
+import dev.langchain4j.service.AiServices;
 import dev.langchain4j.service.SystemMessage;
 import dev.langchain4j.service.UserMessage;
+import dev.langchain4j.memory.chat.MessageWindowChatMemory;
 
 /**
  * Sales domain AI agent.
@@ -55,32 +61,54 @@ public class SalesAgent {
      * Activate the sales agent.
      *
      * <p>This method is called by OSGi when the component is activated.
-     * It initializes the LangChain4j agent with the configured AI provider
-     * and sales tools.</p>
+     * The actual agent initialization is deferred until first use (lazy initialization)
+     * to ensure iDempiere context is available for database queries.</p>
      */
     @Activate
     protected void activate() {
-        log.info("Activating Sales Agent...");
+        log.info("Sales Agent OSGi component activated and ready");
+    }
+
+    /**
+     * Ensure the agent is initialized with AI provider configuration.
+     *
+     * <p>Lazy initialization pattern: loads provider config from database
+     * on first use. Uses MAIProvider.getDefault() to get the configured
+     * AI provider for the current client.</p>
+     *
+     * @throws RuntimeException if no provider is configured or initialization fails
+     */
+    private synchronized void ensureInitialized() {
+        if (agent != null) {
+            return; // Already initialized
+        }
 
         try {
-            // TODO: Implement provider configuration loading
-            // Need to get MAIProvider from database or configuration
-            // Then call: ChatLanguageModel model = providerFactory.createModel(config);
+            // Load default AI provider from database
+            MAIProvider providerConfig = MAIProvider.getDefault(Env.getCtx(), null);
 
-            log.warning("Sales Agent activation deferred - provider configuration not yet implemented");
+            if (providerConfig == null) {
+                throw new RuntimeException("No AI provider configured. Please create an AIG_Provider record with IsDefault='Y'");
+            }
 
-            // Stub for future implementation:
-            // MAIProvider config = loadProviderConfig();
-            // ChatLanguageModel model = providerFactory.createModel(config);
-            // agent = AiServices.builder(SalesAgentInterface.class)
-            //     .chatLanguageModel(model)
-            //     .tools(salesTools)
-            //     .chatMemory(MessageWindowChatMemory.withMaxMessages(20))
-            //     .build();
+            log.info("Initializing Sales Agent with provider: " + providerConfig.getName() +
+                     " (Type: " + providerConfig.getAIGProviderType() + ")");
+
+            // Create LangChain4j ChatLanguageModel from provider config
+            ChatLanguageModel model = providerFactory.createModel(providerConfig);
+
+            // Build the AI agent with tools and chat memory
+            agent = AiServices.builder(SalesAgentInterface.class)
+                .chatLanguageModel(model)
+                .tools(salesTools)
+                .chatMemory(MessageWindowChatMemory.withMaxMessages(20))
+                .build();
+
+            log.info("Sales Agent initialized successfully");
 
         } catch (Exception e) {
-            log.severe("Failed to activate Sales Agent: " + e.getMessage());
-            throw new RuntimeException("Sales Agent activation failed", e);
+            log.severe("Failed to initialize Sales Agent: " + e.getMessage());
+            throw new RuntimeException("Sales Agent initialization failed: " + e.getMessage(), e);
         }
     }
 
@@ -91,9 +119,7 @@ public class SalesAgent {
      * @return analysis summary
      */
     public String analyzeOpportunity(int opportunityId) {
-        if (agent == null) {
-            return "Sales agent not available. Please configure an AI provider.";
-        }
+        ensureInitialized();
         return agent.analyzeOpportunity(opportunityId);
     }
 
@@ -104,9 +130,7 @@ public class SalesAgent {
      * @return performance analysis
      */
     public String analyzePartnerSales(int partnerId) {
-        if (agent == null) {
-            return "Sales agent not available. Please configure an AI provider.";
-        }
+        ensureInitialized();
         return agent.analyzePartnerSales(partnerId);
     }
 
@@ -117,9 +141,7 @@ public class SalesAgent {
      * @return AI-generated response with insights
      */
     public String chat(String query) {
-        if (agent == null) {
-            return "Sales agent not available. Please configure an AI provider.";
-        }
+        ensureInitialized();
         return agent.chat(query);
     }
 

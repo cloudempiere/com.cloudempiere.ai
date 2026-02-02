@@ -8,9 +8,15 @@ import org.osgi.service.component.annotations.Reference;
 
 import com.cloudempiere.ai.kb.tools.KbTools;
 import com.cloudempiere.ai.provider.langchain4j.ILangChain4jProviderFactory;
+import com.cloudempiere.ai.model.MAIProvider;
 
+import org.compiere.util.Env;
+
+import dev.langchain4j.model.chat.ChatLanguageModel;
+import dev.langchain4j.service.AiServices;
 import dev.langchain4j.service.SystemMessage;
 import dev.langchain4j.service.UserMessage;
+import dev.langchain4j.memory.chat.MessageWindowChatMemory;
 
 /**
  * Knowledge Base domain AI agent.
@@ -55,32 +61,40 @@ public class KbAgent {
      * Activate the knowledge base agent.
      *
      * <p>This method is called by OSGi when the component is activated.
-     * It initializes the LangChain4j agent with the configured AI provider
-     * and KB tools.</p>
+     * The actual agent initialization is deferred until first use.</p>
      */
     @Activate
     protected void activate() {
-        log.info("Activating Knowledge Base Agent...");
+        log.info("Knowledge Base Agent OSGi component activated and ready");
+    }
+
+    private synchronized void ensureInitialized() {
+        if (agent != null) {
+            return;
+        }
 
         try {
-            // TODO: Implement provider configuration loading
-            // Need to get MAIProvider from database or configuration
-            // Then call: ChatLanguageModel model = providerFactory.createModel(config);
+            MAIProvider providerConfig = MAIProvider.getDefault(Env.getCtx(), null);
 
-            log.warning("Knowledge Base Agent activation deferred - provider configuration not yet implemented");
+            if (providerConfig == null) {
+                throw new RuntimeException("No AI provider configured. Please create an AIG_Provider record with IsDefault='Y'");
+            }
 
-            // Stub for future implementation:
-            // MAIProvider config = loadProviderConfig();
-            // ChatLanguageModel model = providerFactory.createModel(config);
-            // agent = AiServices.builder(KbAgentInterface.class)
-            //     .chatLanguageModel(model)
-            //     .tools(kbTools)
-            //     .chatMemory(MessageWindowChatMemory.withMaxMessages(20))
-            //     .build();
+            log.info("Initializing Knowledge Base Agent with provider: " + providerConfig.getName());
+
+            ChatLanguageModel model = providerFactory.createModel(providerConfig);
+
+            agent = AiServices.builder(KbAgentInterface.class)
+                .chatLanguageModel(model)
+                .tools(kbTools)
+                .chatMemory(MessageWindowChatMemory.withMaxMessages(20))
+                .build();
+
+            log.info("Knowledge Base Agent initialized successfully");
 
         } catch (Exception e) {
-            log.severe("Failed to activate Knowledge Base Agent: " + e.getMessage());
-            throw new RuntimeException("Knowledge Base Agent activation failed", e);
+            log.severe("Failed to initialize Knowledge Base Agent: " + e.getMessage());
+            throw new RuntimeException("Knowledge Base Agent initialization failed: " + e.getMessage(), e);
         }
     }
 
@@ -91,9 +105,7 @@ public class KbAgent {
      * @return search results with recommendations
      */
     public String searchKnowledgeBase(String query) {
-        if (agent == null) {
-            return "Knowledge Base agent not available. Please configure an AI provider.";
-        }
+        ensureInitialized();
         return agent.searchKnowledgeBase(query);
     }
 
@@ -104,9 +116,7 @@ public class KbAgent {
      * @return article summary and related content
      */
     public String summarizeArticle(int entryId) {
-        if (agent == null) {
-            return "Knowledge Base agent not available. Please configure an AI provider.";
-        }
+        ensureInitialized();
         return agent.summarizeArticle(entryId);
     }
 
@@ -117,9 +127,7 @@ public class KbAgent {
      * @return AI-generated response with insights
      */
     public String chat(String query) {
-        if (agent == null) {
-            return "Knowledge Base agent not available. Please configure an AI provider.";
-        }
+        ensureInitialized();
         return agent.chat(query);
     }
 

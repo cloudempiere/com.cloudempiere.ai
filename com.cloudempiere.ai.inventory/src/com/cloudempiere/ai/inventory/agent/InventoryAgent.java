@@ -8,9 +8,15 @@ import org.osgi.service.component.annotations.Reference;
 
 import com.cloudempiere.ai.inventory.tools.InventoryTools;
 import com.cloudempiere.ai.provider.langchain4j.ILangChain4jProviderFactory;
+import com.cloudempiere.ai.model.MAIProvider;
 
+import org.compiere.util.Env;
+
+import dev.langchain4j.model.chat.ChatLanguageModel;
+import dev.langchain4j.service.AiServices;
 import dev.langchain4j.service.SystemMessage;
 import dev.langchain4j.service.UserMessage;
+import dev.langchain4j.memory.chat.MessageWindowChatMemory;
 
 @Component(service = InventoryAgent.class, immediate = true)
 public class InventoryAgent {
@@ -26,19 +32,47 @@ public class InventoryAgent {
 
     @Activate
     protected void activate() {
-        log.info("Activating Inventory Agent...");
-        // TODO: Implement provider configuration loading
-        // Need to get MAIProvider from database or configuration
-        // Then call: ChatLanguageModel model = providerFactory.createModel(config);
-        log.warning("Inventory Agent activation deferred - provider configuration not yet implemented");
+        log.info("Inventory Agent OSGi component activated and ready");
+    }
+
+    private synchronized void ensureInitialized() {
+        if (agent != null) {
+            return;
+        }
+
+        try {
+            MAIProvider providerConfig = MAIProvider.getDefault(Env.getCtx(), null);
+
+            if (providerConfig == null) {
+                throw new RuntimeException("No AI provider configured. Please create an AIG_Provider record with IsDefault='Y'");
+            }
+
+            log.info("Initializing Inventory Agent with provider: " + providerConfig.getName());
+
+            ChatLanguageModel model = providerFactory.createModel(providerConfig);
+
+            agent = AiServices.builder(InventoryAgentInterface.class)
+                .chatLanguageModel(model)
+                .tools(inventoryTools)
+                .chatMemory(MessageWindowChatMemory.withMaxMessages(20))
+                .build();
+
+            log.info("Inventory Agent initialized successfully");
+
+        } catch (Exception e) {
+            log.severe("Failed to initialize Inventory Agent: " + e.getMessage());
+            throw new RuntimeException("Inventory Agent initialization failed: " + e.getMessage(), e);
+        }
     }
 
     public String analyzeStock(int productId) {
-        return agent != null ? agent.analyzeStock(productId) : "Agent not available";
+        ensureInitialized();
+        return agent.analyzeStock(productId);
     }
 
     public String chat(String query) {
-        return agent != null ? agent.chat(query) : "Agent not available";
+        ensureInitialized();
+        return agent.chat(query);
     }
 
     interface InventoryAgentInterface {
