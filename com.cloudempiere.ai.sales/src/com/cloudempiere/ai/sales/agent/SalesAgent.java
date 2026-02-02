@@ -1,11 +1,13 @@
 package com.cloudempiere.ai.sales.agent;
 
+import java.util.Map;
 import java.util.logging.Logger;
 
 import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
 
+import com.cloudempiere.ai.boundary.IDomainAgent;
 import com.cloudempiere.ai.provider.langchain4j.ILangChain4jProviderFactory;
 import com.cloudempiere.ai.sales.tools.SalesTools;
 import com.cloudempiere.ai.model.MAIProvider;
@@ -44,8 +46,8 @@ import dev.langchain4j.memory.chat.MessageWindowChatMemory;
  * @author CloudEmpiere AI Team
  * @version 1.0.0
  */
-@Component(service = SalesAgent.class, immediate = true)
-public class SalesAgent {
+@Component(service = {SalesAgent.class, IDomainAgent.class}, immediate = true)
+public class SalesAgent implements IDomainAgent {
 
     private static final Logger log = Logger.getLogger(SalesAgent.class.getName());
 
@@ -144,6 +146,77 @@ public class SalesAgent {
         ensureInitialized();
         return agent.chat(query);
     }
+
+    // ========== IDomainAgent Implementation ==========
+
+    /**
+     * Get the domain identifier for this agent.
+     *
+     * @return "sales"
+     */
+    @Override
+    public String getDomain() {
+        return "sales";
+    }
+
+    /**
+     * Determine if this agent can handle the given query.
+     *
+     * <p>Checks for sales-related keywords: sales, opportunity, quote, order,
+     * customer, revenue, deal, pipeline, forecast, crm, lead, prospect.</p>
+     *
+     * @param query user query text
+     * @param context optional window/record context (may be null)
+     * @return true if query contains sales keywords
+     */
+    @Override
+    public boolean canHandle(String query, Map<String, Object> context) {
+        if (query == null) {
+            return false;
+        }
+
+        String lowerQuery = query.toLowerCase();
+
+        // Sales keywords
+        String[] keywords = {
+            "sales", "opportunity", "quote", "order", "customer", "revenue",
+            "deal", "pipeline", "forecast", "crm", "lead", "prospect"
+        };
+
+        for (String keyword : keywords) {
+            if (lowerQuery.contains(keyword)) {
+                return true;
+            }
+        }
+
+        // Check context for sales-related tables
+        if (context != null && context.containsKey("tableName")) {
+            String tableName = (String) context.get("tableName");
+            if (tableName != null) {
+                tableName = tableName.toLowerCase();
+                if (tableName.contains("order") || tableName.contains("opportunity") ||
+                    tableName.contains("salesrep") || tableName.contains("quote")) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Process the query and return a response.
+     *
+     * @param query user query text
+     * @param context optional window/record context (may be null)
+     * @return AI response text
+     */
+    @Override
+    public String process(String query, Map<String, Object> context) {
+        return chat(query);
+    }
+
+    // ========== End IDomainAgent Implementation ==========
 
     /**
      * Sales agent interface for LangChain4j.

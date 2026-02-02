@@ -1,44 +1,42 @@
 package com.cloudempiere.ai.orchestrator;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.logging.Logger;
-
-import com.cloudempiere.ai.context.WindowContextExtractor;
 
 import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
 import org.osgi.service.component.annotations.ReferenceCardinality;
+import org.osgi.service.component.annotations.ReferencePolicy;
 
-import com.cloudempiere.ai.sales.agent.SalesAgent;
-import com.cloudempiere.ai.inventory.agent.InventoryAgent;
-import com.cloudempiere.ai.purchasing.agent.PurchasingAgent;
-import com.cloudempiere.ai.support.agent.SupportAgent;
-import com.cloudempiere.ai.kb.agent.KbAgent;
+import com.cloudempiere.ai.boundary.IDomainAgent;
+import com.cloudempiere.ai.boundary.IOrchestrator;
 
 /**
  * Central orchestrator agent that routes queries to specialized domain agents.
  *
- * <p>This orchestrator implements the agent coordination strategy defined in ADR-010.
- * It analyzes incoming queries and routes them to the appropriate domain specialist(s):</p>
- * <ul>
- *   <li>Sales queries → SalesAgent</li>
- *   <li>Inventory queries → InventoryAgent</li>
- *   <li>Purchasing queries → PurchasingAgent</li>
- *   <li>Support queries → SupportAgent</li>
- *   <li>Knowledge base queries → KbAgent</li>
- *   <li>Multi-domain queries → Multiple agents with response aggregation</li>
- * </ul>
+ * <p>This orchestrator implements the agent coordination strategy defined in ADR-010
+ * using a factory pattern with dynamic service discovery. Domain agents are discovered
+ * automatically via OSGi service tracking - no hard-coded dependencies.</p>
  *
  * <p><b>Routing Strategy:</b></p>
  * <ol>
- *   <li>Keyword-based classification for clear, single-domain queries</li>
- *   <li>Multi-domain detection for queries spanning multiple areas</li>
- *   <li>Fallback to knowledge base for general questions</li>
+ *   <li>Query all available domain agents via canHandle()</li>
+ *   <li>Route to agent(s) that report they can handle the query</li>
+ *   <li>Aggregate responses if multiple agents handle the query</li>
+ *   <li>Fallback to generic response if no agents can handle</li>
  * </ol>
+ *
+ * <p><b>Benefits of Factory Pattern:</b></p>
+ * <ul>
+ *   <li>No Require-Bundle dependencies - uses Import-Package only</li>
+ *   <li>New domain agents auto-discovered without orchestrator changes</li>
+ *   <li>Domain agents can be added/removed at runtime</li>
+ *   <li>Follows OSGi service-oriented architecture</li>
+ * </ul>
  *
  * <p><b>Related ADRs:</b></p>
  * <ul>
@@ -47,61 +45,26 @@ import com.cloudempiere.ai.kb.agent.KbAgent;
  * </ul>
  *
  * @author CloudEmpiere AI Team
- * @version 1.0.0
+ * @version 0.32.0
  */
-@Component(service = OrchestratorAgent.class, immediate = true)
-public class OrchestratorAgent {
+@Component(service = {OrchestratorAgent.class, IOrchestrator.class}, immediate = true)
+public class OrchestratorAgent implements IOrchestrator {
 
     private static final Logger log = Logger.getLogger(OrchestratorAgent.class.getName());
 
-    @Reference(cardinality = ReferenceCardinality.OPTIONAL)
-    private volatile SalesAgent salesAgent;
-
-    @Reference(cardinality = ReferenceCardinality.OPTIONAL)
-    private volatile InventoryAgent inventoryAgent;
-
-    @Reference(cardinality = ReferenceCardinality.OPTIONAL)
-    private volatile PurchasingAgent purchasingAgent;
-
-    @Reference(cardinality = ReferenceCardinality.OPTIONAL)
-    private volatile SupportAgent supportAgent;
-
-    @Reference(cardinality = ReferenceCardinality.OPTIONAL)
-    private volatile KbAgent kbAgent;
-
-    /** Domain classification keywords */
-    private static final Map<String, String[]> DOMAIN_KEYWORDS = new HashMap<>();
-
-    static {
-        DOMAIN_KEYWORDS.put("sales", new String[]{
-            "sales", "opportunity", "quote", "order", "customer", "revenue",
-            "deal", "pipeline", "forecast", "crm", "lead", "prospect"
-        });
-
-        DOMAIN_KEYWORDS.put("inventory", new String[]{
-            "inventory", "stock", "warehouse", "product", "sku", "storage",
-            "availability", "on hand", "reserved", "shortage"
-        });
-
-        DOMAIN_KEYWORDS.put("purchasing", new String[]{
-            "purchase", "vendor", "supplier", "procurement", "buying",
-            "purchase order", "po", "requisition", "sourcing"
-        });
-
-        DOMAIN_KEYWORDS.put("support", new String[]{
-            "support", "ticket", "request", "issue", "problem", "bug",
-            "help", "escalation", "complaint", "service"
-        });
-
-        DOMAIN_KEYWORDS.put("kb", new String[]{
-            "documentation", "article", "guide", "how to", "tutorial",
-            "manual", "knowledge", "wiki", "faq"
-        });
-    }
+    /**
+     * Dynamic list of domain agents.
+     * OSGi DS automatically adds/removes agents as they become available/unavailable.
+     */
+    @Reference(
+        cardinality = ReferenceCardinality.MULTIPLE,
+        policy = ReferencePolicy.DYNAMIC
+    )
+    private volatile List<IDomainAgent> domainAgents = new CopyOnWriteArrayList<>();
 
     @Activate
     protected void activate() {
-        log.info("Orchestrator Agent activated - ready to route queries");
+        log.info("Orchestrator Agent activated - using factory pattern for dynamic agent discovery");
     }
 
     /**
@@ -109,29 +72,17 @@ public class OrchestratorAgent {
      *
      * <p>This is the main entry point for all AI queries. The orchestrator:
      * <ol>
-     *   <li>Classifies the query domain(s)</li>
-     *   <li>Routes to specialist agent(s)</li>
+     *   <li>Queries each domain agent if it can handle the request</li>
+     *   <li>Routes to agent(s) that respond positively</li>
      *   <li>Aggregates responses if multiple domains</li>
      *   <li>Returns formatted response</li>
      * </ol>
      *
      * @param query natural language query from user
+     * @param context window context map (from WindowContextExtractor), may be null
      * @return AI-generated response
      */
-    public String chat(String query) {
-        return chat(query, null);
-    }
-
-    /**
-     * Process a user query with window context.
-     *
-     * <p>Context-aware version that includes current window/record information
-     * to enable record-specific AI responses.</p>
-     *
-     * @param query natural language query
-     * @param context window context map (from WindowContextExtractor)
-     * @return AI-generated response
-     */
+    @Override
     public String chat(String query, Map<String, Object> context) {
         if (query == null || query.trim().isEmpty()) {
             return "Please provide a query.";
@@ -139,180 +90,100 @@ public class OrchestratorAgent {
 
         log.info("Orchestrator received query: " + query);
 
-        // Enhance query with context if available
-        String enhancedQuery = query;
-        if (context != null && !context.isEmpty()) {
-            String contextText = WindowContextExtractor.formatForAI(context);
-            enhancedQuery = query + contextText;
-
-            log.info("Query enhanced with context from table: " + context.get("tableName"));
+        // Check if we have any agents available
+        if (domainAgents.isEmpty()) {
+            log.warning("No domain agents available");
+            return "AI system not available. No domain agents are currently registered. " +
+                   "Please ensure domain agent plugins are installed.";
         }
 
-        // Classify which domain(s) this query belongs to
-        List<String> domains = classifyQuery(enhancedQuery);
+        log.info("Checking " + domainAgents.size() + " available domain agents");
 
-        // If context provides domain hint, prioritize it
-        if (context != null && context.containsKey("tableName")) {
-            String tableName = (String) context.get("tableName");
-            String contextDomain = WindowContextExtractor.detectDomain(tableName);
-
-            if (contextDomain != null && !domains.contains(contextDomain)) {
-                domains.add(0, contextDomain); // Add to front
-                log.info("Added context-based domain: " + contextDomain);
-            }
-        }
-
-        if (domains.isEmpty()) {
-            // No clear domain match - fallback to knowledge base
-            log.info("No clear domain match - routing to knowledge base");
-            return routeToKnowledgeBase(enhancedQuery);
-        }
-
-        if (domains.size() == 1) {
-            // Single domain - direct routing
-            String domain = domains.get(0);
-            log.info("Routing to single domain: " + domain);
-            return routeToDomain(domain, enhancedQuery);
-        }
-
-        // Multiple domains - invoke all and aggregate responses
-        log.info("Multi-domain query detected: " + domains);
-        return aggregateResponses(domains, enhancedQuery);
-    }
-
-    /**
-     * Classify query into domain(s) based on keyword matching.
-     *
-     * @param query user query
-     * @return list of matching domains (empty if no match)
-     */
-    private List<String> classifyQuery(String query) {
-        List<String> matchedDomains = new ArrayList<>();
-        String lowerQuery = query.toLowerCase();
-
-        for (Map.Entry<String, String[]> entry : DOMAIN_KEYWORDS.entrySet()) {
-            String domain = entry.getKey();
-            String[] keywords = entry.getValue();
-
-            for (String keyword : keywords) {
-                if (lowerQuery.contains(keyword)) {
-                    matchedDomains.add(domain);
-                    break; // Only add each domain once
+        // Find agents that can handle this query
+        List<IDomainAgent> capableAgents = new ArrayList<>();
+        for (IDomainAgent agent : domainAgents) {
+            try {
+                if (agent.canHandle(query, context)) {
+                    capableAgents.add(agent);
+                    log.info("Agent " + agent.getDomain() + " can handle query");
                 }
+            } catch (Exception e) {
+                log.warning("Error checking if agent " + agent.getDomain() +
+                           " can handle query: " + e.getMessage());
             }
         }
 
-        return matchedDomains;
+        if (capableAgents.isEmpty()) {
+            log.info("No agents can handle this query");
+            return "I don't have specific information to answer that question. " +
+                   "Please try rephrasing your query or ask about sales, inventory, " +
+                   "purchasing, support, or knowledge base topics.";
+        }
+
+        if (capableAgents.size() == 1) {
+            // Single agent - direct response
+            IDomainAgent agent = capableAgents.get(0);
+            log.info("Routing to single agent: " + agent.getDomain());
+            return processWithAgent(agent, query, context);
+        }
+
+        // Multiple agents - aggregate responses
+        log.info("Multi-domain query - " + capableAgents.size() + " agents can handle");
+        return aggregateResponses(capableAgents, query, context);
     }
 
     /**
-     * Route query to specific domain agent.
+     * Process query with a specific agent.
      *
-     * @param domain target domain (sales, inventory, purchasing, support, kb)
+     * @param agent domain agent
      * @param query user query
+     * @param context window context (may be null)
      * @return agent response
      */
-    private String routeToDomain(String domain, String query) {
+    private String processWithAgent(IDomainAgent agent, String query, Map<String, Object> context) {
         try {
-            switch (domain) {
-                case "sales":
-                    if (salesAgent == null) {
-                        return "Sales agent not available. Please check plugin installation.";
-                    }
-                    return salesAgent.chat(query);
-
-                case "inventory":
-                    if (inventoryAgent == null) {
-                        return "Inventory agent not available. Please check plugin installation.";
-                    }
-                    return inventoryAgent.chat(query);
-
-                case "purchasing":
-                    if (purchasingAgent == null) {
-                        return "Purchasing agent not available. Please check plugin installation.";
-                    }
-                    return purchasingAgent.chat(query);
-
-                case "support":
-                    if (supportAgent == null) {
-                        return "Support agent not available. Please check plugin installation.";
-                    }
-                    return supportAgent.chat(query);
-
-                case "kb":
-                    return routeToKnowledgeBase(query);
-
-                default:
-                    return "Unknown domain: " + domain;
-            }
+            return agent.process(query, context);
         } catch (Exception e) {
-            log.severe("Error routing to " + domain + " agent: " + e.getMessage());
+            log.severe("Error processing query with " + agent.getDomain() + " agent: " + e.getMessage());
             return "Error processing query: " + e.getMessage();
         }
     }
 
     /**
-     * Route to knowledge base agent.
-     *
-     * @param query user query
-     * @return KB agent response
-     */
-    private String routeToKnowledgeBase(String query) {
-        if (kbAgent == null) {
-            return "I don't have enough information to answer that. Knowledge base agent not available.";
-        }
-        return kbAgent.chat(query);
-    }
-
-    /**
      * Aggregate responses from multiple domain agents.
      *
-     * <p>Invokes each relevant domain agent and combines their responses
+     * <p>Invokes each capable agent and combines their responses
      * into a coherent multi-domain answer.</p>
      *
-     * @param domains list of domains to query
+     * @param agents list of capable agents
      * @param query user query
+     * @param context window context (may be null)
      * @return aggregated response
      */
-    private String aggregateResponses(List<String> domains, String query) {
+    private String aggregateResponses(List<IDomainAgent> agents, String query, Map<String, Object> context) {
         StringBuilder response = new StringBuilder();
         response.append("I found relevant information across multiple areas:\n\n");
 
-        int domainCount = 0;
-        for (String domain : domains) {
-            String domainResponse = routeToDomain(domain, query);
+        int successCount = 0;
+        for (IDomainAgent agent : agents) {
+            try {
+                String agentResponse = agent.process(query, context);
 
-            if (domainResponse != null && !domainResponse.isEmpty()
-                && !domainResponse.contains("not available")) {
-
-                domainCount++;
-                response.append("## ").append(getDomainDisplayName(domain)).append("\n");
-                response.append(domainResponse).append("\n\n");
+                if (agentResponse != null && !agentResponse.trim().isEmpty()) {
+                    successCount++;
+                    response.append("## ").append(capitalize(agent.getDomain())).append("\n");
+                    response.append(agentResponse).append("\n\n");
+                }
+            } catch (Exception e) {
+                log.warning("Error getting response from " + agent.getDomain() + " agent: " + e.getMessage());
             }
         }
 
-        if (domainCount == 0) {
-            return "Unable to process query. No domain agents available.";
+        if (successCount == 0) {
+            return "Unable to process query. All domain agents encountered errors.";
         }
 
         return response.toString();
-    }
-
-    /**
-     * Get display name for domain.
-     *
-     * @param domain internal domain code
-     * @return human-readable domain name
-     */
-    private String getDomainDisplayName(String domain) {
-        switch (domain) {
-            case "sales": return "Sales";
-            case "inventory": return "Inventory";
-            case "purchasing": return "Purchasing";
-            case "support": return "Support";
-            case "kb": return "Knowledge Base";
-            default: return domain;
-        }
     }
 
     /**
@@ -320,24 +191,35 @@ public class OrchestratorAgent {
      *
      * @return true if at least one agent is available
      */
+    @Override
     public boolean hasAgentsAvailable() {
-        return salesAgent != null || inventoryAgent != null
-            || purchasingAgent != null || supportAgent != null
-            || kbAgent != null;
+        return !domainAgents.isEmpty();
     }
 
     /**
      * Get list of available agents.
      *
-     * @return list of available agent names
+     * @return list of available agent domain names
      */
+    @Override
     public List<String> getAvailableAgents() {
         List<String> available = new ArrayList<>();
-        if (salesAgent != null) available.add("Sales");
-        if (inventoryAgent != null) available.add("Inventory");
-        if (purchasingAgent != null) available.add("Purchasing");
-        if (supportAgent != null) available.add("Support");
-        if (kbAgent != null) available.add("Knowledge Base");
+        for (IDomainAgent agent : domainAgents) {
+            available.add(capitalize(agent.getDomain()));
+        }
         return available;
+    }
+
+    /**
+     * Capitalize first letter of string.
+     *
+     * @param str input string
+     * @return capitalized string
+     */
+    private String capitalize(String str) {
+        if (str == null || str.isEmpty()) {
+            return str;
+        }
+        return str.substring(0, 1).toUpperCase() + str.substring(1);
     }
 }

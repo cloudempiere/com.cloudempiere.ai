@@ -2,10 +2,13 @@ package com.cloudempiere.ai.component;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.logging.Logger;
 
-import org.compiere.util.Env;
+import org.compiere.model.GridTab;
 import org.zkoss.zk.ui.Component;
+import org.zkoss.zk.ui.ComponentNotFoundException;
+import org.zkoss.zk.ui.WrongValueException;
 import org.zkoss.zk.ui.event.Event;
 import org.zkoss.zk.ui.event.EventListener;
 import org.zkoss.zk.ui.event.Events;
@@ -17,11 +20,9 @@ import org.zkoss.zul.Label;
 import org.zkoss.zul.Textbox;
 import org.zkoss.zul.Vlayout;
 
-import com.cloudempiere.ai.orchestrator.OrchestratorAgent;
-import com.cloudempiere.ai.util.ServiceLocator;
+import com.cloudempiere.ai.boundary.IOrchestrator;
 import com.cloudempiere.ai.context.WindowContextExtractor;
-
-import org.compiere.model.GridTab;
+import com.cloudempiere.ai.util.ServiceLocator;
 
 /**
  * AI Chat Panel component for iDempiere.
@@ -69,7 +70,7 @@ public class ChatPanel extends Div {
     private Button sendButton;
 
     /** Orchestrator for routing queries */
-    private OrchestratorAgent orchestrator;
+    private IOrchestrator orchestrator;
 
     /** Message history for context */
     private List<ChatMessage> messages = new ArrayList<>();
@@ -159,7 +160,7 @@ public class ChatPanel extends Div {
     private void loadOrchestrator() {
         try {
             // Lookup orchestrator from OSGi service registry
-            orchestrator = ServiceLocator.getService(OrchestratorAgent.class);
+            orchestrator = ServiceLocator.getService(IOrchestrator.class);
 
             if (orchestrator == null) {
                 log.warning("Orchestrator service not found");
@@ -207,7 +208,7 @@ public class ChatPanel extends Div {
         addUserMessage(query);
 
         // Show typing indicator
-        Div typingIndicator = addTypingIndicator();
+        Hlayout typingIndicator = addTypingIndicator();
 
         // Process query asynchronously
         Events.echoEvent("onAIQuery", this, query);
@@ -356,7 +357,7 @@ public class ChatPanel extends Div {
      *
      * @return typing indicator component
      */
-    private Div addTypingIndicator() {
+    private Hlayout addTypingIndicator() {
         Hlayout messageRow = new Hlayout();
         messageRow.setStyle("width: 100%; justify-content: flex-start; margin-bottom: 12px;");
         messageRow.setId("typingIndicator");
@@ -379,9 +380,13 @@ public class ChatPanel extends Div {
      * Remove typing indicator.
      */
     private void removeTypingIndicator() {
-        Component indicator = chatHistory.getFellow("typingIndicator", false);
-        if (indicator != null) {
-            chatHistory.removeChild(indicator);
+        try {
+            Component indicator = chatHistory.getFellow("typingIndicator", false);
+            if (indicator != null) {
+                chatHistory.removeChild(indicator);
+            }
+        } catch (ComponentNotFoundException e) {
+            // Indicator not found, ignore
         }
     }
 
@@ -406,7 +411,7 @@ public class ChatPanel extends Div {
      *
      * @param orchestrator orchestrator agent
      */
-    public void setOrchestrator(OrchestratorAgent orchestrator) {
+    public void setOrchestrator(IOrchestrator orchestrator) {
         this.orchestrator = orchestrator;
     }
 

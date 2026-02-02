@@ -1,11 +1,13 @@
 package com.cloudempiere.ai.inventory.agent;
 
+import java.util.Map;
 import java.util.logging.Logger;
 
 import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
 
+import com.cloudempiere.ai.boundary.IDomainAgent;
 import com.cloudempiere.ai.inventory.tools.InventoryTools;
 import com.cloudempiere.ai.provider.langchain4j.ILangChain4jProviderFactory;
 import com.cloudempiere.ai.model.MAIProvider;
@@ -18,8 +20,8 @@ import dev.langchain4j.service.SystemMessage;
 import dev.langchain4j.service.UserMessage;
 import dev.langchain4j.memory.chat.MessageWindowChatMemory;
 
-@Component(service = InventoryAgent.class, immediate = true)
-public class InventoryAgent {
+@Component(service = {InventoryAgent.class, IDomainAgent.class}, immediate = true)
+public class InventoryAgent implements IDomainAgent {
     private static final Logger log = Logger.getLogger(InventoryAgent.class.getName());
 
     @Reference
@@ -73,6 +75,31 @@ public class InventoryAgent {
     public String chat(String query) {
         ensureInitialized();
         return agent.chat(query);
+    }
+
+    @Override
+    public String getDomain() {
+        return "inventory";
+    }
+
+    @Override
+    public boolean canHandle(String query, Map<String, Object> context) {
+        if (query == null) return false;
+        String lower = query.toLowerCase();
+        String[] keywords = {"inventory", "stock", "warehouse", "product", "sku", "storage", "availability", "on hand", "reserved", "shortage"};
+        for (String kw : keywords) {
+            if (lower.contains(kw)) return true;
+        }
+        if (context != null && context.containsKey("tableName")) {
+            String tn = ((String) context.get("tableName")).toLowerCase();
+            if (tn.contains("storage") || tn.contains("product") || tn.contains("inventory")) return true;
+        }
+        return false;
+    }
+
+    @Override
+    public String process(String query, Map<String, Object> context) {
+        return chat(query);
     }
 
     interface InventoryAgentInterface {

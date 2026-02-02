@@ -1,10 +1,13 @@
 package com.cloudempiere.ai.support.agent;
 
+import java.util.Map;
 import java.util.logging.Logger;
 
 import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
+
+import com.cloudempiere.ai.boundary.IDomainAgent;
 
 import com.cloudempiere.ai.provider.langchain4j.ILangChain4jProviderFactory;
 import com.cloudempiere.ai.support.tools.SupportTools;
@@ -44,8 +47,8 @@ import dev.langchain4j.memory.chat.MessageWindowChatMemory;
  * @author CloudEmpiere AI Team
  * @version 1.0.0
  */
-@Component(service = SupportAgent.class, immediate = true)
-public class SupportAgent {
+@Component(service = {SupportAgent.class, IDomainAgent.class}, immediate = true)
+public class SupportAgent implements IDomainAgent {
 
     private static final Logger log = Logger.getLogger(SupportAgent.class.getName());
 
@@ -129,6 +132,31 @@ public class SupportAgent {
     public String chat(String query) {
         ensureInitialized();
         return agent.chat(query);
+    }
+
+    @Override
+    public String getDomain() {
+        return "support";
+    }
+
+    @Override
+    public boolean canHandle(String query, Map<String, Object> context) {
+        if (query == null) return false;
+        String lower = query.toLowerCase();
+        String[] keywords = {"support", "ticket", "request", "issue", "problem", "bug", "help", "escalation", "complaint", "service"};
+        for (String kw : keywords) {
+            if (lower.contains(kw)) return true;
+        }
+        if (context != null && context.containsKey("tableName")) {
+            String tn = ((String) context.get("tableName")).toLowerCase();
+            if (tn.contains("r_request") || tn.contains("support") || tn.contains("ticket")) return true;
+        }
+        return false;
+    }
+
+    @Override
+    public String process(String query, Map<String, Object> context) {
+        return chat(query);
     }
 
     /**

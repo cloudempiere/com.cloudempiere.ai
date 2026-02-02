@@ -101,9 +101,9 @@ public class WindowContextExtractor {
                     fieldValues.put(fieldName, value);
 
                     // Also get display value for lookup fields
-                    String displayValue = field.getDisplayValue();
-                    if (displayValue != null && !displayValue.equals(value.toString())) {
-                        fieldValues.put(fieldName + "_Display", displayValue);
+                    Object displayValue = field.getValue();
+                    if (displayValue != null && !displayValue.equals(value)) {
+                        fieldValues.put(fieldName + "_Display", displayValue.toString());
                     }
                 }
             }

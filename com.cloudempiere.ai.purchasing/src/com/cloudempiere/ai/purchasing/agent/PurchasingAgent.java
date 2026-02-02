@@ -1,10 +1,13 @@
 package com.cloudempiere.ai.purchasing.agent;
 
+import java.util.Map;
 import java.util.logging.Logger;
 
 import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
+
+import com.cloudempiere.ai.boundary.IDomainAgent;
 
 import com.cloudempiere.ai.provider.langchain4j.ILangChain4jProviderFactory;
 import com.cloudempiere.ai.purchasing.tools.PurchasingTools;
@@ -44,8 +47,8 @@ import dev.langchain4j.memory.chat.MessageWindowChatMemory;
  * @author CloudEmpiere AI Team
  * @version 1.0.0
  */
-@Component(service = PurchasingAgent.class, immediate = true)
-public class PurchasingAgent {
+@Component(service = {PurchasingAgent.class, IDomainAgent.class}, immediate = true)
+public class PurchasingAgent implements IDomainAgent {
 
     private static final Logger log = Logger.getLogger(PurchasingAgent.class.getName());
 
@@ -201,5 +204,30 @@ public class PurchasingAgent {
             "7. Cost optimization opportunities and recommendations\n\n" +
             "Support your analysis with specific data, trends, and benchmarks.")
         String analyzeVendorPerformance(int partnerId);
+    }
+
+    @Override
+    public String getDomain() {
+        return "purchasing";
+    }
+
+    @Override
+    public boolean canHandle(String query, Map<String, Object> context) {
+        if (query == null) return false;
+        String lower = query.toLowerCase();
+        String[] keywords = {"purchase", "vendor", "supplier", "procurement", "buying", "purchase order", "po", "requisition", "sourcing"};
+        for (String kw : keywords) {
+            if (lower.contains(kw)) return true;
+        }
+        if (context != null && context.containsKey("tableName")) {
+            String tn = ((String) context.get("tableName")).toLowerCase();
+            if (tn.contains("purchase") || tn.contains("vendor") || tn.contains("requisition")) return true;
+        }
+        return false;
+    }
+
+    @Override
+    public String process(String query, Map<String, Object> context) {
+        return chat(query);
     }
 }

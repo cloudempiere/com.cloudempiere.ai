@@ -1,47 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <scr:component xmlns:scr="http://www.osgi.org/xmlns/scr/v1.3.0"
-               name="com.cloudempiere.ai.orchestrator.OrchestratorAgent"
-               immediate="true">
-   <implementation class="com.cloudempiere.ai.orchestrator.OrchestratorAgent"/>
-   <service>
-      <provide interface="com.cloudempiere.ai.orchestrator.OrchestratorAgent"/>
-   </service>
-
-   <!-- Optional domain agent references -->
-   <!-- Agents may not be installed, so use optional cardinality -->
-
-   <reference bind="setSalesAgent"
-              cardinality="0..1"
-              field="salesAgent"
-              interface="com.cloudempiere.ai.sales.agent.SalesAgent"
-              name="SalesAgent"
-              policy="dynamic"/>
-
-   <reference bind="setInventoryAgent"
-              cardinality="0..1"
-              field="inventoryAgent"
-              interface="com.cloudempiere.ai.inventory.agent.InventoryAgent"
-              name="InventoryAgent"
-              policy="dynamic"/>
-
-   <reference bind="setPurchasingAgent"
-              cardinality="0..1"
-              field="purchasingAgent"
-              interface="com.cloudempiere.ai.purchasing.agent.PurchasingAgent"
-              name="PurchasingAgent"
-              policy="dynamic"/>
-
-   <reference bind="setSupportAgent"
-              cardinality="0..1"
-              field="supportAgent"
-              interface="com.cloudempiere.ai.support.agent.SupportAgent"
-              name="SupportAgent"
-              policy="dynamic"/>
-
-   <reference bind="setKbAgent"
-              cardinality="0..1"
-              field="kbAgent"
-              interface="com.cloudempiere.ai.kb.agent.KbAgent"
-              name="KbAgent"
-              policy="dynamic"/>
+    name="com.cloudempiere.ai.orchestrator.OrchestratorAgent"
+    immediate="true">
+  <implementation class="com.cloudempiere.ai.orchestrator.OrchestratorAgent"/>
+  <service>
+    <provide interface="com.cloudempiere.ai.orchestrator.OrchestratorAgent"/>
+    <provide interface="com.cloudempiere.ai.boundary.IOrchestrator"/>
+  </service>
+  <reference
+      bind="bindDomainAgent"
+      unbind="unbindDomainAgent"
+      cardinality="0..n"
+      field="domainAgents"
+      interface="com.cloudempiere.ai.boundary.IDomainAgent"
+      name="domainAgents"
+      policy="dynamic"/>
 </scr:component>
