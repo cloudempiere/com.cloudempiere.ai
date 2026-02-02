@@ -658,7 +658,7 @@ class LanguageDetectionServiceTest {
             service.detectLanguageChangeRequest("respond in German");
 
             // Should not throw exception
-            assertThat(() -> service.reloadLanguageMap()).doesNotThrowAnyException();
+            assertThatCode(() -> service.reloadLanguageMap()).doesNotThrowAnyException();
 
             // Should still work after reload
             Optional<String> detected = service.detectLanguageChangeRequest("respond in German");
