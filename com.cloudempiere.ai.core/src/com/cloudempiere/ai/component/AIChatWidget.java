@@ -44,7 +44,6 @@ import org.zkoss.zk.ui.event.EventListener;
 import org.zkoss.zk.ui.event.Events;
 import org.zkoss.zk.ui.util.Clients;
 import org.zkoss.zul.Button;
-import org.zkoss.zul.Combobox;
 import org.zkoss.zul.Comboitem;
 import org.zkoss.zul.Div;
 import org.zkoss.zul.Hlayout;
@@ -67,11 +66,6 @@ import com.cloudempiere.ai.model.MAIProvider;
 import com.cloudempiere.ai.provider.dto.AIStreamCallback;
 import com.cloudempiere.ai.provider.langchain4j.AIService;
 import com.cloudempiere.ai.provider.langchain4j.AIService.ChatResult;
-// TEMPORARILY DISABLED - ChatAccessService will be implemented in future phase (ADR-036)
-// import com.cloudempiere.ai.service.ChatAccessService;
-// import com.cloudempiere.ai.service.IChatAccessService.ChatAccess;
-import com.cloudempiere.ai.util.MarkdownTableRenderer;
-import com.cloudempiere.ai.util.ZoomLinkProcessor;
 
 /**
  * AI Chat Widget Component
