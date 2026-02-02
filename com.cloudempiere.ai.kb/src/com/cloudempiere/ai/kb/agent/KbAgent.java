@@ -68,7 +68,13 @@ public class KbAgent implements IDomainAgent {
      */
     @Activate
     protected void activate() {
+        long startTime = System.currentTimeMillis();
+        log.warning("[STARTUP TIMING] KbAgent.activate() START");
+
         log.info("Knowledge Base Agent OSGi component activated and ready");
+
+        long elapsed = System.currentTimeMillis() - startTime;
+        log.warning("[STARTUP TIMING] KbAgent.activate() COMPLETED in " + elapsed + "ms");
     }
 
     private synchronized void ensureInitialized() {

@@ -1,8 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <scr:component xmlns:scr="http://www.osgi.org/xmlns/scr/v1.3.0"
                name="com.cloudempiere.ai.sales.agent.SalesAgent"
-               activate="activate"
-               immediate="true">
+               activate="activate">
    <implementation class="com.cloudempiere.ai.sales.agent.SalesAgent"/>
    <service>
       <provide interface="com.cloudempiere.ai.sales.agent.SalesAgent"/>

@@ -64,7 +64,13 @@ public class OrchestratorAgent implements IOrchestrator {
 
     @Activate
     protected void activate() {
+        long startTime = System.currentTimeMillis();
+        log.warning("[STARTUP TIMING] OrchestratorAgent.activate() START");
+
         log.info("Orchestrator Agent activated - using factory pattern for dynamic agent discovery");
+
+        long elapsed = System.currentTimeMillis() - startTime;
+        log.warning("[STARTUP TIMING] OrchestratorAgent.activate() COMPLETED in " + elapsed + "ms");
     }
 
     /**

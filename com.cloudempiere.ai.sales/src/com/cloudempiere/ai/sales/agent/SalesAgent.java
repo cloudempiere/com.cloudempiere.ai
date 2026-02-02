@@ -68,7 +68,13 @@ public class SalesAgent implements IDomainAgent {
      */
     @Activate
     protected void activate() {
+        long startTime = System.currentTimeMillis();
+        log.warning("[STARTUP TIMING] SalesAgent.activate() START");
+
         log.info("Sales Agent OSGi component activated and ready");
+
+        long elapsed = System.currentTimeMillis() - startTime;
+        log.warning("[STARTUP TIMING] SalesAgent.activate() COMPLETED in " + elapsed + "ms");
     }
 
     /**

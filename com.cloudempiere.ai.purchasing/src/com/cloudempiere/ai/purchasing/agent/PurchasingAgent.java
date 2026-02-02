@@ -68,7 +68,13 @@ public class PurchasingAgent implements IDomainAgent {
      */
     @Activate
     protected void activate() {
+        long startTime = System.currentTimeMillis();
+        log.warning("[STARTUP TIMING] PurchasingAgent.activate() START");
+
         log.info("Purchasing Agent OSGi component activated and ready");
+
+        long elapsed = System.currentTimeMillis() - startTime;
+        log.warning("[STARTUP TIMING] PurchasingAgent.activate() COMPLETED in " + elapsed + "ms");
     }
 
     private synchronized void ensureInitialized() {

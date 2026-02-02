@@ -34,7 +34,13 @@ public class InventoryAgent implements IDomainAgent {
 
     @Activate
     protected void activate() {
+        long startTime = System.currentTimeMillis();
+        log.warning("[STARTUP TIMING] InventoryAgent.activate() START");
+
         log.info("Inventory Agent OSGi component activated and ready");
+
+        long elapsed = System.currentTimeMillis() - startTime;
+        log.warning("[STARTUP TIMING] InventoryAgent.activate() COMPLETED in " + elapsed + "ms");
     }
 
     private synchronized void ensureInitialized() {

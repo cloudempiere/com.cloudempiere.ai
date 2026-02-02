@@ -186,6 +186,9 @@ public class EmbeddingStoreProvider implements IEmbeddingStoreProvider {
      */
     @Activate
     public void activate() {
+        long startTime = System.currentTimeMillis();
+        log.warning("[STARTUP TIMING] EmbeddingStoreProvider.activate() START");
+
         // Read initialization mode from system property
         String modeStr = System.getProperty(PROP_INIT_MODE, MODE_GRACEFUL);
         if (MODE_STRICT.equalsIgnoreCase(modeStr)) {
@@ -195,6 +198,9 @@ public class EmbeddingStoreProvider implements IEmbeddingStoreProvider {
             initMode = InitMode.GRACEFUL;
             log.info("EmbeddingStoreProvider registered in GRACEFUL mode (will fallback to in-memory if needed)");
         }
+
+        long elapsed = System.currentTimeMillis() - startTime;
+        log.warning("[STARTUP TIMING] EmbeddingStoreProvider.activate() COMPLETED in " + elapsed + "ms");
     }
 
     /**

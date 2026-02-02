@@ -87,7 +87,13 @@ public class EmbeddingTriggerService implements IEmbeddingTriggerService {
 
     @Activate
     public void activate() {
+        long startTime = System.currentTimeMillis();
+        log.warning("[STARTUP TIMING] EmbeddingTriggerService.activate() START");
+
         log.info("EmbeddingTriggerService activated");
+
+        long elapsed = System.currentTimeMillis() - startTime;
+        log.warning("[STARTUP TIMING] EmbeddingTriggerService.activate() COMPLETED in " + elapsed + "ms");
     }
 
     @Deactivate

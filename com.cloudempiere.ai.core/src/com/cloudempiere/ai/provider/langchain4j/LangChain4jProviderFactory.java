@@ -128,8 +128,13 @@ public class LangChain4jProviderFactory implements ILangChain4jProviderFactory {
      */
     @Activate
     protected void activate(BundleContext context) {
+        long startTime = System.currentTimeMillis();
+        log.warning("[STARTUP TIMING] LangChain4jProviderFactory.activate() START");
+
         serviceInstance = this;
-        log.info("LangChain4jProviderFactory activated (OSGi service)");
+
+        long elapsed = System.currentTimeMillis() - startTime;
+        log.warning("[STARTUP TIMING] LangChain4jProviderFactory.activate() COMPLETED in " + elapsed + "ms");
     }
 
     /**
