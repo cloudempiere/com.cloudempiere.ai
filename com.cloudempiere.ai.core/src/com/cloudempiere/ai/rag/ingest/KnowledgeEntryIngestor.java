@@ -27,10 +27,10 @@ import org.compiere.util.Env;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
 
-import com.cloudempiere.ai.kb.parser.EditorJsParser;
 import com.cloudempiere.ai.model.MAIProvider;
 import com.cloudempiere.ai.provider.langchain4j.LangChain4jProviderFactory;
 import com.cloudempiere.ai.rag.embedding.IEmbeddingStoreProvider;
+import com.cloudempiere.ai.util.EditorJsParser;
 
 import dev.langchain4j.data.document.Metadata;
 import dev.langchain4j.data.embedding.Embedding;

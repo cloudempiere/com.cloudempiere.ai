@@ -13,37 +13,26 @@
  *****************************************************************************/
 package com.cloudempiere.ai.rag;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
 import java.util.Properties;
 import java.util.logging.Level;
 
-import org.compiere.model.MChatEntry;
 import org.compiere.util.CLogger;
 import org.compiere.util.Env;
-import org.compiere.util.Language;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-import com.cloudempiere.ai.service.LanguageDetectionService;
+// TEMPORARILY DISABLED - Phase 3: Language detection service not yet migrated
+// import com.cloudempiere.ai.service.LanguageDetectionService;
 
 import com.cloudempiere.ai.model.MAIChat;
-import com.cloudempiere.ai.model.MAIChatEntry;
 import com.cloudempiere.ai.model.MAIPromptConfig;
 import com.cloudempiere.ai.model.MAIProvider;
-import com.cloudempiere.ai.provider.langchain4j.ERPTools;
 import com.cloudempiere.ai.provider.langchain4j.ERPAgent;
+import com.cloudempiere.ai.provider.langchain4j.ERPTools;
 import com.cloudempiere.ai.provider.langchain4j.LangChain4jProviderFactory;
 
-import dev.langchain4j.data.message.AiMessage;
-import dev.langchain4j.data.message.ChatMessage;
-import dev.langchain4j.data.message.SystemMessage;
-import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.memory.chat.MessageWindowChatMemory;
 import dev.langchain4j.model.chat.ChatLanguageModel;
-import dev.langchain4j.rag.content.Content;
 import dev.langchain4j.rag.content.retriever.ContentRetriever;
 import dev.langchain4j.service.AiServices;
 
@@ -112,8 +101,8 @@ public class RAGConversationService {
     /** RAG context manager for semantic search */
     private RAGContextManager ragContextManager;
 
-    /** Language detection service (ADR-037) */
-    private final LanguageDetectionService languageService;
+    /** Language detection service (ADR-037) - TEMPORARILY DISABLED until Phase 3 */
+    // private final LanguageDetectionService languageService;
 
     /** Metrics tracking */
     private final RAGMetrics metrics;
@@ -125,7 +114,8 @@ public class RAGConversationService {
      * using the provider configuration from the database.
      */
     public RAGConversationService() {
-        this.languageService = LanguageDetectionService.getInstance();
+        // TEMPORARILY DISABLED - Phase 3: Language detection not yet migrated
+        // this.languageService = LanguageDetectionService.getInstance();
         this.metrics = new RAGMetrics();
         log.info("RAGConversationService created (RAG will be initialized on first use)");
     }
@@ -137,7 +127,8 @@ public class RAGConversationService {
      */
     public RAGConversationService(RAGContextManager ragContextManager) {
         this.ragContextManager = ragContextManager;
-        this.languageService = LanguageDetectionService.getInstance();
+        // TEMPORARILY DISABLED - Phase 3: Language detection not yet migrated
+        // this.languageService = LanguageDetectionService.getInstance();
         this.metrics = new RAGMetrics();
 
         log.info("RAGConversationService initialized: " +
@@ -211,8 +202,8 @@ public class RAGConversationService {
             // Ensure RAG context manager is initialized
             RAGContextManager ragManager = getOrCreateRAGContextManager(ctx, trxName);
 
-            // 0. Check for language change request (ADR-037)
-            String languageAcknowledgment = processLanguageChangeRequest(userMessage, chatId);
+            // 0. Check for language change request (ADR-037) - TEMPORARILY DISABLED until Phase 3
+            // String languageAcknowledgment = processLanguageChangeRequest(userMessage, chatId);
 
             // 1. Store window context in RAG (if provided)
             if (windowContext != null) {
@@ -232,10 +223,10 @@ public class RAGConversationService {
             //    - Manages conversation memory
             String response = agent.chat(sessionId, enhancedMessage);
 
-            // 5. Prepend language acknowledgment if language was changed
-            if (languageAcknowledgment != null) {
-                response = languageAcknowledgment + "\n\n" + response;
-            }
+            // 5. Prepend language acknowledgment if language was changed - TEMPORARILY DISABLED
+            // if (languageAcknowledgment != null) {
+            //     response = languageAcknowledgment + "\n\n" + response;
+            // }
 
             // 6. Store the interaction in RAG for future reference
             storeInteraction(sessionId, userMessage, response, ragManager);
@@ -244,9 +235,9 @@ public class RAGConversationService {
             long responseTime = System.currentTimeMillis() - startTime;
             metrics.recordSuccess(responseTime);
 
+            // TEMPORARILY DISABLED - Phase 3: Language detection not yet migrated
             log.fine("RAG response generated: session=" + sessionId +
-                    ", time=" + responseTime + "ms" +
-                    ", language=" + languageService.getSessionLanguage(ctx, chatId));
+                    ", time=" + responseTime + "ms");
 
             return response;
 
@@ -261,6 +252,7 @@ public class RAGConversationService {
 
     /**
      * Process language change request from user message (ADR-037).
+     * TEMPORARILY DISABLED - Phase 3: Language detection service not yet migrated
      *
      * <p>Detects patterns like "respond in German" and sets the session language override.</p>
      *
@@ -268,6 +260,7 @@ public class RAGConversationService {
      * @param chatId Chat ID for session storage
      * @return Acknowledgment message if language changed, null otherwise
      */
+    /*
     private String processLanguageChangeRequest(String userMessage, int chatId) {
         if (chatId <= 0) {
             return null;
@@ -282,6 +275,7 @@ public class RAGConversationService {
 
         return null;
     }
+    */
 
     /**
      * Create a RAG-enabled agent using LangChain4j AiServices
@@ -313,8 +307,8 @@ public class RAGConversationService {
         // Get content retriever for RAG
         ContentRetriever retriever = ragManager.getRetriever(sessionId);
 
-        // Build system prompt with session language (ADR-037)
-        String systemPrompt = buildSystemPrompt(ctx, chatId);
+        // Build system prompt - TEMPORARILY DISABLED: session language (ADR-037) until Phase 3
+        String systemPrompt = buildSystemPrompt(ctx, 0);
 
         // Create agent with RAG integration
         return AiServices.builder(ERPAgent.class)
@@ -403,26 +397,29 @@ public class RAGConversationService {
 
     /**
      * Build system prompt for the agent
+     * TEMPORARILY DISABLED - Phase 3: Language detection not yet migrated, chatId parameter not used
      *
      * @param ctx iDempiere context
-     * @param chatId Chat ID for language detection
+     * @param chatId Chat ID for language detection (currently unused)
      * @return System prompt string
      */
     private String buildSystemPrompt(Properties ctx, int chatId) {
         // Try to load from database first
         String dbPrompt = loadSystemPromptFromDatabase();
 
+        // TEMPORARILY DISABLED - Phase 3: Language instruction not yet migrated
         // Get language instruction using the language service (ADR-037)
         // Place at BEGINNING for stronger compliance
-        String languageInstruction = languageService.getLanguageInstruction(ctx, chatId);
+        // String languageInstruction = languageService.getLanguageInstruction(ctx, chatId);
 
         StringBuilder sb = new StringBuilder();
 
+        // TEMPORARILY DISABLED - Phase 3: Language instruction
         // Language instruction FIRST for maximum compliance (ADR-037)
-        if (!languageInstruction.isEmpty()) {
-            sb.append(languageInstruction.trim());
-            sb.append("\n\n");
-        }
+        // if (!languageInstruction.isEmpty()) {
+        //     sb.append(languageInstruction.trim());
+        //     sb.append("\n\n");
+        // }
 
         if (dbPrompt != null && !dbPrompt.trim().isEmpty()) {
             sb.append(dbPrompt);
@@ -563,6 +560,7 @@ public class RAGConversationService {
 
     /**
      * Clear session context and language override for a chat.
+     * TEMPORARILY DISABLED - Phase 3: Language override not yet implemented
      *
      * @param chat Chat instance
      */
@@ -571,20 +569,23 @@ public class RAGConversationService {
             String sessionId = getSessionId(chat);
             clearSession(sessionId);
 
+            // TEMPORARILY DISABLED - Phase 3: Language override not yet implemented
             // Also clear language override (ADR-037)
-            int chatId = chat.getCM_Chat_ID();
-            if (chatId > 0) {
-                languageService.clearOverrideLanguage(chatId);
-                log.fine("Cleared language override for chat: " + chatId);
-            }
+            // int chatId = chat.getCM_Chat_ID();
+            // if (chatId > 0) {
+            //     languageService.clearOverrideLanguage(chatId);
+            //     log.fine("Cleared language override for chat: " + chatId);
+            // }
         }
     }
 
     /**
      * Get language detection service (ADR-037).
+     * TEMPORARILY DISABLED - Phase 3: Language detection service not yet migrated
      *
      * @return LanguageDetectionService instance
      */
+    /*
     public LanguageDetectionService getLanguageService() {
         return languageService;
     }
@@ -596,9 +597,11 @@ public class RAGConversationService {
      * @param chatId Chat ID
      * @return Current language code (e.g., "de_DE")
      */
+    /*
     public String getSessionLanguage(Properties ctx, int chatId) {
         return languageService.getSessionLanguage(ctx, chatId);
     }
+    */
 
     /**
      * Metrics tracking for RAG conversation service

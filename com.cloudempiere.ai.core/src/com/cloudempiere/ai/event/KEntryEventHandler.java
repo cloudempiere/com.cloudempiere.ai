@@ -26,16 +26,15 @@ import org.adempiere.base.event.IEventTopics;
 import org.compiere.model.PO;
 import org.compiere.util.CLogger;
 import org.compiere.util.DB;
-import org.compiere.util.Env;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
 import org.osgi.service.component.annotations.ReferenceCardinality;
 import org.osgi.service.component.annotations.ReferencePolicy;
 import org.osgi.service.event.Event;
 
-import com.cloudempiere.ai.kb.parser.EditorJsParser;
 import com.cloudempiere.ai.rag.embedding.IEmbeddingTriggerService;
 import com.cloudempiere.ai.rag.embedding.IEmbeddingTriggerService.EmbeddingResult;
+import com.cloudempiere.ai.util.EditorJsParser;
 
 /**
  * Event Handler for K_Entry table changes - triggers embedding generation.
