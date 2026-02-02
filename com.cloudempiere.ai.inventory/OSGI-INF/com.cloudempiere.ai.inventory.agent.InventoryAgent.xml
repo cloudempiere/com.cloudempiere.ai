@@ -3,8 +3,10 @@
                name="com.cloudempiere.ai.inventory.agent.InventoryAgent"
                activate="activate" immediate="true">
    <implementation class="com.cloudempiere.ai.inventory.agent.InventoryAgent"/>
-   <service><provide interface="com.cloudempiere.ai.inventory.agent.InventoryAgent"/></service>
+   <service>
+      <provide interface="com.cloudempiere.ai.inventory.agent.InventoryAgent"/>
       <provide interface="com.cloudempiere.ai.boundary.IDomainAgent"/>
+   </service>
    <reference bind="setProviderFactory" cardinality="1..1" field="providerFactory"
               interface="com.cloudempiere.ai.provider.langchain4j.ILangChain4jProviderFactory"
               name="ILangChain4jProviderFactory" policy="static"/>
