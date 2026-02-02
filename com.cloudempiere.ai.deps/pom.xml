@@ -366,20 +366,6 @@
                                     <version>0.22.0</version>
                                     <destFileName>commonmark-ext-gfm-strikethrough-0.22.0.jar</destFileName>
                                 </artifactItem>
-
-                                <!-- SLF4J (Required by AWS SDK) -->
-                                <artifactItem>
-                                    <groupId>org.slf4j</groupId>
-                                    <artifactId>slf4j-api</artifactId>
-                                    <version>1.7.36</version>
-                                    <destFileName>slf4j-api-1.7.36.jar</destFileName>
-                                </artifactItem>
-                                <artifactItem>
-                                    <groupId>org.slf4j</groupId>
-                                    <artifactId>slf4j-nop</artifactId>
-                                    <version>1.7.36</version>
-                                    <destFileName>slf4j-nop-1.7.36.jar</destFileName>
-                                </artifactItem>
                             </artifactItems>
                             <outputDirectory>lib</outputDirectory>
                             <overWriteReleases>true</overWriteReleases>
