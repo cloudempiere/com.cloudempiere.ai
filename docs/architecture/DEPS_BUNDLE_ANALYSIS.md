@@ -26,72 +26,56 @@ This document explains:
 │                                                                         │
 │  Exports: org.compiere.*, org.adempiere.*, org.slf4j, etc.             │
 └─────────────────────────────────────────────────────────────────────────┘
-                    ▲                                    ▲
-                    │                                    │
-                    │ Require-Bundle                     │ Import-Package
-                    │                                    │ (org.slf4j)
-                    │                                    │
-    ┌───────────────┴──────────────┐        ┌───────────┴──────────────┐
-    │                                │        │                          │
-    │  com.cloudempiere.aws.provider │        │  com.cloudempiere.ai.deps│
-    │  (AWS SDK Core Provider)       │        │  (LangChain4j Framework) │
-    │                                │        │                          │
-    │  Embeds:                       │        │  Embeds:                 │
-    │    • aws-core-2.20.162.jar     │        │    • langchain4j-*.jar   │
-    │    • sdk-core-2.20.162.jar     │        │    • anthropic-java      │
-    │    • auth-2.20.162.jar         │        │    • okhttp, retrofit    │
-    │    • regions-2.20.162.jar      │        │    • jackson, gson       │
-    │                                │        │    • kotlin-stdlib       │
-    │  Exports:                      │        │                          │
-    │    • software.amazon.awssdk    │        │  Exports:                │
-    │      .core.*                   │        │    • dev.langchain4j.*   │
-    │    • software.amazon.awssdk    │        │    • com.anthropic.*     │
-    │      .awscore.*                │        │                          │
-    └────────────────────────────────┘        └──────────────────────────┘
-                    ▲                                    ▲
-                    │                                    │
-                    │ Require-Bundle                     │ Require-Bundle
-                    │ (for aws-core)                     │ (for LangChain4j)
-                    │                                    │
-                    └────────────┬───────────────────────┘
-                                 │
-                                 │
-                    ┌────────────┴──────────────┐
-                    │                           │
-                    │  com.cloudempiere.ai.core │
-                    │  (AI Integration Layer)   │
-                    │                           │
-                    │  Embeds:                  │
-                    │    • bedrockruntime       │
-                    │    • bedrock              │
-                    │    • netty-nio-client     │
-                    │    • netty-* (10 JARs)    │
-                    │    • reactive-streams     │
-                    │                           │
-                    │  Imports:                 │
-                    │    • LangChain4j packages │
-                    │      from ai.deps         │
-                    │    • aws-core packages    │
-                    │      from aws.provider    │
-                    │                           │
-                    │  Exports:                 │
-                    │    • com.cloudempiere.ai.*│
-                    │    • AWS bedrock packages │
-                    │    • Netty packages       │
-                    │    • reactive-streams     │
-                    └───────────────────────────┘
-                                 │
-                                 │ Required by
-                                 │
-                                 ▼
-                    ┌────────────────────────────┐
-                    │  Domain Agent Bundles:     │
-                    │    • ai.sales              │
-                    │    • ai.inventory          │
-                    │    • ai.purchasing         │
-                    │    • ai.kb                 │
-                    │    • ai.support            │
-                    └────────────────────────────┘
+          ▲                         ▲                          ▲
+          │                         │                          │
+          │ Require-Bundle          │ Import-Package           │ Require-Bundle
+          │                         │ (org.slf4j)              │
+          │                         │                          │
+┌─────────┴────────────┐  ┌─────────┴──────────────┐  ┌───────┴──────────┐
+│                      │  │                        │  │                  │
+│ aws.provider         │  │ ai.deps                │  │ ai.core          │
+│ (AWS SDK Core)       │  │ (LangChain4j)          │  │ (Integration)    │
+│                      │  │                        │  │                  │
+│ Embeds:              │  │ Embeds:                │  │ Requires:        │
+│  • aws-core          │  │  • langchain4j-*.jar   │  │  • ai.deps       │
+│  • sdk-core          │  │  • anthropic-java      │  │  • aws.provider  │
+│  • auth              │  │  • okhttp, retrofit    │  │  • org.adempiere │
+│  • regions           │  │  • jackson, gson       │  │    .base         │
+│                      │  │  • kotlin-stdlib       │  │  • ZK framework  │
+│ Exports:             │  │                        │  │                  │
+│  • software.amazon   │  │ Exports:               │  │ Embeds:          │
+│    .awssdk.core.*    │  │  • dev.langchain4j.*   │  │  • bedrockruntime│
+│  • software.amazon   │  │  • com.anthropic.*     │  │  • bedrock       │
+│    .awssdk.awscore.* │  │                        │  │  • netty-* (11)  │
+│                      │  │                        │  │  • reactive-     │
+└──────────────────────┘  └────────────────────────┘  │    streams       │
+          ▲                         ▲                  │                  │
+          │                         │                  │ Imports:         │
+          │                         │                  │  • LangChain4j   │
+          │ Require-Bundle          │ Require-Bundle   │    from ai.deps  │
+          │ (for aws-core)          │ (for framework)  │  • aws-core from │
+          │                         │                  │    aws.provider  │
+          │                         │                  │                  │
+          └─────────────────────────┴──────────────────┤ Exports:         │
+                                                       │  • com.cloud     │
+                                                       │    empiere.ai.*  │
+                                                       │  • AWS bedrock   │
+                                                       │  • Netty         │
+                                                       │  • reactive-     │
+                                                       │    streams       │
+                                                       └──────────────────┘
+                                                                │
+                                                                │ Required by
+                                                                │
+                                                                ▼
+                                                  ┌──────────────────────┐
+                                                  │ Domain Agent Bundles:│
+                                                  │  • ai.sales          │
+                                                  │  • ai.inventory      │
+                                                  │  • ai.purchasing     │
+                                                  │  • ai.kb             │
+                                                  │  • ai.support        │
+                                                  └──────────────────────┘
 ```
 
 ### Why This Prevents Circular Dependencies
@@ -108,9 +92,11 @@ ai.core → aws.provider (CIRCULAR!)
 ai.deps → (only imports org.slf4j from org.adempiere.base)
 ai.core → ai.deps (for LangChain4j framework)
 ai.core → aws.provider (for aws-core)
+ai.core → org.adempiere.base (for iDempiere core services)
 aws.provider → org.adempiere.base
 
 No cycles! ai.core is the integration point that brings together:
+  - iDempiere core framework (org.adempiere.base)
   - LangChain4j framework (from ai.deps)
   - AWS SDK foundation (from aws.provider)
   - AWS Bedrock services (embedded in ai.core)
