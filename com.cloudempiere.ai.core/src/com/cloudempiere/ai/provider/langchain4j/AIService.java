@@ -135,6 +135,11 @@ class LanguageDetectionService {
         Language lang = Language.getLoginLanguage();
         return "Respond in " + lang.getName() + ".";
     }
+
+    public java.util.Optional<String> detectLanguageChangeRequest(String message) {
+        // Stub: no detection of language change requests
+        return java.util.Optional.empty();
+    }
 }
 
 @Component(

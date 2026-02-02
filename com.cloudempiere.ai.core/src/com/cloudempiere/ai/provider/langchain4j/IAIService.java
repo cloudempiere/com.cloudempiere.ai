@@ -6,8 +6,7 @@ import org.compiere.model.MChat;
 import org.json.JSONObject;
 
 import com.cloudempiere.ai.model.MAIProvider;
-// TEMPORARILY DISABLED - Observability will be implemented in future phase (ADR-013)
-// import com.cloudempiere.ai.observability.CostGuard;
+import com.cloudempiere.ai.observability.CostGuard;
 import com.cloudempiere.ai.provider.dto.AIStreamCallback;
 
 /**
@@ -57,8 +56,6 @@ public interface IAIService {
      */
     String chat(MAIProvider provider, Properties ctx, String sessionId, String message);
 
-    // TEMPORARILY DISABLED - AIService will be implemented in future phase
-    /*
     /**
      * Chat with context from the chat widget (blocking mode).
      *
@@ -77,11 +74,9 @@ public interface IAIService {
      * @param threadRootId Thread root ID (0 for new thread)
      * @return ChatResult with response and thread info
      */
-    /*
     AIService.ChatResult chatWithContext(MAIProvider provider, MChat chat,
                                           String message, JSONObject contextData,
                                           int threadRootId);
-    */
 
     /**
      * Chat with streaming response and full callback support.
@@ -106,8 +101,6 @@ public interface IAIService {
                                    String message, JSONObject contextData,
                                    int threadRootId, AIStreamCallback callback);
 
-    // TEMPORARILY DISABLED - AIService will be implemented in future phase
-    /*
     /**
      * Blocking chat method that wraps streaming using CompletableFuture.
      *
@@ -121,11 +114,9 @@ public interface IAIService {
      * @param threadRootId Thread root ID (0 for new thread)
      * @return ChatResult with response and thread info
      */
-    /*
     AIService.ChatResult chatBlocking(MAIProvider provider, MChat chat,
                                        String message, JSONObject contextData,
                                        int threadRootId);
-    */
 
     /**
      * Execute a one-shot task without conversation memory.
@@ -179,17 +170,13 @@ public interface IAIService {
      */
     boolean isGuardrailsEnabled();
 
-    // TEMPORARILY DISABLED - Cost guard will be implemented in future phase (ADR-013)
-    /*
     /**
      * Get budget status for a client.
      *
      * @param clientId AD_Client_ID
      * @return Budget status information
      */
-    /*
     CostGuard.BudgetStatus getBudgetStatus(int clientId);
-    */
 
     /**
      * Clear budget cache for a client.
