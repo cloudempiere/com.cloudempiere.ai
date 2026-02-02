@@ -1,6 +1,6 @@
 Manifest-Version: 1.0
 Bundle-ManifestVersion: 2
-Bundle-Name: AI
+Bundle-Name: AI (DEPRECATED - Use com.cloudempiere.ai.core)
 Bundle-SymbolicName: com.cloudempiere.ai
 Bundle-Version: 10.0.2.qualifier
 Bundle-Vendor: CLOUDEMPIERE
