@@ -14,5 +14,5 @@
     <artifactId>com.cloudempiere.ai.core</artifactId>
     <version>0.32.0-SNAPSHOT</version>
     <packaging>eclipse-plugin</packaging>
-    <name>CloudEmpiere AI - Core Infrastructure</name>
+    <name>Cloudempiere AI - Core Infrastructure</name>
 </project>

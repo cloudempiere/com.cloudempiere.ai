@@ -98,4 +98,4 @@ Before removing this plugin, verify:
 For migration assistance, see:
 - [Multi-Plugin Architecture Guide](../OSGI_MULTI_PLUGIN_ARCHITECTURE.md)
 - [Migration FAQ](../docs/MIGRATION_FAQ.md)
-- Contact: CloudEmpiere Development Team
+- Contact: Cloudempiere Development Team

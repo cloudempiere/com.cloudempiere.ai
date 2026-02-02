@@ -1,6 +1,6 @@
 Manifest-Version: 1.0
 Bundle-ManifestVersion: 2
-Bundle-Name: CloudEmpiere AI - Shared Dependencies
+Bundle-Name: Cloudempiere AI - Shared Dependencies
 Bundle-SymbolicName: com.cloudempiere.ai.deps
 Bundle-Version: 0.35.0.qualifier
 Bundle-Vendor: Cloudempiere

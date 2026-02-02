@@ -9,7 +9,7 @@ import java.util.Map;
  * <p>This interface defines the contract for the orchestrator component
  * that intelligently routes user queries to appropriate domain-specific agents.</p>
  *
- * @author CloudEmpiere
+ * @author Cloudempiere
  * @version 0.32.0
  */
 public interface IOrchestrator {

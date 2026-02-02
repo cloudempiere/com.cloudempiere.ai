@@ -18,7 +18,7 @@ import java.util.Set;
  *   <li><a href="../../../docs/adr/011-specialized-agent-scopes.md">ADR-011: Specialized Agent Scopes</a></li>
  * </ul>
  *
- * @author CloudEmpiere AI Team
+ * @author Cloudempiere AI Team
  * @version 1.0.0
  */
 public class SupportDomainBoundary {

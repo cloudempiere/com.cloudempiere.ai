@@ -44,7 +44,7 @@ import dev.langchain4j.memory.chat.MessageWindowChatMemory;
  *   <li><a href="../../../docs/adr/019-support-ticket-classification.md">ADR-019: Support Ticket Classification</a></li>
  * </ul>
  *
- * @author CloudEmpiere AI Team
+ * @author Cloudempiere AI Team
  * @version 1.0.0
  */
 @Component(service = {SupportAgent.class, IDomainAgent.class}, immediate = true)

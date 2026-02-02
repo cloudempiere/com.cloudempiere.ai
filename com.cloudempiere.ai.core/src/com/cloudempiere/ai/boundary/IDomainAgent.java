@@ -25,7 +25,7 @@ import java.util.Map;
  *   <li><a href="../../docs/adr/011-specialized-agent-scopes.md">ADR-011: Specialized Agent Scopes</a></li>
  * </ul>
  *
- * @author CloudEmpiere AI Team
+ * @author Cloudempiere AI Team
  * @version 0.32.0
  */
 public interface IDomainAgent {

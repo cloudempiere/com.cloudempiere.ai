@@ -11,7 +11,7 @@ import org.osgi.framework.ServiceReference;
  * <p>Provides a simple API for obtaining OSGi service references
  * from non-OSGi managed classes (like ZK components).</p>
  *
- * @author CloudEmpiere AI Team
+ * @author Cloudempiere AI Team
  * @version 1.0.0
  */
 public class ServiceLocator {

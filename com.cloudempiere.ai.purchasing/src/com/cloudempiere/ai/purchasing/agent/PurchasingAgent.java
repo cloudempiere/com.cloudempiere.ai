@@ -44,7 +44,7 @@ import dev.langchain4j.memory.chat.MessageWindowChatMemory;
  *   <li><a href="../../../docs/adr/010-agent-orchestration-architecture.md">ADR-010: Agent Orchestration</a></li>
  * </ul>
  *
- * @author CloudEmpiere AI Team
+ * @author Cloudempiere AI Team
  * @version 1.0.0
  */
 @Component(service = {PurchasingAgent.class, IDomainAgent.class}, immediate = true)

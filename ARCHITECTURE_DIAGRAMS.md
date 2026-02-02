@@ -1,4 +1,4 @@
-# Architecture Diagrams - CloudEmpiere AI
+# Architecture Diagrams - Cloudempiere AI
 
 **Purpose:** Visual reference for understanding layer interactions and data flow
 **Audience:** Developers, architects

@@ -1,4 +1,4 @@
-# OSGi Multi-Plugin Architecture for CloudEmpiere AI
+# OSGi Multi-Plugin Architecture for Cloudempiere AI
 
 **Date:** 2026-01-30
 **Status:** Architectural Design
@@ -190,10 +190,10 @@ com.cloudempiere.ai.deps/
 ```manifest
 Manifest-Version: 1.0
 Bundle-ManifestVersion: 2
-Bundle-Name: CloudEmpiere AI - Shared Dependencies
+Bundle-Name: Cloudempiere AI - Shared Dependencies
 Bundle-SymbolicName: com.cloudempiere.ai.deps
 Bundle-Version: 0.35.0.qualifier
-Bundle-Vendor: CloudEmpiere
+Bundle-Vendor: Cloudempiere
 Bundle-RequiredExecutionEnvironment: JavaSE-11
 Bundle-ClassPath: .,
  lib/langchain4j-core-0.35.0.jar,
@@ -288,10 +288,10 @@ com.cloudempiere.ai.core/
 ```manifest
 Manifest-Version: 1.0
 Bundle-ManifestVersion: 2
-Bundle-Name: CloudEmpiere AI - Core Infrastructure
+Bundle-Name: Cloudempiere AI - Core Infrastructure
 Bundle-SymbolicName: com.cloudempiere.ai.core;singleton:=true
 Bundle-Version: 1.0.0.qualifier
-Bundle-Vendor: CloudEmpiere
+Bundle-Vendor: Cloudempiere
 Bundle-RequiredExecutionEnvironment: JavaSE-11
 Bundle-Activator: com.cloudempiere.ai.Activator
 Service-Component: OSGI-INF/*.xml
@@ -354,10 +354,10 @@ com.cloudempiere.ai.sales/
 ```manifest
 Manifest-Version: 1.0
 Bundle-ManifestVersion: 2
-Bundle-Name: CloudEmpiere AI - Sales Domain
+Bundle-Name: Cloudempiere AI - Sales Domain
 Bundle-SymbolicName: com.cloudempiere.ai.sales
 Bundle-Version: 1.0.0.qualifier
-Bundle-Vendor: CloudEmpiere
+Bundle-Vendor: Cloudempiere
 Bundle-RequiredExecutionEnvironment: JavaSE-11
 Service-Component: OSGI-INF/*.xml
 Import-Package: com.cloudempiere.ai.provider;version="[1.0.0,2.0.0)",
@@ -563,7 +563,7 @@ cloudempiere-ai-p2/
 ```xml
 <?xml version='1.0' encoding='UTF-8'?>
 <?compositeMetadataRepository version='1.0.0'?>
-<repository name='CloudEmpiere AI Latest (v10)'
+<repository name='Cloudempiere AI Latest (v10)'
     type='org.eclipse.equinox.internal.p2.metadata.repository.CompositeMetadataRepository'
     version='1.0.0'>
   <properties size='1'>

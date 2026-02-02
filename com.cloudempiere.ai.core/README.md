@@ -1,4 +1,4 @@
-# CloudEmpiere AI - Core Infrastructure Plugin
+# Cloudempiere AI - Core Infrastructure Plugin
 
 **Bundle ID:** `com.cloudempiere.ai.core`
 **Version:** 0.32.0-SNAPSHOT
@@ -428,6 +428,6 @@ public class SalesAgent {
 
 ## Maintainers
 
-CloudEmpiere AI Team
+Cloudempiere AI Team
 
 **Last Updated:** 2026-01-30

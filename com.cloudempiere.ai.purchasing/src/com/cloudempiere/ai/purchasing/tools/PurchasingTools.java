@@ -24,7 +24,7 @@ import dev.langchain4j.agent.tool.Tool;
  * <p><b>Security:</b> All queries validated against PurchasingDomainBoundary</p>
  * <p><b>Execution:</b> Queries run via SecureDatabaseQueryExecutor (role-based access)</p>
  *
- * @author CloudEmpiere AI Team
+ * @author Cloudempiere AI Team
  * @version 1.0.0
  */
 @Component(service = PurchasingTools.class, immediate = true)

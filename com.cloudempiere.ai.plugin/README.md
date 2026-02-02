@@ -1,4 +1,4 @@
-# CloudEmpiere AI - Legacy Monolithic Plugin
+# Cloudempiere AI - Legacy Monolithic Plugin
 
 **Bundle ID:** `com.cloudempiere.ai`
 **Version:** 10.0.2-SNAPSHOT
@@ -257,7 +257,7 @@ import com.cloudempiere.ai.boundary.DomainBoundary;
 
 ## Maintainers
 
-CloudEmpiere AI Team
+Cloudempiere AI Team
 
 **Deprecation Notice:** This plugin will be removed in Phase 2 Week 7 (estimated 2026-02-10).
 

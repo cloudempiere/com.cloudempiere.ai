@@ -1,4 +1,4 @@
-# OSGi Validation Report - CloudEmpiere AI Plugins
+# OSGi Validation Report - Cloudempiere AI Plugins
 
 **Date:** 2026-02-02
 **Validator:** idempiere-osgi-expert agent (ad407dc)
@@ -278,7 +278,7 @@ Add to all MANIFEST.MF files:
 ```
 Bundle-Description: [Description]
 Bundle-License: [License URL]
-Bundle-Copyright: CloudEmpiere
+Bundle-Copyright: Cloudempiere
 ```
 
 ---

@@ -29,7 +29,7 @@ import com.cloudempiere.core.health.PrerequisiteTier;
  *   <li>AI-specific health checks (providers, pgvector, tables)</li>
  * </ul>
  *
- * @author CloudEmpiere
+ * @author Cloudempiere
  * @see ADR-050: Plugin Health and Prerequisite Verification
  */
 public class AIPluginHealthService {

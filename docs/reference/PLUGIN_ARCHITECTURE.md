@@ -6,7 +6,7 @@
 
 ## Overview
 
-The CloudEmpiere AI plugin uses a **multi-plugin OSGi architecture** to enforce domain boundaries, improve maintainability, and enable independent deployment of AI capabilities across different business domains.
+The Cloudempiere AI plugin uses a **multi-plugin OSGi architecture** to enforce domain boundaries, improve maintainability, and enable independent deployment of AI capabilities across different business domains.
 
 ## Why Multi-Plugin Architecture?
 
@@ -474,5 +474,5 @@ public class KnowledgeBaseDomainBoundary extends DomainBoundary {
 ---
 
 **Document Version:** 1.0
-**Author:** CloudEmpiere AI Team
+**Author:** Cloudempiere AI Team
 **Date:** 2026-01-30

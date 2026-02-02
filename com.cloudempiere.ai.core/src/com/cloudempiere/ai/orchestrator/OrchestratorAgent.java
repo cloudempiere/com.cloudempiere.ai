@@ -44,7 +44,7 @@ import com.cloudempiere.ai.boundary.IOrchestrator;
  *   <li><a href="../../docs/adr/009-domain-boundaries-agent-scope.md">ADR-009: Domain Boundaries</a></li>
  * </ul>
  *
- * @author CloudEmpiere AI Team
+ * @author Cloudempiere AI Team
  * @version 0.32.0
  */
 @Component(service = {OrchestratorAgent.class, IOrchestrator.class}, immediate = true)

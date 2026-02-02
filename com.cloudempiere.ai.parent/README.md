@@ -1,4 +1,4 @@
-# CloudEmpiere AI - Parent POM
+# Cloudempiere AI - Parent POM
 
 **Artifact ID:** `com.cloudempiere.ai.parent`
 **Version:** 10.0.2-SNAPSHOT
@@ -8,7 +8,7 @@
 ## Purpose
 
 Maven parent POM that provides:
-- **Centralized dependency management** for all CloudEmpiere AI plugins
+- **Centralized dependency management** for all Cloudempiere AI plugins
 - **Shared build configuration** (compiler, plugins, versions)
 - **Tycho configuration** for OSGi bundle builds
 - **Version inheritance** for child modules
@@ -203,7 +203,7 @@ com.cloudempiere.ai.parent/
 
 ## Child Modules
 
-All CloudEmpiere AI plugins inherit from this parent:
+All Cloudempiere AI plugins inherit from this parent:
 
 ```
 com.cloudempiere.ai.parent
@@ -349,13 +349,13 @@ Maven builds in dependency order:
 ```
 [INFO] Reactor Build Order:
 [INFO]
-[INFO] CloudEmpiere AI - Parent                        [pom]
-[INFO] CloudEmpiere AI - Shared Dependencies           [eclipse-plugin]
-[INFO] CloudEmpiere AI - Core Infrastructure           [eclipse-plugin]
-[INFO] CloudEmpiere AI                                 [eclipse-plugin]
-[INFO] CloudEmpiere AI - Theme                         [eclipse-plugin]
-[INFO] CloudEmpiere AI - Feature                       [eclipse-feature]
-[INFO] CloudEmpiere AI - P2 Repository                 [eclipse-repository]
+[INFO] Cloudempiere AI - Parent                        [pom]
+[INFO] Cloudempiere AI - Shared Dependencies           [eclipse-plugin]
+[INFO] Cloudempiere AI - Core Infrastructure           [eclipse-plugin]
+[INFO] Cloudempiere AI                                 [eclipse-plugin]
+[INFO] Cloudempiere AI - Theme                         [eclipse-plugin]
+[INFO] Cloudempiere AI - Feature                       [eclipse-feature]
+[INFO] Cloudempiere AI - P2 Repository                 [eclipse-repository]
 ```
 
 ### Dependency Graph
@@ -476,6 +476,6 @@ IntelliJ imports entire multi-module project.
 
 ## Maintainers
 
-CloudEmpiere AI Team
+Cloudempiere AI Team
 
 **Last Updated:** 2026-01-30

@@ -152,7 +152,7 @@ cp com.cloudempiere.ai.plugin/lib/netty-*.jar com.cloudempiere.ai.deps/lib/
 ```manifest
 Manifest-Version: 1.0
 Bundle-ManifestVersion: 2
-Bundle-Name: CloudEmpiere AI - Shared Dependencies
+Bundle-Name: Cloudempiere AI - Shared Dependencies
 Bundle-SymbolicName: com.cloudempiere.ai.deps
 Bundle-Version: 0.35.0.qualifier
 Bundle-Vendor: Cloudempiere
@@ -241,7 +241,7 @@ bin.includes = META-INF/,\
     <artifactId>com.cloudempiere.ai.deps</artifactId>
     <version>0.35.0-SNAPSHOT</version>
     <packaging>eclipse-plugin</packaging>
-    <name>CloudEmpiere AI - Shared Dependencies</name>
+    <name>Cloudempiere AI - Shared Dependencies</name>
 
     <build>
         <plugins>
@@ -434,7 +434,7 @@ public abstract class DomainBoundary {
 ```manifest
 Manifest-Version: 1.0
 Bundle-ManifestVersion: 2
-Bundle-Name: CloudEmpiere AI - Core Infrastructure
+Bundle-Name: Cloudempiere AI - Core Infrastructure
 Bundle-SymbolicName: com.cloudempiere.ai.core;singleton:=true
 Bundle-Version: 0.32.0.qualifier
 Bundle-Vendor: Cloudempiere
@@ -485,7 +485,7 @@ Service-Component: OSGI-INF/*.xml
     <artifactId>com.cloudempiere.ai.core</artifactId>
     <version>0.32.0-SNAPSHOT</version>
     <packaging>eclipse-plugin</packaging>
-    <name>CloudEmpiere AI - Core Infrastructure</name>
+    <name>Cloudempiere AI - Core Infrastructure</name>
 </project>
 ```
 
@@ -670,7 +670,7 @@ public class SalesTools {
 ```manifest
 Manifest-Version: 1.0
 Bundle-ManifestVersion: 2
-Bundle-Name: CloudEmpiere AI - Sales Domain
+Bundle-Name: Cloudempiere AI - Sales Domain
 Bundle-SymbolicName: com.cloudempiere.ai.sales
 Bundle-Version: 1.0.0.qualifier
 Bundle-Vendor: Cloudempiere
@@ -745,7 +745,7 @@ done
 ```xml
 <?xml version='1.0' encoding='UTF-8'?>
 <?compositeMetadataRepository version='1.0.0'?>
-<repository name='CloudEmpiere AI - Latest (v10)'
+<repository name='Cloudempiere AI - Latest (v10)'
     type='org.eclipse.equinox.internal.p2.metadata.repository.CompositeMetadataRepository'
     version='1.0.0'>
   <properties size='1'>

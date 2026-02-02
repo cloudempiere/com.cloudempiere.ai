@@ -365,7 +365,7 @@ CSS is automatically included in all subsequent page loads.
 
 The fragment provides CSS for multiple themes to ensure compatibility with custom theme bundles:
 - `theme/default/css/fragment/custom.css.dsp` - For standard iDempiere theme
-- `theme/cloudempiere/css/fragment/custom.css.dsp` - For CloudEmpiere theme (org.cloudempiere.theme)
+- `theme/cloudempiere/css/fragment/custom.css.dsp` - For Cloudempiere theme (org.cloudempiere.theme)
 
 ThemeManager looks for fragments based on the active theme name:
 ```java

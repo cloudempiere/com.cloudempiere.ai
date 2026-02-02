@@ -35,7 +35,7 @@ import org.compiere.util.Env;
  *   <li><a href="../../docs/adr/015-conversational-ux-patterns.md">ADR-015: Conversational UX</a></li>
  * </ul>
  *
- * @author CloudEmpiere AI Team
+ * @author Cloudempiere AI Team
  * @version 1.0.0
  */
 public class WindowContextExtractor {

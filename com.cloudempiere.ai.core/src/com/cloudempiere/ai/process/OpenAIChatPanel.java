@@ -14,7 +14,7 @@ import com.cloudempiere.ai.component.AIChatWidget;
  *
  * <p><b>Usage:</b> Can be called from any window, toolbar, or menu in iDempiere.</p>
  *
- * @author CloudEmpiere AI Team
+ * @author Cloudempiere AI Team
  * @version 1.0.0
  */
 public class OpenAIChatPanel extends SvrProcess {

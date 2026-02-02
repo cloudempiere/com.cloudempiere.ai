@@ -7,7 +7,7 @@
 	<artifactId>com.cloudempiere.ai.main</artifactId>
 	<version>10.0.2-SNAPSHOT</version>
 	<packaging>pom</packaging>
-	<name>CloudEmpiere AI - Main Build</name>
+	<name>Cloudempiere AI - Main Build</name>
 
 	<modules>
 		<!-- Build Order: parent → deps → core → domains → legacy → theme → feature → p2 -->

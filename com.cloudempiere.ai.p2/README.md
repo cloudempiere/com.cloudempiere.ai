@@ -1,4 +1,4 @@
-# CloudEmpiere AI - P2 Repository
+# Cloudempiere AI - P2 Repository
 
 **Project ID:** `com.cloudempiere.ai.p2`
 **Version:** 10.0.2-SNAPSHOT
@@ -6,7 +6,7 @@
 
 ## Purpose
 
-Eclipse P2 repository (update site) that hosts all CloudEmpiere AI plugins and features for installation via iDempiere Plugin Manager.
+Eclipse P2 repository (update site) that hosts all Cloudempiere AI plugins and features for installation via iDempiere Plugin Manager.
 
 ## What is a P2 Repository?
 
@@ -143,7 +143,7 @@ target/
 Add Repository → Local → Browse
 → Select: /path/to/com.cloudempiere.ai/com.cloudempiere.ai.p2/target/repository/
 → Install Available Software
-→ Select "CloudEmpiere AI"
+→ Select "Cloudempiere AI"
 → Finish
 ```
 
@@ -173,7 +173,7 @@ echo "http://server/p2/cloudempiere-ai/" >> compositeArtifacts.xml
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
 <site>
-   <category-def name="cloudempiere.ai" label="CloudEmpiere AI">
+   <category-def name="cloudempiere.ai" label="Cloudempiere AI">
       <description>
          AI capabilities for iDempiere including Claude, AWS Bedrock, and Ollama.
       </description>
@@ -241,7 +241,7 @@ composite-repository/
 **compositeArtifacts.xml:**
 ```xml
 <?xml version='1.0' encoding='UTF-8'?>
-<repository name='CloudEmpiere AI Composite Repository'
+<repository name='Cloudempiere AI Composite Repository'
             type='org.eclipse.equinox.internal.p2.artifact.repository.CompositeArtifactRepository'
             version='1.0.0'>
   <children size='2'>
@@ -437,6 +437,6 @@ jobs:
 
 ## Maintainers
 
-CloudEmpiere AI Team
+Cloudempiere AI Team
 
 **Last Updated:** 2026-01-30

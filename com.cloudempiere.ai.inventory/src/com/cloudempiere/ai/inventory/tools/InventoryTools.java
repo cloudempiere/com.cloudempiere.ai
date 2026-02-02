@@ -14,7 +14,7 @@ import dev.langchain4j.agent.tool.Tool;
 /**
  * Inventory domain tools for AI agents.
  *
- * @author CloudEmpiere AI Team
+ * @author Cloudempiere AI Team
  * @version 1.0.0
  */
 @Component(service = InventoryTools.class, immediate = true)

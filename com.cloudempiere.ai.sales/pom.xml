@@ -16,9 +16,9 @@
     <version>0.32.0-SNAPSHOT</version>
     <packaging>eclipse-plugin</packaging>
 
-    <name>CloudEmpiere AI - Sales Domain Plugin</name>
+    <name>Cloudempiere AI - Sales Domain Plugin</name>
     <description>
-        Sales domain plugin for CloudEmpiere AI providing:
+        Sales domain plugin for Cloudempiere AI providing:
         - Sales opportunity analysis
         - Business partner sales performance tracking
         - Order history and trend analysis

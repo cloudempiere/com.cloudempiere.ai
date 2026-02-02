@@ -9,7 +9,7 @@ import java.util.Set;
  * <p><b>Architecture Layer:</b> Domain Boundary Layer (Inventory)</p>
  * <p><b>Related ADRs:</b> ADR-009, ADR-011</p>
  *
- * @author CloudEmpiere AI Team
+ * @author Cloudempiere AI Team
  * @version 1.0.0
  */
 public class InventoryDomainBoundary {

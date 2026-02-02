@@ -44,7 +44,7 @@ and this project adheres to [Conventional Commits](https://conventionalcommits.o
 
 ### Initial Release: iDempiere v10 AI Plugin
 
-This is the first production release of the CloudEmpiere AI Plugin for iDempiere v10. This release includes a comprehensive AI integration framework with LangChain4j, multi-provider support, and enterprise-grade security features.
+This is the first production release of the Cloudempiere AI Plugin for iDempiere v10. This release includes a comprehensive AI integration framework with LangChain4j, multi-provider support, and enterprise-grade security features.
 
 #### Added
 

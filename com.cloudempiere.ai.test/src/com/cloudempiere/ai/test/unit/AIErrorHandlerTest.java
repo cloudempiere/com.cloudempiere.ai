@@ -41,7 +41,7 @@ import com.cloudempiere.ai.error.AIErrorHandler;
  * Run with -v for detailed logging:
  *   ./run-unit-tests.sh -v AIErrorHandlerTest
  *
- * @author CloudEmpiere
+ * @author Cloudempiere
  * @version 1.0
  */
 @UnitTest

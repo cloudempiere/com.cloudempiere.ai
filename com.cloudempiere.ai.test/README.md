@@ -1,4 +1,4 @@
-# CloudEmpiere AI - Test Plugin
+# Cloudempiere AI - Test Plugin
 
 **Bundle ID:** `com.cloudempiere.ai.test`
 **Version:** 10.0.2-SNAPSHOT
@@ -7,7 +7,7 @@
 
 ## Purpose
 
-Comprehensive test suite for CloudEmpiere AI plugins using JUnit 5 with iDempiere test infrastructure.
+Comprehensive test suite for Cloudempiere AI plugins using JUnit 5 with iDempiere test infrastructure.
 
 ## Test Structure
 
@@ -501,6 +501,6 @@ mvn test -Dorg.slf4j.simpleLogger.defaultLogLevel=debug
 
 ## Maintainers
 
-CloudEmpiere AI Team
+Cloudempiere AI Team
 
 **Last Updated:** 2026-01-30

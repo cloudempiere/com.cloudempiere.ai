@@ -1,4 +1,4 @@
-# CloudEmpiere AI - Feature
+# Cloudempiere AI - Feature
 
 **Feature ID:** `com.cloudempiere.ai.feature`
 **Version:** 10.0.2-SNAPSHOT
@@ -6,7 +6,7 @@
 
 ## Purpose
 
-Eclipse feature definition that groups all CloudEmpiere AI plugins into a single installable unit for iDempiere Plugin Manager.
+Eclipse feature definition that groups all Cloudempiere AI plugins into a single installable unit for iDempiere Plugin Manager.
 
 ## What is a Feature?
 
@@ -35,9 +35,9 @@ In Eclipse/OSGi, a **feature** is a container for plugins that:
 ```xml
 <feature
       id="com.cloudempiere.ai.feature"
-      label="CloudEmpiere AI"
+      label="Cloudempiere AI"
       version="10.0.2.qualifier"
-      provider-name="CloudEmpiere">
+      provider-name="Cloudempiere">
 
    <description>
       AI capabilities for iDempiere ERP including Claude, AWS Bedrock,
@@ -79,7 +79,7 @@ In Eclipse/OSGi, a **feature** is a container for plugins that:
 ```bash
 # In iDempiere Plugin Manager or via command line
 iDempiere → Plugin Manager → Install from Repository
-→ Select "CloudEmpiere AI"
+→ Select "Cloudempiere AI"
 → Install
 ```
 
@@ -233,7 +233,7 @@ All plugins update atomically - cannot update just one.
 ```
 iDempiere → Plugin Manager
 → Installed Plugins
-→ Select "CloudEmpiere AI"
+→ Select "Cloudempiere AI"
 → Uninstall
 ```
 
@@ -300,6 +300,6 @@ com.cloudempiere.ai.p2/
 
 ## Maintainers
 
-CloudEmpiere AI Team
+Cloudempiere AI Team
 
 **Last Updated:** 2026-01-30

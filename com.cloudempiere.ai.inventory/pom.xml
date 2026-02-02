@@ -16,9 +16,9 @@
     <version>0.32.0-SNAPSHOT</version>
     <packaging>eclipse-plugin</packaging>
 
-    <name>CloudEmpiere AI - Inventory Domain Plugin</name>
+    <name>Cloudempiere AI - Inventory Domain Plugin</name>
     <description>
-        Inventory domain plugin for CloudEmpiere AI providing:
+        Inventory domain plugin for Cloudempiere AI providing:
         - Inventory opportunity analysis
         - Business partner inventory performance tracking
         - Order history and trend analysis

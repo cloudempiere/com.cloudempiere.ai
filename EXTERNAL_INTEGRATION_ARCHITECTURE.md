@@ -1,4 +1,4 @@
-# External Integration Architecture - CloudEmpiere AI
+# External Integration Architecture - Cloudempiere AI
 
 **Date:** 2026-01-30
 **Status:** Architectural Design
@@ -8,7 +8,7 @@
 
 ## Overview
 
-The CloudEmpiere AI ecosystem supports **external consumption** through separate OSGi plugins:
+The Cloudempiere AI ecosystem supports **external consumption** through separate OSGi plugins:
 
 | Plugin | Purpose | Protocol | Authentication |
 |--------|---------|----------|----------------|
@@ -757,7 +757,7 @@ cloudempiere-p2/
 ```xml
 <?xml version='1.0' encoding='UTF-8'?>
 <?compositeMetadataRepository version='1.0.0'?>
-<repository name='CloudEmpiere v10 Latest'
+<repository name='Cloudempiere v10 Latest'
     type='org.eclipse.equinox.internal.p2.metadata.repository.CompositeMetadataRepository'
     version='1.0.0'>
   <children size='9'>

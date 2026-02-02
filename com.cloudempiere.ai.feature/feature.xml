@@ -1,22 +1,22 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <feature
       id="com.cloudempiere.ai.feature"
-      label="CloudEmpiere AI Feature"
+      label="Cloudempiere AI Feature"
       version="10.0.2.qualifier"
       provider-name="CLOUDEMPIERE">
 
    <description url="https://cloudempiere.com">
-      CloudEmpiere AI Plugin - Multi-provider AI integration for iDempiere ERP.
+      Cloudempiere AI Plugin - Multi-provider AI integration for iDempiere ERP.
       Supports Anthropic Claude, AWS Bedrock, Ollama, and OpenAI providers with
       secure database query execution and RAG-based context retrieval.
    </description>
 
    <copyright url="https://cloudempiere.com/copyright">
-      Copyright (c) 2024-2025 CloudEmpiere s.r.o. All rights reserved.
+      Copyright (c) 2024-2025 Cloudempiere s.r.o. All rights reserved.
    </copyright>
 
    <license url="https://cloudempiere.com/license">
-      Proprietary License - CloudEmpiere s.r.o.
+      Proprietary License - Cloudempiere s.r.o.
    </license>
 
    <!-- Shared Dependencies Plugin (LangChain4j, AWS SDK, Jackson) -->

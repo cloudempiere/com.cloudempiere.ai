@@ -60,7 +60,7 @@ All critical OSGi issues identified in OSGI_VALIDATION_REPORT.md have been fixed
     <version>0.32.0-SNAPSHOT</version>
     <packaging>eclipse-plugin</packaging>
 
-    <name>CloudEmpiere AI - DOMAIN Domain Plugin</name>
+    <name>Cloudempiere AI - DOMAIN Domain Plugin</name>
     <description>...</description>
 </project>
 ```

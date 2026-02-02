@@ -16,9 +16,9 @@
     <version>0.32.0-SNAPSHOT</version>
     <packaging>eclipse-plugin</packaging>
 
-    <name>CloudEmpiere AI - purchasing Domain Plugin</name>
+    <name>Cloudempiere AI - purchasing Domain Plugin</name>
     <description>
-        purchasing domain plugin for CloudEmpiere AI providing:
+        purchasing domain plugin for Cloudempiere AI providing:
         - purchasing opportunity analysis
         - Business partner purchasing performance tracking
         - Order history and trend analysis

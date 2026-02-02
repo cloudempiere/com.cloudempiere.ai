@@ -43,7 +43,7 @@ import com.cloudempiere.ai.service.LanguageDetectionService;
  * Run with:
  *   ./run-unit-tests.sh LanguageDetectionServiceTest
  *
- * @author CloudEmpiere
+ * @author Cloudempiere
  * @version 1.0
  */
 @UnitTest

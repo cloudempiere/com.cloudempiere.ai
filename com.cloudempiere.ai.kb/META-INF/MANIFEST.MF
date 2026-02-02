@@ -1,9 +1,9 @@
 Manifest-Version: 1.0
 Bundle-ManifestVersion: 2
-Bundle-Name: CloudEmpiere AI - Knowledge Base Domain
+Bundle-Name: Cloudempiere AI - Knowledge Base Domain
 Bundle-SymbolicName: com.cloudempiere.ai.kb;singleton:=true
 Bundle-Version: 0.32.0.qualifier
-Bundle-Vendor: CloudEmpiere
+Bundle-Vendor: Cloudempiere
 Bundle-RequiredExecutionEnvironment: JavaSE-11
 Automatic-Module-Name: com.cloudempiere.ai.kb
 Service-Component: OSGI-INF/*.xml

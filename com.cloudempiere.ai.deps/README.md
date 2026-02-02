@@ -1,4 +1,4 @@
-# CloudEmpiere AI - Shared Dependencies Plugin
+# Cloudempiere AI - Shared Dependencies Plugin
 
 **Bundle ID:** `com.cloudempiere.ai.deps`
 **Version:** 0.35.0-SNAPSHOT
@@ -6,7 +6,7 @@
 
 ## Purpose
 
-Central repository for all third-party dependencies used by CloudEmpiere AI plugins. This plugin embeds and exports shared libraries to avoid JAR duplication across domain plugins.
+Central repository for all third-party dependencies used by Cloudempiere AI plugins. This plugin embeds and exports shared libraries to avoid JAR duplication across domain plugins.
 
 ## Contents
 
@@ -207,6 +207,6 @@ public class SalesAgent {
 
 ## Maintainers
 
-CloudEmpiere AI Team
+Cloudempiere AI Team
 
 **Last Updated:** 2026-01-30

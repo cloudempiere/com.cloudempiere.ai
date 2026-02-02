@@ -31,7 +31,7 @@ import com.cloudempiere.core.health.PrerequisiteTier;
  *
  * <p>When core is not available, AIPluginHealthService operates standalone.
  *
- * @author CloudEmpiere
+ * @author Cloudempiere
  */
 @Component(immediate = true)
 public class AIHealthCheckRegistrar {

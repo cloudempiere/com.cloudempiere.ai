@@ -44,7 +44,7 @@ import dev.langchain4j.memory.chat.MessageWindowChatMemory;
  *   <li><a href="../../../docs/adr/016-knowledge-base-agent.md">ADR-016: Knowledge Base Agent Domain</a></li>
  * </ul>
  *
- * @author CloudEmpiere AI Team
+ * @author Cloudempiere AI Team
  * @version 1.0.0
  */
 @Component(service = {KbAgent.class, IDomainAgent.class}, immediate = true)
