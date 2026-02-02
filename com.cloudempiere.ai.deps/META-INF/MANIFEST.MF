@@ -59,6 +59,7 @@ Bundle-ClassPath: .,
  lib/commonmark-0.22.0.jar,
  lib/commonmark-ext-gfm-tables-0.22.0.jar,
  lib/commonmark-ext-gfm-strikethrough-0.22.0.jar
+Import-Package: org.slf4j;version="[1.7.0,2.0.0)"
 Export-Package: dev.langchain4j;version="0.35.0",
  dev.langchain4j.agent;version="0.35.0",
  dev.langchain4j.agent.tool;version="0.35.0",
