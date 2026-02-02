@@ -142,6 +142,12 @@
                                 </artifactItem>
                                 <artifactItem>
                                     <groupId>software.amazon.awssdk</groupId>
+                                    <artifactId>endpoints-spi</artifactId>
+                                    <version>2.20.162</version>
+                                    <destFileName>endpoints-spi-2.20.162.jar</destFileName>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>software.amazon.awssdk</groupId>
                                     <artifactId>netty-nio-client</artifactId>
                                     <version>2.20.162</version>
                                     <destFileName>netty-nio-client-2.20.162.jar</destFileName>
