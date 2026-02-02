@@ -17,6 +17,7 @@ import com.cloudempiere.ai.test.categories.UnitTest;
 import com.cloudempiere.ai.test.support.TestLogger;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 
 import java.util.Optional;
 
