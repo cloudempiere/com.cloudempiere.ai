@@ -431,21 +431,33 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 	}
 
 	/**
-	 * Load or create chat for the current user.
+	 * Load existing chat if available (lazy creation pattern - ADR-036)
 	 * <p>
-	 * Chat is created immediately on widget initialization so that the widget
-	 * always renders properly in the help panel.
+	 * IMPORTANT: Chat is NOT created here. Creation happens on first message submission.
+	 * This prevents:
+	 * 1. Cross-tenant errors when widget initializes in different tenant
+	 * 2. Unnecessary chat creation for users who don't interact with AI
+	 * 3. NPE when chat fails to load due to access/tenant issues
+	 * <p>
+	 * If no chat exists, widget shows empty state with placeholder.
 	 */
 	private void loadExistingChat() {
 		try {
-			// Get or create global chat for the user (always create if doesn't exist)
-			chat = MAIChat.getOrCreateGlobalChat(sessionCtx, null, false);
+			// Try to load existing chat WITHOUT creating it (lazy creation)
+			chat = MAIChat.getOrCreateGlobalChat(sessionCtx, null, true);
 
 			if (chat == null) {
-				// This should not happen, but handle defensively
-				log.severe("Failed to create chat - MAIChat.getOrCreateGlobalChat returned null");
-				inputBox.setDisabled(true);
-				sendButton.setDisabled(true);
+				// No chat exists yet - this is OK!
+				// Widget will create one on first message submission
+				log.fine("No existing chat found for user " + Env.getAD_User_ID(sessionCtx) +
+					" in client " + Env.getAD_Client_ID(sessionCtx) + " - will create on first message");
+
+				// Set default access (will be re-evaluated when chat is created)
+				currentAccess = ChatAccess.OWNER;
+
+				// Update UI to show empty state
+				updateAccessIndicator();
+				inputBox.setPlaceholder(Msg.getMsg(sessionCtx, "AIChatPlaceholder"));
 				return;
 			}
 
@@ -1000,15 +1012,37 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 			return;
 		}
 
-		// Chat should always exist (created on widget init)
+		// LAZY CHAT CREATION: Create chat on first message if it doesn't exist
 		if (chat == null) {
-			log.severe("Chat is null - this should not happen");
-			Clients.showNotification(
-				"Chat not available. Please contact administrator.",
-				"error", inputBox, "top_center", 5000);
-			inputBox.setDisabled(false);
-			sendButton.setDisabled(false);
-			return;
+			try {
+				log.fine("Creating chat on first message for user " + Env.getAD_User_ID(sessionCtx) +
+					" in client " + Env.getAD_Client_ID(sessionCtx));
+
+				// Create chat in current tenant
+				chat = MAIChat.getOrCreateGlobalChat(sessionCtx, null, false);
+
+				if (chat == null) {
+					// This should not happen, but handle defensively
+					log.severe("Failed to create chat - MAIChat.getOrCreateGlobalChat returned null");
+					Clients.showNotification(
+						"Failed to create chat. Please contact administrator.",
+						"error", inputBox, "top_center", 5000);
+					return;
+				}
+
+				// Set access level for newly created chat
+				currentAccess = ChatAccess.OWNER; // Creator is always owner
+				updateAccessIndicator();
+
+				log.fine("Chat created successfully: ID=" + chat.get_ID() +
+					", Client=" + chat.getAD_Client_ID());
+			} catch (Exception e) {
+				log.log(Level.SEVERE, "Failed to create chat on first message", e);
+				Clients.showNotification(
+					"Failed to create chat: " + e.getMessage(),
+					"error", inputBox, "top_center", 5000);
+				return;
+			}
 		}
 
 		// Check write permission (ADR-036)
