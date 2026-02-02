@@ -28,41 +28,36 @@ public class KbDomainBoundary {
      *
      * <p><b>Allowed:</b></p>
      * <ul>
-     *   <li>C_Order, C_OrderLine - Kb orders</li>
-     *   <li>C_Opportunity, C_OpportunityLine - Opportunities</li>
-     *   <li>C_BPartner, C_BPartner_Location - Business partners</li>
-     *   <li>M_Product - Product info (read-only reference)</li>
-     *   <li>C_Invoice, C_InvoiceLine - Invoices (read-only)</li>
-     *   <li>AD_User - Users (for opportunity owners)</li>
+     *   <li>K_Entry - Knowledge base articles</li>
+     *   <li>K_Category - Article categories</li>
+     *   <li>K_Comment - Article comments</li>
+     *   <li>K_Synonym - Search synonyms</li>
+     *   <li>R_Request - Related support tickets (read-only)</li>
+     *   <li>AD_User - Users (for authorship)</li>
      * </ul>
      */
     public static final Set<String> READ_TABLES = Collections.unmodifiableSet(Set.of(
-        // Kb Orders
-        "C_Order",
-        "C_OrderLine",
+        // Knowledge Base Articles
+        "K_Entry",
+        "K_Category",
+        "K_Comment",
+        "K_Synonym",
+        "K_Source",
+        "K_Type",
+        "K_Topic",
+        "K_Index",
 
-        // Kb Opportunities
-        "C_Opportunity",
-        "C_OpportunityLine",
+        // Related Support (read-only)
+        "R_Request",
+        "R_RequestType",
 
-        // Business Partners
-        "C_BPartner",
-        "C_BPartner_Location",
-        "C_Location",
-
-        // Products (read-only reference)
-        "M_Product",
-        "M_Product_Category",
-
-        // Invoices (read-only)
-        "C_Invoice",
-        "C_InvoiceLine",
-
-        // Users (for opportunity assignment)
+        // Users (for authorship and assignment)
         "AD_User",
 
-        // Kb regions
-        "C_KbRegion"
+        // Related entities (read-only)
+        "M_Product",
+        "M_Product_Category",
+        "C_BPartner"
     ));
 
     /**
@@ -70,19 +65,21 @@ public class KbDomainBoundary {
      *
      * <p><b>Allowed:</b></p>
      * <ul>
-     *   <li>C_Opportunity, C_OpportunityLine - Can create/update opportunities</li>
+     *   <li>K_Entry - Can create/update draft knowledge base articles</li>
+     *   <li>K_Comment - Can add comments to articles</li>
      * </ul>
      *
      * <p><b>NOT Allowed:</b></p>
      * <ul>
-     *   <li>C_Order - Cannot create orders (only read existing)</li>
-     *   <li>C_BPartner - Cannot modify partners</li>
-     *   <li>M_Product - Cannot modify products</li>
+     *   <li>K_Category - Cannot modify categories (configuration)</li>
+     *   <li>K_Synonym - Cannot modify synonyms (configuration)</li>
+     *   <li>R_Request - Cannot modify support tickets</li>
+     *   <li>Cannot approve or publish articles (requires human review)</li>
      * </ul>
      */
     public static final Set<String> WRITE_TABLES = Collections.unmodifiableSet(Set.of(
-        "C_Opportunity",
-        "C_OpportunityLine"
+        "K_Entry",
+        "K_Comment"
     ));
 
     /**

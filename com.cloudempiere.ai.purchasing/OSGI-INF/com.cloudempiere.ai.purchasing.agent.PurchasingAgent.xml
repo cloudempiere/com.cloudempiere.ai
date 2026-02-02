@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <scr:component xmlns:scr="http://www.osgi.org/xmlns/scr/v1.3.0"
-               name="com.cloudempiere.ai.purchasing.agent.purchasingAgent"
+               name="com.cloudempiere.ai.purchasing.agent.PurchasingAgent"
                activate="activate"
                immediate="true">
-   <implementation class="com.cloudempiere.ai.purchasing.agent.purchasingAgent"/>
+   <implementation class="com.cloudempiere.ai.purchasing.agent.PurchasingAgent"/>
    <service>
-      <provide interface="com.cloudempiere.ai.purchasing.agent.purchasingAgent"/>
+      <provide interface="com.cloudempiere.ai.purchasing.agent.PurchasingAgent"/>
    </service>
    <reference bind="setProviderFactory"
               cardinality="1..1"
@@ -13,10 +13,10 @@
               interface="com.cloudempiere.ai.provider.factory.IAIProviderFactory"
               name="IAIProviderFactory"
               policy="static"/>
-   <reference bind="setpurchasingTools"
+   <reference bind="setPurchasingTools"
               cardinality="1..1"
               field="purchasingTools"
-              interface="com.cloudempiere.ai.purchasing.tools.purchasingTools"
-              name="purchasingTools"
+              interface="com.cloudempiere.ai.purchasing.tools.PurchasingTools"
+              name="PurchasingTools"
               policy="static"/>
 </scr:component>

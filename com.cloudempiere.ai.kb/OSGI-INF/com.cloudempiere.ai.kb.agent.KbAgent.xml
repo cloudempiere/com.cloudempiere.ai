@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <scr:component xmlns:scr="http://www.osgi.org/xmlns/scr/v1.3.0"
-               name="com.cloudempiere.ai.kb.agent.kbAgent"
+               name="com.cloudempiere.ai.kb.agent.KbAgent"
                activate="activate"
                immediate="true">
-   <implementation class="com.cloudempiere.ai.kb.agent.kbAgent"/>
+   <implementation class="com.cloudempiere.ai.kb.agent.KbAgent"/>
    <service>
-      <provide interface="com.cloudempiere.ai.kb.agent.kbAgent"/>
+      <provide interface="com.cloudempiere.ai.kb.agent.KbAgent"/>
    </service>
    <reference bind="setProviderFactory"
               cardinality="1..1"
@@ -13,10 +13,10 @@
               interface="com.cloudempiere.ai.provider.factory.IAIProviderFactory"
               name="IAIProviderFactory"
               policy="static"/>
-   <reference bind="setkbTools"
+   <reference bind="setKbTools"
               cardinality="1..1"
               field="kbTools"
-              interface="com.cloudempiere.ai.kb.tools.kbTools"
-              name="kbTools"
+              interface="com.cloudempiere.ai.kb.tools.KbTools"
+              name="KbTools"
               policy="static"/>
 </scr:component>

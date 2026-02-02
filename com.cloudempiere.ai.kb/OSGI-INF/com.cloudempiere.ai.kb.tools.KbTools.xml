@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <scr:component xmlns:scr="http://www.osgi.org/xmlns/scr/v1.3.0"
-               name="com.cloudempiere.ai.kb.tools.kbTools"
+               name="com.cloudempiere.ai.kb.tools.KbTools"
                immediate="true">
-   <implementation class="com.cloudempiere.ai.kb.tools.kbTools"/>
+   <implementation class="com.cloudempiere.ai.kb.tools.KbTools"/>
    <service>
-      <provide interface="com.cloudempiere.ai.kb.tools.kbTools"/>
+      <provide interface="com.cloudempiere.ai.kb.tools.KbTools"/>
    </service>
    <reference bind="setDbExecutor"
               cardinality="1..1"

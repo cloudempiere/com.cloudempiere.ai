@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <scr:component xmlns:scr="http://www.osgi.org/xmlns/scr/v1.3.0"
-               name="com.cloudempiere.ai.purchasing.tools.purchasingTools"
+               name="com.cloudempiere.ai.purchasing.tools.PurchasingTools"
                immediate="true">
-   <implementation class="com.cloudempiere.ai.purchasing.tools.purchasingTools"/>
+   <implementation class="com.cloudempiere.ai.purchasing.tools.PurchasingTools"/>
    <service>
-      <provide interface="com.cloudempiere.ai.purchasing.tools.purchasingTools"/>
+      <provide interface="com.cloudempiere.ai.purchasing.tools.PurchasingTools"/>
    </service>
    <reference bind="setDbExecutor"
               cardinality="1..1"

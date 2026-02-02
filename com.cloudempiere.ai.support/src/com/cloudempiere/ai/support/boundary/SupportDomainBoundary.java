@@ -28,41 +28,40 @@ public class SupportDomainBoundary {
      *
      * <p><b>Allowed:</b></p>
      * <ul>
-     *   <li>C_Order, C_OrderLine - Support orders</li>
-     *   <li>C_Opportunity, C_OpportunityLine - Opportunities</li>
-     *   <li>C_BPartner, C_BPartner_Location - Business partners</li>
-     *   <li>M_Product - Product info (read-only reference)</li>
-     *   <li>C_Invoice, C_InvoiceLine - Invoices (read-only)</li>
-     *   <li>AD_User - Users (for opportunity owners)</li>
+     *   <li>R_Request - Support tickets/requests</li>
+     *   <li>R_RequestType - Request types</li>
+     *   <li>R_RequestAction - Request actions/updates</li>
+     *   <li>R_Category - Request categories</li>
+     *   <li>C_BPartner - Business partners (customers)</li>
+     *   <li>AD_User - Users (for assignment and contacts)</li>
+     *   <li>M_Product - Product info (for product-related tickets)</li>
+     *   <li>C_Order, C_Invoice - Related documents (read-only)</li>
      * </ul>
      */
     public static final Set<String> READ_TABLES = Collections.unmodifiableSet(Set.of(
-        // Support Orders
-        "C_Order",
-        "C_OrderLine",
-
-        // Support Opportunities
-        "C_Opportunity",
-        "C_OpportunityLine",
+        // Support Tickets
+        "R_Request",
+        "R_RequestType",
+        "R_RequestAction",
+        "R_Category",
+        "R_Status",
+        "R_Resolution",
 
         // Business Partners
         "C_BPartner",
         "C_BPartner_Location",
         "C_Location",
+        "AD_User",
 
-        // Products (read-only reference)
-        "M_Product",
-        "M_Product_Category",
-
-        // Invoices (read-only)
+        // Related Documents (read-only)
+        "C_Order",
+        "C_OrderLine",
         "C_Invoice",
         "C_InvoiceLine",
 
-        // Users (for opportunity assignment)
-        "AD_User",
-
-        // Support regions
-        "C_SupportRegion"
+        // Products (for product-related tickets)
+        "M_Product",
+        "M_Product_Category"
     ));
 
     /**
@@ -70,19 +69,21 @@ public class SupportDomainBoundary {
      *
      * <p><b>Allowed:</b></p>
      * <ul>
-     *   <li>C_Opportunity, C_OpportunityLine - Can create/update opportunities</li>
+     *   <li>R_Request - Can create/update support tickets</li>
+     *   <li>R_RequestAction - Can add updates/comments to tickets</li>
      * </ul>
      *
      * <p><b>NOT Allowed:</b></p>
      * <ul>
-     *   <li>C_Order - Cannot create orders (only read existing)</li>
+     *   <li>C_Order - Cannot create or modify orders</li>
      *   <li>C_BPartner - Cannot modify partners</li>
      *   <li>M_Product - Cannot modify products</li>
+     *   <li>R_RequestType, R_Category - Cannot modify configuration</li>
      * </ul>
      */
     public static final Set<String> WRITE_TABLES = Collections.unmodifiableSet(Set.of(
-        "C_Opportunity",
-        "C_OpportunityLine"
+        "R_Request",
+        "R_RequestAction"
     ));
 
     /**
