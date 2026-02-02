@@ -61,8 +61,8 @@ public class PurchasingTools {
             .parameters(new Object[]{partnerId})
             .build();
 
-        SecureQueryResult result = dbExecutor.executeSecureQuery(request);
-        return result.toJSON();
+        SecureQueryResult result = dbExecutor.executeQuery(request);
+        return result.toJSON().toString();
     }
 
     /**
@@ -94,8 +94,8 @@ public class PurchasingTools {
             .parameters(new Object[]{orderId})
             .build();
 
-        SecureQueryResult result = dbExecutor.executeSecureQuery(request);
-        return result.toJSON();
+        SecureQueryResult result = dbExecutor.executeQuery(request);
+        return result.toJSON().toString();
     }
 
     /**
@@ -127,8 +127,8 @@ public class PurchasingTools {
             .parameters(new Object[]{invoiceId})
             .build();
 
-        SecureQueryResult result = dbExecutor.executeSecureQuery(request);
-        return result.toJSON();
+        SecureQueryResult result = dbExecutor.executeQuery(request);
+        return result.toJSON().toString();
     }
 
     /**
@@ -181,8 +181,8 @@ public class PurchasingTools {
             .parameters(params.toArray())
             .build();
 
-        SecureQueryResult result = dbExecutor.executeSecureQuery(request);
-        return result.toJSON();
+        SecureQueryResult result = dbExecutor.executeQuery(request);
+        return result.toJSON().toString();
     }
 
     /**
@@ -208,8 +208,8 @@ public class PurchasingTools {
             .parameters(new Object[]{productId})
             .build();
 
-        SecureQueryResult result = dbExecutor.executeSecureQuery(request);
-        return result.toJSON();
+        SecureQueryResult result = dbExecutor.executeQuery(request);
+        return result.toJSON().toString();
     }
 
     /**
@@ -244,7 +244,7 @@ public class PurchasingTools {
             .parameters(new Object[]{partnerId})
             .build();
 
-        SecureQueryResult result = dbExecutor.executeSecureQuery(request);
-        return result.toJSON();
+        SecureQueryResult result = dbExecutor.executeQuery(request);
+        return result.toJSON().toString();
     }
 }

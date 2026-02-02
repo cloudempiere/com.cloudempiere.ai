@@ -6,58 +6,53 @@
 		</attributes>
 	</classpathentry>
 	<classpathentry kind="con" path="org.eclipse.pde.core.requiredPlugins"/>
-	<classpathentry kind="src" path="src"/>
-	<classpathentry kind="lib" path="lib/anthropic-java-client-okhttp.jar"/>
-	<classpathentry kind="lib" path="lib/anthropic-java-core.jar"/>
-	<classpathentry kind="lib" path="lib/jackson-annotations.jar"/>
-	<classpathentry kind="lib" path="lib/jackson-core.jar"/>
-	<classpathentry kind="lib" path="lib/jackson-databind.jar"/>
-	<classpathentry kind="lib" path="lib/jackson-datatype-jdk8.jar"/>
-	<classpathentry kind="lib" path="lib/jackson-datatype-jsr310.jar"/>
-	<classpathentry kind="lib" path="lib/jackson-module-kotlin.jar"/>
-	<classpathentry kind="lib" path="lib/kotlin-reflect.jar"/>
-	<classpathentry kind="lib" path="lib/kotlin-stdlib.jar"/>
-	<classpathentry kind="lib" path="lib/okhttp.jar"/>
-	<classpathentry kind="lib" path="lib/okhttp-sse.jar"/>
-	<classpathentry kind="lib" path="lib/okio.jar"/>
-	<classpathentry kind="lib" path="lib/okio-jvm.jar"/>
-	<classpathentry kind="lib" path="lib/langchain4j.jar"/>
-	<classpathentry kind="lib" path="lib/langchain4j-core.jar"/>
-	<classpathentry kind="lib" path="lib/langchain4j-anthropic.jar"/>
-	<classpathentry kind="lib" path="lib/langchain4j-ollama.jar"/>
-	<classpathentry kind="lib" path="lib/langchain4j-open-ai.jar"/>
-	<classpathentry kind="lib" path="lib/langchain4j-bedrock.jar"/>
-	<classpathentry kind="lib" path="lib/langchain4j-pgvector.jar"/>
-	<classpathentry kind="lib" path="lib/openai4j.jar"/>
-	<classpathentry kind="lib" path="lib/retrofit.jar"/>
-	<classpathentry kind="lib" path="lib/converter-jackson.jar"/>
-	<classpathentry kind="lib" path="lib/converter-gson.jar"/>
-	<classpathentry kind="lib" path="lib/gson.jar"/>
-	<classpathentry kind="lib" path="lib/bedrockruntime.jar"/>
-	<classpathentry kind="lib" path="lib/bedrock.jar"/>
-	<classpathentry kind="lib" path="lib/netty-nio-client.jar"/>
-	<classpathentry kind="lib" path="lib/annotations.jar"/>
-	<classpathentry kind="lib" path="lib/netty-codec-http.jar"/>
-	<classpathentry kind="lib" path="lib/netty-codec-http2.jar"/>
-	<classpathentry kind="lib" path="lib/netty-codec.jar"/>
-	<classpathentry kind="lib" path="lib/netty-transport.jar"/>
-	<classpathentry kind="lib" path="lib/netty-common.jar"/>
-	<classpathentry kind="lib" path="lib/netty-buffer.jar"/>
-	<classpathentry kind="lib" path="lib/netty-handler.jar"/>
-	<classpathentry kind="lib" path="lib/netty-resolver.jar"/>
-	<classpathentry kind="lib" path="lib/netty-transport-native-unix-common.jar"/>
-	<classpathentry kind="lib" path="lib/netty-transport-classes-epoll.jar"/>
-	<classpathentry kind="lib" path="lib/reactive-streams.jar"/>
-	<classpathentry kind="lib" path="lib/slf4j-api.jar"/>
-	<classpathentry kind="lib" path="lib/slf4j-nop.jar"/>
-	<classpathentry kind="lib" path="lib/jtokkit.jar"/>
-	<classpathentry kind="lib" path="lib/commonmark.jar"/>
-	<classpathentry kind="lib" path="lib/commonmark-ext-gfm-tables.jar"/>
-	<classpathentry kind="lib" path="lib/commonmark-ext-gfm-strikethrough.jar"/>
-	<classpathentry kind="con" path="org.eclipse.m2e.MAVEN2_CLASSPATH_CONTAINER">
-		<attributes>
-			<attribute name="maven.pomderived" value="true"/>
-		</attributes>
-	</classpathentry>
+	<classpathentry kind="src" path="src/"/>
+	<classpathentry exported="true" kind="lib" path="lib/anthropic-java-client-okhttp.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/anthropic-java-core.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/jackson-annotations.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/jackson-core.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/jackson-databind.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/jackson-datatype-jdk8.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/jackson-datatype-jsr310.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/jackson-module-kotlin.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/kotlin-reflect.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/kotlin-stdlib.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/okhttp.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/okhttp-sse.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/okio.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/okio-jvm.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/langchain4j.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/langchain4j-core.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/langchain4j-anthropic.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/langchain4j-ollama.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/langchain4j-open-ai.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/langchain4j-bedrock.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/retrofit.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/converter-jackson.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/converter-gson.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/gson.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/bedrockruntime.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/bedrock.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/netty-nio-client.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/annotations.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/netty-codec-http.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/netty-codec-http2.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/netty-codec.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/netty-transport.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/netty-common.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/netty-buffer.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/netty-handler.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/netty-resolver.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/netty-transport-native-unix-common.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/netty-transport-classes-epoll.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/reactive-streams.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/langchain4j-pgvector.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/openai4j.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/slf4j-api.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/slf4j-nop.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/jtokkit.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/commonmark.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/commonmark-ext-gfm-tables.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/commonmark-ext-gfm-strikethrough.jar"/>
 	<classpathentry kind="output" path="target/classes"/>
 </classpath>

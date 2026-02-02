@@ -68,8 +68,8 @@ public class KbTools {
             .parameters(new Object[]{searchPattern, searchPattern, searchPattern})
             .build();
 
-        SecureQueryResult result = dbExecutor.executeSecureQuery(request);
-        return result.toJSON();
+        SecureQueryResult result = dbExecutor.executeQuery(request);
+        return result.toJSON().toString();
     }
 
     /**
@@ -102,8 +102,8 @@ public class KbTools {
             .parameters(new Object[]{entryId})
             .build();
 
-        SecureQueryResult result = dbExecutor.executeSecureQuery(request);
-        return result.toJSON();
+        SecureQueryResult result = dbExecutor.executeQuery(request);
+        return result.toJSON().toString();
     }
 
     /**
@@ -129,8 +129,8 @@ public class KbTools {
             .parameters(new Object[]{entryId})
             .build();
 
-        SecureQueryResult result = dbExecutor.executeSecureQuery(request);
-        return result.toJSON();
+        SecureQueryResult result = dbExecutor.executeQuery(request);
+        return result.toJSON().toString();
     }
 
     /**
@@ -175,8 +175,8 @@ public class KbTools {
             .parameters(params.toArray())
             .build();
 
-        SecureQueryResult result = dbExecutor.executeSecureQuery(request);
-        return result.toJSON();
+        SecureQueryResult result = dbExecutor.executeQuery(request);
+        return result.toJSON().toString();
     }
 
     /**
@@ -202,8 +202,8 @@ public class KbTools {
             .parameters(new Object[]{})
             .build();
 
-        SecureQueryResult result = dbExecutor.executeSecureQuery(request);
-        return result.toJSON();
+        SecureQueryResult result = dbExecutor.executeQuery(request);
+        return result.toJSON().toString();
     }
 
     /**
@@ -235,7 +235,7 @@ public class KbTools {
             .parameters(new Object[]{resultLimit})
             .build();
 
-        SecureQueryResult result = dbExecutor.executeSecureQuery(request);
-        return result.toJSON();
+        SecureQueryResult result = dbExecutor.executeQuery(request);
+        return result.toJSON().toString();
     }
 }

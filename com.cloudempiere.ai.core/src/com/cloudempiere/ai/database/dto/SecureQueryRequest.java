@@ -54,6 +54,9 @@ public class SecureQueryRequest {
     /** Transaction name */
     private String trxName;
 
+    /** Query parameters for PreparedStatement */
+    private Object[] parameters;
+
     /**
      * Get user's context
      * @return Properties containing AD_User_ID, AD_Role_ID, etc.
@@ -151,6 +154,26 @@ public class SecureQueryRequest {
     }
 
     /**
+     * Get query parameters
+     * @return Parameter array for PreparedStatement
+     */
+    public Object[] getParameters() {
+        return parameters;
+    }
+
+    public void setParameters(Object[] parameters) {
+        this.parameters = parameters;
+    }
+
+    /**
+     * Create a new Builder for SecureQueryRequest
+     * @return new Builder instance
+     */
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    /**
      * Builder for SecureQueryRequest
      */
     public static class Builder {
@@ -233,6 +256,16 @@ public class SecureQueryRequest {
          */
         public Builder trxName(String trxName) {
             request.trxName = trxName;
+            return this;
+        }
+
+        /**
+         * Set query parameters
+         * @param parameters Parameter array for PreparedStatement
+         * @return Builder instance
+         */
+        public Builder parameters(Object[] parameters) {
+            request.parameters = parameters;
             return this;
         }
 
