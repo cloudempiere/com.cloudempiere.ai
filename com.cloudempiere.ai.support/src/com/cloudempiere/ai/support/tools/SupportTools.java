@@ -9,10 +9,8 @@ import com.cloudempiere.ai.database.dto.SecureQueryRequest;
 import com.cloudempiere.ai.database.dto.SecureQueryResult;
 import com.cloudempiere.ai.support.boundary.SupportDomainBoundary;
 
-import dev.langchain4j.agent.tool.Tool;
 import dev.langchain4j.agent.tool.P;
-
-import java.util.Properties;
+import dev.langchain4j.agent.tool.Tool;
 
 /**
  * Support domain tools for AI agents.

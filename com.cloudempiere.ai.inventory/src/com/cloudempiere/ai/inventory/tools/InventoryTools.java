@@ -44,7 +44,7 @@ public class InventoryTools {
             .parameters(new Object[]{productId})
             .build();
 
-        return dbExecutor.executeQuery(request).toJSON();
+        return dbExecutor.executeQuery(request).toJSON().toString();
     }
 
     @Tool("Get warehouse inventory summary")
@@ -68,7 +68,7 @@ public class InventoryTools {
             .parameters(new Object[]{warehouseId})
             .build();
 
-        return dbExecutor.executeQuery(request).toJSON();
+        return dbExecutor.executeQuery(request).toJSON().toString();
     }
 
     @Tool("Search for products with low stock levels")
@@ -93,6 +93,6 @@ public class InventoryTools {
             .parameters(new Object[]{threshold})
             .build();
 
-        return dbExecutor.executeQuery(request).toJSON();
+        return dbExecutor.executeQuery(request).toJSON().toString();
     }
 }
