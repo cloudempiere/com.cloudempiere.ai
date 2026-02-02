@@ -48,8 +48,12 @@ Import-Package: com.anthropic.client;version="2.10.0",
 **Files:**
 - `AIHealthCheckRegistrar.java` → `AIHealthCheckRegistrar.java.disabled`
 - `AIPluginHealthService.java` → `AIPluginHealthService.java.disabled`
+- `AIUIService.java` → `AIUIService.java.disabled` (commit 928f898)
 
 **Reason:** These files reference the non-existent health package.
+
+**Active in health/ directory:**
+- `Result.java` (standalone utility, no health dependencies)
 
 **Future:** Will be re-enabled when health check infrastructure is added or integrated with iDempiere's health system.
 
@@ -295,8 +299,9 @@ diag <bundle-id>
 | Core MANIFEST.MF | Removed `com.cloudempiere.core.health` import | ✅ Fixed |
 | AIHealthCheckRegistrar.java | Disabled (renamed .java.disabled) | ✅ Fixed |
 | AIPluginHealthService.java | Disabled (renamed .java.disabled) | ✅ Fixed |
+| AIUIService.java | Disabled (renamed .java.disabled) | ✅ Fixed |
 | SalesAgent.xml | Added `IDomainAgent` interface | ✅ Fixed |
-| InventoryAgent.xml | Added `IDomainAgent` interface | ✅ Fixed |
+| InventoryAgent.xml | Added `IDomainAgent` interface (fixed structure) | ✅ Fixed |
 | PurchasingAgent.xml | Added `IDomainAgent` interface | ✅ Fixed |
 | SupportAgent.xml | Added `IDomainAgent` interface | ✅ Fixed |
 | KbAgent.xml | Added `IDomainAgent` interface | ✅ Fixed |
@@ -330,6 +335,7 @@ After removing legacy plugin from launch config and restarting:
 **Commits:**
 - c76145f (startup fixes applied)
 - b662952 (InventoryAgent.xml structure corrected)
+- 928f898 (AIUIService disabled)
 
 **Status:** ✅ All automatic fixes complete - Ready for user action
 **Experts Consulted:** OSGi Expert (afc6a38) + Architecture Expert (a54edc2)
