@@ -31,4 +31,4 @@ Export-Package: com.cloudempiere.ai.kb.agent;version="0.32.0",
  com.cloudempiere.ai.kb.parser;version="0.32.0",
  com.cloudempiere.ai.kb.tools;version="0.32.0"
 Bundle-ActivationPolicy: lazy
-Require-Bundle: com.cloudempiere.ai.core
+Require-Bundle: com.cloudempiere.ai.core;bundle-version="[0.32.0,1.0.0)"

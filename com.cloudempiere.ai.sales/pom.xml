@@ -5,7 +5,13 @@
                              http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>com.cloudempiere</groupId>
+    <parent>
+        <groupId>com.cloudempiere.ai</groupId>
+        <artifactId>com.cloudempiere.ai.parent</artifactId>
+        <version>10.0.2-SNAPSHOT</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
     <artifactId>com.cloudempiere.ai.sales</artifactId>
     <version>0.32.0-SNAPSHOT</version>
     <packaging>eclipse-plugin</packaging>
@@ -19,66 +25,4 @@
         - Product recommendations
         - Sales pipeline insights
     </description>
-
-    <properties>
-        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <maven.compiler.source>11</maven.compiler.source>
-        <maven.compiler.target>11</maven.compiler.target>
-        <tycho.version>2.7.5</tycho.version>
-    </properties>
-
-    <build>
-        <sourceDirectory>src</sourceDirectory>
-        <outputDirectory>target/classes</outputDirectory>
-
-        <plugins>
-            <!-- Tycho Maven Plugin -->
-            <plugin>
-                <groupId>org.eclipse.tycho</groupId>
-                <artifactId>tycho-maven-plugin</artifactId>
-                <version>${tycho.version}</version>
-                <extensions>true</extensions>
-            </plugin>
-
-            <!-- Tycho Compiler Plugin -->
-            <plugin>
-                <groupId>org.eclipse.tycho</groupId>
-                <artifactId>tycho-compiler-plugin</artifactId>
-                <version>${tycho.version}</version>
-                <configuration>
-                    <source>11</source>
-                    <target>11</target>
-                    <encoding>UTF-8</encoding>
-                </configuration>
-            </plugin>
-
-            <!-- Tycho Packaging Plugin -->
-            <plugin>
-                <groupId>org.eclipse.tycho</groupId>
-                <artifactId>tycho-packaging-plugin</artifactId>
-                <version>${tycho.version}</version>
-                <configuration>
-                    <format>'v'yyyyMMdd-HHmm</format>
-                </configuration>
-            </plugin>
-        </plugins>
-    </build>
-
-    <dependencies>
-        <!-- Core infrastructure plugin (provides provider, database, context APIs) -->
-        <dependency>
-            <groupId>com.cloudempiere</groupId>
-            <artifactId>com.cloudempiere.ai.core</artifactId>
-            <version>0.32.0-SNAPSHOT</version>
-            <scope>provided</scope>
-        </dependency>
-
-        <!-- Shared dependencies plugin (provides LangChain4j) -->
-        <dependency>
-            <groupId>com.cloudempiere</groupId>
-            <artifactId>com.cloudempiere.ai.deps</artifactId>
-            <version>0.35.0-SNAPSHOT</version>
-            <scope>provided</scope>
-        </dependency>
-    </dependencies>
 </project>
