@@ -4,7 +4,7 @@ import org.compiere.process.SvrProcess;
 import org.zkoss.zk.ui.Executions;
 import org.zkoss.zul.Window;
 
-import com.cloudempiere.ai.component.ChatPanel;
+import com.cloudempiere.ai.component.AIChatWidget;
 
 /**
  * Process to open the AI Chat Panel.
@@ -49,8 +49,8 @@ public class OpenAIChatPanel extends SvrProcess {
             window.setBorder("normal");
             window.setStyle("padding: 0;");
 
-            ChatPanel chatPanel = new ChatPanel();
-            chatPanel.setParent(window);
+            AIChatWidget chatWidget = new AIChatWidget();
+            chatWidget.setParent(window);
 
             window.doModal();
 

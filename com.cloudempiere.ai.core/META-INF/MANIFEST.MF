@@ -10,7 +10,8 @@ Require-Bundle: org.adempiere.base;bundle-version="[10.0.0,11.0.0)",
  org.adempiere.plugin.utils,
  zk;bundle-version="9.6.3",
  zul;bundle-version="9.6.3",
- zcommon;bundle-version="9.6.3"
+ zcommon;bundle-version="9.6.3",
+ org.adempiere.ui.zk
 Import-Package: com.anthropic.client;version="2.10.0",
  com.anthropic.core;version="2.10.0",
  com.anthropic.models;version="2.10.0",
