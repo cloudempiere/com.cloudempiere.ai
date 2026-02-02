@@ -4,19 +4,32 @@
 	<modelVersion>4.0.0</modelVersion>
 
 	<groupId>com.cloudempiere.ai</groupId>
-	<artifactId>com.cloudempiere.ai.aggregator</artifactId>
+	<artifactId>com.cloudempiere.ai.main</artifactId>
 	<version>10.0.2-SNAPSHOT</version>
 	<packaging>pom</packaging>
-	<name>CloudEmpiere AI Plugin Aggregator</name>
+	<name>CloudEmpiere AI - Main Build</name>
 
 	<modules>
+		<!-- Build Order: parent → deps → core → domains → legacy → theme → feature → p2 -->
 		<module>com.cloudempiere.ai.parent</module>
 		<module>com.cloudempiere.ai.deps</module>
 		<module>com.cloudempiere.ai.core</module>
+
+		<!-- Domain Plugins (Phase 2 Weeks 5-6) -->
+		<module>com.cloudempiere.ai.sales</module>
+		<module>com.cloudempiere.ai.inventory</module>
+		<module>com.cloudempiere.ai.purchasing</module>
+		<module>com.cloudempiere.ai.support</module>
+		<module>com.cloudempiere.ai.kb</module>
+
+		<!-- Legacy Monolithic Plugin (being phased out) -->
 		<module>com.cloudempiere.ai.plugin</module>
+
+		<!-- Infrastructure -->
 		<module>com.cloudempiere.ai.theme</module>
 		<module>com.cloudempiere.ai.feature</module>
 		<module>com.cloudempiere.ai.p2</module>
+
 		<!-- Test bundle excluded - uses eclipse-test-plugin with special iDempiere parent config -->
 		<!-- Build separately: cd com.cloudempiere.ai.test && mvn verify -->
 	</modules>
