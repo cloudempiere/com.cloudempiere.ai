@@ -18,7 +18,8 @@ Bundle-ClassPath: .,
  lib/netty-handler-4.1.100.Final.jar,
  lib/netty-resolver-4.1.100.Final.jar,
  lib/netty-transport-native-unix-common-4.1.100.Final.jar,
- lib/netty-transport-classes-epoll-4.1.100.Final.jar
+ lib/netty-transport-classes-epoll-4.1.100.Final.jar,
+ lib/reactive-streams-1.0.4.jar
 Bundle-Activator: com.cloudempiere.ai.Activator
 Require-Bundle: org.adempiere.plugin.utils,
  com.cloudempiere.ai.deps;bundle-version="0.35.0",
@@ -114,6 +115,7 @@ Export-Package: com.cloudempiere.ai;version="0.32.0",
  io.netty.handler.codec.http;version="4.1.100",
  io.netty.handler.codec.http2;version="4.1.100",
  io.netty.util;version="4.1.100",
- io.netty.util.concurrent;version="4.1.100"
+ io.netty.util.concurrent;version="4.1.100",
+ org.reactivestreams;version="1.0.4"
 Service-Component: OSGI-INF/*.xml
 Bundle-ActivationPolicy: lazy

@@ -177,12 +177,6 @@
 
                                 <!-- Other Dependencies -->
                                 <artifactItem>
-                                    <groupId>org.reactivestreams</groupId>
-                                    <artifactId>reactive-streams</artifactId>
-                                    <version>1.0.4</version>
-                                    <destFileName>reactive-streams-1.0.4.jar</destFileName>
-                                </artifactItem>
-                                <artifactItem>
                                     <groupId>com.squareup.retrofit2</groupId>
                                     <artifactId>retrofit</artifactId>
                                     <version>2.9.0</version>

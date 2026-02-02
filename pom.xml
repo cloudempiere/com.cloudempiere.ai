@@ -22,8 +22,8 @@
 		<module>com.cloudempiere.ai.support</module>
 		<module>com.cloudempiere.ai.kb</module>
 
-		<!-- Legacy Monolithic Plugin (being phased out) -->
-		<module>com.cloudempiere.ai.plugin</module>
+		<!-- Legacy Monolithic Plugin (removed from build - use core instead) -->
+		<!-- <module>com.cloudempiere.ai.plugin</module> -->
 
 		<!-- Infrastructure -->
 		<module>com.cloudempiere.ai.theme</module>

@@ -111,6 +111,13 @@
                                     <version>4.1.100.Final</version>
                                     <destFileName>netty-transport-classes-epoll-4.1.100.Final.jar</destFileName>
                                 </artifactItem>
+                                <!-- Reactive Streams (dependency of AWS SDK) -->
+                                <artifactItem>
+                                    <groupId>org.reactivestreams</groupId>
+                                    <artifactId>reactive-streams</artifactId>
+                                    <version>1.0.4</version>
+                                    <destFileName>reactive-streams-1.0.4.jar</destFileName>
+                                </artifactItem>
                             </artifactItems>
                             <outputDirectory>lib</outputDirectory>
                             <overWriteReleases>true</overWriteReleases>
