@@ -97,20 +97,6 @@
                                     <destFileName>anthropic-java-client-okhttp-2.10.0.jar</destFileName>
                                 </artifactItem>
 
-                                <!-- AWS SDK - Bedrock services only (core provided by com.cloudempiere.aws.provider) -->
-                                <artifactItem>
-                                    <groupId>software.amazon.awssdk</groupId>
-                                    <artifactId>bedrockruntime</artifactId>
-                                    <version>2.20.162</version>
-                                    <destFileName>bedrockruntime-2.20.162.jar</destFileName>
-                                </artifactItem>
-                                <artifactItem>
-                                    <groupId>software.amazon.awssdk</groupId>
-                                    <artifactId>bedrock</artifactId>
-                                    <version>2.20.162</version>
-                                    <destFileName>bedrock-2.20.162.jar</destFileName>
-                                </artifactItem>
-
                                 <!-- Jackson -->
                                 <artifactItem>
                                     <groupId>com.fasterxml.jackson.core</groupId>
@@ -187,68 +173,6 @@
                                     <artifactId>okio-jvm</artifactId>
                                     <version>3.6.0</version>
                                     <destFileName>okio-jvm-3.6.0.jar</destFileName>
-                                </artifactItem>
-
-                                <!-- Netty -->
-                                <artifactItem>
-                                    <groupId>io.netty</groupId>
-                                    <artifactId>netty-codec-http</artifactId>
-                                    <version>4.1.100.Final</version>
-                                    <destFileName>netty-codec-http-4.1.100.Final.jar</destFileName>
-                                </artifactItem>
-                                <artifactItem>
-                                    <groupId>io.netty</groupId>
-                                    <artifactId>netty-codec-http2</artifactId>
-                                    <version>4.1.100.Final</version>
-                                    <destFileName>netty-codec-http2-4.1.100.Final.jar</destFileName>
-                                </artifactItem>
-                                <artifactItem>
-                                    <groupId>io.netty</groupId>
-                                    <artifactId>netty-codec</artifactId>
-                                    <version>4.1.100.Final</version>
-                                    <destFileName>netty-codec-4.1.100.Final.jar</destFileName>
-                                </artifactItem>
-                                <artifactItem>
-                                    <groupId>io.netty</groupId>
-                                    <artifactId>netty-transport</artifactId>
-                                    <version>4.1.100.Final</version>
-                                    <destFileName>netty-transport-4.1.100.Final.jar</destFileName>
-                                </artifactItem>
-                                <artifactItem>
-                                    <groupId>io.netty</groupId>
-                                    <artifactId>netty-common</artifactId>
-                                    <version>4.1.100.Final</version>
-                                    <destFileName>netty-common-4.1.100.Final.jar</destFileName>
-                                </artifactItem>
-                                <artifactItem>
-                                    <groupId>io.netty</groupId>
-                                    <artifactId>netty-buffer</artifactId>
-                                    <version>4.1.100.Final</version>
-                                    <destFileName>netty-buffer-4.1.100.Final.jar</destFileName>
-                                </artifactItem>
-                                <artifactItem>
-                                    <groupId>io.netty</groupId>
-                                    <artifactId>netty-handler</artifactId>
-                                    <version>4.1.100.Final</version>
-                                    <destFileName>netty-handler-4.1.100.Final.jar</destFileName>
-                                </artifactItem>
-                                <artifactItem>
-                                    <groupId>io.netty</groupId>
-                                    <artifactId>netty-resolver</artifactId>
-                                    <version>4.1.100.Final</version>
-                                    <destFileName>netty-resolver-4.1.100.Final.jar</destFileName>
-                                </artifactItem>
-                                <artifactItem>
-                                    <groupId>io.netty</groupId>
-                                    <artifactId>netty-transport-native-unix-common</artifactId>
-                                    <version>4.1.100.Final</version>
-                                    <destFileName>netty-transport-native-unix-common-4.1.100.Final.jar</destFileName>
-                                </artifactItem>
-                                <artifactItem>
-                                    <groupId>io.netty</groupId>
-                                    <artifactId>netty-transport-classes-epoll</artifactId>
-                                    <version>4.1.100.Final</version>
-                                    <destFileName>netty-transport-classes-epoll-4.1.100.Final.jar</destFileName>
                                 </artifactItem>
 
                                 <!-- Other Dependencies -->

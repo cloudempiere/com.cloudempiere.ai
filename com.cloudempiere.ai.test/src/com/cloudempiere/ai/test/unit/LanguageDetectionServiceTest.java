@@ -30,7 +30,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
-import com.cloudempiere.ai.service.LanguageDetectionService;
+import com.cloudempiere.ai.core.service.LanguageDetectionService;
 
 /**
  * Unit tests for LanguageDetectionService (ADR-037).
