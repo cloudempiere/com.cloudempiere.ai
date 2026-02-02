@@ -61,7 +61,7 @@ Import-Package: com.anthropic.client;version="2.10.0",
 
 **Files Fixed:**
 - ✅ `com.cloudempiere.ai.sales/OSGI-INF/com.cloudempiere.ai.sales.agent.SalesAgent.xml`
-- ✅ `com.cloudempiere.ai.inventory/OSGI-INF/com.cloudempiere.ai.inventory.agent.InventoryAgent.xml`
+- ✅ `com.cloudempiere.ai.inventory/OSGI-INF/com.cloudempiere.ai.inventory.agent.InventoryAgent.xml` (fixed structure in commit b662952)
 - ✅ `com.cloudempiere.ai.purchasing/OSGI-INF/com.cloudempiere.ai.purchasing.agent.PurchasingAgent.xml`
 - ✅ `com.cloudempiere.ai.support/OSGI-INF/com.cloudempiere.ai.support.agent.SupportAgent.xml`
 - ✅ `com.cloudempiere.ai.kb/OSGI-INF/com.cloudempiere.ai.kb.agent.KbAgent.xml`
@@ -327,6 +327,9 @@ After removing legacy plugin from launch config and restarting:
 
 ---
 
-**Commit:** c76145f (startup fixes applied)
-**Status:** Ready for testing after legacy plugin removed from launch config
+**Commits:**
+- c76145f (startup fixes applied)
+- b662952 (InventoryAgent.xml structure corrected)
+
+**Status:** ✅ All automatic fixes complete - Ready for user action
 **Experts Consulted:** OSGi Expert (afc6a38) + Architecture Expert (a54edc2)
