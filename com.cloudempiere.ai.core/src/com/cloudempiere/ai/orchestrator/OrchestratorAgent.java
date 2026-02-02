@@ -6,6 +6,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.logging.Logger;
 
+import com.cloudempiere.ai.context.WindowContextExtractor;
+
 import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
@@ -117,31 +119,65 @@ public class OrchestratorAgent {
      * @return AI-generated response
      */
     public String chat(String query) {
+        return chat(query, null);
+    }
+
+    /**
+     * Process a user query with window context.
+     *
+     * <p>Context-aware version that includes current window/record information
+     * to enable record-specific AI responses.</p>
+     *
+     * @param query natural language query
+     * @param context window context map (from WindowContextExtractor)
+     * @return AI-generated response
+     */
+    public String chat(String query, Map<String, Object> context) {
         if (query == null || query.trim().isEmpty()) {
             return "Please provide a query.";
         }
 
         log.info("Orchestrator received query: " + query);
 
+        // Enhance query with context if available
+        String enhancedQuery = query;
+        if (context != null && !context.isEmpty()) {
+            String contextText = WindowContextExtractor.formatForAI(context);
+            enhancedQuery = query + contextText;
+
+            log.info("Query enhanced with context from table: " + context.get("tableName"));
+        }
+
         // Classify which domain(s) this query belongs to
-        List<String> domains = classifyQuery(query);
+        List<String> domains = classifyQuery(enhancedQuery);
+
+        // If context provides domain hint, prioritize it
+        if (context != null && context.containsKey("tableName")) {
+            String tableName = (String) context.get("tableName");
+            String contextDomain = WindowContextExtractor.detectDomain(tableName);
+
+            if (contextDomain != null && !domains.contains(contextDomain)) {
+                domains.add(0, contextDomain); // Add to front
+                log.info("Added context-based domain: " + contextDomain);
+            }
+        }
 
         if (domains.isEmpty()) {
             // No clear domain match - fallback to knowledge base
             log.info("No clear domain match - routing to knowledge base");
-            return routeToKnowledgeBase(query);
+            return routeToKnowledgeBase(enhancedQuery);
         }
 
         if (domains.size() == 1) {
             // Single domain - direct routing
             String domain = domains.get(0);
             log.info("Routing to single domain: " + domain);
-            return routeToDomain(domain, query);
+            return routeToDomain(domain, enhancedQuery);
         }
 
         // Multiple domains - invoke all and aggregate responses
         log.info("Multi-domain query detected: " + domains);
-        return aggregateResponses(domains, query);
+        return aggregateResponses(domains, enhancedQuery);
     }
 
     /**

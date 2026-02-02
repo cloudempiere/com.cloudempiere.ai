@@ -19,6 +19,9 @@ import org.zkoss.zul.Vlayout;
 
 import com.cloudempiere.ai.orchestrator.OrchestratorAgent;
 import com.cloudempiere.ai.util.ServiceLocator;
+import com.cloudempiere.ai.context.WindowContextExtractor;
+
+import org.compiere.model.GridTab;
 
 /**
  * AI Chat Panel component for iDempiere.
@@ -70,6 +73,12 @@ public class ChatPanel extends Div {
 
     /** Message history for context */
     private List<ChatMessage> messages = new ArrayList<>();
+
+    /** Window context for record-aware queries */
+    private Map<String, Object> windowContext;
+
+    /** Current GridTab reference (if available) */
+    private GridTab gridTab;
 
     /**
      * Constructor.
@@ -219,8 +228,13 @@ public class ChatPanel extends Div {
                 return;
             }
 
-            // Route through orchestrator
-            String response = orchestrator.chat(query);
+            // Extract latest context if gridTab is set
+            if (gridTab != null) {
+                windowContext = WindowContextExtractor.extract(gridTab);
+            }
+
+            // Route through orchestrator with context
+            String response = orchestrator.chat(query, windowContext);
 
             // Add AI response
             addAIMessage(response);
@@ -233,6 +247,43 @@ public class ChatPanel extends Div {
             log.severe("Error processing query: " + e.getMessage());
             addSystemMessage("Error: " + e.getMessage());
         }
+    }
+
+    /**
+     * Set the current GridTab for context extraction.
+     *
+     * <p>When set, the chat panel will automatically extract and include
+     * window/record context with each query, enabling record-specific responses.</p>
+     *
+     * @param gridTab current grid tab (can be null)
+     */
+    public void setGridTab(GridTab gridTab) {
+        this.gridTab = gridTab;
+
+        // Update placeholder hint based on context
+        if (gridTab != null) {
+            String hint = WindowContextExtractor.getQueryHint(gridTab);
+            inputBox.setPlaceholder(hint);
+
+            // Inform user that context is available
+            String tableName = gridTab.getTableName();
+            String domain = WindowContextExtractor.detectDomain(tableName);
+            if (domain != null) {
+                addSystemMessage("Context-aware mode: I can see your current " +
+                               gridTab.getName() + " record.");
+            }
+        } else {
+            inputBox.setPlaceholder("Ask me anything...");
+        }
+    }
+
+    /**
+     * Set window context directly.
+     *
+     * @param context window context map
+     */
+    public void setWindowContext(Map<String, Object> context) {
+        this.windowContext = context;
     }
 
     /**
