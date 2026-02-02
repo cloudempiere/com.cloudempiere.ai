@@ -73,6 +73,10 @@ Export-Package: com.cloudempiere.ai;version="0.32.0",
  com.cloudempiere.ai.rag.dto;version="0.32.0",
  com.cloudempiere.ai.rag.embedding;version="0.32.0",
  com.cloudempiere.ai.rag.ingest;version="0.32.0",
+ com.cloudempiere.ai.guardrails;version="0.32.0",
+ com.cloudempiere.ai.guardrails.dto;version="0.32.0",
+ com.cloudempiere.ai.observability;version="0.32.0",
+ com.cloudempiere.ai.observability.dto;version="0.32.0",
  com.cloudempiere.ai.util;version="0.32.0"
 Service-Component: OSGI-INF/*.xml
 Bundle-ActivationPolicy: lazy
