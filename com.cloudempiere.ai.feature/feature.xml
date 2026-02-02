@@ -19,6 +19,59 @@
       Proprietary License - CloudEmpiere s.r.o.
    </license>
 
+   <!-- Shared Dependencies Plugin (LangChain4j, AWS SDK, Jackson) -->
+   <plugin
+         id="com.cloudempiere.ai.deps"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"
+         unpack="false"/>
+
+   <!-- Core Infrastructure Plugin (Provider, Database, Context APIs) -->
+   <plugin
+         id="com.cloudempiere.ai.core"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"
+         unpack="false"/>
+
+   <!-- Domain Plugins -->
+   <plugin
+         id="com.cloudempiere.ai.sales"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"
+         unpack="false"/>
+
+   <plugin
+         id="com.cloudempiere.ai.inventory"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"
+         unpack="false"/>
+
+   <plugin
+         id="com.cloudempiere.ai.purchasing"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"
+         unpack="false"/>
+
+   <plugin
+         id="com.cloudempiere.ai.support"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"
+         unpack="false"/>
+
+   <plugin
+         id="com.cloudempiere.ai.kb"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"
+         unpack="false"/>
+
+   <!-- Legacy Monolithic Plugin (being phased out) -->
    <plugin
          id="com.cloudempiere.ai"
          download-size="0"
@@ -26,6 +79,7 @@
          version="0.0.0"
          unpack="false"/>
 
+   <!-- Theme Fragment -->
    <plugin
          id="com.cloudempiere.ai.theme"
          download-size="0"

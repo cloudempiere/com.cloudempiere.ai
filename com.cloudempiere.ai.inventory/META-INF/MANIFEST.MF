@@ -1,0 +1,27 @@
+Manifest-Version: 1.0
+Bundle-ManifestVersion: 2
+Bundle-Name: CloudEmpiere AI - Inventory Domain
+Bundle-SymbolicName: com.cloudempiere.ai.inventory;singleton:=true
+Bundle-Version: 0.32.0.qualifier
+Bundle-Vendor: CloudEmpiere
+Bundle-RequiredExecutionEnvironment: JavaSE-11
+Automatic-Module-Name: com.cloudempiere.ai.inventory
+Service-Component: OSGI-INF/*.xml
+Import-Package: com.cloudempiere.ai.boundary;version="[0.32.0,1.0.0)",
+ com.cloudempiere.ai.database;version="[0.32.0,1.0.0)",
+ com.cloudempiere.ai.database.dto;version="[0.32.0,1.0.0)",
+ com.cloudempiere.ai.provider;version="[0.32.0,1.0.0)",
+ com.cloudempiere.ai.provider.dto;version="[0.32.0,1.0.0)",
+ com.cloudempiere.ai.provider.factory;version="[0.32.0,1.0.0)",
+ dev.langchain4j.agent.tool;version="[0.35.0,1.0.0)",
+ dev.langchain4j.memory.chat;version="[0.35.0,1.0.0)",
+ dev.langchain4j.model.chat;version="[0.35.0,1.0.0)",
+ dev.langchain4j.service;version="[0.35.0,1.0.0)",
+ org.compiere.model;version="[10.0.0,11.0.0)",
+ org.compiere.util;version="[10.0.0,11.0.0)",
+ org.osgi.framework;version="1.10.0",
+ org.osgi.service.component.annotations;version="1.3.0"
+Export-Package: com.cloudempiere.ai.inventory.agent;version="0.32.0",
+ com.cloudempiere.ai.inventory.boundary;version="0.32.0",
+ com.cloudempiere.ai.inventory.tools;version="0.32.0"
+Bundle-ActivationPolicy: lazy

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<scr:component xmlns:scr="http://www.osgi.org/xmlns/scr/v1.3.0"
+               name="com.cloudempiere.ai.support.tools.supportTools"
+               immediate="true">
+   <implementation class="com.cloudempiere.ai.support.tools.supportTools"/>
+   <service>
+      <provide interface="com.cloudempiere.ai.support.tools.supportTools"/>
+   </service>
+   <reference bind="setDbExecutor"
+              cardinality="1..1"
+              field="dbExecutor"
+              interface="com.cloudempiere.ai.database.SecureDatabaseQueryExecutor"
+              name="SecureDatabaseQueryExecutor"
+              policy="static"/>
+</scr:component>

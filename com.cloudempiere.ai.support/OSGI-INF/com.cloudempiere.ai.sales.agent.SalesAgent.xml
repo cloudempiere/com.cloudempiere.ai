@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<scr:component xmlns:scr="http://www.osgi.org/xmlns/scr/v1.3.0"
+               name="com.cloudempiere.ai.support.agent.supportAgent"
+               activate="activate"
+               immediate="true">
+   <implementation class="com.cloudempiere.ai.support.agent.supportAgent"/>
+   <service>
+      <provide interface="com.cloudempiere.ai.support.agent.supportAgent"/>
+   </service>
+   <reference bind="setProviderFactory"
+              cardinality="1..1"
+              field="providerFactory"
+              interface="com.cloudempiere.ai.provider.factory.IAIProviderFactory"
+              name="IAIProviderFactory"
+              policy="static"/>
+   <reference bind="setsupportTools"
+              cardinality="1..1"
+              field="supportTools"
+              interface="com.cloudempiere.ai.support.tools.supportTools"
+              name="supportTools"
+              policy="static"/>
+</scr:component>
