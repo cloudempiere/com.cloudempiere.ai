@@ -97,7 +97,7 @@
                                     <destFileName>anthropic-java-client-okhttp-2.10.0.jar</destFileName>
                                 </artifactItem>
 
-                                <!-- AWS SDK (Bedrock) -->
+                                <!-- AWS SDK - Bedrock services only (core provided by com.cloudempiere.aws.provider) -->
                                 <artifactItem>
                                     <groupId>software.amazon.awssdk</groupId>
                                     <artifactId>bedrockruntime</artifactId>
@@ -109,78 +109,6 @@
                                     <artifactId>bedrock</artifactId>
                                     <version>2.20.162</version>
                                     <destFileName>bedrock-2.20.162.jar</destFileName>
-                                </artifactItem>
-                                <artifactItem>
-                                    <groupId>software.amazon.awssdk</groupId>
-                                    <artifactId>regions</artifactId>
-                                    <version>2.20.162</version>
-                                    <destFileName>regions-2.20.162.jar</destFileName>
-                                </artifactItem>
-                                <artifactItem>
-                                    <groupId>software.amazon.awssdk</groupId>
-                                    <artifactId>aws-core</artifactId>
-                                    <version>2.20.162</version>
-                                    <destFileName>aws-core-2.20.162.jar</destFileName>
-                                </artifactItem>
-                                <artifactItem>
-                                    <groupId>software.amazon.awssdk</groupId>
-                                    <artifactId>sdk-core</artifactId>
-                                    <version>2.20.162</version>
-                                    <destFileName>sdk-core-2.20.162.jar</destFileName>
-                                </artifactItem>
-                                <artifactItem>
-                                    <groupId>software.amazon.awssdk</groupId>
-                                    <artifactId>auth</artifactId>
-                                    <version>2.20.162</version>
-                                    <destFileName>auth-2.20.162.jar</destFileName>
-                                </artifactItem>
-                                <artifactItem>
-                                    <groupId>software.amazon.awssdk</groupId>
-                                    <artifactId>profiles</artifactId>
-                                    <version>2.20.162</version>
-                                    <destFileName>profiles-2.20.162.jar</destFileName>
-                                </artifactItem>
-                                <artifactItem>
-                                    <groupId>software.amazon.awssdk</groupId>
-                                    <artifactId>endpoints-spi</artifactId>
-                                    <version>2.20.162</version>
-                                    <destFileName>endpoints-spi-2.20.162.jar</destFileName>
-                                </artifactItem>
-                                <artifactItem>
-                                    <groupId>software.amazon.awssdk</groupId>
-                                    <artifactId>netty-nio-client</artifactId>
-                                    <version>2.20.162</version>
-                                    <destFileName>netty-nio-client-2.20.162.jar</destFileName>
-                                </artifactItem>
-                                <artifactItem>
-                                    <groupId>software.amazon.awssdk</groupId>
-                                    <artifactId>annotations</artifactId>
-                                    <version>2.20.162</version>
-                                    <destFileName>annotations-2.20.162.jar</destFileName>
-                                </artifactItem>
-                                <artifactItem>
-                                    <groupId>software.amazon.awssdk</groupId>
-                                    <artifactId>http-client-spi</artifactId>
-                                    <version>2.20.162</version>
-                                    <destFileName>http-client-spi-2.20.162.jar</destFileName>
-                                </artifactItem>
-                                <artifactItem>
-                                    <groupId>software.amazon.awssdk</groupId>
-                                    <artifactId>apache-client</artifactId>
-                                    <version>2.20.162</version>
-                                    <destFileName>apache-client-2.20.162.jar</destFileName>
-                                </artifactItem>
-                                <artifactItem>
-                                    <groupId>software.amazon.awssdk</groupId>
-                                    <artifactId>utils</artifactId>
-                                    <version>2.20.162</version>
-                                    <destFileName>utils-2.20.162.jar</destFileName>
-                                </artifactItem>
-                                <artifactItem>
-                                    <groupId>software.amazon.awssdk</groupId>
-                                    <artifactId>protocol-core</artifactId>
-                                    <version>2.20.162</version>
-                                    <destFileName>protocol-core-2.20.162.jar</destFileName>
                                 </artifactItem>
 
                                 <!-- Jackson -->
