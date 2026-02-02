@@ -26,3 +26,4 @@ Export-Package: com.cloudempiere.ai.sales.agent;version="0.32.0",
  com.cloudempiere.ai.sales.boundary;version="0.32.0",
  com.cloudempiere.ai.sales.tools;version="0.32.0"
 Bundle-ActivationPolicy: lazy
+Require-Bundle: com.cloudempiere.ai.core

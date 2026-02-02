@@ -26,3 +26,4 @@ Export-Package: com.cloudempiere.ai.purchasing.agent;version="0.32.0",
  com.cloudempiere.ai.purchasing.boundary;version="0.32.0",
  com.cloudempiere.ai.purchasing.tools;version="0.32.0"
 Bundle-ActivationPolicy: lazy
+Require-Bundle: com.cloudempiere.ai.core
