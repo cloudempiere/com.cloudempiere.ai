@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<scr:component xmlns:scr="http://www.osgi.org/xmlns/scr/v1.1.0" activate="activate" deactivate="deactivate" immediate="true" name="com.cloudempiere.ai.provider.langchain4j.LangChain4jProviderFactory">
-   <property name="service.ranking" type="Integer" value="100"/>
-   <service>
-      <provide interface="com.cloudempiere.ai.provider.langchain4j.ILangChain4jProviderFactory"/>
-   </service>
-   <implementation class="com.cloudempiere.ai.provider.langchain4j.LangChain4jProviderFactory"/>
-</scr:component>

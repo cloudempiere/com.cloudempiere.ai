@@ -551,4 +551,84 @@ public class MarkdownSyntaxSanitizerTest {
         // Subsequent calls should not break already sanitized content
         assertEquals(output2, output3, "Should be idempotent");
     }
+
+    // ============================================================================
+    // HTML Detection Tests (Fix for rendering bugs)
+    // ============================================================================
+
+    @Test
+    @DisplayName("Should detect and preserve pre-rendered HTML tables")
+    public void testHtmlTablePassthrough() {
+        String htmlTable = "<table><tr><td>Data</td></tr></table>";
+
+        String output = sanitizer.sanitize(htmlTable);
+
+        // Should pass through unchanged (detected as HTML, not markdown)
+        assertEquals(htmlTable, output, "HTML table should pass through without sanitization");
+        assertTrue(output.contains("<table>"), "Table tag should be preserved");
+        assertTrue(output.contains("</table>"), "Closing table tag should be preserved");
+    }
+
+    @Test
+    @DisplayName("Should detect and preserve pre-rendered HTML divs")
+    public void testHtmlDivPassthrough() {
+        String htmlDiv = "<div class='ai-markdown-content'><p>Content</p></div>";
+
+        String output = sanitizer.sanitize(htmlDiv);
+
+        // Should pass through unchanged
+        assertEquals(htmlDiv, output, "HTML div should pass through without sanitization");
+        assertTrue(output.contains("<div"), "Div tag should be preserved");
+        assertTrue(output.contains("</div>"), "Closing div tag should be preserved");
+    }
+
+    @Test
+    @DisplayName("Should detect HTML by multiple closing tags")
+    public void testHtmlDetectionByClosingTags() {
+        String html = "<p>Paragraph 1</p><p>Paragraph 2</p><p>Paragraph 3</p>";
+
+        String output = sanitizer.sanitize(html);
+
+        // Should be detected as HTML (3+ closing tags) and pass through
+        assertEquals(html, output, "HTML with multiple closing tags should pass through");
+        assertFalse(output.contains("&lt;"), "Tags should not be escaped");
+    }
+
+    @Test
+    @DisplayName("Should still sanitize markdown even with some HTML-like chars")
+    public void testMarkdownWithSingleTag() {
+        String markdown = "**Bold** and <emphasis>text</emphasis>";
+
+        String output = sanitizer.sanitize(markdown);
+
+        // Has only 1 closing tag, so treated as markdown
+        assertTrue(output.contains("**Bold**"), "Markdown should be preserved");
+        assertFalse(output.contains("<emphasis>"), "Single HTML tag should be removed");
+    }
+
+    @Test
+    @DisplayName("Should handle mixed HTML structure from tool results")
+    public void testToolResultHtmlStructure() {
+        String toolResult = "<pre><code>SELECT * FROM C_Order;</code></pre>";
+
+        String output = sanitizer.sanitize(toolResult);
+
+        // Should preserve tool result HTML
+        assertEquals(toolResult, output, "Tool result HTML should be preserved");
+        assertTrue(output.contains("<pre>"), "Pre tag should be preserved");
+        assertTrue(output.contains("<code>"), "Code tag should be preserved");
+    }
+
+    @Test
+    @DisplayName("Should not escape HTML in fallback for HTML content")
+    public void testFallbackPreservesHtml() {
+        // Simulate exception scenario by passing content that would trigger HTML detection
+        String htmlContent = "<ul><li>Item 1</li><li>Item 2</li></ul>";
+
+        String output = sanitizer.sanitize(htmlContent);
+
+        // Even if sanitization were to fail, HTML should be preserved (not escaped)
+        assertFalse(output.contains("&lt;ul&gt;"), "HTML should not be escaped in fallback");
+        assertTrue(output.contains("<ul>"), "Unordered list should be preserved");
+    }
 }

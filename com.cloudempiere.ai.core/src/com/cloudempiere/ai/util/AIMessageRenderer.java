@@ -139,6 +139,10 @@ public class AIMessageRenderer {
 		// We use CommonMarkRenderer which extracts HTML, parses markdown, then restores HTML
 		String finalHtml = CommonMarkRenderer.render(processed);
 
+		// WRAPPER DESIGN: This div.ai-markdown-content wrapper is required for CSS styling.
+		// It's added in 3 places: (1) HERE for legacy markdown reload, (2) AIChatStreamingMessage
+		// renderFinalMarkdown() for new streaming, (3) cancel() for cancelled messages.
+		// Progressive renderers return unwrapped HTML fragments.
 		return "<div class='ai-markdown-content'>" + finalHtml + "</div>";
 	}
 

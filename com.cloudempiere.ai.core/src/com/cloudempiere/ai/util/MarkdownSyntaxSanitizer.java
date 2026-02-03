@@ -174,6 +174,13 @@ public class MarkdownSyntaxSanitizer {
             return "";
         }
 
+        // EARLY EXIT: Detect pre-rendered HTML and skip markdown processing
+        // Tool results and pre-rendered content should pass through without modification
+        if (isLikelyHtml(markdown)) {
+            log.fine("Content is pre-rendered HTML, skipping markdown sanitization");
+            return markdown;
+        }
+
         try {
             String sanitized = markdown;
 
@@ -207,9 +214,69 @@ public class MarkdownSyntaxSanitizer {
 
         } catch (Exception e) {
             log.warning("Markdown sanitization failed: " + e.getMessage());
-            // Fallback: return escaped version
-            return SecuritySanitizer.escapeHtml(markdown);
+
+            // SMART FALLBACK (Fix for double-escaping bug):
+            // Don't blindly escape everything - detect if content is already HTML
+            // Tool results and pre-rendered content should pass through safely
+
+            if (isLikelyHtml(markdown)) {
+                // Content appears to be HTML (from tool results or pre-rendered)
+                // Return as-is but log warning about sanitization bypass
+                log.warning("Content appears to be HTML, bypassing markdown sanitization");
+                return markdown;
+            } else {
+                // Content is likely markdown or plain text - safe to escape
+                log.warning("Falling back to full HTML escaping for safety");
+                return SecuritySanitizer.escapeHtml(markdown);
+            }
         }
+    }
+
+    /**
+     * Check if content is likely HTML rather than markdown.
+     *
+     * <p>Heuristics:
+     * <ul>
+     *   <li>Starts with HTML tag (div, table, p, pre, ul, ol)</li>
+     *   <li>Contains multiple closing tags</li>
+     *   <li>Has HTML structure (opening + closing tags)</li>
+     * </ul>
+     *
+     * @param content content to check
+     * @return true if content appears to be HTML
+     */
+    private static boolean isLikelyHtml(String content) {
+        if (content == null || content.isEmpty()) {
+            return false;
+        }
+
+        String trimmed = content.trim();
+
+        // Check if starts with common HTML tags
+        if (trimmed.startsWith("<div") ||
+            trimmed.startsWith("<table") ||
+            trimmed.startsWith("<p>") ||
+            trimmed.startsWith("<pre>") ||
+            trimmed.startsWith("<ul>") ||
+            trimmed.startsWith("<ol>") ||
+            trimmed.startsWith("<h1>") ||
+            trimmed.startsWith("<h2>") ||
+            trimmed.startsWith("<h3>")) {
+            return true;
+        }
+
+        // Count HTML closing tags - if more than 2, likely HTML structure
+        int closingTags = 0;
+        int pos = 0;
+        while ((pos = content.indexOf("</", pos)) != -1) {
+            closingTags++;
+            pos += 2;
+            if (closingTags > 2) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     // ============================================================================

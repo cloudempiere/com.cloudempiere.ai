@@ -32,7 +32,6 @@ import org.zkoss.zul.Timer;
 
 import com.cloudempiere.ai.util.ChunkCleaner;
 import com.cloudempiere.ai.util.CommonMarkRenderer;
-import com.cloudempiere.ai.util.MarkdownConfig;
 import com.cloudempiere.ai.util.MarkdownSyntaxSanitizer;
 import com.cloudempiere.ai.util.MarkdownValidator;
 import com.cloudempiere.ai.util.StreamingMarkdownRenderer;
