@@ -432,7 +432,7 @@ public class MarkdownSyntaxSanitizer {
      * @param markdown markdown with potential unsupported features
      * @return markdown with unsupported features removed
      */
-    private static String removeUnsupportedFeatures(String markdown) {
+    private String removeUnsupportedFeatures(String markdown) {
         if (markdown == null || markdown.isEmpty()) {
             return "";
         }
@@ -459,7 +459,7 @@ public class MarkdownSyntaxSanitizer {
      *
      * <p>Example: {@code <http://example.com>} → {@code [http://example.com](http://example.com)}
      */
-    private static String convertAutolinks(String markdown) {
+    private String convertAutolinks(String markdown) {
         Matcher matcher = AUTOLINK_PATTERN.matcher(markdown);
         StringBuffer result = new StringBuffer();
 

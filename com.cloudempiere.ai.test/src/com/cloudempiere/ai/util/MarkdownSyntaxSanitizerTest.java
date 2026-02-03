@@ -42,10 +42,12 @@ import com.cloudempiere.ai.test.categories.UnitTest;
 @DisplayName("MarkdownSyntaxSanitizer Tests (ADR-055)")
 public class MarkdownSyntaxSanitizerTest {
 
+    private MarkdownSyntaxSanitizer sanitizer;
+
     @BeforeEach
     public void setUp() {
-        // Reset to default settings
-        MarkdownSyntaxSanitizer.setAllowBase64Images(false);
+        // Create sanitizer with default secure configuration
+        sanitizer = new MarkdownSyntaxSanitizer(MarkdownConfig.secure());
     }
 
     // ============================================================================
@@ -56,7 +58,7 @@ public class MarkdownSyntaxSanitizerTest {
     @DisplayName("Should remove raw HTML tags to prevent XSS")
     public void testRawHtmlEscaped() {
         String input = "Hello <script>alert('XSS')</script> world";
-        String output = MarkdownSyntaxSanitizer.sanitize(input);
+        String output = sanitizer.sanitize(input);
 
         // HTML tags should be removed (not escaped, to prevent ZK Html decoding issues)
         assertFalse(output.contains("<script>"), "Script tag should be removed");
@@ -70,7 +72,7 @@ public class MarkdownSyntaxSanitizerTest {
     @DisplayName("Should remove HTML image with event handler")
     public void testHtmlImageWithEventHandler() {
         String input = "Text <img src=x onerror=\"alert('XSS')\"> more text";
-        String output = MarkdownSyntaxSanitizer.sanitize(input);
+        String output = sanitizer.sanitize(input);
 
         assertFalse(output.contains("<img"), "Img tag should be removed");
         assertFalse(output.contains("onerror"), "Event handler should be removed");
@@ -82,7 +84,7 @@ public class MarkdownSyntaxSanitizerTest {
     @DisplayName("Should remove HTML anchor with onclick")
     public void testHtmlAnchorWithOnclick() {
         String input = "<a href=\"#\" onclick=\"steal()\">Link</a>";
-        String output = MarkdownSyntaxSanitizer.sanitize(input);
+        String output = sanitizer.sanitize(input);
 
         assertFalse(output.contains("<a "), "Anchor tag should be removed");
         assertFalse(output.contains("onclick"), "Event handler should be removed");
@@ -93,7 +95,7 @@ public class MarkdownSyntaxSanitizerTest {
     @DisplayName("Should remove CSS style tag")
     public void testCssStyleTag() {
         String input = "Text <style>body{display:none}</style> more";
-        String output = MarkdownSyntaxSanitizer.sanitize(input);
+        String output = sanitizer.sanitize(input);
 
         assertFalse(output.contains("<style>"), "Style tag should be removed");
         assertTrue(output.contains("body{display:none}"), "Style content kept as plain text");
@@ -103,7 +105,7 @@ public class MarkdownSyntaxSanitizerTest {
     @DisplayName("Should not escape HTML in code blocks")
     public void testHtmlInCodeBlock() {
         String input = "```html\n<script>alert('XSS')</script>\n```";
-        String output = MarkdownSyntaxSanitizer.sanitize(input);
+        String output = sanitizer.sanitize(input);
 
         // HTML in code blocks should be preserved
         assertTrue(output.contains("```"), "Code block should be preserved");
@@ -114,7 +116,7 @@ public class MarkdownSyntaxSanitizerTest {
     @DisplayName("Should not escape HTML in inline code")
     public void testHtmlInInlineCode() {
         String input = "Use `<div>` for block elements";
-        String output = MarkdownSyntaxSanitizer.sanitize(input);
+        String output = sanitizer.sanitize(input);
 
         assertTrue(output.contains("`<div>`"), "HTML in inline code should NOT be escaped");
     }
@@ -127,7 +129,7 @@ public class MarkdownSyntaxSanitizerTest {
     @DisplayName("Should block javascript: URL in links")
     public void testJavaScriptUrlInLink() {
         String input = "[Click me](javascript:alert('XSS'))";
-        String output = MarkdownSyntaxSanitizer.sanitize(input);
+        String output = sanitizer.sanitize(input);
 
         assertFalse(output.contains("javascript:"), "JavaScript URL should be blocked");
         assertTrue(output.contains("Click me"), "Link text should be preserved");
@@ -137,7 +139,7 @@ public class MarkdownSyntaxSanitizerTest {
     @DisplayName("Should block data: URL in links")
     public void testDataUrlInLink() {
         String input = "[Click](data:text/html,<script>alert('XSS')</script>)";
-        String output = MarkdownSyntaxSanitizer.sanitize(input);
+        String output = sanitizer.sanitize(input);
 
         assertFalse(output.contains("data:"), "Data URL should be blocked");
         assertTrue(output.contains("Click"), "Link text should be preserved");
@@ -147,7 +149,7 @@ public class MarkdownSyntaxSanitizerTest {
     @DisplayName("Should block file: URL in links")
     public void testFileUrlInLink() {
         String input = "[Local file](file:///etc/passwd)";
-        String output = MarkdownSyntaxSanitizer.sanitize(input);
+        String output = sanitizer.sanitize(input);
 
         assertFalse(output.contains("file:"), "File URL should be blocked");
     }
@@ -156,7 +158,7 @@ public class MarkdownSyntaxSanitizerTest {
     @DisplayName("Should block vbscript: URL in links")
     public void testVbScriptUrlInLink() {
         String input = "[Click](vbscript:msgbox('XSS'))";
-        String output = MarkdownSyntaxSanitizer.sanitize(input);
+        String output = sanitizer.sanitize(input);
 
         assertFalse(output.contains("vbscript:"), "VBScript URL should be blocked");
     }
@@ -165,7 +167,7 @@ public class MarkdownSyntaxSanitizerTest {
     @DisplayName("Should allow https: URL in links")
     public void testHttpsUrlInLink() {
         String input = "[Safe link](https://example.com)";
-        String output = MarkdownSyntaxSanitizer.sanitize(input);
+        String output = sanitizer.sanitize(input);
 
         assertTrue(output.contains("https://example.com") ||
                    output.contains("https%3A%2F%2Fexample.com"),
@@ -177,7 +179,7 @@ public class MarkdownSyntaxSanitizerTest {
     @DisplayName("Should allow http: URL in links")
     public void testHttpUrlInLink() {
         String input = "[Safe link](http://example.com)";
-        String output = MarkdownSyntaxSanitizer.sanitize(input);
+        String output = sanitizer.sanitize(input);
 
         assertTrue(output.contains("http://example.com") ||
                    output.contains("http%3A%2F%2Fexample.com"),
@@ -188,7 +190,7 @@ public class MarkdownSyntaxSanitizerTest {
     @DisplayName("Should preserve link title attribute")
     public void testLinkWithTitle() {
         String input = "[Link](https://example.com \"Title text\")";
-        String output = MarkdownSyntaxSanitizer.sanitize(input);
+        String output = sanitizer.sanitize(input);
 
         assertTrue(output.contains("Title text") || output.contains("Title&#"),
                    "Link title should be preserved");
@@ -202,21 +204,23 @@ public class MarkdownSyntaxSanitizerTest {
     @DisplayName("Should block data: URL in images by default")
     public void testDataUrlInImage() {
         String input = "![Alt](data:image/svg+xml;base64,PHN2ZyBvbmxvYWQ9YWxlcnQoJ1hTUycpPjwvc3ZnPg==)";
-        String output = MarkdownSyntaxSanitizer.sanitize(input);
+        String output = sanitizer.sanitize(input);
 
         assertFalse(output.contains("data:"), "Data URL should be blocked");
         assertTrue(output.contains("Alt") || output.contains("Image removed"),
                    "Alt text should be preserved or replaced");
     }
 
-    @Disabled("TODO: Implement base64 image support - optional feature for Phase 2")
     @Test
     @DisplayName("Should allow data: URL in images when configured")
     public void testDataUrlInImageWhenAllowed() {
-        MarkdownSyntaxSanitizer.setAllowBase64Images(true);
+        // Create sanitizer with permissive config
+        MarkdownSyntaxSanitizer permissiveSanitizer = new MarkdownSyntaxSanitizer(
+            MarkdownConfig.builder().allowBase64Images(true).build()
+        );
 
         String input = "![Alt](data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUA)";
-        String output = MarkdownSyntaxSanitizer.sanitize(input);
+        String output = permissiveSanitizer.sanitize(input);
 
         assertTrue(output.contains("data:image/png"), "Data URL should be allowed when configured");
     }
@@ -225,7 +229,7 @@ public class MarkdownSyntaxSanitizerTest {
     @DisplayName("Should block javascript: URL in images")
     public void testJavaScriptUrlInImage() {
         String input = "![Alt](javascript:alert('XSS'))";
-        String output = MarkdownSyntaxSanitizer.sanitize(input);
+        String output = sanitizer.sanitize(input);
 
         assertFalse(output.contains("javascript:"), "JavaScript URL should be blocked");
     }
@@ -234,7 +238,7 @@ public class MarkdownSyntaxSanitizerTest {
     @DisplayName("Should allow https: URL in images")
     public void testHttpsUrlInImage() {
         String input = "![Alt text](https://example.com/image.png)";
-        String output = MarkdownSyntaxSanitizer.sanitize(input);
+        String output = sanitizer.sanitize(input);
 
         assertTrue(output.contains("https://example.com/image.png") ||
                    output.contains("https%3A%2F%2Fexample.com"),
@@ -246,7 +250,7 @@ public class MarkdownSyntaxSanitizerTest {
     @DisplayName("Should preserve image title attribute")
     public void testImageWithTitle() {
         String input = "![Alt](https://example.com/img.png \"Image title\")";
-        String output = MarkdownSyntaxSanitizer.sanitize(input);
+        String output = sanitizer.sanitize(input);
 
         assertTrue(output.contains("Image title") || output.contains("Image&#"),
                    "Image title should be preserved");
@@ -260,7 +264,7 @@ public class MarkdownSyntaxSanitizerTest {
     @DisplayName("Should remove footnote references")
     public void testFootnoteReferencesRemoved() {
         String input = "Text with footnote[^1] and another[^2].";
-        String output = MarkdownSyntaxSanitizer.sanitize(input);
+        String output = sanitizer.sanitize(input);
 
         assertFalse(output.contains("[^1]"), "Footnote reference should be removed");
         assertFalse(output.contains("[^2]"), "Footnote reference should be removed");
@@ -271,7 +275,7 @@ public class MarkdownSyntaxSanitizerTest {
     @DisplayName("Should remove footnote definitions")
     public void testFootnoteDefinitionsRemoved() {
         String input = "Text[^1]\n\n[^1]: This is a footnote.";
-        String output = MarkdownSyntaxSanitizer.sanitize(input);
+        String output = sanitizer.sanitize(input);
 
         assertFalse(output.contains("[^1]:"), "Footnote definition should be removed");
         assertFalse(output.contains("This is a footnote"), "Footnote content should be removed");
@@ -281,7 +285,7 @@ public class MarkdownSyntaxSanitizerTest {
     @DisplayName("Should convert task list to plain list")
     public void testTaskListConverted() {
         String input = "- [ ] Unchecked task\n- [x] Checked task\n- [X] Also checked";
-        String output = MarkdownSyntaxSanitizer.sanitize(input);
+        String output = sanitizer.sanitize(input);
 
         assertFalse(output.contains("[ ]"), "Unchecked box should be removed");
         assertFalse(output.contains("[x]"), "Checked box should be removed");
@@ -295,7 +299,7 @@ public class MarkdownSyntaxSanitizerTest {
     @DisplayName("Should convert autolinks to standard links")
     public void testAutolinksConverted() {
         String input = "Visit <https://example.com> for more info";
-        String output = MarkdownSyntaxSanitizer.sanitize(input);
+        String output = sanitizer.sanitize(input);
 
         assertFalse(output.contains("<https://"), "Autolink syntax should be converted");
         assertTrue(output.contains("[https://example.com]"), "Should convert to standard link");
@@ -306,7 +310,7 @@ public class MarkdownSyntaxSanitizerTest {
     @DisplayName("Should convert email autolinks to mailto links")
     public void testEmailAutolinksConverted() {
         String input = "Contact <user@example.com> for support";
-        String output = MarkdownSyntaxSanitizer.sanitize(input);
+        String output = sanitizer.sanitize(input);
 
         assertFalse(output.contains("<user@example.com>"), "Email autolink should be converted");
         assertTrue(output.contains("[user@example.com]") || output.contains("mailto:"),
@@ -321,7 +325,7 @@ public class MarkdownSyntaxSanitizerTest {
     @DisplayName("Should preserve headers")
     public void testHeadersPreserved() {
         String input = "# H1\n## H2\n### H3\n#### H4\n##### H5\n###### H6";
-        String output = MarkdownSyntaxSanitizer.sanitize(input);
+        String output = sanitizer.sanitize(input);
 
         assertTrue(output.contains("# H1"), "H1 should be preserved");
         assertTrue(output.contains("## H2"), "H2 should be preserved");
@@ -335,7 +339,7 @@ public class MarkdownSyntaxSanitizerTest {
     @DisplayName("Should preserve bold and italic")
     public void testBoldItalicPreserved() {
         String input = "**bold** *italic* ***both*** __also bold__ _also italic_";
-        String output = MarkdownSyntaxSanitizer.sanitize(input);
+        String output = sanitizer.sanitize(input);
 
         assertTrue(output.contains("**bold**"), "Bold should be preserved");
         assertTrue(output.contains("*italic*"), "Italic should be preserved");
@@ -346,7 +350,7 @@ public class MarkdownSyntaxSanitizerTest {
     @DisplayName("Should preserve inline code")
     public void testInlineCodePreserved() {
         String input = "Use `var x = 1;` for variables";
-        String output = MarkdownSyntaxSanitizer.sanitize(input);
+        String output = sanitizer.sanitize(input);
 
         assertTrue(output.contains("`var x = 1;`"), "Inline code should be preserved");
     }
@@ -355,7 +359,7 @@ public class MarkdownSyntaxSanitizerTest {
     @DisplayName("Should preserve code blocks")
     public void testCodeBlocksPreserved() {
         String input = "```javascript\nconst x = 1;\nconsole.log(x);\n```";
-        String output = MarkdownSyntaxSanitizer.sanitize(input);
+        String output = sanitizer.sanitize(input);
 
         assertTrue(output.contains("```javascript"), "Code block should be preserved");
         assertTrue(output.contains("const x = 1;"), "Code content should be preserved");
@@ -366,7 +370,7 @@ public class MarkdownSyntaxSanitizerTest {
     @DisplayName("Should preserve unordered lists")
     public void testUnorderedListsPreserved() {
         String input = "- Item 1\n- Item 2\n* Item 3\n+ Item 4";
-        String output = MarkdownSyntaxSanitizer.sanitize(input);
+        String output = sanitizer.sanitize(input);
 
         assertTrue(output.contains("- Item 1"), "List items should be preserved");
         assertTrue(output.contains("Item 2"), "List items should be preserved");
@@ -376,7 +380,7 @@ public class MarkdownSyntaxSanitizerTest {
     @DisplayName("Should preserve ordered lists")
     public void testOrderedListsPreserved() {
         String input = "1. First\n2. Second\n3. Third";
-        String output = MarkdownSyntaxSanitizer.sanitize(input);
+        String output = sanitizer.sanitize(input);
 
         assertTrue(output.contains("1. First"), "Ordered list should be preserved");
         assertTrue(output.contains("2. Second"), "Ordered list should be preserved");
@@ -387,7 +391,7 @@ public class MarkdownSyntaxSanitizerTest {
     @DisplayName("Should preserve blockquotes")
     public void testBlockquotesPreserved() {
         String input = "> This is a quote\n> Second line";
-        String output = MarkdownSyntaxSanitizer.sanitize(input);
+        String output = sanitizer.sanitize(input);
 
         assertTrue(output.contains("> This is a quote"), "Blockquote should be preserved");
         assertTrue(output.contains("> Second line"), "Blockquote should be preserved");
@@ -397,7 +401,7 @@ public class MarkdownSyntaxSanitizerTest {
     @DisplayName("Should preserve horizontal rules")
     public void testHorizontalRulesPreserved() {
         String input = "Text\n\n---\n\nMore text";
-        String output = MarkdownSyntaxSanitizer.sanitize(input);
+        String output = sanitizer.sanitize(input);
 
         assertTrue(output.contains("---"), "Horizontal rule should be preserved");
     }
@@ -406,7 +410,7 @@ public class MarkdownSyntaxSanitizerTest {
     @DisplayName("Should preserve tables")
     public void testTablesPreserved() {
         String input = "| A | B |\n|---|---|\n| 1 | 2 |";
-        String output = MarkdownSyntaxSanitizer.sanitize(input);
+        String output = sanitizer.sanitize(input);
 
         assertTrue(output.contains("| A | B |"), "Table header should be preserved");
         assertTrue(output.contains("|---|---|"), "Table separator should be preserved");
@@ -420,14 +424,14 @@ public class MarkdownSyntaxSanitizerTest {
     @Test
     @DisplayName("Should handle null input")
     public void testNullInput() {
-        String output = MarkdownSyntaxSanitizer.sanitize(null);
+        String output = sanitizer.sanitize(null);
         assertEquals("", output, "Null input should return empty string");
     }
 
     @Test
     @DisplayName("Should handle empty input")
     public void testEmptyInput() {
-        String output = MarkdownSyntaxSanitizer.sanitize("");
+        String output = sanitizer.sanitize("");
         assertEquals("", output, "Empty input should return empty string");
     }
 
@@ -438,7 +442,7 @@ public class MarkdownSyntaxSanitizerTest {
                        "[Safe link](https://example.com) and [Bad link](javascript:alert(1))\n\n" +
                        "```\nCode block\n```";
 
-        String output = MarkdownSyntaxSanitizer.sanitize(input);
+        String output = sanitizer.sanitize(input);
 
         // Safe content preserved
         assertTrue(output.contains("# Heading"), "Header should be preserved");
@@ -469,7 +473,7 @@ public class MarkdownSyntaxSanitizerTest {
                        "}\n" +
                        "```";
 
-        String output = MarkdownSyntaxSanitizer.sanitize(input);
+        String output = sanitizer.sanitize(input);
 
         assertTrue(output.contains("# Report"), "All features should be preserved");
         assertTrue(output.contains("**Total**"));
@@ -482,7 +486,7 @@ public class MarkdownSyntaxSanitizerTest {
     @DisplayName("Should preserve special characters in safe contexts")
     public void testSpecialCharacters() {
         String input = "Price: $100 & tax = 20%\n\nFormula: `x < 10 && y > 5`";
-        String output = MarkdownSyntaxSanitizer.sanitize(input);
+        String output = sanitizer.sanitize(input);
 
         // Special chars in text should be preserved
         assertTrue(output.contains("$100"), "Dollar sign should be preserved");
@@ -497,7 +501,7 @@ public class MarkdownSyntaxSanitizerTest {
     @DisplayName("Should handle UTF-8 and emojis")
     public void testUtf8Emojis() {
         String input = "Hello 世界 🌍 **bold** 你好";
-        String output = MarkdownSyntaxSanitizer.sanitize(input);
+        String output = sanitizer.sanitize(input);
 
         assertTrue(output.contains("世界"), "Chinese characters should be preserved");
         assertTrue(output.contains("🌍"), "Emoji should be preserved");
@@ -509,24 +513,24 @@ public class MarkdownSyntaxSanitizerTest {
     // Configuration Tests
     // ============================================================================
 
-    @Disabled("TODO: Implement base64 image support - optional feature for Phase 2")
     @Test
     @DisplayName("Should respect base64 images configuration")
     public void testBase64ImagesConfiguration() {
         String input = "![Test](data:image/png;base64,iVBORw0KGgo=)";
 
-        // Default: blocked
-        String output1 = MarkdownSyntaxSanitizer.sanitize(input);
+        // Default: blocked (secure config)
+        MarkdownSyntaxSanitizer secureSanitizer = new MarkdownSyntaxSanitizer(MarkdownConfig.secure());
+        String output1 = secureSanitizer.sanitize(input);
         assertFalse(output1.contains("data:image"), "Data URL should be blocked by default");
 
-        // Enabled: allowed
-        MarkdownSyntaxSanitizer.setAllowBase64Images(true);
-        String output2 = MarkdownSyntaxSanitizer.sanitize(input);
+        // Enabled: allowed (permissive config)
+        MarkdownSyntaxSanitizer permissiveSanitizer = new MarkdownSyntaxSanitizer(MarkdownConfig.permissive());
+        String output2 = permissiveSanitizer.sanitize(input);
         assertTrue(output2.contains("data:image"), "Data URL should be allowed when enabled");
 
-        // Disabled again: blocked
-        MarkdownSyntaxSanitizer.setAllowBase64Images(false);
-        String output3 = MarkdownSyntaxSanitizer.sanitize(input);
+        // Disabled again: blocked (strict config)
+        MarkdownSyntaxSanitizer strictSanitizer = new MarkdownSyntaxSanitizer(MarkdownConfig.strict());
+        String output3 = strictSanitizer.sanitize(input);
         assertFalse(output3.contains("data:image"), "Data URL should be blocked when disabled");
     }
 
@@ -535,9 +539,9 @@ public class MarkdownSyntaxSanitizerTest {
     public void testConsecutiveSanitization() {
         String input = "**Bold** <script>XSS</script>";
 
-        String output1 = MarkdownSyntaxSanitizer.sanitize(input);
-        String output2 = MarkdownSyntaxSanitizer.sanitize(output1);
-        String output3 = MarkdownSyntaxSanitizer.sanitize(output2);
+        String output1 = sanitizer.sanitize(input);
+        String output2 = sanitizer.sanitize(output1);
+        String output3 = sanitizer.sanitize(output2);
 
         // Should be idempotent (no further changes after first sanitization)
         assertTrue(output1.contains("**Bold**"), "Bold should be preserved");
