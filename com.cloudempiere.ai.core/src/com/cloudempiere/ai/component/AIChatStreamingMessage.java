@@ -33,7 +33,6 @@ import org.zkoss.zul.Timer;
 import com.cloudempiere.ai.util.ChunkCleaner;
 import com.cloudempiere.ai.util.CommonMarkRenderer;
 import com.cloudempiere.ai.util.MarkdownSyntaxSanitizer;
-import com.cloudempiere.ai.util.MarkdownValidator;
 import com.cloudempiere.ai.util.StreamingMarkdownRenderer;
 import com.cloudempiere.ai.util.StreamingTableRenderer;
 import com.cloudempiere.ai.util.StreamingTextBuffer;
@@ -1146,7 +1145,7 @@ public class AIChatStreamingMessage extends Div {
         // If validation changed the markdown, we need to re-parse with fresh renderers
         // This only happens if the AI generated malformed markdown (unclosed markers, etc.)
         if (!validatedMarkdown.equals(completeMarkdown)) {
-            log.warning("Markdown validation fixed structure, re-rendering from validated content");
+            log.warn("Markdown validation fixed structure, re-rendering from validated content");
 
             // Create fresh renderers for validated content
             com.cloudempiere.ai.util.StreamingMarkdownRenderer freshRenderer =
@@ -1167,17 +1166,37 @@ public class AIChatStreamingMessage extends Div {
         boolean hasTable = tableRenderer != null && tableRenderer.hasContent();
         boolean hasMarkdown = markdownRenderer != null && markdownRenderer.hasContent();
 
-        if (hasMarkdown) {
-            log.info("[FINAL-RENDER] Using markdown renderer (hasTable=" + hasTable + ")");
+        // FIXED: Merge both renderers instead of ignoring table
+        if (hasMarkdown && hasTable) {
+            log.info("[FINAL-RENDER] Merging markdown and table renderers");
 
-            // Get markdown HTML (contains pre-table and post-table content)
+            // Get both renderer outputs
+            String markdownHtml = markdownRenderer.renderFinal();
+            String tableHtml = tableRenderer.renderFinal();
+
+            // Simple merge strategy: append table after markdown
+            // This works because:
+            // 1. markdownRenderer processes non-table content (text before/after table)
+            // 2. tableRenderer processes only table markdown
+            // 3. During streaming, both renderers receive all chunks
+            // 4. Each renderer ignores content meant for the other
+            //
+            // Future enhancement: Track table position for accurate insertion
+            // For now, sequential append is correct for most cases
+            finalHtml = markdownHtml + tableHtml;
+
+            // Post-process: Convert zoom link syntax to clickable links
+            if (ctx != null && parentWidgetId != null) {
+                finalHtml = ZoomLinkProcessor.processZoomLinks(finalHtml, ctx, parentWidgetId);
+            }
+
+            finalHtml = "<div class='ai-markdown-content'>" + finalHtml + "</div>";
+        }
+        // Markdown-only (no table)
+        else if (hasMarkdown) {
+            log.info("[FINAL-RENDER] Using markdown renderer only");
+
             finalHtml = markdownRenderer.renderFinal();
-
-            // If table exists, we need to insert it at the correct position
-            // For now, markdown renderer should have skipped table syntax,
-            // so we need to merge table HTML into the markdown HTML
-            // TODO: Track table position for accurate insertion
-            // Current workaround: Tables are embedded during streaming via updateContentDisplay()
 
             // Post-process: Convert zoom link syntax to clickable links
             if (ctx != null && parentWidgetId != null) {
@@ -1188,7 +1207,7 @@ public class AIChatStreamingMessage extends Div {
         }
         // Table-only (no markdown before/after table)
         else if (hasTable) {
-            log.info("[FINAL-RENDER] Table-only rendering");
+            log.info("[FINAL-RENDER] Using table renderer only");
             finalHtml = tableRenderer.renderFinal();
             finalHtml = "<div class='ai-markdown-content'>" + finalHtml + "</div>";
         }

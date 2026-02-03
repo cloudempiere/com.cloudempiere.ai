@@ -117,6 +117,12 @@ public class StreamingMarkdownRenderer {
     /** Code block language hint (e.g., "java", "python") */
     private String codeBlockLanguage = null;
 
+    /** Buffer for holding incomplete code blocks across chunks */
+    private StringBuilder codeBlockBuffer = new StringBuilder();
+
+    /** Flag indicating we're accumulating an incomplete code block */
+    private boolean bufferingCodeBlock = false;
+
     /** Context for zoom link processing (passed through, not used during streaming) */
     private Properties ctx;
 
@@ -176,6 +182,11 @@ public class StreamingMarkdownRenderer {
      * <p>Processes character-by-character, detecting markdown markers
      * and emitting HTML immediately when opening markers detected.
      *
+     * <p><b>Code Block Protection:</b> If a chunk contains an incomplete
+     * code block (odd number of ```), it will be buffered until the closing
+     * marker arrives in a subsequent chunk. This prevents rendering errors
+     * when code blocks span multiple streaming chunks.
+     *
      * @param chunk text chunk to append
      */
     public void appendChunk(String chunk) {
@@ -183,11 +194,105 @@ public class StreamingMarkdownRenderer {
             return;
         }
 
+        // If we're buffering an incomplete code block, append to buffer
+        if (bufferingCodeBlock) {
+            codeBlockBuffer.append(chunk);
+
+            // Check if buffer now has complete code block
+            if (!hasIncompleteCodeBlock(codeBlockBuffer.toString())) {
+                // Complete! Process buffered content
+                String buffered = codeBlockBuffer.toString();
+                codeBlockBuffer.setLength(0);
+                bufferingCodeBlock = false;
+
+                // Process complete content
+                processChunkInternal(buffered);
+            }
+            // Otherwise keep buffering
+            return;
+        }
+
+        // Check if this chunk starts a code block that's incomplete
+        if (hasIncompleteCodeBlock(chunk)) {
+            // Start buffering
+            bufferingCodeBlock = true;
+            codeBlockBuffer.append(chunk);
+            return;
+        }
+
+        // Normal processing
+        processChunkInternal(chunk);
+    }
+
+    /**
+     * Internal chunk processing (character-by-character parsing).
+     *
+     * @param chunk text chunk to process
+     */
+    private void processChunkInternal(String chunk) {
         for (int i = 0; i < chunk.length(); i++) {
             char ch = chunk.charAt(i);
             processCharacter(ch);
             lastChar = ch;
         }
+    }
+
+    /**
+     * Check if content has incomplete code block.
+     *
+     * <p>Counts occurrences of backtick runs (3+ consecutive backticks).
+     * An odd count indicates an incomplete code block.
+     *
+     * <p><b>Why this matters:</b> If a streaming chunk ends with an incomplete
+     * code block, we must buffer it until the closing marker arrives. Otherwise,
+     * content after the opening ``` will be incorrectly treated as code, and
+     * markdown in subsequent chunks will be rendered as literal text.
+     *
+     * <p><b>CommonMark Support:</b> Code blocks can use any number of backticks
+     * (3 or more) as delimiters. For example:
+     * <ul>
+     *   <li>``` standard code block ```</li>
+     *   <li>```` code with ``` inside ````</li>
+     *   <li>`````` code with ````` inside ``````</li>
+     * </ul>
+     *
+     * <p><b>Example:</b>
+     * <pre>
+     * Chunk 1: "Code: ```java\npublic class"  → Incomplete (1 run)
+     * Chunk 2: " Example {}\n```\nDone!"       → Complete (2 runs)
+     * Chunk 3: "Six: ``````\ncode\n``````"    → Complete (2 runs of 6)
+     * </pre>
+     *
+     * @param content markdown content to check
+     * @return true if code block is incomplete (odd number of backtick runs)
+     */
+    private boolean hasIncompleteCodeBlock(String content) {
+        if (content == null || content.length() < 3) {
+            return false;
+        }
+
+        int backtickRuns = 0;
+        int i = 0;
+
+        while (i < content.length()) {
+            if (content.charAt(i) == '`') {
+                // Count consecutive backticks
+                int runLength = 0;
+                while (i < content.length() && content.charAt(i) == '`') {
+                    runLength++;
+                    i++;
+                }
+                // Only count runs of 3+ as code block delimiters
+                if (runLength >= 3) {
+                    backtickRuns++;
+                }
+            } else {
+                i++;
+            }
+        }
+
+        // Odd count = incomplete (one opening without closing)
+        return backtickRuns % 2 != 0;
     }
 
     /**
@@ -326,6 +431,31 @@ public class StreamingMarkdownRenderer {
      */
     private void checkAndTransitionState(char nextChar) {
         String marker = markerBuffer.toString();
+
+        // Normalize excessive markers to valid patterns
+        // Fixes: *****text***** (5 opening + 7 closing) → treat as ***text***
+        if (marker.length() >= 5 && (marker.charAt(0) == '*' || marker.charAt(0) == '_')) {
+            // Check if all characters are the same (all * or all _)
+            char markerChar = marker.charAt(0);
+            boolean allSame = true;
+            for (int i = 1; i < marker.length(); i++) {
+                if (marker.charAt(i) != markerChar) {
+                    allSame = false;
+                    break;
+                }
+            }
+            if (allSame) {
+                // 5+ of same marker: treat as *** (bold+italic)
+                marker = String.valueOf(markerChar) + markerChar + markerChar;
+            }
+        } else if (marker.length() == 4 && (marker.charAt(0) == '*' || marker.charAt(0) == '_')) {
+            // Check if all characters are the same
+            char markerChar = marker.charAt(0);
+            if (marker.equals(String.valueOf(markerChar).repeat(4))) {
+                // 4 of same marker: treat as ** (bold)
+                marker = String.valueOf(markerChar) + markerChar;
+            }
+        }
 
         // Check for triple markers (bold+italic)
         // Process as: open bold, then open italic nested
@@ -655,6 +785,26 @@ public class StreamingMarkdownRenderer {
     private void checkAndTransitionStateInHeading(char nextChar) {
         String marker = markerBuffer.toString();
 
+        // Normalize excessive markers to valid patterns (same as checkAndTransitionState)
+        if (marker.length() >= 5 && (marker.charAt(0) == '*' || marker.charAt(0) == '_')) {
+            char markerChar = marker.charAt(0);
+            boolean allSame = true;
+            for (int i = 1; i < marker.length(); i++) {
+                if (marker.charAt(i) != markerChar) {
+                    allSame = false;
+                    break;
+                }
+            }
+            if (allSame) {
+                marker = String.valueOf(markerChar) + markerChar + markerChar;
+            }
+        } else if (marker.length() == 4 && (marker.charAt(0) == '*' || marker.charAt(0) == '_')) {
+            char markerChar = marker.charAt(0);
+            if (marker.equals(String.valueOf(markerChar).repeat(4))) {
+                marker = String.valueOf(markerChar) + markerChar;
+            }
+        }
+
         // Check for triple markers (bold+italic)
         if (marker.equals("***") || marker.equals("___")) {
             // Open bold, then italic (nested)
@@ -709,6 +859,19 @@ public class StreamingMarkdownRenderer {
      * Closes all open tags from the state stack.
      */
     private void flushPendingContent() {
+        // If we have buffered code block content, process it now
+        // This handles the edge case where streaming ends mid-code-block
+        if (bufferingCodeBlock && codeBlockBuffer.length() > 0) {
+            // Force process incomplete code block as literal text
+            // (since we never got the closing ```)
+            String buffered = codeBlockBuffer.toString();
+            codeBlockBuffer.setLength(0);
+            bufferingCodeBlock = false;
+
+            // Process as-is (will be treated as literal since incomplete)
+            processChunkInternal(buffered);
+        }
+
         // Flush marker buffer as literal text
         flushMarkerAsText();
 
@@ -824,7 +987,8 @@ public class StreamingMarkdownRenderer {
     public boolean hasContent() {
         return htmlOutput.length() > 0 ||
                markerBuffer.length() > 0 ||
-               contentBuffer.length() > 0;
+               contentBuffer.length() > 0 ||
+               codeBlockBuffer.length() > 0;
     }
 
     /**

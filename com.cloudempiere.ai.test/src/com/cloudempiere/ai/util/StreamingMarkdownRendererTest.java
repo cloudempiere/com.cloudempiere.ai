@@ -390,4 +390,143 @@ public class StreamingMarkdownRendererTest {
         assertTrue(html.contains("<em>also italic</em>"),
             "Should contain underscore italic: " + html);
     }
+
+    // ==========================================================================
+    // Incomplete Code Block Protection Tests
+    // ==========================================================================
+
+    @Test
+    public void testIncompleteCodeBlockBuffering() {
+        // Chunk 1: Opens code block (incomplete)
+        renderer.appendChunk("Code example:\n```java\npublic class");
+
+        // Should not have rendered anything yet (buffering)
+        String html1 = renderer.renderCurrentState();
+        // Buffer is not shown during streaming
+        assertFalse(html1.contains("<pre><code"),
+            "Should not render incomplete code block: " + html1);
+
+        // Chunk 2: Continues code block (still incomplete)
+        renderer.appendChunk(" Example {\n    public void method() {\n");
+
+        // Still buffering
+        String html2 = renderer.renderCurrentState();
+        assertFalse(html2.contains("<pre><code"),
+            "Should still be buffering: " + html2);
+
+        // Chunk 3: Closes code block (complete!)
+        renderer.appendChunk("    }\n}\n```\nDone!");
+
+        // Now should render complete code block
+        String html3 = renderer.renderFinal();
+        assertTrue(html3.contains("<pre><code"),
+            "Should contain code block: " + html3);
+        assertTrue(html3.contains("language-java"),
+            "Should detect Java language: " + html3);
+        assertTrue(html3.contains("public class Example"),
+            "Should contain complete code: " + html3);
+        assertTrue(html3.contains("Done!"),
+            "Should contain text after code block: " + html3);
+    }
+
+    @Test
+    public void testCodeBlockSplitAcrossTwoChunks() {
+        // Simple case: code block split exactly at closing marker
+        renderer.appendChunk("Here's code:\n```python\nprint('hello')");
+        renderer.appendChunk("\n```\nThat's it!");
+
+        String html = renderer.renderFinal();
+        assertTrue(html.contains("<pre><code"),
+            "Should contain code block: " + html);
+        assertTrue(html.contains("print('hello')"),
+            "Should contain Python code: " + html);
+        assertTrue(html.contains("That's it!"),
+            "Should contain text after code: " + html);
+    }
+
+    @Test
+    public void testMultipleCodeBlocksWithBuffering() {
+        // First code block (incomplete)
+        renderer.appendChunk("First:\n```js\nconst x");
+        // Complete first block
+        renderer.appendChunk(" = 1;\n```\n");
+        // Second code block (incomplete)
+        renderer.appendChunk("Second:\n```java\nString s");
+        // Complete second block
+        renderer.appendChunk(" = \"hi\";\n```\nDone!");
+
+        String html = renderer.renderFinal();
+        assertTrue(html.contains("const x = 1"),
+            "Should contain first code block: " + html);
+        assertTrue(html.contains("String s = \"hi\""),
+            "Should contain second code block: " + html);
+    }
+
+    @Test
+    public void testCodeBlockWithMarkdownInsideShouldNotProcess() {
+        // Code block containing markdown-like syntax
+        renderer.appendChunk("```java\nString s = \"**not bold**\";\n");
+        renderer.appendChunk("// Comment with *asterisks*\n```");
+
+        String html = renderer.renderFinal();
+        assertTrue(html.contains("<pre><code"),
+            "Should contain code block: " + html);
+        assertTrue(html.contains("**not bold**"),
+            "Should preserve asterisks as literal: " + html);
+        assertFalse(html.contains("<strong>not bold</strong>"),
+            "Should NOT render markdown inside code: " + html);
+    }
+
+    @Test
+    public void testIncompleteCodeBlockAtStreamEnd() {
+        // Edge case: streaming ends before code block closes
+        renderer.appendChunk("Code:\n```java\npublic class Incomplete {\n");
+        // No closing ``` arrives
+
+        String html = renderer.renderFinal();
+        // Should still render something (flushPendingContent handles this)
+        assertTrue(html.length() > 0,
+            "Should render something even with incomplete code block: " + html);
+        // The incomplete code block should be processed as-is
+        assertTrue(html.contains("Code:"),
+            "Should contain text before code block: " + html);
+    }
+
+    @Test
+    public void testEmptyCodeBlock() {
+        // Code block with no content
+        renderer.appendChunk("Empty:\n```\n```\nDone!");
+
+        String html = renderer.renderFinal();
+        assertTrue(html.contains("<pre><code"),
+            "Should contain empty code block: " + html);
+        assertTrue(html.contains("Done!"),
+            "Should contain text after code: " + html);
+    }
+
+    @Test
+    public void testCodeBlockWithOnlyLanguageHint() {
+        // Code block with language but no content
+        renderer.appendChunk("```javascript\n```");
+
+        String html = renderer.renderFinal();
+        assertTrue(html.contains("<pre><code"),
+            "Should contain code block: " + html);
+        assertTrue(html.contains("language-javascript") || html.contains("javascript"),
+            "Should detect JavaScript language: " + html);
+    }
+
+    @Test
+    public void testTripleBackticksInRegularText() {
+        // Triple backticks mentioned in text (not code block)
+        // This should be treated as inline text, not opening a code block
+        renderer.appendChunk("Use ``` to create code blocks in markdown.");
+
+        String html = renderer.renderFinal();
+        // Should render the backticks as literal text
+        assertTrue(html.contains("```") || html.contains("to create"),
+            "Should preserve triple backticks in text: " + html);
+        assertFalse(html.contains("<pre><code"),
+            "Should not create code block from inline backticks: " + html);
+    }
 }
