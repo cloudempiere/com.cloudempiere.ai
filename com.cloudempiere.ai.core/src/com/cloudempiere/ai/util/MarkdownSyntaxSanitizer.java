@@ -120,20 +120,34 @@ public class MarkdownSyntaxSanitizer {
     private static final Pattern INLINE_CODE_PATTERN = Pattern.compile("`[^`]+`");
 
     // ============================================================================
-    // Configuration (Provider-level settings - future enhancement)
+    // Configuration (Instance-based, multi-tenant safe)
     // ============================================================================
 
-    /** Allow base64 data URLs in images (default: false) */
-    private static boolean allowBase64Images = false;
+    /** Configuration instance (per-provider, not shared) */
+    private final MarkdownConfig config;
 
-    /** Maximum table rows (default: 100) */
-    private static int maxTableRows = 100;
+    // ============================================================================
+    // Constructors
+    // ============================================================================
 
-    /** Maximum table columns (default: 20) */
-    private static int maxTableColumns = 20;
+    /**
+     * Create sanitizer with custom configuration.
+     *
+     * @param config instance-based configuration (multi-tenant safe)
+     */
+    public MarkdownSyntaxSanitizer(MarkdownConfig config) {
+        if (config == null) {
+            throw new IllegalArgumentException("MarkdownConfig cannot be null");
+        }
+        this.config = config;
+    }
 
-    /** Maximum code block lines (default: 50) */
-    private static int maxCodeBlockLines = 50;
+    /**
+     * Create sanitizer with default secure configuration.
+     */
+    public MarkdownSyntaxSanitizer() {
+        this(MarkdownConfig.secure());
+    }
 
     // ============================================================================
     // Main Sanitization Entry Point
@@ -155,7 +169,7 @@ public class MarkdownSyntaxSanitizer {
      * @param markdown raw markdown from AI (can be null)
      * @return sanitized markdown (supported syntax only)
      */
-    public static String sanitize(String markdown) {
+    public String sanitize(String markdown) {
         if (markdown == null || markdown.isEmpty()) {
             return "";
         }
@@ -259,7 +273,7 @@ public class MarkdownSyntaxSanitizer {
      * @param markdown markdown with potential unsafe URLs
      * @return markdown with sanitized URLs
      */
-    private static String sanitizeUrls(String markdown) {
+    private String sanitizeUrls(String markdown) {
         if (markdown == null || markdown.isEmpty()) {
             return "";
         }
@@ -278,7 +292,7 @@ public class MarkdownSyntaxSanitizer {
     /**
      * Sanitize markdown links: [text](url).
      */
-    private static String sanitizeLinks(String markdown) {
+    private String sanitizeLinks(String markdown) {
         Matcher matcher = LINK_PATTERN.matcher(markdown);
         StringBuffer result = new StringBuffer();
 
@@ -312,7 +326,7 @@ public class MarkdownSyntaxSanitizer {
     /**
      * Sanitize markdown images: ![alt](url).
      */
-    private static String sanitizeImages(String markdown) {
+    private String sanitizeImages(String markdown) {
         Matcher matcher = IMAGE_PATTERN.matcher(markdown);
         StringBuffer result = new StringBuffer();
 
@@ -350,7 +364,7 @@ public class MarkdownSyntaxSanitizer {
      * @param url URL to validate
      * @return true if URL protocol is safe (http/https)
      */
-    private static boolean isUrlSafe(String url) {
+    private boolean isUrlSafe(String url) {
         return isUrlSafe(url, false);
     }
 
@@ -361,14 +375,14 @@ public class MarkdownSyntaxSanitizer {
      * @param isImage true if this is an image URL (allows data: URLs when configured)
      * @return true if URL protocol is safe
      */
-    private static boolean isUrlSafe(String url, boolean isImage) {
+    private boolean isUrlSafe(String url, boolean isImage) {
         if (url == null || url.isEmpty()) {
             return false;
         }
 
         // Special case: data: URLs in images when allowed
         if (url.startsWith("data:")) {
-            if (isImage && allowBase64Images) {
+            if (isImage && config.isBase64ImagesAllowed()) {
                 return true;  // Allow data: URLs in images when configured
             } else {
                 return false;  // Block data: URLs in links or when not allowed
@@ -390,9 +404,9 @@ public class MarkdownSyntaxSanitizer {
      * @param url image URL to validate
      * @return true if image URL is safe
      */
-    private static boolean isImageUrlSafe(String url) {
+    private boolean isImageUrlSafe(String url) {
         // Block base64 data URLs unless explicitly allowed
-        if (!allowBase64Images && url.startsWith("data:")) {
+        if (!config.isBase64ImagesAllowed() && url.startsWith("data:")) {
             return false;
         }
 
@@ -635,52 +649,15 @@ public class MarkdownSyntaxSanitizer {
     }
 
     // ============================================================================
-    // Configuration Methods (Provider-level settings)
+    // Configuration Getter (for inspection)
     // ============================================================================
 
     /**
-     * Set whether to allow base64 data URLs in images.
+     * Get the configuration used by this sanitizer.
      *
-     * <p><b>Security Note:</b> Base64 images can contain malicious SVG.
-     * Only enable if you trust the AI provider and have SVG sanitization.
-     *
-     * @param allow true to allow data: URLs
+     * @return configuration instance
      */
-    public static void setAllowBase64Images(boolean allow) {
-        allowBase64Images = allow;
-    }
-
-    /**
-     * Get current base64 image policy.
-     */
-    public static boolean isBase64ImagesAllowed() {
-        return allowBase64Images;
-    }
-
-    /**
-     * Set maximum table rows (prevents DoS).
-     *
-     * @param max maximum rows (default: 100)
-     */
-    public static void setMaxTableRows(int max) {
-        maxTableRows = max;
-    }
-
-    /**
-     * Set maximum table columns (prevents DoS).
-     *
-     * @param max maximum columns (default: 20)
-     */
-    public static void setMaxTableColumns(int max) {
-        maxTableColumns = max;
-    }
-
-    /**
-     * Set maximum code block lines (prevents DoS).
-     *
-     * @param max maximum lines (default: 50)
-     */
-    public static void setMaxCodeBlockLines(int max) {
-        maxCodeBlockLines = max;
+    public MarkdownConfig getConfig() {
+        return config;
     }
 }

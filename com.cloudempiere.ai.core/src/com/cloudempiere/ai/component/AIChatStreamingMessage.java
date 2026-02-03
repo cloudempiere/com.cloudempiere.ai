@@ -32,6 +32,7 @@ import org.zkoss.zul.Timer;
 
 import com.cloudempiere.ai.util.ChunkCleaner;
 import com.cloudempiere.ai.util.CommonMarkRenderer;
+import com.cloudempiere.ai.util.MarkdownConfig;
 import com.cloudempiere.ai.util.MarkdownSyntaxSanitizer;
 import com.cloudempiere.ai.util.MarkdownValidator;
 import com.cloudempiere.ai.util.StreamingMarkdownRenderer;
@@ -139,8 +140,12 @@ public class AIChatStreamingMessage extends Div {
     /** Streaming markdown renderer for progressive markdown formatting */
     private StreamingMarkdownRenderer markdownRenderer;
 
-    /** Cached rendered HTML for persistence (ADR-054) */
-    private String renderedHtml = null;
+    /** Markdown syntax sanitizer with instance-based configuration (multi-tenant safe) */
+    private final MarkdownSyntaxSanitizer markdownSanitizer;
+
+    /** Cached rendered HTML for persistence (ADR-054)
+     * <p>volatile ensures visibility between streaming thread and UI thread */
+    private volatile String renderedHtml = null;
 
     // ============= Throttled Rendering (ADR-047) =============
 
@@ -199,6 +204,11 @@ public class AIChatStreamingMessage extends Div {
         this.markdownRenderer = new StreamingMarkdownRenderer();
         this.markdownRenderer.setContext(ctx, parentWidgetId);
         log.info("[STREAM-INIT] Initialized StreamingMarkdownRenderer | AD_Client_ID=" + clientId);
+
+        // Initialize markdown sanitizer with default secure configuration
+        // TODO: Load provider-specific config from database (MAIProvider)
+        this.markdownSanitizer = new MarkdownSyntaxSanitizer();
+        log.info("[STREAM-INIT] Initialized MarkdownSyntaxSanitizer with secure defaults");
 
         injectCSS();
         init();
@@ -509,7 +519,7 @@ public class AIChatStreamingMessage extends Div {
 
             // Sanitize markdown to only supported syntax (ADR-055)
             // This prevents XSS, JavaScript injection, and unsupported markdown features
-            String sanitized = MarkdownSyntaxSanitizer.sanitize(cleaned);
+            String sanitized = markdownSanitizer.sanitize(cleaned);
 
             // Validate and fix markdown structure (prevents AI-generated invalid markdown)
             String validated = MarkdownValidator.validate(sanitized);
