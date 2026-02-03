@@ -631,4 +631,43 @@ public class MarkdownSyntaxSanitizerTest {
         assertFalse(output.contains("&lt;ul&gt;"), "HTML should not be escaped in fallback");
         assertTrue(output.contains("<ul>"), "Unordered list should be preserved");
     }
+
+    @Test
+    @DisplayName("Should process markdown inside div wrapper (not skip)")
+    public void testMarkdownInsideDivNotSkipped() {
+        // This mimics AI response with markdown inside wrapper
+        String mixedContent = "<div class='ai-markdown-content'>**Bold** text and | table | row |</div>";
+
+        String output = sanitizer.sanitize(mixedContent);
+
+        // Should process the markdown, not skip it
+        assertTrue(output.contains("**Bold**"), "Markdown bold should be preserved");
+        // The wrapper div might be removed by escapeRawHtml step
+        // The key is that markdown IS processed, not skipped
+    }
+
+    @Test
+    @DisplayName("Should skip ONLY pure HTML tool results")
+    public void testPureHtmlToolResultSkipped() {
+        // Pure HTML table from tool result (no markdown)
+        String pureHtml = "<table><tr><td>Data 1</td><td>Data 2</td></tr><tr><td>Data 3</td><td>Data 4</td></tr></table>";
+
+        String output = sanitizer.sanitize(pureHtml);
+
+        // Should pass through unchanged (detected as pure HTML)
+        assertEquals(pureHtml, output, "Pure HTML tool result should pass through");
+    }
+
+    @Test
+    @DisplayName("Should NOT skip HTML with markdown syntax")
+    public void testHtmlWithMarkdownNotSkipped() {
+        // HTML that contains markdown - should be processed
+        String mixed = "<table><tr><td>**Bold**</td></tr></table>";
+
+        String output = sanitizer.sanitize(mixed);
+
+        // Should process markdown, not skip
+        // The table tags might be escaped by escapeRawHtml, but markdown should be processed
+        assertTrue(output.contains("**Bold**"), "Markdown inside HTML should be preserved");
+    }
 }

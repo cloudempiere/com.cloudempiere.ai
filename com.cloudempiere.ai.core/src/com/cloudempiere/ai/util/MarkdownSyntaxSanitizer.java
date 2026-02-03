@@ -174,10 +174,11 @@ public class MarkdownSyntaxSanitizer {
             return "";
         }
 
-        // EARLY EXIT: Detect pre-rendered HTML and skip markdown processing
-        // Tool results and pre-rendered content should pass through without modification
-        if (isLikelyHtml(markdown)) {
-            log.fine("Content is pre-rendered HTML, skipping markdown sanitization");
+        // EARLY EXIT: Detect PURE pre-rendered HTML and skip markdown processing
+        // Only skip if content is PURE HTML (tool results), not wrapped markdown
+        // Check: Must start with HTML tag AND not contain markdown syntax
+        if (isPureHtml(markdown)) {
+            log.fine("Content is pure pre-rendered HTML, skipping markdown sanitization");
             return markdown;
         }
 
@@ -233,7 +234,94 @@ public class MarkdownSyntaxSanitizer {
     }
 
     /**
+     * Check if content is PURE HTML without markdown syntax.
+     *
+     * <p>This is more conservative than isLikelyHtml() - only returns true
+     * if content is exclusively HTML (tool results, pre-rendered tables).
+     *
+     * <p>Heuristics:
+     * <ul>
+     *   <li>Starts with HTML tag (table, pre, ul, ol - NOT div)</li>
+     *   <li>Contains multiple closing tags (HTML structure)</li>
+     *   <li>Does NOT contain markdown syntax (**, *, |, #)</li>
+     * </ul>
+     *
+     * @param content content to check
+     * @return true if content is pure HTML (no markdown)
+     */
+    private static boolean isPureHtml(String content) {
+        if (content == null || content.isEmpty()) {
+            return false;
+        }
+
+        String trimmed = content.trim();
+
+        // Only consider PURE HTML tags (tool results)
+        // Exclude <div> because it's used to wrap markdown
+        // Exclude <p>, <h1-h3> because markdown generates these
+        boolean startsWithHtmlTag =
+            trimmed.startsWith("<table") ||
+            trimmed.startsWith("<pre") ||
+            trimmed.startsWith("<ul>") ||
+            trimmed.startsWith("<ol>");
+
+        if (!startsWithHtmlTag) {
+            return false;
+        }
+
+        // Check for markdown syntax - if present, NOT pure HTML
+        if (containsMarkdownSyntax(content)) {
+            return false;
+        }
+
+        // Must have HTML structure (multiple closing tags)
+        int closingTags = 0;
+        int pos = 0;
+        while ((pos = content.indexOf("</", pos)) != -1) {
+            closingTags++;
+            pos += 2;
+            if (closingTags >= 2) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Check if content contains markdown syntax.
+     *
+     * @param content content to check
+     * @return true if markdown syntax detected
+     */
+    private static boolean containsMarkdownSyntax(String content) {
+        // Markdown bold/italic: ** or *
+        if (content.contains("**") || content.matches(".*\\*[^*]+\\*.*")) {
+            return true;
+        }
+
+        // Markdown tables: |
+        if (content.contains("|") && content.contains("---")) {
+            return true;
+        }
+
+        // Markdown headings: # at start of line
+        if (content.matches("(?m)^#{1,6}\\s+.+")) {
+            return true;
+        }
+
+        // Markdown lists: - or * at start of line
+        if (content.matches("(?m)^[\\-\\*]\\s+.+")) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
      * Check if content is likely HTML rather than markdown.
+     *
+     * <p>Less conservative than isPureHtml() - used in exception fallback only.
      *
      * <p>Heuristics:
      * <ul>
