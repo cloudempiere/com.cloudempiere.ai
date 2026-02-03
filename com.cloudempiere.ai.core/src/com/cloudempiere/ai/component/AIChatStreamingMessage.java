@@ -520,8 +520,19 @@ public class AIChatStreamingMessage extends Div {
             // This prevents XSS, JavaScript injection, and unsupported markdown features
             String sanitized = markdownSanitizer.sanitize(cleaned);
 
+            // DEBUG LOGGING: Track markdown leaking
+            if (chunk.contains("**") || chunk.contains("|")) {
+                log.warning("[MARKDOWN-LEAK] ORIGINAL chunk: " + chunk.substring(0, Math.min(100, chunk.length())));
+                log.warning("[MARKDOWN-LEAK] CLEANED: " + cleaned.substring(0, Math.min(100, cleaned.length())));
+                log.warning("[MARKDOWN-LEAK] SANITIZED: " + sanitized.substring(0, Math.min(100, sanitized.length())));
+            }
+
             // Validate and fix markdown structure (prevents AI-generated invalid markdown)
             String validated = MarkdownValidator.validate(sanitized);
+
+            if (chunk.contains("**") || chunk.contains("|")) {
+                log.warning("[MARKDOWN-LEAK] VALIDATED: " + validated.substring(0, Math.min(100, validated.length())));
+            }
 
             chunkQueue.add(validated);
 
@@ -713,6 +724,13 @@ public class AIChatStreamingMessage extends Div {
             if (!chunkQueue.isEmpty()) {
                 for (String chunk : chunkQueue) {
                     content.append(chunk);
+
+                    // DEBUG LOGGING
+                    if (chunk.contains("**") || chunk.contains("|")) {
+                        log.warning("[MARKDOWN-LEAK] Appending chunk to renderers: " +
+                            chunk.substring(0, Math.min(100, chunk.length())));
+                    }
+
                     try {
                         tableRenderer.appendChunk(chunk);
                         markdownRenderer.appendChunk(chunk);
@@ -1148,6 +1166,13 @@ public class AIChatStreamingMessage extends Div {
             // Get markdown HTML (contains pre-table and post-table content)
             finalHtml = markdownRenderer.renderFinal();
 
+            // DEBUG LOGGING
+            log.warning("[MARKDOWN-LEAK] RENDER FINAL from markdownRenderer, length=" + finalHtml.length());
+            if (finalHtml.contains("**") || finalHtml.contains("|")) {
+                log.warning("[MARKDOWN-LEAK] ⚠️ RAW MARKDOWN STILL PRESENT after renderFinal()!");
+                log.warning("[MARKDOWN-LEAK] Preview: " + finalHtml.substring(0, Math.min(200, finalHtml.length())));
+            }
+
             // If table exists, we need to insert it at the correct position
             // For now, markdown renderer should have skipped table syntax,
             // so we need to merge table HTML into the markdown HTML
@@ -1171,8 +1196,22 @@ public class AIChatStreamingMessage extends Div {
         else {
             log.info("[FINAL-RENDER] Using AIMessageRenderer (fallback for non-streamed messages)");
             String markdownText = content.flush();
+
+            // DEBUG LOGGING
+            log.warning("[MARKDOWN-LEAK] FALLBACK: Using AIMessageRenderer");
+            if (markdownText.contains("**") || markdownText.contains("|")) {
+                log.warning("[MARKDOWN-LEAK] Markdown text before AIMessageRenderer: " +
+                    markdownText.substring(0, Math.min(200, markdownText.length())));
+            }
+
             finalHtml = com.cloudempiere.ai.util.AIMessageRenderer.render(
                 markdownText, ctx, parentWidgetId, locale);
+
+            // DEBUG LOGGING
+            if (finalHtml.contains("**") || finalHtml.contains("|")) {
+                log.warning("[MARKDOWN-LEAK] ⚠️ RAW MARKDOWN STILL PRESENT after AIMessageRenderer!");
+                log.warning("[MARKDOWN-LEAK] Preview: " + finalHtml.substring(0, Math.min(200, finalHtml.length())));
+            }
         }
 
         // Use the existing streamingContent element's ID (content_[componentId])

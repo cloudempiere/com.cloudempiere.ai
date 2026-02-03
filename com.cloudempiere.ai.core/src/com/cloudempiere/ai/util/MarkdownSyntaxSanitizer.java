@@ -178,8 +178,15 @@ public class MarkdownSyntaxSanitizer {
         // Only skip if content is PURE HTML (tool results), not wrapped markdown
         // Check: Must start with HTML tag AND not contain markdown syntax
         if (isPureHtml(markdown)) {
-            log.fine("Content is pure pre-rendered HTML, skipping markdown sanitization");
+            log.warning("[MARKDOWN-LEAK] isPureHtml=true, SKIPPING sanitization. Content preview: " +
+                markdown.substring(0, Math.min(100, markdown.length())));
             return markdown;
+        }
+
+        // DEBUG: Log when processing markdown
+        if (markdown.contains("**") || markdown.contains("|")) {
+            log.warning("[MARKDOWN-LEAK] isPureHtml=false, PROCESSING as markdown. Content preview: " +
+                markdown.substring(0, Math.min(100, markdown.length())));
         }
 
         try {
