@@ -522,16 +522,16 @@ public class AIChatStreamingMessage extends Div {
 
             // DEBUG LOGGING: Track markdown leaking
             if (chunk.contains("**") || chunk.contains("|")) {
-                log.warning("[MARKDOWN-LEAK] ORIGINAL chunk: " + chunk.substring(0, Math.min(100, chunk.length())));
-                log.warning("[MARKDOWN-LEAK] CLEANED: " + cleaned.substring(0, Math.min(100, cleaned.length())));
-                log.warning("[MARKDOWN-LEAK] SANITIZED: " + sanitized.substring(0, Math.min(100, sanitized.length())));
+                log.warn("[MARKDOWN-LEAK] ORIGINAL chunk: " + chunk.substring(0, Math.min(100, chunk.length())));
+                log.warn("[MARKDOWN-LEAK] CLEANED: " + cleaned.substring(0, Math.min(100, cleaned.length())));
+                log.warn("[MARKDOWN-LEAK] SANITIZED: " + sanitized.substring(0, Math.min(100, sanitized.length())));
             }
 
             // Validate and fix markdown structure (prevents AI-generated invalid markdown)
             String validated = MarkdownValidator.validate(sanitized);
 
             if (chunk.contains("**") || chunk.contains("|")) {
-                log.warning("[MARKDOWN-LEAK] VALIDATED: " + validated.substring(0, Math.min(100, validated.length())));
+                log.warn("[MARKDOWN-LEAK] VALIDATED: " + validated.substring(0, Math.min(100, validated.length())));
             }
 
             chunkQueue.add(validated);
@@ -727,7 +727,7 @@ public class AIChatStreamingMessage extends Div {
 
                     // DEBUG LOGGING
                     if (chunk.contains("**") || chunk.contains("|")) {
-                        log.warning("[MARKDOWN-LEAK] Appending chunk to renderers: " +
+                        log.warn("[MARKDOWN-LEAK] Appending chunk to renderers: " +
                             chunk.substring(0, Math.min(100, chunk.length())));
                     }
 
@@ -1157,6 +1157,33 @@ public class AIChatStreamingMessage extends Div {
         // - markdownRenderer: handles ONLY non-table markdown
         // We must MERGE both outputs to get complete HTML
 
+        // FIX BUG #5: Validate complete markdown BEFORE final render
+        // MarkdownValidator was removed from streaming pipeline (breaks cross-chunk markdown)
+        // Now validate the complete accumulated content before final rendering
+        String completeMarkdown = content.toString();
+        String validatedMarkdown = com.cloudempiere.ai.util.MarkdownValidator.validate(completeMarkdown);
+
+        // If validation changed the markdown, we need to re-parse with fresh renderers
+        // This only happens if the AI generated malformed markdown (unclosed markers, etc.)
+        if (!validatedMarkdown.equals(completeMarkdown)) {
+            log.warning("Markdown validation fixed structure, re-rendering from validated content");
+
+            // Create fresh renderers for validated content
+            com.cloudempiere.ai.util.StreamingMarkdownRenderer freshRenderer =
+                new com.cloudempiere.ai.util.StreamingMarkdownRenderer();
+            freshRenderer.setContext(ctx, parentWidgetId);
+            freshRenderer.appendChunk(validatedMarkdown);
+
+            finalHtml = freshRenderer.renderFinal();
+            finalHtml = "<div class='ai-markdown-content'>" + finalHtml + "</div>";
+
+            // Update content for display
+            String contentId = "content_" + componentId;
+            streamingContent.setId(contentId);
+            ((Html) streamingContent).setContent(finalHtml);
+            return;
+        }
+
         boolean hasTable = tableRenderer != null && tableRenderer.hasContent();
         boolean hasMarkdown = markdownRenderer != null && markdownRenderer.hasContent();
 
@@ -1167,10 +1194,10 @@ public class AIChatStreamingMessage extends Div {
             finalHtml = markdownRenderer.renderFinal();
 
             // DEBUG LOGGING
-            log.warning("[MARKDOWN-LEAK] RENDER FINAL from markdownRenderer, length=" + finalHtml.length());
+            log.warn("[MARKDOWN-LEAK] RENDER FINAL from markdownRenderer, length=" + finalHtml.length());
             if (finalHtml.contains("**") || finalHtml.contains("|")) {
-                log.warning("[MARKDOWN-LEAK] ⚠️ RAW MARKDOWN STILL PRESENT after renderFinal()!");
-                log.warning("[MARKDOWN-LEAK] Preview: " + finalHtml.substring(0, Math.min(200, finalHtml.length())));
+                log.warn("[MARKDOWN-LEAK] ⚠️ RAW MARKDOWN STILL PRESENT after renderFinal()!");
+                log.warn("[MARKDOWN-LEAK] Preview: " + finalHtml.substring(0, Math.min(200, finalHtml.length())));
             }
 
             // If table exists, we need to insert it at the correct position
@@ -1198,9 +1225,9 @@ public class AIChatStreamingMessage extends Div {
             String markdownText = content.flush();
 
             // DEBUG LOGGING
-            log.warning("[MARKDOWN-LEAK] FALLBACK: Using AIMessageRenderer");
+            log.warn("[MARKDOWN-LEAK] FALLBACK: Using AIMessageRenderer");
             if (markdownText.contains("**") || markdownText.contains("|")) {
-                log.warning("[MARKDOWN-LEAK] Markdown text before AIMessageRenderer: " +
+                log.warn("[MARKDOWN-LEAK] Markdown text before AIMessageRenderer: " +
                     markdownText.substring(0, Math.min(200, markdownText.length())));
             }
 
@@ -1209,8 +1236,8 @@ public class AIChatStreamingMessage extends Div {
 
             // DEBUG LOGGING
             if (finalHtml.contains("**") || finalHtml.contains("|")) {
-                log.warning("[MARKDOWN-LEAK] ⚠️ RAW MARKDOWN STILL PRESENT after AIMessageRenderer!");
-                log.warning("[MARKDOWN-LEAK] Preview: " + finalHtml.substring(0, Math.min(200, finalHtml.length())));
+                log.warn("[MARKDOWN-LEAK] ⚠️ RAW MARKDOWN STILL PRESENT after AIMessageRenderer!");
+                log.warn("[MARKDOWN-LEAK] Preview: " + finalHtml.substring(0, Math.min(200, finalHtml.length())));
             }
         }
 

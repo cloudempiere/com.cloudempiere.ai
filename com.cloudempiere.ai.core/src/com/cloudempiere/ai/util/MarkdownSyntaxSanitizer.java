@@ -215,8 +215,11 @@ public class MarkdownSyntaxSanitizer {
             // Step 5b: Restore zoom links (FIX BUG #3)
             sanitized = zoomProtector.restore(sanitized);
 
-            // Step 6: Validate markdown structure (use existing validator)
-            sanitized = MarkdownValidator.validate(sanitized);
+            // Step 6: REMOVED - MarkdownValidator breaks streaming!
+            // DO NOT validate individual chunks - it auto-closes unclosed markers
+            // and breaks markdown continuity across chunk boundaries.
+            // Validation should only happen in renderFinalMarkdown() after all chunks collected.
+            // sanitized = MarkdownValidator.validate(sanitized); // DISABLED
 
             return sanitized;
 
