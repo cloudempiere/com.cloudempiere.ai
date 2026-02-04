@@ -34,7 +34,6 @@ import com.cloudempiere.ai.util.ChunkCleaner;
 import com.cloudempiere.ai.util.CommonMarkRenderer;
 import com.cloudempiere.ai.util.MarkdownSyntaxSanitizer;
 import com.cloudempiere.ai.util.StreamingMarkdownRenderer;
-import com.cloudempiere.ai.util.StreamingTableRenderer;
 import com.cloudempiere.ai.util.StreamingTextBuffer;
 import com.cloudempiere.ai.util.ZoomLinkProcessor;
 
@@ -132,10 +131,7 @@ public class AIChatStreamingMessage extends Div {
     // TEMPORARILY DISABLED - LanguageDetectionService will be implemented in future phase
     // private com.cloudempiere.ai.service.LanguageDetectionService languageService;
 
-    /** Streaming table renderer for cell-by-cell table rendering */
-    private StreamingTableRenderer tableRenderer;
-
-    /** Streaming markdown renderer for progressive markdown formatting */
+    /** Unified streaming renderer for progressive markdown and table formatting (ADR-047 Phase 4) */
     private StreamingMarkdownRenderer markdownRenderer;
 
     /** Markdown syntax sanitizer with instance-based configuration (multi-tenant safe) */
@@ -192,16 +188,13 @@ public class AIChatStreamingMessage extends Div {
         // TEMPORARILY DISABLED - LanguageDetectionService will be implemented in future phase
         // this.languageService = chatId > 0 ? com.cloudempiere.ai.service.LanguageDetectionService.getInstance() : null;
 
-        // Initialize streaming table renderer for cell-by-cell rendering
-        this.tableRenderer = new StreamingTableRenderer();
         int clientId = org.compiere.util.Env.getAD_Client_ID(ctx);
-        log.warn("[STREAM-INIT] Setting context on StreamingTableRenderer | AD_Client_ID=" + clientId);
-        this.tableRenderer.setContext(ctx, parentWidgetId);
 
-        // Initialize streaming markdown renderer for progressive formatting
+        // Initialize unified streaming renderer for progressive markdown and table formatting (ADR-047 Phase 4)
         this.markdownRenderer = new StreamingMarkdownRenderer();
         this.markdownRenderer.setContext(ctx, parentWidgetId);
-        log.info("[STREAM-INIT] Initialized StreamingMarkdownRenderer | AD_Client_ID=" + clientId);
+        this.markdownRenderer.setLocale(this.locale); // Pass locale for table number formatting
+        log.info("[STREAM-INIT] Initialized unified StreamingMarkdownRenderer with table support | AD_Client_ID=" + clientId);
 
         // Initialize markdown sanitizer with default secure configuration
         // TODO: Load provider-specific config from database (MAIProvider)
@@ -258,14 +251,12 @@ public class AIChatStreamingMessage extends Div {
             case WAITING_FOR_LLM:
                 return to == StreamingState.THINKING ||
                        to == StreamingState.STREAMING_TEXT ||
-                       to == StreamingState.STREAMING_TABLE ||  // Can start with table immediately
                        to == StreamingState.TOOL_EXECUTING ||
                        to == StreamingState.ERROR ||
                        to == StreamingState.CANCELLED;
 
             case TOOL_EXECUTING:
                 return to == StreamingState.STREAMING_TEXT ||
-                       to == StreamingState.STREAMING_TABLE ||  // Tool result can be table
                        to == StreamingState.TOOL_EXECUTING ||  // Multiple tool calls
                        to == StreamingState.COMPLETE ||  // Tool result final
                        to == StreamingState.ERROR ||
@@ -273,19 +264,11 @@ public class AIChatStreamingMessage extends Div {
 
             case THINKING:
                 return to == StreamingState.STREAMING_TEXT ||
-                       to == StreamingState.STREAMING_TABLE ||  // Can stream table after thinking
                        to == StreamingState.ERROR ||
                        to == StreamingState.CANCELLED;
 
             case STREAMING_TEXT:
-                return to == StreamingState.STREAMING_TABLE ||
-                       to == StreamingState.FINALIZING ||
-                       to == StreamingState.ERROR ||
-                       to == StreamingState.CANCELLED;
-
-            case STREAMING_TABLE:
-                return to == StreamingState.STREAMING_TEXT ||  // Table ended
-                       to == StreamingState.FINALIZING ||
+                return to == StreamingState.FINALIZING ||
                        to == StreamingState.ERROR ||
                        to == StreamingState.CANCELLED;
 
@@ -499,7 +482,7 @@ public class AIChatStreamingMessage extends Div {
         }
 
         // Content chunk arrival: transition to STREAMING_TEXT if not already streaming
-        // Note: STREAMING_TABLE transition happens in processBatch() after tableRenderer detects table
+        // Unified renderer (ADR-047 Phase 4) handles all content types (markdown + tables)
         // Handles: initial response, after thinking, after tool execution
         if (state == StreamingState.WAITING_FOR_LLM ||
             state == StreamingState.IDLE ||
@@ -584,18 +567,8 @@ public class AIChatStreamingMessage extends Div {
         for (String chunk : batch) {
             content.append(chunk);
 
-            // Feed chunk to streaming table renderer for cell-by-cell rendering
-            tableRenderer.appendChunk(chunk);
-
-            // Feed chunk to streaming markdown renderer for progressive formatting
+            // Feed chunk to unified streaming renderer for progressive markdown and table rendering (ADR-047 Phase 4)
             markdownRenderer.appendChunk(chunk);
-        }
-
-        // Check for table state transitions
-        if (state == StreamingState.STREAMING_TEXT && tableRenderer.isInTable()) {
-            transitionTo(StreamingState.STREAMING_TABLE);
-        } else if (state == StreamingState.STREAMING_TABLE && !tableRenderer.isInTable()) {
-            transitionTo(StreamingState.STREAMING_TEXT);
         }
 
         // Update DOM once for entire batch
@@ -711,10 +684,10 @@ public class AIChatStreamingMessage extends Div {
                     content.append(chunk);
 
                     try {
-                        tableRenderer.appendChunk(chunk);
+                        // Use unified renderer (ADR-047 Phase 4)
                         markdownRenderer.appendChunk(chunk);
                     } catch (Exception e) {
-                        log.warn("Error appending chunk to renderers during completion: " + e.getMessage());
+                        log.warn("Error appending chunk to renderer during completion: " + e.getMessage());
                         // Continue processing remaining chunks
                     }
                 }
@@ -822,8 +795,9 @@ public class AIChatStreamingMessage extends Div {
      */
     public void setLocale(Locale locale) {
         this.locale = locale != null ? locale : Locale.getDefault();
-        if (tableRenderer != null) {
-            tableRenderer.setLocale(this.locale);
+        // Update unified renderer locale for table number formatting (ADR-047 Phase 4)
+        if (markdownRenderer != null) {
+            markdownRenderer.setLocale(this.locale);
         }
     }
 
@@ -856,10 +830,10 @@ public class AIChatStreamingMessage extends Div {
                 for (String chunk : chunkQueue) {
                     content.append(chunk);
                     try {
-                        tableRenderer.appendChunk(chunk);
+                        // Use unified renderer (ADR-047 Phase 4)
                         markdownRenderer.appendChunk(chunk);
                     } catch (Exception e) {
-                        log.warn("Error appending chunk to renderers during cancellation: " + e.getMessage());
+                        log.warn("Error appending chunk to renderer during cancellation: " + e.getMessage());
                         // Continue processing remaining chunks
                     }
                 }
@@ -869,11 +843,9 @@ public class AIChatStreamingMessage extends Div {
         }
 
         // Update display to remove cursor and show termination notice on new line
-        // Use markdown renderer's current state (progressive rendering)
+        // Use unified renderer's current state (progressive rendering) (ADR-047 Phase 4)
         String html;
-        if (tableRenderer != null && tableRenderer.hasContent()) {
-            html = tableRenderer.renderFinal();
-        } else if (markdownRenderer != null && markdownRenderer.hasContent()) {
+        if (markdownRenderer != null && markdownRenderer.hasContent()) {
             html = markdownRenderer.renderFinal();
         } else {
             html = Util.maskHTML(content.getDisplayableText(), true).replace("\n", "<br/>");
@@ -920,33 +892,28 @@ public class AIChatStreamingMessage extends Div {
      * to permanently hijack all content after first table. New implementation checks isInTable()
      * to allow switching back to markdown renderer for post-table content.
      */
+    /**
+     * Update the content display with progressive rendering.
+     *
+     * <p><b>Unified Renderer (ADR-047 Phase 4):</b> Single StreamingMarkdownRenderer handles
+     * all content types (markdown + tables) without dual-processing or manual HTML merging.
+     *
+     * <p><b>Benefits:</b>
+     * <ul>
+     *   <li>No content duplication (one renderer = one output)</li>
+     *   <li>Correct content ordering (tables appear where they are in stream)</li>
+     *   <li>Simpler state management (no STREAMING_TEXT vs STREAMING_TABLE)</li>
+     *   <li>Better performance (one pass instead of two)</li>
+     * </ul>
+     */
     private void updateContentDisplay() {
         String html;
 
-        // Strategy: Use table renderer ONLY while actively in a table
-        // This allows markdown renderer to handle post-table content correctly
-        if (tableRenderer != null && tableRenderer.isInTable()) {
-            // ACTIVE TABLE: Table renderer handles table rows/cells
-            // Pre-table content already in markdown renderer (not re-rendered)
-            html = tableRenderer.renderCurrentState();
-        }
-        // Markdown renderer for: pre-table content, post-table content, or no table
-        else if (markdownRenderer != null && markdownRenderer.hasContent()) {
-            // MARKDOWN CONTENT: Progressive markdown formatting
-            // Handles: bold, italic, code, headings, etc.
+        // Use unified renderer for all content (markdown + tables)
+        if (markdownRenderer != null && markdownRenderer.hasContent()) {
+            // UNIFIED RENDERING: Progressive markdown and table formatting
+            // Handles: bold, italic, code, headings, tables (cell-by-cell), etc.
             html = markdownRenderer.renderCurrentState();
-
-            // Merge table HTML if table renderer has content but we're past the table
-            // This ensures pre-table (markdown) + table (HTML) + post-table (markdown) all display
-            if (tableRenderer != null && tableRenderer.hasContent() && !tableRenderer.isInTable()) {
-                // Get table HTML
-                String tableHtml = tableRenderer.renderFinal();
-
-                // Insert table at the point where it appeared in the stream
-                // For now, append table before current markdown (simplified approach)
-                // TODO: Track table position to insert at correct location
-                html = tableHtml + html;
-            }
 
             // Show cursor if still streaming
             if (state != StreamingState.COMPLETE && state != StreamingState.CANCELLED && state != StreamingState.ERROR) {
@@ -968,8 +935,7 @@ public class AIChatStreamingMessage extends Div {
             }
         }
 
-        // FIX BUG #4: Don't wrap here - renderFinalMarkdown() adds the wrapper
-        // Wrapping twice causes the inner div to be HTML-escaped
+        // Don't wrap here - renderFinalMarkdown() adds the wrapper
         streamingContent.setContent(html);
     }
 
@@ -1127,30 +1093,32 @@ public class AIChatStreamingMessage extends Div {
      *   <li>Fallback to AIMessageRenderer (legacy path)</li>
      * </ol>
      */
+    /**
+     * Render final markdown with unified renderer (ADR-047 Phase 4).
+     *
+     * <p><b>Simplified Architecture:</b> Single StreamingMarkdownRenderer handles
+     * all content (markdown + tables) without dual-processing or manual HTML merging.
+     * No more complex hasTable/hasMarkdown logic - just render and display.
+     */
     private void renderFinalMarkdown() {
         String finalHtml;
 
-        // FIX BUG #4: Properly merge table and markdown renderers
-        // Both renderers receive all chunks, but:
-        // - tableRenderer: handles ONLY table markdown
-        // - markdownRenderer: handles ONLY non-table markdown
-        // We must MERGE both outputs to get complete HTML
-
-        // FIX BUG #5: Validate complete markdown BEFORE final render
+        // Validate complete markdown BEFORE final render
         // MarkdownValidator was removed from streaming pipeline (breaks cross-chunk markdown)
         // Now validate the complete accumulated content before final rendering
         String completeMarkdown = content.toString();
         String validatedMarkdown = com.cloudempiere.ai.util.MarkdownValidator.validate(completeMarkdown);
 
-        // If validation changed the markdown, we need to re-parse with fresh renderers
+        // If validation changed the markdown, we need to re-parse with fresh renderer
         // This only happens if the AI generated malformed markdown (unclosed markers, etc.)
         if (!validatedMarkdown.equals(completeMarkdown)) {
             log.warn("Markdown validation fixed structure, re-rendering from validated content");
 
-            // Create fresh renderers for validated content
+            // Create fresh renderer for validated content
             com.cloudempiere.ai.util.StreamingMarkdownRenderer freshRenderer =
                 new com.cloudempiere.ai.util.StreamingMarkdownRenderer();
             freshRenderer.setContext(ctx, parentWidgetId);
+            freshRenderer.setLocale(this.locale);
             freshRenderer.appendChunk(validatedMarkdown);
 
             finalHtml = freshRenderer.renderFinal();
@@ -1163,38 +1131,9 @@ public class AIChatStreamingMessage extends Div {
             return;
         }
 
-        boolean hasTable = tableRenderer != null && tableRenderer.hasContent();
-        boolean hasMarkdown = markdownRenderer != null && markdownRenderer.hasContent();
-
-        // FIXED: Merge both renderers instead of ignoring table
-        if (hasMarkdown && hasTable) {
-            log.info("[FINAL-RENDER] Merging markdown and table renderers");
-
-            // Get both renderer outputs
-            String markdownHtml = markdownRenderer.renderFinal();
-            String tableHtml = tableRenderer.renderFinal();
-
-            // Simple merge strategy: append table after markdown
-            // This works because:
-            // 1. markdownRenderer processes non-table content (text before/after table)
-            // 2. tableRenderer processes only table markdown
-            // 3. During streaming, both renderers receive all chunks
-            // 4. Each renderer ignores content meant for the other
-            //
-            // Future enhancement: Track table position for accurate insertion
-            // For now, sequential append is correct for most cases
-            finalHtml = markdownHtml + tableHtml;
-
-            // Post-process: Convert zoom link syntax to clickable links
-            if (ctx != null && parentWidgetId != null) {
-                finalHtml = ZoomLinkProcessor.processZoomLinks(finalHtml, ctx, parentWidgetId);
-            }
-
-            finalHtml = "<div class='ai-markdown-content'>" + finalHtml + "</div>";
-        }
-        // Markdown-only (no table)
-        else if (hasMarkdown) {
-            log.info("[FINAL-RENDER] Using markdown renderer only");
+        // Use unified renderer (handles markdown AND tables in single pass)
+        if (markdownRenderer != null && markdownRenderer.hasContent()) {
+            log.info("[FINAL-RENDER] Using unified renderer (markdown + tables)");
 
             finalHtml = markdownRenderer.renderFinal();
 
@@ -1205,13 +1144,7 @@ public class AIChatStreamingMessage extends Div {
 
             finalHtml = "<div class='ai-markdown-content'>" + finalHtml + "</div>";
         }
-        // Table-only (no markdown before/after table)
-        else if (hasTable) {
-            log.info("[FINAL-RENDER] Using table renderer only");
-            finalHtml = tableRenderer.renderFinal();
-            finalHtml = "<div class='ai-markdown-content'>" + finalHtml + "</div>";
-        }
-        // Fallback: Use unified renderer (for messages loaded from DB without streaming)
+        // Fallback: Use AIMessageRenderer (for messages loaded from DB without streaming)
         else {
             log.info("[FINAL-RENDER] Using AIMessageRenderer (fallback for non-streamed messages)");
             String markdownText = content.flush();
@@ -1220,11 +1153,11 @@ public class AIChatStreamingMessage extends Div {
                 markdownText, ctx, parentWidgetId, locale);
         }
 
-        // Use the existing streamingContent element's ID (content_[componentId])
-        String contentId = "content_" + componentId;
-
         // Set the final HTML content directly (no JavaScript escaping needed for setContent)
         streamingContent.setContent(finalHtml);
+
+        // Use the existing streamingContent element's ID (content_[componentId])
+        String contentId = "content_" + componentId;
 
         // Apply syntax highlighting if available (via JavaScript)
         String script =
@@ -1522,16 +1455,15 @@ public class AIChatStreamingMessage extends Div {
      * <p><b>Valid Transitions:</b>
      * <pre>
      * IDLE → WAITING_FOR_LLM
-     * WAITING_FOR_LLM → {THINKING, STREAMING_TEXT, STREAMING_TABLE, TOOL_EXECUTING}
-     * TOOL_EXECUTING → {STREAMING_TEXT, STREAMING_TABLE, TOOL_EXECUTING, COMPLETE}
-     * THINKING → {STREAMING_TEXT, STREAMING_TABLE}
-     * STREAMING_TEXT ↔ STREAMING_TABLE (bidirectional - detecting table start/end)
-     * STREAMING_* → FINALIZING → COMPLETE
+     * WAITING_FOR_LLM → {THINKING, STREAMING_TEXT, TOOL_EXECUTING}
+     * TOOL_EXECUTING → {STREAMING_TEXT, TOOL_EXECUTING, COMPLETE}
+     * THINKING → STREAMING_TEXT
+     * STREAMING_TEXT → FINALIZING → COMPLETE
      * Any state → CANCELLED (user action)
      * Any state → ERROR (failure)
      *
-     * Note: STREAMING_TEXT and STREAMING_TABLE are equivalent from transition perspective.
-     * LLM can start streaming a table immediately without intro text.
+     * Note: Unified renderer (ADR-047 Phase 4) handles all content types in STREAMING_TEXT state.
+     * No separate STREAMING_TABLE state needed - tables rendered progressively as part of text stream.
      * </pre>
      *
      * <p>Package-private to avoid OSGi classloading issues with private inner enums.
@@ -1549,11 +1481,8 @@ public class AIChatStreamingMessage extends Div {
         /** Extended thinking mode (not streaming text yet) */
         THINKING,
 
-        /** Streaming regular content chunks (plain text during streaming) */
+        /** Streaming content chunks (unified renderer handles markdown + tables) (ADR-047 Phase 4) */
         STREAMING_TEXT,
-
-        /** Streaming table content (cell-by-cell rendering) */
-        STREAMING_TABLE,
 
         /** All chunks received, rendering final markdown */
         FINALIZING,

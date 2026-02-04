@@ -85,7 +85,9 @@ public class StreamingMarkdownRenderer {
         IN_ITALIC,       // Inside * or _ markers
         IN_INLINE_CODE,  // Inside ` markers
         IN_CODE_BLOCK,   // Inside ``` markers
-        IN_HEADING       // After # at line start
+        IN_HEADING,      // After # at line start
+        IN_TABLE,        // Inside a markdown table
+        IN_TABLE_CELL    // Inside a table cell (between | delimiters)
     }
 
     // ============= State Tracking =============
@@ -128,6 +130,40 @@ public class StreamingMarkdownRenderer {
 
     /** Widget ID for zoom events (passed through, not used during streaming) */
     private String widgetId;
+
+    // ============= Table State Tracking =============
+
+    /** CSS styles for rendered tables */
+    private static final String TABLE_STYLE =
+        "border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 12px;";
+
+    private static final String TH_STYLE =
+        "border: 1px solid #ddd; padding: 8px 12px; background: #f5f5f5; " +
+        "font-weight: 600; text-align: left;";
+
+    private static final String TD_STYLE =
+        "border: 1px solid #ddd; padding: 8px 12px; text-align: left;";
+
+    /** Parsed table rows (complete rows) */
+    private java.util.List<String[]> tableCompletedRows = new java.util.ArrayList<>();
+
+    /** Current table row being built */
+    private java.util.List<String> tableCurrentRow = new java.util.ArrayList<>();
+
+    /** Current table cell being built */
+    private StringBuilder tableCurrentCell = new StringBuilder();
+
+    /** Alignment specifications from separator row (:---, :---:, ---:) */
+    private String[] tableAlignments = null;
+
+    /** Has separator row been encountered? */
+    private boolean tableSeparatorFound = false;
+
+    /** Flag indicating table has opened <table> tag */
+    private boolean tableOpened = false;
+
+    /** Locale for number formatting in tables */
+    private java.util.Locale locale = java.util.Locale.getDefault();
 
     /**
      * Create a new streaming markdown renderer.
@@ -174,6 +210,15 @@ public class StreamingMarkdownRenderer {
     public void setContext(Properties ctx, String widgetId) {
         this.ctx = ctx;
         this.widgetId = widgetId;
+    }
+
+    /**
+     * Set locale for number formatting in tables.
+     *
+     * @param locale the locale to use (if null, uses system default)
+     */
+    public void setLocale(java.util.Locale locale) {
+        this.locale = locale != null ? locale : java.util.Locale.getDefault();
     }
 
     /**
@@ -341,6 +386,14 @@ public class StreamingMarkdownRenderer {
             case IN_HEADING:
                 processInHeading(ch);
                 break;
+
+            case IN_TABLE:
+                processInTable(ch);
+                break;
+
+            case IN_TABLE_CELL:
+                processInTableCell(ch);
+                break;
         }
     }
 
@@ -364,6 +417,17 @@ public class StreamingMarkdownRenderer {
             markerBuffer.append(ch);
             // Keep isLineStart=true to allow multiple # characters
             return; // Skip the isLineStart=false at end of processCharacter
+        } else if (ch == '|' && isLineStart) {
+            // Pipe at line start - entering table mode
+            // Open table tag if not already opened
+            if (!tableOpened) {
+                htmlOutput.append("<table style='").append(TABLE_STYLE).append("'>");
+                tableOpened = true;
+            }
+            // Enter IN_TABLE state
+            pushState(State.IN_TABLE);
+            // Don't process the pipe as cell content - it's row start delimiter
+            return;
         } else if (ch == '\n') {
             // Check if we have a horizontal rule marker (---)
             if (markerBuffer.toString().equals("---")) {
@@ -843,6 +907,197 @@ public class StreamingMarkdownRenderer {
     }
 
     /**
+     * Process character in IN_TABLE state.
+     *
+     * <p>Handles table row and cell boundaries while building table structure.
+     */
+    private void processInTable(char ch) {
+        // Check for table end: non-pipe character at line start
+        if (isLineStart && ch != '|' && !Character.isWhitespace(ch)) {
+            // Table has ended - close table tag and return to NORMAL
+            closeTable();
+
+            // Re-process this character in NORMAL state
+            popState(); // Return to NORMAL
+            processCharacterInState(ch);
+            return;
+        }
+
+        if (ch == '|') {
+            // Cell boundary - complete current cell and start new one
+            completeTableCell();
+            // Continue in IN_TABLE state
+        } else if (ch == '\n') {
+            // End of row - complete row and check for table end
+            completeTableRow();
+        } else if (ch == '\\') {
+            // Possible escape sequence - peek next char
+            // For now, add to cell content (will be handled in processInTableCell)
+            tableCurrentCell.append(ch);
+        } else {
+            // Regular cell content
+            tableCurrentCell.append(ch);
+        }
+    }
+
+    /**
+     * Close table tag and reset table state.
+     */
+    private void closeTable() {
+        if (tableOpened) {
+            htmlOutput.append("</table>");
+            tableOpened = false;
+        }
+
+        // Reset table state
+        tableCompletedRows.clear();
+        tableCurrentRow.clear();
+        tableCurrentCell.setLength(0);
+        tableAlignments = null;
+        tableSeparatorFound = false;
+    }
+
+    /**
+     * Process character in IN_TABLE_CELL state.
+     * (Currently unused - we handle cells directly in IN_TABLE)
+     */
+    private void processInTableCell(char ch) {
+        // For now, delegate to processInTable
+        processInTable(ch);
+    }
+
+    /**
+     * Complete current table cell and emit HTML.
+     */
+    private void completeTableCell() {
+        String cellContent = tableCurrentCell.toString().trim();
+
+        // Skip empty leading cell (table row start pipe)
+        if (cellContent.isEmpty() && tableCurrentRow.isEmpty()) {
+            tableCurrentCell.setLength(0);
+            return;
+        }
+
+        // Add cell to current row
+        tableCurrentRow.add(cellContent);
+        tableCurrentCell.setLength(0);
+    }
+
+    /**
+     * Complete current table row and emit HTML.
+     */
+    private void completeTableRow() {
+        // Complete any pending cell
+        if (tableCurrentCell.length() > 0 || !tableCurrentRow.isEmpty()) {
+            String cellContent = tableCurrentCell.toString().trim();
+            if (!cellContent.isEmpty()) {
+                tableCurrentRow.add(cellContent);
+            }
+            tableCurrentCell.setLength(0);
+        }
+
+        // Check if this is a separator row (|---|---|)
+        if (isSeparatorRow(tableCurrentRow)) {
+            tableSeparatorFound = true;
+            tableAlignments = parseAlignments(tableCurrentRow);
+            // Don't emit separator row as HTML
+            tableCurrentRow = new java.util.ArrayList<>();
+            return;
+        }
+
+        // Emit row HTML if we have content
+        if (!tableCurrentRow.isEmpty()) {
+            boolean isHeaderRow = (!tableSeparatorFound && tableCompletedRows.isEmpty());
+            emitTableRow(tableCurrentRow, isHeaderRow);
+
+            // Store completed row
+            tableCompletedRows.add(tableCurrentRow.toArray(new String[0]));
+            tableCurrentRow = new java.util.ArrayList<>();
+        }
+
+        // No <br/> needed - table rows are self-contained
+        // Stay in IN_TABLE state - will exit when non-table content detected
+    }
+
+    /**
+     * Check if row is a separator row (contains only dashes, colons, pipes, spaces).
+     */
+    private boolean isSeparatorRow(java.util.List<String> row) {
+        if (row.isEmpty()) {
+            return false;
+        }
+        for (String cell : row) {
+            if (!cell.matches("^[:\\-\\s]+$")) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Parse alignment specifications from separator row.
+     */
+    private String[] parseAlignments(java.util.List<String> row) {
+        String[] aligns = new String[row.size()];
+        for (int i = 0; i < row.size(); i++) {
+            String cell = row.get(i).trim();
+            boolean leftColon = cell.startsWith(":");
+            boolean rightColon = cell.endsWith(":");
+
+            if (leftColon && rightColon) {
+                aligns[i] = "center";
+            } else if (rightColon) {
+                aligns[i] = "right";
+            } else {
+                aligns[i] = "left";
+            }
+        }
+        return aligns;
+    }
+
+    /**
+     * Emit HTML for a table row.
+     */
+    private void emitTableRow(java.util.List<String> row, boolean isHeaderRow) {
+        // Open row
+        htmlOutput.append("<tr>");
+
+        for (int i = 0; i < row.size(); i++) {
+            String cellContent = row.get(i);
+            String align = getTableAlignment(i);
+
+            // Escape HTML
+            String safeContent = escapeHtml(cellContent);
+
+            if (isHeaderRow) {
+                htmlOutput.append("<th style='").append(TH_STYLE);
+                if (!"left".equals(align)) {
+                    htmlOutput.append(" text-align: ").append(align).append(";");
+                }
+                htmlOutput.append("'>").append(safeContent).append("</th>");
+            } else {
+                htmlOutput.append("<td style='").append(TD_STYLE);
+                if (!"left".equals(align)) {
+                    htmlOutput.append(" text-align: ").append(align).append(";");
+                }
+                htmlOutput.append("'>").append(safeContent).append("</td>");
+            }
+        }
+        // Close row
+        htmlOutput.append("</tr>");
+    }
+
+    /**
+     * Get alignment for column.
+     */
+    private String getTableAlignment(int colIndex) {
+        if (tableAlignments != null && colIndex < tableAlignments.length) {
+            return tableAlignments[colIndex];
+        }
+        return "left";
+    }
+
+    /**
      * Flush marker buffer as literal text (when it's not a valid marker).
      */
     private void flushMarkerAsText() {
@@ -915,6 +1170,13 @@ public class StreamingMarkdownRenderer {
             } else if (state == State.IN_HEADING) {
                 htmlOutput.append("</h").append(headingLevel).append(">");
                 headingLevel = 0;
+            } else if (state == State.IN_TABLE || state == State.IN_TABLE_CELL) {
+                // Complete any pending table content
+                if (tableCurrentCell.length() > 0 || !tableCurrentRow.isEmpty()) {
+                    completeTableRow();
+                }
+                // Close table
+                closeTable();
             }
 
             popState();
@@ -977,6 +1239,14 @@ public class StreamingMarkdownRenderer {
         lastChar = '\n';
         headingLevel = 0;
         codeBlockLanguage = null;
+
+        // Reset table state
+        tableCompletedRows.clear();
+        tableCurrentRow.clear();
+        tableCurrentCell.setLength(0);
+        tableAlignments = null;
+        tableSeparatorFound = false;
+        tableOpened = false;
     }
 
     /**
