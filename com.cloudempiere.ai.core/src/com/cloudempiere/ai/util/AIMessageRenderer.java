@@ -39,8 +39,8 @@ import org.compiere.util.CLogger;
  *
  * <p><b>Design Decision:</b> This unifies the previously duplicated rendering
  * logic that existed in three places, causing inconsistent output and bugs.
- * Streaming display still uses specialized {@link StreamingTableRenderer} for
- * incremental updates, but finalization uses this unified renderer.
+ * Streaming display uses unified {@link StreamingMarkdownRenderer} for
+ * incremental updates (including tables), and finalization uses this renderer.
  *
  * <p><b>Usage Example:</b>
  * <pre>

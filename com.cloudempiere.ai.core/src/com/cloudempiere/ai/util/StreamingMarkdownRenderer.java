@@ -50,9 +50,9 @@ import org.compiere.util.Util;
  *   <li># Heading → &lt;h1&gt;Heading&lt;/h1&gt; (h1-h6)</li>
  * </ul>
  *
- * <p><b>Deferred to Other Components:</b>
+ * <p><b>Handled by This Renderer:</b>
  * <ul>
- *   <li>Tables: Use {@link StreamingTableRenderer}</li>
+ *   <li>Tables: Rendered inline as IN_TABLE state (ADR-047 Phase 4)</li>
  *   <li>Zoom links: Post-processed in {@link ZoomLinkProcessor}</li>
  * </ul>
  *

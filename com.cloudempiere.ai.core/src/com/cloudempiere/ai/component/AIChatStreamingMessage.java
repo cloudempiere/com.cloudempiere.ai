@@ -933,21 +933,17 @@ public class AIChatStreamingMessage extends Div {
      *
      * <p><b>Behavior:</b>
      * <ul>
-     *   <li>During streaming: Progressive markdown rendering via {@link StreamingMarkdownRenderer}</li>
+     *   <li>During streaming: Unified progressive rendering via {@link StreamingMarkdownRenderer}</li>
+     *   <li>Handles all content: markdown (bold, italic, code) + tables (cell-by-cell) in single pass</li>
      *   <li>On completion: Keep streamed HTML as-is (no re-parsing) + post-process zoom links</li>
-     *   <li>Exception: Table streaming uses {@link StreamingTableRenderer} for cell-by-cell rendering</li>
      * </ul>
      *
-     * <p><b>Renderer Selection Strategy (Fixed CLD-1704):</b>
+     * <p><b>Unified Renderer Architecture (ADR-047 Phase 4):</b>
      * <ol>
-     *   <li><b>Table detected AND still in table:</b> Use table renderer exclusively</li>
-     *   <li><b>Table detected BUT exited table:</b> Switch back to markdown renderer for post-table content</li>
-     *   <li><b>No table:</b> Use markdown renderer for all content</li>
+     *   <li><b>Single renderer:</b> StreamingMarkdownRenderer handles all content types</li>
+     *   <li><b>Inline tables:</b> Tables rendered as IN_TABLE state, no separate renderer</li>
+     *   <li><b>Correct ordering:</b> Content appears exactly where it is in stream</li>
      * </ol>
-     *
-     * <p><b>Key Fix:</b> Previous implementation used hasContent() which caused table renderer
-     * to permanently hijack all content after first table. New implementation checks isInTable()
-     * to allow switching back to markdown renderer for post-table content.
      */
     /**
      * Update the content display with progressive rendering.
