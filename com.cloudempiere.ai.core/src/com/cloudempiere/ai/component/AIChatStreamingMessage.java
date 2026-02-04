@@ -757,13 +757,62 @@ public class AIChatStreamingMessage extends Div {
      *
      * @since ADR-054
      */
+    /**
+     * Capture rendered HTML for persistence with field length validation.
+     *
+     * <p>Validates HTML length against CM_ChatEntry.CharacterData field limit
+     * to prevent silent truncation that would break HTML structure on reload.
+     *
+     * @throws org.compiere.util.AdempiereException if HTML exceeds field limit
+     */
     private void captureRenderedHtml() {
         if (streamingContent != null) {
             renderedHtml = streamingContent.getContent();
-            log.info("[HTML-CAPTURE] Captured rendered HTML for persistence, length=" +
-                     (renderedHtml != null ? renderedHtml.length() : 0));
+
+            int htmlLength = (renderedHtml != null ? renderedHtml.length() : 0);
+            log.info("[HTML-CAPTURE] Captured rendered HTML for persistence, length=" + htmlLength);
+
+            // Validate HTML length against database field limit
+            // Get field length from AD_Column for CM_ChatEntry.CharacterData
+            int maxFieldLength = getCharacterDataFieldLength();
+
+            if (htmlLength > maxFieldLength) {
+                String errorMsg = String.format(
+                    "AI response HTML too long to save: %d chars exceeds field limit of %d chars. " +
+                    "Increase CM_ChatEntry.CharacterData field length or implement content compression.",
+                    htmlLength, maxFieldLength);
+                log.severe("[HTML-CAPTURE] " + errorMsg);
+                throw new org.compiere.util.AdempiereException(errorMsg);
+            }
         } else {
             log.warn("[HTML-CAPTURE] streamingContent is null, cannot capture HTML");
+        }
+    }
+
+    /**
+     * Get the field length limit for CM_ChatEntry.CharacterData from AD_Column.
+     *
+     * @return maximum field length in characters, or Integer.MAX_VALUE if not found
+     */
+    private int getCharacterDataFieldLength() {
+        try {
+            // Query AD_Column for CM_ChatEntry.CharacterData field length
+            String sql = "SELECT FieldLength FROM AD_Column " +
+                        "WHERE AD_Table_ID = (SELECT AD_Table_ID FROM AD_Table WHERE TableName = 'CM_ChatEntry') " +
+                        "AND ColumnName = 'CharacterData'";
+
+            int fieldLength = org.compiere.util.DB.getSQLValueEx(null, sql);
+
+            if (fieldLength > 0) {
+                log.fine("[HTML-CAPTURE] Retrieved CharacterData field length: " + fieldLength);
+                return fieldLength;
+            } else {
+                log.warning("[HTML-CAPTURE] Could not retrieve CharacterData field length, using default");
+                return 4000; // Conservative default
+            }
+        } catch (Exception e) {
+            log.warning("[HTML-CAPTURE] Error retrieving field length: " + e.getMessage());
+            return 4000; // Conservative default on error
         }
     }
 
