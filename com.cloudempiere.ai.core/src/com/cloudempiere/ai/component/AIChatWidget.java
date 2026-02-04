@@ -785,6 +785,12 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 			switchThread();
 		} else if (event.getName().equals(ON_ZOOM)) {
 			handleZoomEvent(event);
+		} else if (event.getName().equals("onShowError")) {
+			// Display error message in chat (e.g., field length exceeded)
+			String errorHtml = (String) event.getData();
+			if (errorHtml != null) {
+				displayErrorMessage(errorHtml);
+			}
 		}
 		// TODO: Add ESC key shortcut to cancel streaming (requires ZK keyboard handling research)
 	}
@@ -1302,7 +1308,37 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 						}
 
 						// Finalize streaming message
-						streamingMsg.complete();
+						try {
+							streamingMsg.complete();
+						} catch (AdempiereException e) {
+							// Handle field length validation error gracefully
+							if (e.getMessage().contains("too long to save")) {
+								log.severe("[UI-STREAM] HTML exceeds field limit, not saving to database: " + e.getMessage());
+
+								// Show error to user without breaking UI
+								String errorHtml =
+									"<div style='padding:12px; margin:12px 0; background:#fff3cd; border-left:4px solid #ffc107;'>" +
+									"<strong>⚠️ Response Too Long</strong><br/>" +
+									"The AI response exceeded the database field limit and cannot be saved.<br/>" +
+									"<small style='color:#856404;'>" + Util.maskHTML(e.getMessage(), true) + "</small>" +
+									"</div>";
+
+								// Display error in the streaming message component
+								Events.echoEvent("onShowError", AIChatWidget.this, errorHtml);
+
+								// Re-enable input and show send button
+								streamingInProgress = false;
+								showSendButton();
+								currentStreamingMessage = null;
+								inputBox.setDisabled(false);
+								sendButton.setDisabled(false);
+								inputBox.focus();
+								scrollToBottom();
+								return; // Exit without saving
+							}
+							// Re-throw other exceptions
+							throw e;
+						}
 
 						// Save AI response to database (ADR-054: Store HTML instead of markdown)
 						String response = streamingMsg.getRenderedHtml();
@@ -1673,6 +1709,28 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 
 		// Refresh display
 		renderMessages();
+	}
+
+	/**
+	 * Display error message in chat without saving to database.
+	 *
+	 * <p>Used for non-persistent errors like field length validation failures.
+	 *
+	 * @param errorHtml pre-formatted HTML error message
+	 */
+	private void displayErrorMessage(String errorHtml) {
+		// Create a temporary message component to display the error
+		Html errorComponent = new Html();
+		errorComponent.setContent(errorHtml);
+		errorComponent.setStyle("display: block; margin: 12px 0;");
+
+		// Add to messages container
+		messagesContainer.appendChild(errorComponent);
+
+		// Scroll to show the error
+		scrollToBottom();
+
+		log.warning("[ERROR-DISPLAY] Displayed non-persistent error message in chat");
 	}
 
 	/**

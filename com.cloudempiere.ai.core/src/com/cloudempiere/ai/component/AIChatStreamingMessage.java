@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Properties;
 
+import org.adempiere.exceptions.AdempiereException;
 import org.compiere.util.Env;
 import org.compiere.util.Msg;
 import org.compiere.util.Util;
@@ -781,8 +782,8 @@ public class AIChatStreamingMessage extends Div {
                     "AI response HTML too long to save: %d chars exceeds field limit of %d chars. " +
                     "Increase CM_ChatEntry.CharacterData field length or implement content compression.",
                     htmlLength, maxFieldLength);
-                log.severe("[HTML-CAPTURE] " + errorMsg);
-                throw new org.compiere.util.AdempiereException(errorMsg);
+                log.error("[HTML-CAPTURE] " + errorMsg);
+                throw new AdempiereException(errorMsg);
             }
         } else {
             log.warn("[HTML-CAPTURE] streamingContent is null, cannot capture HTML");
@@ -804,14 +805,14 @@ public class AIChatStreamingMessage extends Div {
             int fieldLength = org.compiere.util.DB.getSQLValueEx(null, sql);
 
             if (fieldLength > 0) {
-                log.fine("[HTML-CAPTURE] Retrieved CharacterData field length: " + fieldLength);
+                log.info("[HTML-CAPTURE] Retrieved CharacterData field length: " + fieldLength);
                 return fieldLength;
             } else {
-                log.warning("[HTML-CAPTURE] Could not retrieve CharacterData field length, using default");
+                log.warn("[HTML-CAPTURE] Could not retrieve CharacterData field length, using default");
                 return 4000; // Conservative default
             }
         } catch (Exception e) {
-            log.warning("[HTML-CAPTURE] Error retrieving field length: " + e.getMessage());
+            log.warn("[HTML-CAPTURE] Error retrieving field length: " + e.getMessage());
             return 4000; // Conservative default on error
         }
     }
