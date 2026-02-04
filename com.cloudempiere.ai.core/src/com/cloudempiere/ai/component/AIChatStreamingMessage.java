@@ -771,19 +771,24 @@ public class AIChatStreamingMessage extends Div {
             renderedHtml = streamingContent.getContent();
 
             int htmlLength = (renderedHtml != null ? renderedHtml.length() : 0);
-            log.info("[HTML-CAPTURE] Captured rendered HTML for persistence, length=" + htmlLength);
 
             // Validate HTML length against database field limit
             // Get field length from AD_Column for CM_ChatEntry.CharacterData
             int maxFieldLength = getCharacterDataFieldLength();
+
+            log.info("[HTML-CAPTURE] Captured rendered HTML | length=" + htmlLength +
+                    " | fieldLimit=" + maxFieldLength +
+                    " | withinLimit=" + (htmlLength <= maxFieldLength));
 
             if (htmlLength > maxFieldLength) {
                 String errorMsg = String.format(
                     "AI response HTML too long to save: %d chars exceeds field limit of %d chars. " +
                     "Increase CM_ChatEntry.CharacterData field length or implement content compression.",
                     htmlLength, maxFieldLength);
-                log.error("[HTML-CAPTURE] " + errorMsg);
+                log.error("[HTML-CAPTURE] VALIDATION FAILED: " + errorMsg);
                 throw new AdempiereException(errorMsg);
+            } else if (htmlLength > 0) {
+                log.info("[HTML-CAPTURE] Validation passed - HTML within field limit");
             }
         } else {
             log.warn("[HTML-CAPTURE] streamingContent is null, cannot capture HTML");
@@ -802,17 +807,19 @@ public class AIChatStreamingMessage extends Div {
                         "WHERE AD_Table_ID = (SELECT AD_Table_ID FROM AD_Table WHERE TableName = 'CM_ChatEntry') " +
                         "AND ColumnName = 'CharacterData'";
 
+            log.info("[HTML-CAPTURE] Querying field length with SQL: " + sql);
             int fieldLength = org.compiere.util.DB.getSQLValueEx(null, sql);
 
             if (fieldLength > 0) {
-                log.info("[HTML-CAPTURE] Retrieved CharacterData field length: " + fieldLength);
+                log.info("[HTML-CAPTURE] Retrieved CharacterData field length from AD_Column: " + fieldLength);
                 return fieldLength;
             } else {
-                log.warn("[HTML-CAPTURE] Could not retrieve CharacterData field length, using default");
+                log.warn("[HTML-CAPTURE] Query returned invalid field length (" + fieldLength + "), using conservative default 4000");
                 return 4000; // Conservative default
             }
         } catch (Exception e) {
-            log.warn("[HTML-CAPTURE] Error retrieving field length: " + e.getMessage());
+            log.error("[HTML-CAPTURE] Error retrieving field length from AD_Column: " + e.getMessage(), e);
+            log.warn("[HTML-CAPTURE] Falling back to conservative default: 4000");
             return 4000; // Conservative default on error
         }
     }

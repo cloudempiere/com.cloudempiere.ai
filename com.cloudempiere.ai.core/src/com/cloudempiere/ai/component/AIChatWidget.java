@@ -21,6 +21,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.logging.Level;
 import java.util.stream.Collectors;
 
+import org.adempiere.exceptions.AdempiereException;
 import org.adempiere.webui.apps.AEnv;
 import org.adempiere.webui.component.Combobox;
 import org.adempiere.webui.theme.ThemeManager;
@@ -1310,17 +1311,17 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 						// Finalize streaming message
 						try {
 							streamingMsg.complete();
-						} catch (AdempiereException e) {
+						} catch (AdempiereException ex) {
 							// Handle field length validation error gracefully
-							if (e.getMessage().contains("too long to save")) {
-								log.severe("[UI-STREAM] HTML exceeds field limit, not saving to database: " + e.getMessage());
+							if (ex.getMessage().contains("too long to save")) {
+								log.severe("[UI-STREAM] HTML exceeds field limit, not saving to database: " + ex.getMessage());
 
 								// Show error to user without breaking UI
 								String errorHtml =
 									"<div style='padding:12px; margin:12px 0; background:#fff3cd; border-left:4px solid #ffc107;'>" +
 									"<strong>⚠️ Response Too Long</strong><br/>" +
 									"The AI response exceeded the database field limit and cannot be saved.<br/>" +
-									"<small style='color:#856404;'>" + Util.maskHTML(e.getMessage(), true) + "</small>" +
+									"<small style='color:#856404;'>" + Util.maskHTML(ex.getMessage(), true) + "</small>" +
 									"</div>";
 
 								// Display error in the streaming message component
@@ -1337,7 +1338,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 								return; // Exit without saving
 							}
 							// Re-throw other exceptions
-							throw e;
+							throw ex;
 						}
 
 						// Save AI response to database (ADR-054: Store HTML instead of markdown)
