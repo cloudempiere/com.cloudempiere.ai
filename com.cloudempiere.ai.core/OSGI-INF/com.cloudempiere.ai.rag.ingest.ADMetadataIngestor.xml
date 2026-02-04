@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<scr:component xmlns:scr="http://www.osgi.org/xmlns/scr/v1.3.0" name="com.cloudempiere.ai.rag.ingest.ADMetadataIngestor">
+   <property name="service.ranking" type="Integer" value="100"/>
+   <service>
+      <provide interface="com.cloudempiere.ai.rag.ingest.IKnowledgeIngestor"/>
+   </service>
+   <reference cardinality="1..1" field="storeProvider" interface="com.cloudempiere.ai.rag.embedding.IEmbeddingStoreProvider" name="storeProvider"/>
+   <implementation class="com.cloudempiere.ai.rag.ingest.ADMetadataIngestor"/>
+</scr:component>

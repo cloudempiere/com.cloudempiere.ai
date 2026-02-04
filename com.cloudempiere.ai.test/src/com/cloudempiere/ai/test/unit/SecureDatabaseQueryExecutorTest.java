@@ -35,7 +35,7 @@ import com.cloudempiere.ai.database.SecureDatabaseQueryExecutor;
  * Tests SQL validation, security checks, and query processing
  * without requiring a real database connection.
  *
- * @author CloudEmpiere
+ * @author Cloudempiere
  * @version 1.0
  */
 @UnitTest

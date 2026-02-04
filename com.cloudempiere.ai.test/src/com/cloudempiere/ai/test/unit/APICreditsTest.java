@@ -36,7 +36,7 @@ import com.cloudempiere.ai.provider.dto.AIRateLimitStatus;
  * Run with -v for detailed logging:
  *   ./run-unit-tests.sh -v APICreditsTest
  *
- * @author CloudEmpiere
+ * @author Cloudempiere
  * @version 1.0
  */
 @UnitTest

@@ -14,11 +14,11 @@
 	<artifactId>com.cloudempiere.ai.theme</artifactId>
 	<packaging>eclipse-plugin</packaging>
 
-	<name>CloudEmpiere AI Theme Fragment</name>
-	<description>OSGi fragment providing theme resources (CSS) for CloudEmpiere AI plugin using iDempiere NF8.2 extension point</description>
+	<name>Cloudempiere AI Theme Fragment</name>
+	<description>OSGi fragment providing theme resources (CSS) for Cloudempiere AI plugin using iDempiere NF8.2 extension point</description>
 
 	<organization>
-		<name>CloudEmpiere</name>
+		<name>Cloudempiere</name>
 		<url>https://cloudempiere.com</url>
 	</organization>
 

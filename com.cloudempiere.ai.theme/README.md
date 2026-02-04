@@ -4,7 +4,7 @@ OSGi Fragment Plugin for AI Web Resources using iDempiere Theme Extension Point
 
 ## Overview
 
-This fragment bundle uses **iDempiere's NF8.2 Lightweight Theme Customization** extension point to automatically load custom CSS for the CloudEmpiere AI plugin. The fragment attaches to `org.adempiere.ui.zk` and provides CSS via the standard `fragment/custom.css.dsp` mechanism.
+This fragment bundle uses **iDempiere's NF8.2 Lightweight Theme Customization** extension point to automatically load custom CSS for the Cloudempiere AI plugin. The fragment attaches to `org.adempiere.ui.zk` and provides CSS via the standard `fragment/custom.css.dsp` mechanism.
 
 **Reference:** [iDempiere Wiki - NF8.2 Lightweight theme customization](https://wiki.idempiere.org/en/NF8.2_Lightweight_theme_customization)
 
@@ -22,7 +22,7 @@ com.cloudempiere.ai.theme/
 │   └── cloudempiere/
 │       └── css/
 │           └── fragment/
-│               └── custom.css.dsp  ← For CloudEmpiere theme
+│               └── custom.css.dsp  ← For Cloudempiere theme
 ├── build.properties
 ├── .project
 ├── .classpath
@@ -174,7 +174,7 @@ In Eclipse with iDempiere:
 This fragment provides CSS for **multiple themes** to ensure compatibility with custom theme bundles:
 
 - **default** - Standard iDempiere theme
-- **cloudempiere** - CloudEmpiere custom theme (org.cloudempiere.theme)
+- **cloudempiere** - Cloudempiere custom theme (org.cloudempiere.theme)
 
 ThemeManager dynamically looks for fragments based on the **active theme name**:
 ```java
