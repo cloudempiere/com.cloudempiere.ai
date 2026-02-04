@@ -38,7 +38,7 @@ import com.cloudempiere.ai.rag.dto.SearchResult;
  * Run with -v for detailed logging:
  *   ./run-unit-tests.sh -v SearchResultTest
  *
- * @author CloudEmpiere
+ * @author Cloudempiere
  * @version 1.0
  */
 @UnitTest

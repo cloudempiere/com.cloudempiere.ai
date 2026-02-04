@@ -57,7 +57,7 @@ import dev.langchain4j.model.chat.StreamingChatLanguageModel;
  *   <li>For AWS Bedrock: AWS credentials must be configured in environment</li>
  * </ul>
  *
- * @author CloudEmpiere
+ * @author Cloudempiere
  * @version 1.0
  */
 @IntegrationTest

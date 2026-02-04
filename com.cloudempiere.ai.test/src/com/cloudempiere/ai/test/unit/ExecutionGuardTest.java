@@ -37,7 +37,7 @@ import com.cloudempiere.ai.guardrails.ExecutionGuard.RiskLevel;
  * Tests risk classification, approval routing, and action control.
  * These tests do not require iDempiere context and can run standalone.
  *
- * @author CloudEmpiere
+ * @author Cloudempiere
  * @version 1.0
  */
 @UnitTest

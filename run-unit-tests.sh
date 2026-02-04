@@ -47,8 +47,24 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Java home
-export JAVA_HOME="${JAVA_HOME:-/Library/Java/JavaVirtualMachines/amazon-corretto-11.jdk/Contents/Home}"
+# Java home - try to find Java 11
+if [ -z "$JAVA_HOME" ]; then
+    # Try to find Java 11 installation
+    if [ -d "/Library/Java/JavaVirtualMachines/amazon-corretto-11.jdk/Contents/Home" ]; then
+        export JAVA_HOME="/Library/Java/JavaVirtualMachines/amazon-corretto-11.jdk/Contents/Home"
+    elif [ -d "/Library/Java/JavaVirtualMachines/adoptopenjdk-11.jdk/Contents/Home" ]; then
+        export JAVA_HOME="/Library/Java/JavaVirtualMachines/adoptopenjdk-11.jdk/Contents/Home"
+    else
+        # Try using java_home utility to find Java 11
+        JAVA_11_HOME=$(/usr/libexec/java_home -v 11 2>/dev/null)
+        if [ -n "$JAVA_11_HOME" ]; then
+            export JAVA_HOME="$JAVA_11_HOME"
+        else
+            echo "ERROR: Java 11 not found. Please install Java 11 or set JAVA_HOME environment variable."
+            exit 1
+        fi
+    fi
+fi
 
 echo "=== AI Plugin Unit Test Runner ==="
 echo "Java: $JAVA_HOME"
@@ -64,7 +80,18 @@ TEST_BUNDLE_DIR="$SCRIPT_DIR/com.cloudempiere.ai.test"
 TEST_SRC_DIR="$TEST_BUNDLE_DIR/src"
 LIB_DIR="$SCRIPT_DIR/lib"
 BUILD_DIR="$SCRIPT_DIR/target/test-classes"
-CLASSES_DIR="$SCRIPT_DIR/target/classes"
+# Multi-module project - collect all module target/classes directories
+CLASSES_DIRS=(
+    "$SCRIPT_DIR/com.cloudempiere.ai.core/target/classes"
+    "$SCRIPT_DIR/com.cloudempiere.ai.plugin/target/classes"
+    "$SCRIPT_DIR/com.cloudempiere.ai.deps/target/classes"
+    "$SCRIPT_DIR/com.cloudempiere.ai.sales/target/classes"
+    "$SCRIPT_DIR/com.cloudempiere.ai.purchasing/target/classes"
+    "$SCRIPT_DIR/com.cloudempiere.ai.support/target/classes"
+    "$SCRIPT_DIR/com.cloudempiere.ai.inventory/target/classes"
+    "$SCRIPT_DIR/com.cloudempiere.ai.kb/target/classes"
+    "$SCRIPT_DIR/com.cloudempiere.ai.theme/target/classes"
+)
 
 # Check test bundle exists
 if [ ! -d "$TEST_SRC_DIR" ]; then
@@ -96,13 +123,32 @@ download_if_missing "junit-platform-console-standalone-1.10.2.jar" \
 download_if_missing "assertj-core-$ASSERTJ_VERSION.jar" \
     "https://repo1.maven.org/maven2/org/assertj/assertj-core/$ASSERTJ_VERSION/assertj-core-$ASSERTJ_VERSION.jar"
 
-# Build classpath - main classes first
-CLASSPATH="$CLASSES_DIR"
-
-# Add AI plugin lib jars
-for jar in "$LIB_DIR"/*.jar; do
-    [ -f "$jar" ] && CLASSPATH="$CLASSPATH:$jar"
+# Build classpath - main classes first from all modules
+CLASSPATH=""
+for classes_dir in "${CLASSES_DIRS[@]}"; do
+    if [ -d "$classes_dir" ]; then
+        if [ -z "$CLASSPATH" ]; then
+            CLASSPATH="$classes_dir"
+        else
+            CLASSPATH="$CLASSPATH:$classes_dir"
+        fi
+    fi
 done
+
+# Add AI plugin lib jars (from root lib/ if it exists)
+if [ -d "$LIB_DIR" ]; then
+    for jar in "$LIB_DIR"/*.jar; do
+        [ -f "$jar" ] && CLASSPATH="$CLASSPATH:$jar"
+    done
+fi
+
+# Add deps module lib jars (LangChain4j and dependencies)
+DEPS_LIB_DIR="$SCRIPT_DIR/com.cloudempiere.ai.deps/lib"
+if [ -d "$DEPS_LIB_DIR" ]; then
+    for jar in "$DEPS_LIB_DIR"/*.jar; do
+        [ -f "$jar" ] && CLASSPATH="$CLASSPATH:$jar"
+    done
+fi
 
 # Add iDempiere base classes (needed for CLogger, DB, etc.)
 IDEMPIERE_BASE_CLASSES="$IDEMPIERE_DIR/org.adempiere.base/target/classes"
@@ -131,10 +177,18 @@ for jar in "$TEST_LIB_DIR"/*.jar; do
     [ -f "$jar" ] && CLASSPATH="$CLASSPATH:$jar"
 done
 
-# Check if main classes are compiled
-if [ ! -d "$CLASSES_DIR" ] || [ -z "$(ls -A $CLASSES_DIR 2>/dev/null)" ]; then
-    echo "ERROR: Main classes not compiled. Run 'mvn compile' first or open in Eclipse."
-    echo "       Looking for: $CLASSES_DIR"
+# Check if main classes are compiled (at least one module should have compiled classes)
+FOUND_CLASSES=false
+for classes_dir in "${CLASSES_DIRS[@]}"; do
+    if [ -d "$classes_dir" ] && [ -n "$(ls -A $classes_dir 2>/dev/null)" ]; then
+        FOUND_CLASSES=true
+        break
+    fi
+done
+
+if [ "$FOUND_CLASSES" = false ]; then
+    echo "ERROR: Main classes not compiled. Run 'mvn compile' first or build in Eclipse."
+    echo "       Looking for classes in module target/classes directories"
     exit 1
 fi
 
@@ -143,7 +197,11 @@ echo "Compiling tests..."
 # Find Java files based on test profile
 if [ "$TEST_PROFILE" = "unit" ]; then
     # Unit tests only (fast, no external deps)
-    ALL_JAVA_FILES=$(find "$TEST_SRC_DIR" -name "*.java" 2>/dev/null | grep -v "/integration/" | grep -v "/e2e/" || true)
+    # Include: /unit/ directory, test categories, and test support utilities
+    # Exclude: /integration/, /e2e/, /component/ (component tests may need ZK framework)
+    ALL_JAVA_FILES=$(find "$TEST_SRC_DIR" -name "*.java" 2>/dev/null | \
+        grep -E "/(unit|categories|support)/" | \
+        grep -v "/component/" || true)
 elif [ "$TEST_PROFILE" = "integration" ]; then
     # Integration tests (require API keys, database, etc.)
     ALL_JAVA_FILES=$(find "$TEST_SRC_DIR" -name "*.java" 2>/dev/null || true)

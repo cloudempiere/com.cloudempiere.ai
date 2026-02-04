@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<scr:component xmlns:scr="http://www.osgi.org/xmlns/scr/v1.3.0"
+    name="com.cloudempiere.ai.orchestrator.OrchestratorAgent"
+    immediate="true">
+  <implementation class="com.cloudempiere.ai.orchestrator.OrchestratorAgent"/>
+  <service>
+    <provide interface="com.cloudempiere.ai.orchestrator.OrchestratorAgent"/>
+    <provide interface="com.cloudempiere.ai.boundary.IOrchestrator"/>
+  </service>
+  <reference
+      bind="bindDomainAgent"
+      unbind="unbindDomainAgent"
+      cardinality="0..n"
+      field="domainAgents"
+      interface="com.cloudempiere.ai.boundary.IDomainAgent"
+      name="domainAgents"
+      policy="dynamic"/>
+</scr:component>
