@@ -17,6 +17,7 @@ import com.cloudempiere.ai.test.categories.UnitTest;
 import com.cloudempiere.ai.test.support.TestLogger;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 
 import java.util.Optional;
 
@@ -29,7 +30,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
-import com.cloudempiere.ai.service.LanguageDetectionService;
+import com.cloudempiere.ai.core.service.LanguageDetectionService;
 
 /**
  * Unit tests for LanguageDetectionService (ADR-037).
@@ -42,7 +43,7 @@ import com.cloudempiere.ai.service.LanguageDetectionService;
  * Run with:
  *   ./run-unit-tests.sh LanguageDetectionServiceTest
  *
- * @author CloudEmpiere
+ * @author Cloudempiere
  * @version 1.0
  */
 @UnitTest
@@ -658,7 +659,7 @@ class LanguageDetectionServiceTest {
             service.detectLanguageChangeRequest("respond in German");
 
             // Should not throw exception
-            assertThat(() -> service.reloadLanguageMap()).doesNotThrowAnyException();
+            assertThatCode(() -> service.reloadLanguageMap()).doesNotThrowAnyException();
 
             // Should still work after reload
             Optional<String> detected = service.detectLanguageChangeRequest("respond in German");

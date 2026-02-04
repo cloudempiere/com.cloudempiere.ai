@@ -4,9 +4,10 @@ Bundle-Name: AI Plugin Tests
 Bundle-SymbolicName: com.cloudempiere.ai.test
 Bundle-Version: 10.0.1.qualifier
 Bundle-Vendor: Cloudempiere
-Fragment-Host: com.cloudempiere.ai;bundle-version="10.0.1"
 Require-Bundle: org.adempiere.base;bundle-version="[10.0.0,11.0.0)",
- org.idempiere.test;bundle-version="[10.0.0,11.0.0)";resolution:=optional
+ org.idempiere.test;bundle-version="[10.0.0,11.0.0)";resolution:=optional,
+ com.cloudempiere.ai.core;bundle-version="0.32.0",
+ com.cloudempiere.ai.deps;bundle-version="0.35.0"
 Bundle-RequiredExecutionEnvironment: JavaSE-11
 Automatic-Module-Name: com.cloudempiere.ai.test
 Import-Package: org.assertj.core.api;version="3.22.0",
@@ -14,4 +15,10 @@ Import-Package: org.assertj.core.api;version="3.22.0",
  org.junit.jupiter.api.extension;version="5.6.0",
  org.junit.jupiter.api.function;version="5.6.0",
  org.junit.jupiter.params;version="5.6.0",
- org.junit.jupiter.params.provider;version="5.6.0"
+ org.junit.jupiter.params.provider;version="5.6.0",
+ org.zkoss.zk.ui,
+ org.zkoss.zk.ui.event,
+ org.zkoss.zul,
+ org.zkoss.zhtml,
+ org.compiere.model,
+ org.compiere.util

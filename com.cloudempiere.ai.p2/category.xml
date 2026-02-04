@@ -3,9 +3,9 @@
    <feature id="com.cloudempiere.ai.feature">
       <category name="com.cloudempiere.ai"/>
    </feature>
-   <category-def name="com.cloudempiere.ai" label="CloudEmpiere AI Plugin">
+   <category-def name="com.cloudempiere.ai" label="Cloudempiere AI Plugin">
       <description>
-         CloudEmpiere AI Plugin - Multi-provider AI integration for iDempiere ERP
+         Cloudempiere AI Plugin - Multi-provider AI integration for iDempiere ERP
       </description>
    </category-def>
 </site>

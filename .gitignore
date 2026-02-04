@@ -12,3 +12,9 @@ com.cloudempiere.cache.test*
 .DS_Store
 */target
 *.jar
+
+# Eclipse settings (auto-generated)
+.settings/org.eclipse.m2e.core.prefs
+.settings/org.eclipse.core.resources.prefs
+*/.settings/org.eclipse.m2e.core.prefs
+*/.settings/org.eclipse.core.resources.prefs

@@ -31,7 +31,7 @@ import dev.langchain4j.rag.content.retriever.ContentRetriever;
  * Provides configurable behavior for testing RagTools and other
  * RAG-dependent components without requiring database or embedding model.
  *
- * @author CloudEmpiere
+ * @author Cloudempiere
  * @version 1.0
  */
 public class RagServiceMock implements IRagService {

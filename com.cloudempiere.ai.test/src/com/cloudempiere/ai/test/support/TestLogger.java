@@ -19,7 +19,7 @@ package com.cloudempiere.ai.test.support;
  * Enable verbose logging by running tests with -Dtest.verbose=true
  * or using ./run-unit-tests.sh -v
  *
- * @author CloudEmpiere
+ * @author Cloudempiere
  * @version 1.0
  */
 public class TestLogger {

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<scr:component xmlns:scr="http://www.osgi.org/xmlns/scr/v1.3.0"
+               name="com.cloudempiere.ai.sales.agent.SalesAgent"
+               activate="activate">
+   <implementation class="com.cloudempiere.ai.sales.agent.SalesAgent"/>
+   <service>
+      <provide interface="com.cloudempiere.ai.sales.agent.SalesAgent"/>
+      <provide interface="com.cloudempiere.ai.boundary.IDomainAgent"/>
+   </service>
+   <reference bind="setProviderFactory"
+              cardinality="1..1"
+              field="providerFactory"
+              interface="com.cloudempiere.ai.provider.langchain4j.ILangChain4jProviderFactory"
+              name="ILangChain4jProviderFactory"
+              policy="static"/>
+   <reference bind="setSalesTools"
+              cardinality="1..1"
+              field="salesTools"
+              interface="com.cloudempiere.ai.sales.tools.SalesTools"
+              name="SalesTools"
+              policy="static"/>
+</scr:component>

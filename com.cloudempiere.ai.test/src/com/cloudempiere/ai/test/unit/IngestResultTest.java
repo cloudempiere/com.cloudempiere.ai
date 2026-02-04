@@ -35,7 +35,7 @@ import com.cloudempiere.ai.rag.ingest.IngestResult;
  * Run with -v for detailed logging:
  *   ./run-unit-tests.sh -v IngestResultTest
  *
- * @author CloudEmpiere
+ * @author Cloudempiere
  * @version 1.0
  */
 @UnitTest
