@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+                             http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.cloudempiere.ai</groupId>
+        <artifactId>com.cloudempiere.ai.parent</artifactId>
+        <version>10.0.2-SNAPSHOT</version>
+        <relativePath>../com.cloudempiere.ai.parent/pom.xml</relativePath>
+    </parent>
+
+    <artifactId>com.cloudempiere.ai.purchasing</artifactId>
+    <version>0.32.0-SNAPSHOT</version>
+    <packaging>eclipse-plugin</packaging>
+
+    <name>Cloudempiere AI - purchasing Domain Plugin</name>
+    <description>
+        purchasing domain plugin for Cloudempiere AI providing:
+        - purchasing opportunity analysis
+        - Business partner purchasing performance tracking
+        - Order history and trend analysis
+        - Product recommendations
+        - purchasing pipeline insights
+    </description>
+
+    <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <maven.compiler.source>11</maven.compiler.source>
+        <maven.compiler.target>11</maven.compiler.target>
+    </properties>
+
+    <build>
+        <sourceDirectory>src</sourceDirectory>
+        <outputDirectory>target/classes</outputDirectory>
+
+        <plugins>
+            <!-- Tycho Maven Plugin -->
+            <plugin>
+                <groupId>org.eclipse.tycho</groupId>
+                <artifactId>tycho-maven-plugin</artifactId>
+                <version>${tycho.version}</version>
+                <extensions>true</extensions>
+            </plugin>
+
+            <!-- Tycho Compiler Plugin -->
+            <plugin>
+                <groupId>org.eclipse.tycho</groupId>
+                <artifactId>tycho-compiler-plugin</artifactId>
+                <version>${tycho.version}</version>
+                <configuration>
+                    <source>11</source>
+                    <target>11</target>
+                    <encoding>UTF-8</encoding>
+                </configuration>
+            </plugin>
+
+            <!-- Tycho Packaging Plugin -->
+            <plugin>
+                <groupId>org.eclipse.tycho</groupId>
+                <artifactId>tycho-packaging-plugin</artifactId>
+                <version>${tycho.version}</version>
+                <configuration>
+                    <format>'v'yyyyMMdd-HHmm</format>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>

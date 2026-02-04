@@ -1,7 +1,7 @@
 <%@ page contentType="text/css;charset=UTF-8" %>
 <%@ taglib uri="http://www.zkoss.org/dsp/web/core" prefix="c" %>
 /**
- * CloudEmpiere AI Plugin - Custom Theme Fragment
+ * Cloudempiere AI Plugin - Custom Theme Fragment
  *
  * This file uses iDempiere's theme extension point (NF8.2).
  * The main theme.css.dsp automatically includes fragment/custom.css.dsp

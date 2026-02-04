@@ -38,7 +38,7 @@ import com.cloudempiere.ai.guardrails.dto.GuardResult;
  * Run with -v for detailed logging:
  *   ./run-unit-tests.sh -v InputGuardTest
  *
- * @author CloudEmpiere
+ * @author Cloudempiere
  * @version 1.0
  */
 @UnitTest
