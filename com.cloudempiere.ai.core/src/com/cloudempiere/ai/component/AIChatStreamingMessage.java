@@ -363,14 +363,7 @@ public class AIChatStreamingMessage extends Div {
             ".ai-thinking-dots span:nth-child(1) { animation-delay: 0s; }" +
             ".ai-thinking-dots span:nth-child(2) { animation-delay: 0.2s; }" +
             ".ai-thinking-dots span:nth-child(3) { animation-delay: 0.4s; }" +
-            "@keyframes thinking-pulse { 0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); } 40% { opacity: 1; transform: scale(1); } }" +
-
-            // Inline tool indicators (CLD-1704)
-            ".tool-indicator { display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px; margin: 4px 0; border-radius: 4px; font-size: 11px; transition: all 0.2s; }" +
-            ".tool-indicator.running { background: #F0F7FF; color: #1976D2; }" +
-            ".tool-indicator.complete { background: #F0F9F4; color: #4CAF50; }" +
-            ".tool-indicator.error { background: #FFEBEE; color: #F44336; }" +
-            ".tool-indicator .tool-spinner { display: inline-block; }";
+            "@keyframes thinking-pulse { 0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); } 40% { opacity: 1; transform: scale(1); } }";
 
         org.zkoss.zk.ui.util.Clients.evalJavaScript(
             "(function() {" +
@@ -620,11 +613,10 @@ public class AIChatStreamingMessage extends Div {
         // Get user-friendly display name
         String displayName = getToolDisplayName(toolName);
 
-        // Inject inline tool indicator HTML with line breaks for separate line display
+        // Inject inline tool indicator HTML with CSS classes
         String toolHtml = String.format(
-            "<br/><div id='%s' class='tool-indicator running' style='display: inline-flex; align-items: center; gap: 6px; " +
-            "padding: 4px 8px; margin: 4px 0; background: #F0F7FF; border-radius: 4px; font-size: 11px; color: #1976D2;'>" +
-            "<span class='tool-spinner' style='animation: tool-spin 1s linear infinite;'>&#8635;</span>" +
+            "<br/><div id='%s' class='ai-tool-indicator running'>" +
+            "<span class='ai-tool-spinner'>&#8635;</span>" +
             "<span>%s</span>" +
             "</div><br/>",
             toolId, displayName
@@ -655,11 +647,10 @@ public class AIChatStreamingMessage extends Div {
         if (toolId != null) {
             String displayName = getToolDisplayName(toolName);
 
-            // Create "complete" state HTML
+            // Create "complete" state HTML with CSS classes
             String completeHtml = String.format(
-                "<div id='%s' class='tool-indicator complete' style='display: inline-flex; align-items: center; gap: 6px; " +
-                "padding: 4px 8px; margin: 4px 0; background: #F0F9F4; border-radius: 4px; font-size: 11px; color: #4CAF50;'>" +
-                "<span style='color: #4CAF50;'>&#10003;</span>" +
+                "<div id='%s' class='ai-tool-indicator complete'>" +
+                "<span>&#10003;</span>" +
                 "<span>%s</span>" +
                 "</div>",
                 toolId, displayName
@@ -676,10 +667,8 @@ public class AIChatStreamingMessage extends Div {
                 "  var tryUpdate = function(attempt) { " +
                 "    var el = document.getElementById('%s'); " +
                 "    if (el) { " +
-                "      el.className = 'tool-indicator complete'; " +
-                "      el.style.background = '#F0F9F4'; " +
-                "      el.style.color = '#4CAF50'; " +
-                "      el.innerHTML = '<span style=\"color: #4CAF50;\">&#10003;</span> <span>%s</span>'; " +
+                "      el.className = 'ai-tool-indicator complete'; " +
+                "      el.innerHTML = '<span>&#10003;</span> <span>%s</span>'; " +
                 "      console.log('Tool indicator updated: %s'); " +
                 "    } else if (attempt < 10) { " +
                 "      console.log('Tool indicator not found (attempt ' + attempt + '), retrying...'); " +
@@ -719,11 +708,10 @@ public class AIChatStreamingMessage extends Div {
         if (toolId != null) {
             String displayName = getToolDisplayName(toolName);
 
-            // Create "error" state HTML
+            // Create "error" state HTML with CSS classes
             String errorHtml = String.format(
-                "<div id='%s' class='tool-indicator error' style='display: inline-flex; align-items: center; gap: 6px; " +
-                "padding: 4px 8px; margin: 4px 0; background: #FFEBEE; border-radius: 4px; font-size: 11px; color: #F44336;'>" +
-                "<span style='color: #F44336;'>&#10007;</span>" +
+                "<div id='%s' class='ai-tool-indicator error'>" +
+                "<span>&#10007;</span>" +
                 "<span>%s failed</span>" +
                 "</div>",
                 toolId, displayName
@@ -740,10 +728,8 @@ public class AIChatStreamingMessage extends Div {
                 "  var tryUpdate = function(attempt) { " +
                 "    var el = document.getElementById('%s'); " +
                 "    if (el) { " +
-                "      el.className = 'tool-indicator error'; " +
-                "      el.style.background = '#FFEBEE'; " +
-                "      el.style.color = '#F44336'; " +
-                "      el.innerHTML = '<span style=\"color: #F44336;\">&#10007;</span> <span>%s failed</span>'; " +
+                "      el.className = 'ai-tool-indicator error'; " +
+                "      el.innerHTML = '<span>&#10007;</span> <span>%s failed</span>'; " +
                 "      console.log('Tool indicator updated (error): %s'); " +
                 "    } else if (attempt < 10) { " +
                 "      console.log('Tool indicator not found (attempt ' + attempt + '), retrying...'); " +
