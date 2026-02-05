@@ -529,4 +529,89 @@ public class StreamingMarkdownRendererTest {
         assertFalse(html.contains("<pre><code"),
             "Should not create code block from inline backticks: " + html);
     }
+
+    @Test
+    public void testTableCellWithBoldFormatting() {
+        // Table with bold text in cells
+        renderer.appendChunk("| Color | Name |\n");
+        renderer.appendChunk("|-------|------|\n");
+        renderer.appendChunk("| Purple | **morado20** |\n");
+
+        String html = renderer.renderFinal();
+
+        // Should contain table structure
+        assertTrue(html.contains("<table"), "Should contain table tag: " + html);
+        assertTrue(html.contains("<th"), "Should contain header cells: " + html);
+        assertTrue(html.contains("<td"), "Should contain data cells: " + html);
+
+        // Should process bold markdown in table cells
+        assertTrue(html.contains("<strong>morado20</strong>"),
+            "Bold markdown (**text**) should be converted to <strong> tags in table cells: " + html);
+
+        // Should NOT contain raw markdown syntax
+        assertFalse(html.contains("**morado20**"),
+            "Should not contain raw ** markdown syntax in output: " + html);
+    }
+
+    @Test
+    public void testTableCellWithItalicFormatting() {
+        // Table with italic text in cells
+        renderer.appendChunk("| Item | Status |\n");
+        renderer.appendChunk("|------|--------|\n");
+        renderer.appendChunk("| Task | *pending* |\n");
+
+        String html = renderer.renderFinal();
+
+        // Should process italic markdown in table cells
+        assertTrue(html.contains("<em>pending</em>"),
+            "Italic markdown (*text*) should be converted to <em> tags in table cells: " + html);
+
+        // Should NOT contain raw markdown syntax
+        assertFalse(html.contains("*pending*"),
+            "Should not contain raw * markdown syntax in output: " + html);
+    }
+
+    @Test
+    public void testTableCellWithCodeFormatting() {
+        // Table with inline code in cells
+        renderer.appendChunk("| Function | Returns |\n");
+        renderer.appendChunk("|----------|----------|\n");
+        renderer.appendChunk("| `getValue()` | String |\n");
+
+        String html = renderer.renderFinal();
+
+        // Should process code markdown in table cells
+        assertTrue(html.contains("<code>getValue()</code>"),
+            "Code markdown (`text`) should be converted to <code> tags in table cells: " + html);
+
+        // Should NOT contain raw markdown syntax (allowing for possible escaped backticks)
+        assertFalse(html.contains("`getValue()`"),
+            "Should not contain raw backtick markdown syntax in output: " + html);
+    }
+
+    @Test
+    public void testTableCellWithMixedFormatting() {
+        // Table with multiple formatting types in one cell
+        renderer.appendChunk("| Description |\n");
+        renderer.appendChunk("|-------------|\n");
+        renderer.appendChunk("| **Bold** and *italic* and `code` |\n");
+
+        String html = renderer.renderFinal();
+
+        // Should process all markdown types in table cells
+        assertTrue(html.contains("<strong>Bold</strong>"),
+            "Should convert bold markdown: " + html);
+        assertTrue(html.contains("<em>italic</em>"),
+            "Should convert italic markdown: " + html);
+        assertTrue(html.contains("<code>code</code>"),
+            "Should convert code markdown: " + html);
+
+        // Should NOT contain raw markdown syntax
+        assertFalse(html.contains("**Bold**"),
+            "Should not contain raw bold syntax: " + html);
+        assertFalse(html.contains("*italic*"),
+            "Should not contain raw italic syntax: " + html);
+        assertFalse(html.contains("`code`"),
+            "Should not contain raw code syntax: " + html);
+    }
 }

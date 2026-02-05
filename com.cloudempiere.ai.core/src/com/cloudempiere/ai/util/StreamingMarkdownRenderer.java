@@ -1066,8 +1066,9 @@ public class StreamingMarkdownRenderer {
             String cellContent = row.get(i);
             String align = getTableAlignment(i);
 
-            // Escape HTML
-            String safeContent = escapeHtml(cellContent);
+            // Process inline markdown (bold, italic, code) instead of just escaping HTML
+            // This ensures **text** becomes <strong>text</strong> in table cells
+            String safeContent = processInlineMarkdown(cellContent);
 
             if (isHeaderRow) {
                 htmlOutput.append("<th style='").append(TH_STYLE);
@@ -1095,6 +1096,43 @@ public class StreamingMarkdownRenderer {
             return tableAlignments[colIndex];
         }
         return "left";
+    }
+
+    /**
+     * Process inline markdown (bold, italic, code) in cell content.
+     * Converts markdown syntax to HTML while escaping other content for security.
+     *
+     * <p>Supported inline markdown:
+     * <ul>
+     *   <li><b>Bold:</b> `**text**` or `__text__` → `<strong>text</strong>`</li>
+     *   <li><b>Italic:</b> `*text*` or `_text_` → `<em>text</em>`</li>
+     *   <li><b>Code:</b> `` `text` `` → `<code>text</code>`</li>
+     * </ul>
+     *
+     * @param text cell content with markdown syntax
+     * @return HTML-safe content with markdown converted to tags
+     */
+    private String processInlineMarkdown(String text) {
+        if (text == null || text.isEmpty()) {
+            return "";
+        }
+
+        // First escape HTML to prevent XSS
+        String escaped = escapeHtml(text);
+
+        // Then convert markdown to HTML tags (in correct order to avoid conflicts)
+        // Process code first (to avoid interfering with bold/italic markers inside code)
+        escaped = escaped.replaceAll("`([^`]+)`", "<code>$1</code>");
+
+        // Process bold (** or __) - must come before italic to avoid conflicts
+        escaped = escaped.replaceAll("\\*\\*([^*]+)\\*\\*", "<strong>$1</strong>");
+        escaped = escaped.replaceAll("__([^_]+)__", "<strong>$1</strong>");
+
+        // Process italic (* or _)
+        escaped = escaped.replaceAll("\\*([^*]+)\\*", "<em>$1</em>");
+        escaped = escaped.replaceAll("_([^_]+)_", "<em>$1</em>");
+
+        return escaped;
     }
 
     /**
