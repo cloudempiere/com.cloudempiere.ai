@@ -1162,6 +1162,10 @@ public class AIChatStreamingMessage extends Div {
         String completeMarkdown = content.toString();
         String validatedMarkdown = com.cloudempiere.ai.util.MarkdownValidator.validate(completeMarkdown);
 
+        // Strip HTML tags from raw markdown (LLM should only use Markdown, not HTML)
+        // This ensures HTML tags don't appear as escaped text in the final output
+        validatedMarkdown = com.cloudempiere.ai.util.HtmlStripper.stripHtml(validatedMarkdown);
+
         // If validation changed the markdown, we need to re-parse with fresh renderer
         // This only happens if the AI generated malformed markdown (unclosed markers, etc.)
         if (!validatedMarkdown.equals(completeMarkdown)) {

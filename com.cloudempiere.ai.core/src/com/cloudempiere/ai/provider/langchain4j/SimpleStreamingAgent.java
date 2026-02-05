@@ -23,6 +23,12 @@ public interface SimpleStreamingAgent {
      */
     String SIMPLE_SYSTEM_PROMPT =
         "You are an intelligent assistant for the iDempiere ERP system.\n\n" +
+        "FORMATTING RULES:\n" +
+        "- ALWAYS use Markdown formatting for your responses\n" +
+        "- NEVER use HTML tags (no <div>, <span>, <p>, <br>, etc.)\n" +
+        "- Use Markdown syntax: **bold**, *italic*, `code`, ``` for code blocks, # for headings\n" +
+        "- For tables, use Markdown table syntax with pipes (|) and dashes (-)\n" +
+        "- For lists, use - or * for bullets, and 1. 2. 3. for numbered lists\n\n" +
         "CAPABILITIES:\n" +
         "- Answer questions about ERP concepts, business processes, and best practices\n" +
         "- Help users understand iDempiere functionality\n" +
