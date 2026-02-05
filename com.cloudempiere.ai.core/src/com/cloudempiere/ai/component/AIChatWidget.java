@@ -2012,10 +2012,8 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 	 * Refresh context from current window/tab settings
 	 */
 	private void refreshContext() {
-			", currentWindowNo=" + currentWindowNo + ", currentTabNo=" + currentTabNo);
 
 		if (!contextEnabled || currentWindowNo < 0) {
-				", currentWindowNo=" + currentWindowNo + ")");
 			currentContext = null;
 			updateContextIndicator(false);
 			return;
@@ -2035,7 +2033,6 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 				if (currentContext != null && currentContext.optBoolean("success", false)) {
 					redactSensitiveData(currentContext, provider.getSensitiveFields());
 					updateContextIndicator(true);
-						currentWindowNo + ", tab " + currentTabNo);
 				} else {
 					currentContext = null;
 					updateContextIndicator(false);
@@ -2128,7 +2125,6 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 				// Initialize context with currently active tab (if any)
 				detectAndSetActiveTab();
 			} else {
-					"This may occur if iDempiere UI structure has changed. See docs/STANDALONE_AI_CHAT_WIDGET.md");
 			}
 		} catch (Exception e) {
 		}
