@@ -57,9 +57,9 @@ public class InputGuard {
     // PII Detection Patterns
     // ========================================================================
 
-    /** US Social Security Number: XXX-XX-XXXX */
+    /** US Social Security Number: XXX-XX-XXXX (requires separators to avoid false positives) */
     private static final Pattern SSN_PATTERN = Pattern.compile(
-        "\\b\\d{3}[-\\s]?\\d{2}[-\\s]?\\d{4}\\b"
+        "\\b\\d{3}[-\\s]\\d{2}[-\\s]\\d{4}\\b"
     );
 
     /** Credit Card: 13-19 digits with optional separators */
@@ -78,9 +78,9 @@ public class InputGuard {
         "\\b(?:\\+?1[-\\s.]?)?\\(?\\d{3}\\)?[-\\s.]?\\d{3}[-\\s.]?\\d{4}\\b"
     );
 
-    /** Tax ID / EIN */
+    /** Tax ID / EIN (US format: XX-XXXXXXX with required separator) */
     private static final Pattern TAX_ID_PATTERN = Pattern.compile(
-        "\\b\\d{2}[-\\s]?\\d{7}\\b"
+        "\\b\\d{2}[-\\s]\\d{7}\\b"
     );
 
     /** Bank account number (8-17 digits) */
