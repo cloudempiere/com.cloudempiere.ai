@@ -84,9 +84,14 @@ public class InputGuard {
     );
 
     /** Bank account number (8-17 digits) */
-    private static final Pattern BANK_ACCOUNT_PATTERN = Pattern.compile(
-        "\\b\\d{8,17}\\b"
-    );
+    // DISABLED: Pattern too broad - matches order IDs, invoice numbers, etc.
+    // Causes false positives for legitimate business identifiers.
+    // Language-dependent keyword matching doesn't work for multi-language ERP.
+    // TODO: Re-enable with proper context-aware detection (see ADR-057)
+    //       Need IBAN pattern (country code prefix) or ML-based classification.
+    // private static final Pattern BANK_ACCOUNT_PATTERN = Pattern.compile(
+    //     "\\b\\d{8,17}\\b"
+    // );
 
     // ========================================================================
     // Prompt Injection Patterns
@@ -271,10 +276,12 @@ public class InputGuard {
             result = TAX_ID_PATTERN.matcher(result).replaceAll(maskChar.repeat(10));
         }
 
-        if (BANK_ACCOUNT_PATTERN.matcher(result).find()) {
-            types.add("Bank Account");
-            result = BANK_ACCOUNT_PATTERN.matcher(result).replaceAll(maskChar.repeat(12));
-        }
+        // DISABLED: Bank account detection temporarily disabled (see ADR-057)
+        // Pattern was too broad and caused false positives with business IDs.
+        // if (BANK_ACCOUNT_PATTERN.matcher(result).find()) {
+        //     types.add("Bank Account");
+        //     result = BANK_ACCOUNT_PATTERN.matcher(result).replaceAll(maskChar.repeat(12));
+        // }
 
         // Email and phone are lower risk - mask but don't block
         if (EMAIL_PATTERN.matcher(result).find()) {
