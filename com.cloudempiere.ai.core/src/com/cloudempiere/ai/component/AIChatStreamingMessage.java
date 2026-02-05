@@ -101,6 +101,12 @@ public class AIChatStreamingMessage extends Div {
     /** Whether thinking section is expanded */
     private boolean isThinkingExpanded = false;
 
+    /** Map of tool names to their inline indicator element IDs (CLD-1704) */
+    private java.util.Map<String, String> toolIndicatorIds = new java.util.HashMap<>();
+
+    /** Counter for generating unique tool IDs */
+    private int toolIdCounter = 0;
+
     // ============= State Management (CLD-1704) =============
 
     /**
@@ -357,7 +363,14 @@ public class AIChatStreamingMessage extends Div {
             ".ai-thinking-dots span:nth-child(1) { animation-delay: 0s; }" +
             ".ai-thinking-dots span:nth-child(2) { animation-delay: 0.2s; }" +
             ".ai-thinking-dots span:nth-child(3) { animation-delay: 0.4s; }" +
-            "@keyframes thinking-pulse { 0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); } 40% { opacity: 1; transform: scale(1); } }";
+            "@keyframes thinking-pulse { 0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); } 40% { opacity: 1; transform: scale(1); } }" +
+
+            // Inline tool indicators (CLD-1704)
+            ".tool-indicator { display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px; margin: 4px 0; border-radius: 4px; font-size: 11px; transition: all 0.2s; }" +
+            ".tool-indicator.running { background: #F0F7FF; color: #1976D2; }" +
+            ".tool-indicator.complete { background: #F0F9F4; color: #4CAF50; }" +
+            ".tool-indicator.error { background: #FFEBEE; color: #F44336; }" +
+            ".tool-indicator .tool-spinner { display: inline-block; }";
 
         org.zkoss.zk.ui.util.Clients.evalJavaScript(
             "(function() {" +
@@ -586,7 +599,10 @@ public class AIChatStreamingMessage extends Div {
     }
 
     /**
-     * Show tool execution start in the timeline.
+     * Show tool execution start inline in the content stream (CLD-1704).
+     *
+     * <p>Injects a tool indicator directly into the streaming content
+     * with a unique ID for later updates.
      *
      * @param toolName name of the tool being executed
      * @param arguments tool arguments (JSON string)
@@ -597,18 +613,89 @@ public class AIChatStreamingMessage extends Div {
             transitionTo(StreamingState.TOOL_EXECUTING);
         }
 
-        toolsSection.setVisible(true);
+        // Generate unique ID for this tool indicator
+        String toolId = componentId + "_tool_" + (toolIdCounter++);
+        toolIndicatorIds.put(toolName, toolId);
+
+        // Get user-friendly display name
+        String displayName = getToolDisplayName(toolName);
+
+        // Inject inline tool indicator HTML with line breaks for separate line display
+        String toolHtml = String.format(
+            "<br/><div id='%s' class='tool-indicator running' style='display: inline-flex; align-items: center; gap: 6px; " +
+            "padding: 4px 8px; margin: 4px 0; background: #F0F7FF; border-radius: 4px; font-size: 11px; color: #1976D2;'>" +
+            "<span class='tool-spinner' style='animation: tool-spin 1s linear infinite;'>&#8635;</span>" +
+            "<span>%s</span>" +
+            "</div><br/>",
+            toolId, displayName
+        );
+
+        if (markdownRenderer != null) {
+            markdownRenderer.appendRawHtml(toolHtml);
+            // Force immediate rendering so tool indicator appears right away
+            updateContentDisplay();
+        }
+
+        // Keep old implementation for backward compatibility (but hidden)
+        toolsSection.setVisible(false);
         toolEvents.add(new ToolEvent(toolName, ToolStatus.RUNNING, arguments, null));
-        updateToolsDisplay();
     }
 
     /**
-     * Update tool to complete status in the timeline.
+     * Update tool to complete status inline (CLD-1704).
+     *
+     * <p>Updates the inline indicator via JavaScript to show completion.
      *
      * @param toolName name of the tool that completed
      * @param result result of the tool execution
      */
     public void showToolComplete(String toolName, String result) {
+        // Update inline indicator via JavaScript with retry logic
+        String toolId = toolIndicatorIds.get(toolName);
+        if (toolId != null) {
+            String displayName = getToolDisplayName(toolName);
+
+            // Create "complete" state HTML
+            String completeHtml = String.format(
+                "<div id='%s' class='tool-indicator complete' style='display: inline-flex; align-items: center; gap: 6px; " +
+                "padding: 4px 8px; margin: 4px 0; background: #F0F9F4; border-radius: 4px; font-size: 11px; color: #4CAF50;'>" +
+                "<span style='color: #4CAF50;'>&#10003;</span>" +
+                "<span>%s</span>" +
+                "</div>",
+                toolId, displayName
+            );
+
+            // Update the HTML in the renderer's buffer (prevents re-rendering from reverting state)
+            if (markdownRenderer != null) {
+                markdownRenderer.replaceHtmlById(toolId, completeHtml);
+            }
+
+            // Also update via JavaScript for immediate visual feedback
+            String script = String.format(
+                "(function() { " +
+                "  var tryUpdate = function(attempt) { " +
+                "    var el = document.getElementById('%s'); " +
+                "    if (el) { " +
+                "      el.className = 'tool-indicator complete'; " +
+                "      el.style.background = '#F0F9F4'; " +
+                "      el.style.color = '#4CAF50'; " +
+                "      el.innerHTML = '<span style=\"color: #4CAF50;\">&#10003;</span> <span>%s</span>'; " +
+                "      console.log('Tool indicator updated: %s'); " +
+                "    } else if (attempt < 10) { " +
+                "      console.log('Tool indicator not found (attempt ' + attempt + '), retrying...'); " +
+                "      setTimeout(function() { tryUpdate(attempt + 1); }, 50); " +
+                "    } else { " +
+                "      console.error('Tool indicator not found after 10 attempts: %s'); " +
+                "    } " +
+                "  }; " +
+                "  tryUpdate(1); " +
+                "})();",
+                toolId, displayName, toolId, toolId
+            );
+            org.zkoss.zk.ui.util.Clients.evalJavaScript(script);
+        }
+
+        // Update old implementation for backward compatibility
         for (ToolEvent event : toolEvents) {
             if (event.getName().equals(toolName) && event.getStatus() == ToolStatus.RUNNING) {
                 event.setStatus(ToolStatus.COMPLETE);
@@ -616,16 +703,63 @@ public class AIChatStreamingMessage extends Div {
                 break;
             }
         }
-        updateToolsDisplay();
     }
 
     /**
-     * Show tool error in the timeline.
+     * Show tool error inline (CLD-1704).
+     *
+     * <p>Updates the inline indicator via JavaScript to show error.
      *
      * @param toolName name of the tool that failed
      * @param error error message
      */
     public void showToolError(String toolName, String error) {
+        // Update inline indicator via JavaScript with retry logic
+        String toolId = toolIndicatorIds.get(toolName);
+        if (toolId != null) {
+            String displayName = getToolDisplayName(toolName);
+
+            // Create "error" state HTML
+            String errorHtml = String.format(
+                "<div id='%s' class='tool-indicator error' style='display: inline-flex; align-items: center; gap: 6px; " +
+                "padding: 4px 8px; margin: 4px 0; background: #FFEBEE; border-radius: 4px; font-size: 11px; color: #F44336;'>" +
+                "<span style='color: #F44336;'>&#10007;</span>" +
+                "<span>%s failed</span>" +
+                "</div>",
+                toolId, displayName
+            );
+
+            // Update the HTML in the renderer's buffer (prevents re-rendering from reverting state)
+            if (markdownRenderer != null) {
+                markdownRenderer.replaceHtmlById(toolId, errorHtml);
+            }
+
+            // Also update via JavaScript for immediate visual feedback
+            String script = String.format(
+                "(function() { " +
+                "  var tryUpdate = function(attempt) { " +
+                "    var el = document.getElementById('%s'); " +
+                "    if (el) { " +
+                "      el.className = 'tool-indicator error'; " +
+                "      el.style.background = '#FFEBEE'; " +
+                "      el.style.color = '#F44336'; " +
+                "      el.innerHTML = '<span style=\"color: #F44336;\">&#10007;</span> <span>%s failed</span>'; " +
+                "      console.log('Tool indicator updated (error): %s'); " +
+                "    } else if (attempt < 10) { " +
+                "      console.log('Tool indicator not found (attempt ' + attempt + '), retrying...'); " +
+                "      setTimeout(function() { tryUpdate(attempt + 1); }, 50); " +
+                "    } else { " +
+                "      console.error('Tool indicator not found after 10 attempts: %s'); " +
+                "    } " +
+                "  }; " +
+                "  tryUpdate(1); " +
+                "})();",
+                toolId, displayName, toolId, toolId
+            );
+            org.zkoss.zk.ui.util.Clients.evalJavaScript(script);
+        }
+
+        // Update old implementation for backward compatibility
         for (ToolEvent event : toolEvents) {
             if (event.getName().equals(toolName) && event.getStatus() == ToolStatus.RUNNING) {
                 event.setStatus(ToolStatus.ERROR);
@@ -633,7 +767,6 @@ public class AIChatStreamingMessage extends Div {
                 break;
             }
         }
-        updateToolsDisplay();
     }
 
     /**
