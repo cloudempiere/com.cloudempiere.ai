@@ -50,6 +50,7 @@ import org.zkoss.zul.Div;
 import org.zkoss.zul.Hlayout;
 import org.zkoss.zul.Html;
 import org.zkoss.zul.Textbox;
+import org.zkoss.zul.Timer;
 import org.zkoss.zul.Vlayout;
 
 import com.cloudempiere.ai.context.AIContextProviderRegistry;
@@ -241,6 +242,12 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 	/** Event listener for tab selection events (self-managing context) */
 	private EventListener<Event> tabSelectionListener = null;
 
+	/** Timer for polling tab changes (fallback when events don't fire) */
+	private Timer contextPollTimer = null;
+
+	/** Last known tab identification (for detecting changes in polling) */
+	private String lastKnownTabId = null;
+
 	/** Context indicator (if context enabled) */
 	private Html contextIndicator;
 
@@ -317,7 +324,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 			showUnavailableState(AIUIService.getDisplayStatus());
 			return;
 		}
-		log.fine("AIChatWidget initialized with LangChain4j service");
+		log.log(Level.FINE, "AIChatWidget initialized with LangChain4j service");
 
 		// Context indicator (if enabled)
 		if (contextEnabled) {
@@ -450,7 +457,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 			if (chat == null) {
 				// No chat exists yet - this is OK!
 				// Widget will create one on first message submission
-				log.fine("No existing chat found for user " + Env.getAD_User_ID(sessionCtx) +
+				log.log(Level.FINE, "No existing chat found for user " + Env.getAD_User_ID(sessionCtx) +
 					" in client " + Env.getAD_Client_ID(sessionCtx) + " - will create on first message");
 
 				// Set default access (will be re-evaluated when chat is created)
@@ -464,7 +471,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 
 			// Check user's access level (ADR-036)
 			currentAccess = getChatAccessServiceStub().getAccess(sessionCtx, chat);
-			log.fine("Chat access level: " + currentAccess + " for chat " + chat.get_ID());
+			log.log(Level.FINE, "Chat access level: " + currentAccess + " for chat " + chat.get_ID());
 
 			// If no access, show error and disable input
 			if (currentAccess == ChatAccess.NONE) {
@@ -631,22 +638,27 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 		sb.append(isAI ? "ai-message-body" : "user-message-body");
 		sb.append("'>");
 
-		String messageText = entry.getCharacterData();
-		if (messageText != null) {
-			if (isAI) {
-				// ADR-054: Detect if content is HTML (new format) or Markdown (legacy format)
-				boolean isHtml = messageText.trim().startsWith("<div") ||
-				                 messageText.contains("<p>") ||
-				                 messageText.contains("<table>") ||
-				                 messageText.contains("<pre>");
+		// Declare messageText for use in copy button (user messages only)
+		String messageText = null;
 
-				if (isHtml) {
-					// NEW messages (ADR-054): Use stored HTML directly - zero rendering overhead!
-					log.fine("[RELOAD-DISPLAY] Using pre-rendered HTML | length: " + messageText.length());
-					sb.append(messageText);
-				} else {
-					// OLD messages (legacy): Fallback to rendering markdown
-					log.fine("[RELOAD-RENDER] Rendering legacy markdown | length: " + messageText.length());
+		if (isAI) {
+			// AI messages: Try ContentHTML first, fallback to CharacterData
+			MAIChatEntry aiEntry = (entry instanceof MAIChatEntry) ?
+				(MAIChatEntry) entry :
+				new MAIChatEntry(entry.getCtx(), entry.getCM_ChatEntry_ID(), entry.get_TrxName());
+
+			String contentHtml = aiEntry.getContentHTML();
+
+			if (contentHtml != null && !contentHtml.trim().isEmpty()) {
+				// NEW format: Use pre-rendered HTML from ContentHTML field
+				log.log(Level.FINE, "[RELOAD-DISPLAY] Using ContentHTML | length: " + contentHtml.length());
+				sb.append(contentHtml);
+			} else {
+				// LEGACY format: Render markdown from CharacterData
+				String messageMarkdown = entry.getCharacterData();
+				if (messageMarkdown != null && !messageMarkdown.trim().isEmpty()) {
+					log.log(Level.FINE, "[RELOAD-RENDER] Rendering legacy markdown from CharacterData | length: " +
+							messageMarkdown.length());
 
 					// Get user's locale for number formatting in tables
 					java.util.Locale userLocale = org.compiere.util.Env.getLanguage(sessionCtx).getLocale();
@@ -655,12 +667,15 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 					// This handles: whitespace normalization, function call removal, table rendering,
 					// zoom link processing, and markdown parsing
 					String renderedHtml = com.cloudempiere.ai.util.AIMessageRenderer.render(
-						messageText, sessionCtx, getUuid(), userLocale);
+						messageMarkdown, sessionCtx, getUuid(), userLocale);
 
 					sb.append(renderedHtml);
 				}
-			} else {
-				// User messages: Escape HTML for security, but preserve line breaks
+			}
+		} else {
+			// User messages: Escape HTML for security, but preserve line breaks
+			messageText = entry.getCharacterData();
+			if (messageText != null) {
 				String escaped = Util.maskHTML(messageText, true);
 				// Convert newlines to <br> tags
 				escaped = escaped.replace("\n", "<br/>");
@@ -913,7 +928,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 					int recordId = jsonData.optInt("recordId", 0);
 
 					if (tableId > 0 && recordId > 0) {
-						log.fine("Zoom request (legacy format): tableId=" + tableId + ", recordId=" + recordId);
+						log.log(Level.FINE, "Zoom request (legacy format): tableId=" + tableId + ", recordId=" + recordId);
 						AEnv.zoom(tableId, recordId);
 						return;
 					}
@@ -1022,7 +1037,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 		// LAZY CHAT CREATION: Create chat on first message if it doesn't exist
 		if (chat == null) {
 			try {
-				log.fine("Creating chat on first message for user " + Env.getAD_User_ID(sessionCtx) +
+				log.log(Level.FINE, "Creating chat on first message for user " + Env.getAD_User_ID(sessionCtx) +
 					" in client " + Env.getAD_Client_ID(sessionCtx));
 
 				// Create chat in current tenant
@@ -1041,7 +1056,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 				currentAccess = ChatAccess.OWNER; // Creator is always owner
 				updateAccessIndicator();
 
-				log.fine("Chat created successfully: ID=" + chat.get_ID() +
+				log.log(Level.FINE, "Chat created successfully: ID=" + chat.get_ID() +
 					", Client=" + chat.getAD_Client_ID());
 			} catch (Exception e) {
 				log.log(Level.SEVERE, "Failed to create chat on first message", e);
@@ -1187,7 +1202,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 				}
 			}
 		} catch (Exception ex) {
-			log.fine("Could not get AI user name: " + ex.getMessage());
+			log.log(Level.FINE, "Could not get AI user name: " + ex.getMessage());
 		}
 		final String agentName = aiUserName;
 
@@ -1341,10 +1356,14 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 							throw ex;
 						}
 
-						// Save AI response to database (ADR-054: Store HTML instead of markdown)
-						String response = streamingMsg.getRenderedHtml();
-						log.warning("[UI-STREAM] Saving rendered HTML, length=" + response.length());
-						MAIChatEntry aiEntry = MAIChatEntry.createAIResponse(aiChat, response);
+						// Save AI response to database
+						// Store markdown in CharacterData (for AI API)
+						// Store HTML in ContentHTML (for UI rendering)
+						String markdown = streamingMsg.getContent();
+						String html = streamingMsg.getRenderedHtml();
+						log.warning("[UI-STREAM] Saving MD (len=" + markdown.length() +
+								") and HTML (len=" + html.length() + ")");
+						MAIChatEntry aiEntry = MAIChatEntry.createAIResponse(aiChat, markdown, html);
 						if (threadRootIdSnapshot > 0) {
 							aiEntry.setCM_ChatEntryParent_ID(threadRootIdSnapshot);
 						}
@@ -1396,8 +1415,12 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 						streamingMsg.appendChunk(errorDisplay);
 						streamingMsg.complete();
 
-						// Persist partial response with error to database (ADR-054: Use rendered HTML)
-						persistErrorResponse(streamingMsg.getRenderedHtml(), errorResult.getUserMessage(), threadRootIdSnapshot);
+						// Persist partial response with error to database
+						persistErrorResponse(
+								streamingMsg.getContent(),
+								streamingMsg.getRenderedHtml(),
+								errorResult.getUserMessage(),
+								threadRootIdSnapshot);
 
 						// Re-enable input and show send button
 						streamingInProgress = false;
@@ -1753,7 +1776,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 		// Focus input for new message
 		inputBox.focus();
 
-		log.fine("New thread created (currentThreadRootId reset to 0)");
+		log.log(Level.FINE, "New thread created (currentThreadRootId reset to 0)");
 	}
 
 	/**
@@ -1776,7 +1799,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 			} else {
 				// Positive value = thread ID in current chat
 				currentThreadRootId = selectedValue;
-				log.fine("Switched to thread: " + currentThreadRootId);
+				log.log(Level.FINE, "Switched to thread: " + currentThreadRootId);
 
 				// Re-render messages for this thread
 				renderMessages();
@@ -1816,7 +1839,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 			loadThreadList();
 			renderMessages();
 
-			log.fine("Switched to shared chat: " + chatId + " with access: " + sharedAccess);
+			log.log(Level.FINE, "Switched to shared chat: " + chatId + " with access: " + sharedAccess);
 		} catch (Exception e) {
 			log.log(Level.WARNING, "Failed to switch to shared chat", e);
 			Clients.showNotification(
@@ -1974,6 +1997,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 	public void setWindowContext(int windowNo, int tabNo) {
 		this.currentWindowNo = windowNo;
 		this.currentTabNo = tabNo;
+		this.lastKnownTabId = windowNo + ":" + tabNo; // Update for polling mechanism
 		refreshContext();
 	}
 
@@ -1988,6 +2012,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 	 * Refresh context from current window/tab settings
 	 */
 	private void refreshContext() {
+
 		if (!contextEnabled || currentWindowNo < 0) {
 			currentContext = null;
 			updateContextIndicator(false);
@@ -2008,19 +2033,15 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 				if (currentContext != null && currentContext.optBoolean("success", false)) {
 					redactSensitiveData(currentContext, provider.getSensitiveFields());
 					updateContextIndicator(true);
-					log.fine("Context refreshed for window " + currentWindowNo + ", tab " + currentTabNo);
 				} else {
 					currentContext = null;
 					updateContextIndicator(false);
-					log.warning("Context extraction failed or returned unsuccessful result");
 				}
 			} else {
-				log.warning("Window context provider not found");
 				currentContext = null;
 				updateContextIndicator(false);
 			}
 		} catch (Exception e) {
-			log.log(Level.WARNING, "Failed to extract window context", e);
 			currentContext = null;
 			updateContextIndicator(false);
 		}
@@ -2049,7 +2070,6 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 			return;
 		}
 
-		log.info("AI Chat Widget: Initializing context tracking");
 
 		// Defer component discovery to allow component tree to fully stabilize
 		// This prevents timing issues where WindowContainer may not be attached yet
@@ -2067,10 +2087,12 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 	 */
 	private void setupContextTracking() {
 		try {
+
 			// Discover window container in component tree
 			windowContainer = discoverWindowContainer();
 
 			if (windowContainer != null) {
+
 				// Create tab selection listener
 				tabSelectionListener = new EventListener<Event>() {
 					@Override
@@ -2080,19 +2102,132 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 				};
 
 				// Subscribe to tab selection events
-				// WindowContainer fires ON_SELECT when user switches tabs
+				// ON_SELECT: Fires when user switches between existing tabs
 				windowContainer.addEventListener(Events.ON_SELECT, tabSelectionListener);
-				log.info("AI Chat Widget: Context tracking active (listening to tab changes)");
+
+				// ON_FOCUS: Fires when a tab receives focus (catches new tab opens)
+				windowContainer.addEventListener(Events.ON_FOCUS, tabSelectionListener);
+
+				// Set up polling timer as fallback (catches tab opens that don't fire events)
+				// Poll every 2 seconds to check if active tab has changed
+				contextPollTimer = new Timer();
+				contextPollTimer.setDelay(2000); // 2 seconds
+				contextPollTimer.setRepeats(true);
+				contextPollTimer.addEventListener(Events.ON_TIMER, new EventListener<Event>() {
+					@Override
+					public void onEvent(Event event) throws Exception {
+						checkForTabChange();
+					}
+				});
+				contextPollTimer.setPage(this.getPage());
+				contextPollTimer.start();
 
 				// Initialize context with currently active tab (if any)
 				detectAndSetActiveTab();
 			} else {
-				log.warning("AI Chat Widget: Could not find WindowContainer - context tracking disabled. " +
-					"This may occur if iDempiere UI structure has changed. See docs/STANDALONE_AI_CHAT_WIDGET.md");
 			}
 		} catch (Exception e) {
-			log.log(Level.WARNING, "AI Chat Widget: Failed to set up context tracking - " +
-				"see docs/STANDALONE_AI_CHAT_WIDGET.md for troubleshooting", e);
+		}
+	}
+
+	/**
+	 * Check if active tab has changed (polling fallback).
+	 * <p>This method is called periodically by the timer to detect tab changes
+	 * that might not trigger events (e.g., tabs opened from menu/zoom/drill).
+	 */
+	private void checkForTabChange() {
+		try {
+			if (windowContainer == null) {
+				return;
+			}
+
+			// Get current tab identification
+			String currentTabId = getCurrentTabIdentification();
+
+			// Check if tab changed
+			if (currentTabId != null && !currentTabId.equals(lastKnownTabId)) {
+				lastKnownTabId = currentTabId;
+				detectAndSetActiveTab();
+			}
+		} catch (Exception e) {
+			// Suppress errors in polling to avoid log spam
+			if (log.isLoggable(Level.FINE)) {
+			}
+		}
+	}
+
+	/**
+	 * Get the currently selected Tabpanel from the window container.
+	 * <p>Window container is expected to be a Tabbox or contain a Tabbox.
+	 *
+	 * @param container window container component
+	 * @return selected Tabpanel, or null if not found
+	 */
+	private Component getSelectedTabpanel(Component container) {
+		try {
+			// If container is a Tabbox directly
+			if (container instanceof org.zkoss.zul.Tabbox) {
+				org.zkoss.zul.Tabbox tabbox = (org.zkoss.zul.Tabbox) container;
+				org.zkoss.zul.Tab selectedTab = (org.zkoss.zul.Tab) tabbox.getSelectedTab();
+				if (selectedTab != null) {
+					return selectedTab.getLinkedPanel();
+				}
+			}
+
+			// Otherwise search for Tabs component and get its Tabbox
+			Component tabsComponent = findTabsComponent(container);
+			if (tabsComponent instanceof org.zkoss.zul.Tabs) {
+				org.zkoss.zul.Tabs tabs = (org.zkoss.zul.Tabs) tabsComponent;
+				org.zkoss.zul.Tabbox tabbox = tabs.getTabbox();
+				if (tabbox != null) {
+					org.zkoss.zul.Tab selectedTab = (org.zkoss.zul.Tab) tabbox.getSelectedTab();
+					if (selectedTab != null) {
+						return selectedTab.getLinkedPanel();
+					}
+				}
+			}
+		} catch (Exception e) {
+			// Suppress errors in polling to avoid log spam
+		}
+		return null;
+	}
+
+	/**
+	 * Get a unique identification string for the current active tab.
+	 * <p>Used by polling mechanism to detect tab changes.
+	 *
+	 * @return tab identification string (windowNo:tabNo), or null if not available
+	 */
+	private String getCurrentTabIdentification() {
+		try {
+			// Find selected Tabpanel
+			Component selectedPanel = getSelectedTabpanel(windowContainer);
+			if (selectedPanel == null) {
+				return null;
+			}
+
+			// Find ADTabpanel inside
+			Component adTabpanel = findADTabpanel(selectedPanel);
+			if (adTabpanel == null) {
+				return null;
+			}
+
+			// Extract GridTab
+			java.lang.reflect.Method getGridTab = adTabpanel.getClass().getMethod("getGridTab");
+			Object gridTab = getGridTab.invoke(adTabpanel);
+			if (gridTab == null) {
+				return null;
+			}
+
+			// Get windowNo and tabNo
+			java.lang.reflect.Method getWindowNo = gridTab.getClass().getMethod("getWindowNo");
+			int windowNo = (Integer) getWindowNo.invoke(gridTab);
+			java.lang.reflect.Method getTabNo = gridTab.getClass().getMethod("getTabNo");
+			int tabNo = (Integer) getTabNo.invoke(gridTab);
+
+			return windowNo + ":" + tabNo;
+		} catch (Exception e) {
+			return null;
 		}
 	}
 
@@ -2104,18 +2239,32 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 	public void onPageDetached(org.zkoss.zk.ui.Page page) {
 		super.onPageDetached(page);
 
-		// Clean up event listener
+		// Clean up event listeners
 		if (windowContainer != null && tabSelectionListener != null) {
 			try {
 				windowContainer.removeEventListener(Events.ON_SELECT, tabSelectionListener);
-				log.info("AI Chat Widget: Context tracking cleaned up");
+				windowContainer.removeEventListener(Events.ON_FOCUS, tabSelectionListener);
+				log.info("AI Chat Widget: Context tracking event listeners cleaned up");
 			} catch (Exception e) {
-				log.log(Level.WARNING, "AI Chat Widget: Error cleaning up tab selection listener", e);
+				log.log(Level.WARNING, "AI Chat Widget: Error cleaning up tab selection listeners", e);
+			}
+		}
+
+		// Clean up polling timer
+		if (contextPollTimer != null) {
+			try {
+				contextPollTimer.stop();
+				contextPollTimer.detach();
+				log.info("AI Chat Widget: Context polling timer cleaned up");
+			} catch (Exception e) {
+				log.log(Level.WARNING, "AI Chat Widget: Error cleaning up polling timer", e);
 			}
 		}
 
 		windowContainer = null;
 		tabSelectionListener = null;
+		contextPollTimer = null;
+		lastKnownTabId = null;
 	}
 
 	/**
@@ -2128,6 +2277,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 	 */
 	private Component discoverWindowContainer() {
 		try {
+
 			// Walk up to Desktop
 			Component current = this;
 			org.zkoss.zk.ui.Desktop desktop = null;
@@ -2141,7 +2291,6 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 			}
 
 			if (desktop == null) {
-				log.fine("Could not find Desktop from AI Chat Widget");
 				return null;
 			}
 
@@ -2150,23 +2299,23 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 				desktop.getFirstPage(), org.zkoss.zul.Borderlayout.class, "layout");
 
 			if (borderLayout == null) {
-				log.fine("Could not find Borderlayout in Desktop");
 				return null;
 			}
 
 			// Get Center region (where WindowContainer lives)
 			org.zkoss.zul.Center center = borderLayout.getCenter();
 			if (center == null) {
-				log.fine("Could not find Center region in Borderlayout");
 				return null;
 			}
 
 			// Find WindowContainer (TabbedDocumentPane) in Center
 			// Look for component with specific class name or ID pattern
-			return findWindowContainerInCenter(center);
+			Component result = findWindowContainerInCenter(center);
+			if (result == null) {
+			}
+			return result;
 
 		} catch (Exception e) {
-			log.log(Level.FINE, "Error discovering WindowContainer", e);
 			return null;
 		}
 	}
@@ -2179,11 +2328,16 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 	 * @return WindowContainer component, or null if not found
 	 */
 	private Component findWindowContainerInCenter(org.zkoss.zul.Center center) {
-		// Try to find by class name (TabbedDocumentPane)
+		// Try to find by class name (TabbedDocumentPane, WindowContainer, or Tabbox)
 		for (Component child : center.getChildren()) {
 			String className = child.getClass().getSimpleName();
-			if (className.contains("TabbedDocument") || className.contains("WindowContainer")) {
-				log.fine("Found WindowContainer: " + className);
+
+			// Check for various WindowContainer implementations:
+			// - TabbedDocumentPane (old iDempiere UI)
+			// - Tabbox (current iDempiere UI structure)
+			if (className.contains("TabbedDocument") ||
+			    className.contains("WindowContainer") ||
+			    className.equals("Tabbox")) {
 				return child;
 			}
 
@@ -2205,7 +2359,11 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 	private Component findWindowContainerRecursive(Component parent) {
 		for (Component child : parent.getChildren()) {
 			String className = child.getClass().getSimpleName();
-			if (className.contains("TabbedDocument") || className.contains("WindowContainer")) {
+
+			// Check for various WindowContainer implementations
+			if (className.contains("TabbedDocument") ||
+			    className.contains("WindowContainer") ||
+			    className.equals("Tabbox")) {
 				return child;
 			}
 
@@ -2276,7 +2434,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 		try {
 			// Event target should be a Tab or Tabpanel
 			Component target = event.getTarget();
-			log.fine("Tab selection event received from: " + target.getClass().getSimpleName());
+			log.log(Level.FINE, "Tab selection event received from: " + target.getClass().getSimpleName());
 
 			// Extract windowNo and tabNo from the selected tab
 			// The exact approach depends on iDempiere's window implementation
@@ -2306,43 +2464,95 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 	 */
 	private void extractContextFromTabpanel(org.zkoss.zul.Tabpanel panel) {
 		try {
-			// Look for ADWindow or ADWindowContent in the panel
-			for (Component child : panel.getChildren()) {
-				// Try to find ADWindow using class name check
-				String className = child.getClass().getName();
 
-				if (className.contains("ADWindow")) {
-					// Use reflection to get windowNo
-					try {
-						java.lang.reflect.Method getWindowNo = child.getClass().getMethod("getWindowNo");
-						int windowNo = (Integer) getWindowNo.invoke(child);
+			// Search for ADTabpanel which contains GridTab
+			Component adTabpanel = findADWindowRecursive(panel, 0);
 
-						// Try to get active tab number
-						java.lang.reflect.Method getADWindowContent = child.getClass().getMethod("getADWindowContent");
-						Object content = getADWindowContent.invoke(child);
+			if (adTabpanel != null) {
 
-						if (content != null) {
-							java.lang.reflect.Method getActiveGridTab = content.getClass().getMethod("getActiveGridTab");
-							Object gridTab = getActiveGridTab.invoke(content);
+				try {
+					// ADTabpanel has getGridTab() method which returns GridTab
+					// GridTab has getWindowNo() and getTabNo() methods
+					java.lang.reflect.Method getGridTab = adTabpanel.getClass().getMethod("getGridTab");
+					Object gridTab = getGridTab.invoke(adTabpanel);
 
-							if (gridTab != null) {
-								java.lang.reflect.Method getTabNo = gridTab.getClass().getMethod("getTabNo");
-								int tabNo = (Integer) getTabNo.invoke(gridTab);
+					if (gridTab != null) {
 
-								// Update context!
-								log.info("AI Chat Widget: Context updated (windowNo=" + windowNo + ", tabNo=" + tabNo + ")");
-								setWindowContext(windowNo, tabNo);
-								return;
-							}
-						}
-					} catch (Exception e) {
-						log.log(Level.FINE, "Reflection error while extracting context", e);
+						// Get windowNo from GridTab
+						java.lang.reflect.Method getWindowNo = gridTab.getClass().getMethod("getWindowNo");
+						int windowNo = (Integer) getWindowNo.invoke(gridTab);
+
+						// Get tabNo from GridTab
+						java.lang.reflect.Method getTabNo = gridTab.getClass().getMethod("getTabNo");
+						int tabNo = (Integer) getTabNo.invoke(gridTab);
+
+						// Update context!
+						setWindowContext(windowNo, tabNo);
+						return;
+					} else {
 					}
+				} catch (Exception e) {
 				}
+			} else {
 			}
 		} catch (Exception e) {
-			log.log(Level.FINE, "Error extracting context from tabpanel", e);
 		}
+	}
+
+	/**
+	 * Recursively search for ADTabpanel component in component tree.
+	 * ADTabpanel contains GridTab which has windowNo and tabNo.
+	 *
+	 * @param parent Parent component to search
+	 * @param depth Current recursion depth (for logging)
+	 * @return ADTabpanel component, or null if not found
+	 */
+	/**
+	 * Find ADTabpanel component in component tree.
+	 * <p>Wrapper method for clarity - delegates to findADWindowRecursive.
+	 *
+	 * @param parent parent component to search from
+	 * @return ADTabpanel component, or null if not found
+	 */
+	private Component findADTabpanel(Component parent) {
+		return findADWindowRecursive(parent, 0);
+	}
+
+	/**
+	 * Recursively search for ADTabpanel component.
+	 * <p>ADTabpanel has the GridTab object which contains windowNo and tabNo.
+	 *
+	 * @param parent parent component
+	 * @param depth current recursion depth
+	 * @return ADTabpanel component, or null if not found
+	 */
+	private Component findADWindowRecursive(Component parent, int depth) {
+		if (depth > 5) {
+			// Reduced max depth since ADTabpanel is usually not very deep
+			return null;
+		}
+
+		for (Component child : parent.getChildren()) {
+			String className = child.getClass().getName();
+			String indent = "  ".repeat(depth);
+
+			// Only log at shallow depths to reduce noise
+			if (depth <= 3) {
+			}
+
+			// Look for ADTabpanel which has GridTab
+			if (className.equals("org.adempiere.webui.adwindow.ADTabpanel")) {
+				return child;
+			}
+
+			// Recursively search children
+			Component found = findADWindowRecursive(child, depth + 1);
+			if (found != null) {
+				return found;
+			}
+		}
+
+		return null;
 	}
 
 	/**
@@ -2351,6 +2561,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 	 */
 	private void detectAndSetActiveTab() {
 		try {
+
 			if (windowContainer == null) {
 				return;
 			}
@@ -2358,6 +2569,11 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 			// Find the selected/active tab in window container
 			// Look for Tabs component and get selected tab
 			Component tabsComponent = findTabsComponent(windowContainer);
+
+			if (tabsComponent == null) {
+				return;
+			}
+
 
 			if (tabsComponent instanceof org.zkoss.zul.Tabs) {
 				org.zkoss.zul.Tabs tabs = (org.zkoss.zul.Tabs) tabsComponent;
@@ -2370,12 +2586,15 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 						org.zkoss.zul.Tabpanel panel = selectedTab.getLinkedPanel();
 						if (panel != null) {
 							extractContextFromTabpanel(panel);
+						} else {
 						}
+					} else {
 					}
+				} else {
 				}
+			} else {
 			}
 		} catch (Exception e) {
-			log.log(Level.FINE, "Error detecting active tab on init", e);
 		}
 	}
 
@@ -2514,7 +2733,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 			inputBox.setPlaceholder(Msg.getMsg(sessionCtx, "AIChatPlaceholder"));
 		}
 
-		log.fine("Access indicator updated: " + currentAccess + ", canWrite=" + canWrite);
+		log.log(Level.FINE, "Access indicator updated: " + currentAccess + ", canWrite=" + canWrite);
 	}
 
 	/**
@@ -2868,9 +3087,9 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 		}
 
 		try {
-			// ADR-054: Get the partial HTML content if available, otherwise render markdown
-			String partialHtml = currentStreamingMessage.getRenderedHtml();
+			// Get partial markdown and HTML content
 			String partialMarkdown = currentStreamingMessage.getContent();
+			String partialHtml = currentStreamingMessage.getRenderedHtml();
 
 			if (partialMarkdown == null) {
 				partialMarkdown = "";
@@ -2885,9 +3104,15 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 				}
 			}
 
-			// Append cancellation notice as HTML
+			// Append cancellation notice
+			String cancelNoticeMarkdown = "\n\n*AI request cancelled*";
 			String cancelNoticeHtml = "<p><em>AI request cancelled</em></p>";
-			String persistedContent = (partialHtml == null || partialHtml.isEmpty())
+
+			String persistedMarkdown = partialMarkdown.isEmpty()
+				? cancelNoticeMarkdown
+				: partialMarkdown + cancelNoticeMarkdown;
+
+			String persistedHtml = (partialHtml == null || partialHtml.isEmpty())
 				? cancelNoticeHtml
 				: partialHtml + cancelNoticeHtml;
 
@@ -2896,8 +3121,9 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 				(MAIChat) chat :
 				new MAIChat(sessionCtx, chat.getCM_Chat_ID(), null);
 
-			// Create AI chat entry with partial response (HTML format)
-			MAIChatEntry aiEntry = MAIChatEntry.createAIResponse(aiChat, persistedContent);
+			// Create AI chat entry with partial response (both markdown and HTML)
+			MAIChatEntry aiEntry = MAIChatEntry.createAIResponse(
+					aiChat, persistedMarkdown, persistedHtml);
 
 			// Set thread parent if applicable
 			if (currentThreadRootId > 0) {
@@ -2907,7 +3133,8 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 			aiEntry.saveEx();
 			aiChat.saveEx();
 
-			log.info("[CANCEL] Partial HTML response persisted, length=" + persistedContent.length());
+			log.info("[CANCEL] Partial response persisted, MD len=" + persistedMarkdown.length() +
+					", HTML len=" + persistedHtml.length());
 		} catch (Exception e) {
 			log.log(Level.WARNING, "Failed to persist cancelled response", e);
 		}
@@ -2924,7 +3151,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 	private void safeSchedule(Desktop desktop, java.util.function.Consumer<Event> handler, Event event) {
 		// Check desktop validity before scheduling
 		if (desktop == null || !desktop.isAlive()) {
-			log.fine("Desktop no longer available, cannot schedule UI update: " + event.getName());
+			log.log(Level.FINE, "Desktop no longer available, cannot schedule UI update: " + event.getName());
 			return;
 		}
 
@@ -2934,7 +3161,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 				if (desktop.isAlive()) {
 					handler.accept(e);
 				} else {
-					log.fine("Desktop became unavailable before event executed: " + event.getName());
+					log.log(Level.FINE, "Desktop became unavailable before event executed: " + event.getName());
 				}
 			}, event);
 		} catch (Exception e) {
@@ -2947,19 +3174,27 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 	 * Persist the error AI response to the database.
 	 * Called when streaming encounters an error.
 	 *
-	 * <p><b>ADR-054:</b> Expects rendered HTML content instead of markdown.
+	 * <p>Stores both markdown (in CharacterData) and HTML (in ContentHTML).
 	 *
+	 * @param partialMarkdown the partial markdown content received before the error
 	 * @param partialHtml the partial HTML content (already rendered) received before the error
 	 * @param errorMessage the user-friendly error message (for logging only)
 	 * @param threadRootId the thread root ID for proper threading
 	 */
-	private void persistErrorResponse(String partialHtml, String errorMessage, int threadRootId) {
+	private void persistErrorResponse(String partialMarkdown, String partialHtml,
+			String errorMessage, int threadRootId) {
 		try {
-			// ADR-054: partialHtml is already rendered HTML (error is already appended)
-			String content = partialHtml;
-			if (content == null || content.isEmpty()) {
+			String markdown = partialMarkdown;
+			String html = partialHtml;
+
+			if (markdown == null || markdown.isEmpty()) {
+				// Fallback: use error message as markdown
+				markdown = "**Error:** " + errorMessage;
+			}
+
+			if (html == null || html.isEmpty()) {
 				// Fallback: render error message as HTML if no content
-				content = "<p><strong>Error:</strong> " + Util.maskHTML(errorMessage, true) + "</p>";
+				html = "<p><strong>Error:</strong> " + Util.maskHTML(errorMessage, true) + "</p>";
 			}
 
 			// Get MAIChat instance
@@ -2967,8 +3202,8 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 				(MAIChat) chat :
 				new MAIChat(sessionCtx, chat.getCM_Chat_ID(), null);
 
-			// Create AI chat entry with error response (HTML format)
-			MAIChatEntry aiEntry = MAIChatEntry.createAIResponse(aiChat, content);
+			// Create AI chat entry with error response (both markdown and HTML)
+			MAIChatEntry aiEntry = MAIChatEntry.createAIResponse(aiChat, markdown, html);
 
 			// Set thread parent if applicable
 			if (threadRootId > 0) {
@@ -2978,7 +3213,8 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 			aiEntry.saveEx();
 			aiChat.saveEx();
 
-			log.info("[ERROR] Error HTML response persisted, length=" + content.length());
+			log.info("[ERROR] Error response persisted, MD len=" + markdown.length() +
+					", HTML len=" + html.length());
 		} catch (Exception e) {
 			log.log(Level.WARNING, "Failed to persist error response", e);
 		}
