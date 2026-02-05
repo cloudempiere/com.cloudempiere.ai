@@ -50,6 +50,7 @@ import org.zkoss.zul.Div;
 import org.zkoss.zul.Hlayout;
 import org.zkoss.zul.Html;
 import org.zkoss.zul.Textbox;
+import org.zkoss.zul.Timer;
 import org.zkoss.zul.Vlayout;
 
 import com.cloudempiere.ai.context.AIContextProviderRegistry;
@@ -240,6 +241,12 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 
 	/** Event listener for tab selection events (self-managing context) */
 	private EventListener<Event> tabSelectionListener = null;
+
+	/** Timer for polling tab changes (fallback when events don't fire) */
+	private Timer contextPollTimer = null;
+
+	/** Last known tab identification (for detecting changes in polling) */
+	private String lastKnownTabId = null;
 
 	/** Context indicator (if context enabled) */
 	private Html contextIndicator;
@@ -1991,6 +1998,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 		log.warning("[CONTEXT-DEBUG] setWindowContext() called with windowNo=" + windowNo + ", tabNo=" + tabNo);
 		this.currentWindowNo = windowNo;
 		this.currentTabNo = tabNo;
+		this.lastKnownTabId = windowNo + ":" + tabNo; // Update for polling mechanism
 		refreshContext();
 	}
 
@@ -2104,15 +2112,34 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 				tabSelectionListener = new EventListener<Event>() {
 					@Override
 					public void onEvent(Event event) throws Exception {
-						log.warning("[CONTEXT-DEBUG] Tab selection event RECEIVED from: " + event.getTarget().getClass().getName());
+						log.warning("[CONTEXT-DEBUG] Tab event RECEIVED: " + event.getName() + " from: " + event.getTarget().getClass().getName());
 						handleTabSelectionEvent(event);
 					}
 				};
 
 				// Subscribe to tab selection events
-				// WindowContainer fires ON_SELECT when user switches tabs
+				// ON_SELECT: Fires when user switches between existing tabs
 				windowContainer.addEventListener(Events.ON_SELECT, tabSelectionListener);
 				log.warning("[CONTEXT-DEBUG] Event listener REGISTERED for ON_SELECT on WindowContainer");
+
+				// ON_FOCUS: Fires when a tab receives focus (catches new tab opens)
+				windowContainer.addEventListener(Events.ON_FOCUS, tabSelectionListener);
+				log.warning("[CONTEXT-DEBUG] Event listener REGISTERED for ON_FOCUS on WindowContainer");
+
+				// Set up polling timer as fallback (catches tab opens that don't fire events)
+				// Poll every 2 seconds to check if active tab has changed
+				contextPollTimer = new Timer();
+				contextPollTimer.setDelay(2000); // 2 seconds
+				contextPollTimer.setRepeats(true);
+				contextPollTimer.addEventListener(Events.ON_TIMER, new EventListener<Event>() {
+					@Override
+					public void onEvent(Event event) throws Exception {
+						checkForTabChange();
+					}
+				});
+				contextPollTimer.setPage(this.getPage());
+				contextPollTimer.start();
+				log.warning("[CONTEXT-DEBUG] Context polling timer STARTED (2s interval)");
 
 				// Initialize context with currently active tab (if any)
 				log.warning("[CONTEXT-DEBUG] Calling detectAndSetActiveTab()...");
@@ -2127,6 +2154,109 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 	}
 
 	/**
+	 * Check if active tab has changed (polling fallback).
+	 * <p>This method is called periodically by the timer to detect tab changes
+	 * that might not trigger events (e.g., tabs opened from menu/zoom/drill).
+	 */
+	private void checkForTabChange() {
+		try {
+			if (windowContainer == null) {
+				return;
+			}
+
+			// Get current tab identification
+			String currentTabId = getCurrentTabIdentification();
+
+			// Check if tab changed
+			if (currentTabId != null && !currentTabId.equals(lastKnownTabId)) {
+				log.warning("[CONTEXT-DEBUG] Tab change DETECTED by polling: " + lastKnownTabId + " -> " + currentTabId);
+				lastKnownTabId = currentTabId;
+				detectAndSetActiveTab();
+			}
+		} catch (Exception e) {
+			// Suppress errors in polling to avoid log spam
+			if (log.isLoggable(Level.FINE)) {
+				log.fine("[CONTEXT-DEBUG] Error checking for tab change: " + e.getMessage());
+			}
+		}
+	}
+
+	/**
+	 * Get the currently selected Tabpanel from the window container.
+	 * <p>Window container is expected to be a Tabbox or contain a Tabbox.
+	 *
+	 * @param container window container component
+	 * @return selected Tabpanel, or null if not found
+	 */
+	private Component getSelectedTabpanel(Component container) {
+		try {
+			// If container is a Tabbox directly
+			if (container instanceof org.zkoss.zul.Tabbox) {
+				org.zkoss.zul.Tabbox tabbox = (org.zkoss.zul.Tabbox) container;
+				org.zkoss.zul.Tab selectedTab = (org.zkoss.zul.Tab) tabbox.getSelectedTab();
+				if (selectedTab != null) {
+					return selectedTab.getLinkedPanel();
+				}
+			}
+
+			// Otherwise search for Tabs component and get its Tabbox
+			Component tabsComponent = findTabsComponent(container);
+			if (tabsComponent instanceof org.zkoss.zul.Tabs) {
+				org.zkoss.zul.Tabs tabs = (org.zkoss.zul.Tabs) tabsComponent;
+				org.zkoss.zul.Tabbox tabbox = tabs.getTabbox();
+				if (tabbox != null) {
+					org.zkoss.zul.Tab selectedTab = (org.zkoss.zul.Tab) tabbox.getSelectedTab();
+					if (selectedTab != null) {
+						return selectedTab.getLinkedPanel();
+					}
+				}
+			}
+		} catch (Exception e) {
+			// Suppress errors in polling to avoid log spam
+		}
+		return null;
+	}
+
+	/**
+	 * Get a unique identification string for the current active tab.
+	 * <p>Used by polling mechanism to detect tab changes.
+	 *
+	 * @return tab identification string (windowNo:tabNo), or null if not available
+	 */
+	private String getCurrentTabIdentification() {
+		try {
+			// Find selected Tabpanel
+			Component selectedPanel = getSelectedTabpanel(windowContainer);
+			if (selectedPanel == null) {
+				return null;
+			}
+
+			// Find ADTabpanel inside
+			Component adTabpanel = findADTabpanel(selectedPanel);
+			if (adTabpanel == null) {
+				return null;
+			}
+
+			// Extract GridTab
+			java.lang.reflect.Method getGridTab = adTabpanel.getClass().getMethod("getGridTab");
+			Object gridTab = getGridTab.invoke(adTabpanel);
+			if (gridTab == null) {
+				return null;
+			}
+
+			// Get windowNo and tabNo
+			java.lang.reflect.Method getWindowNo = gridTab.getClass().getMethod("getWindowNo");
+			int windowNo = (Integer) getWindowNo.invoke(gridTab);
+			java.lang.reflect.Method getTabNo = gridTab.getClass().getMethod("getTabNo");
+			int tabNo = (Integer) getTabNo.invoke(gridTab);
+
+			return windowNo + ":" + tabNo;
+		} catch (Exception e) {
+			return null;
+		}
+	}
+
+	/**
 	 * ZK Lifecycle hook - called when component is detached from a page.
 	 * <p>Cleans up event listeners to prevent memory leaks.
 	 */
@@ -2134,18 +2264,32 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 	public void onPageDetached(org.zkoss.zk.ui.Page page) {
 		super.onPageDetached(page);
 
-		// Clean up event listener
+		// Clean up event listeners
 		if (windowContainer != null && tabSelectionListener != null) {
 			try {
 				windowContainer.removeEventListener(Events.ON_SELECT, tabSelectionListener);
-				log.info("AI Chat Widget: Context tracking cleaned up");
+				windowContainer.removeEventListener(Events.ON_FOCUS, tabSelectionListener);
+				log.info("AI Chat Widget: Context tracking event listeners cleaned up");
 			} catch (Exception e) {
-				log.log(Level.WARNING, "AI Chat Widget: Error cleaning up tab selection listener", e);
+				log.log(Level.WARNING, "AI Chat Widget: Error cleaning up tab selection listeners", e);
+			}
+		}
+
+		// Clean up polling timer
+		if (contextPollTimer != null) {
+			try {
+				contextPollTimer.stop();
+				contextPollTimer.detach();
+				log.info("AI Chat Widget: Context polling timer cleaned up");
+			} catch (Exception e) {
+				log.log(Level.WARNING, "AI Chat Widget: Error cleaning up polling timer", e);
 			}
 		}
 
 		windowContainer = null;
 		tabSelectionListener = null;
+		contextPollTimer = null;
+		lastKnownTabId = null;
 	}
 
 	/**
@@ -2360,55 +2504,105 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 		try {
 			log.warning("[CONTEXT-DEBUG] extractContextFromTabpanel() started");
 
-			// Look for ADWindow or ADWindowContent in the panel
-			int childCount = 0;
-			for (Component child : panel.getChildren()) {
-				// Try to find ADWindow using class name check
-				String className = child.getClass().getName();
-				log.warning("[CONTEXT-DEBUG] Tabpanel child #" + childCount++ + ": " + className);
+			// Search for ADTabpanel which contains GridTab
+			Component adTabpanel = findADWindowRecursive(panel, 0);
 
-				if (className.contains("ADWindow")) {
-					log.warning("[CONTEXT-DEBUG] Found ADWindow component, attempting reflection...");
-					// Use reflection to get windowNo
-					try {
-						java.lang.reflect.Method getWindowNo = child.getClass().getMethod("getWindowNo");
-						int windowNo = (Integer) getWindowNo.invoke(child);
+			if (adTabpanel != null) {
+				log.warning("[CONTEXT-DEBUG] Found ADTabpanel: " + adTabpanel.getClass().getName());
+
+				try {
+					// ADTabpanel has getGridTab() method which returns GridTab
+					// GridTab has getWindowNo() and getTabNo() methods
+					java.lang.reflect.Method getGridTab = adTabpanel.getClass().getMethod("getGridTab");
+					Object gridTab = getGridTab.invoke(adTabpanel);
+
+					if (gridTab != null) {
+						log.warning("[CONTEXT-DEBUG] GridTab retrieved: " + gridTab.getClass().getName());
+
+						// Get windowNo from GridTab
+						java.lang.reflect.Method getWindowNo = gridTab.getClass().getMethod("getWindowNo");
+						int windowNo = (Integer) getWindowNo.invoke(gridTab);
 						log.warning("[CONTEXT-DEBUG] Successfully extracted windowNo=" + windowNo);
 
-						// Try to get active tab number
-						java.lang.reflect.Method getADWindowContent = child.getClass().getMethod("getADWindowContent");
-						Object content = getADWindowContent.invoke(child);
+						// Get tabNo from GridTab
+						java.lang.reflect.Method getTabNo = gridTab.getClass().getMethod("getTabNo");
+						int tabNo = (Integer) getTabNo.invoke(gridTab);
+						log.warning("[CONTEXT-DEBUG] Successfully extracted tabNo=" + tabNo);
 
-						if (content != null) {
-							log.warning("[CONTEXT-DEBUG] ADWindowContent retrieved: " + content.getClass().getName());
-							java.lang.reflect.Method getActiveGridTab = content.getClass().getMethod("getActiveGridTab");
-							Object gridTab = getActiveGridTab.invoke(content);
-
-							if (gridTab != null) {
-								log.warning("[CONTEXT-DEBUG] ActiveGridTab retrieved: " + gridTab.getClass().getName());
-								java.lang.reflect.Method getTabNo = gridTab.getClass().getMethod("getTabNo");
-								int tabNo = (Integer) getTabNo.invoke(gridTab);
-								log.warning("[CONTEXT-DEBUG] Successfully extracted tabNo=" + tabNo);
-
-								// Update context!
-								log.warning("[CONTEXT-DEBUG] ✅ Context updated (windowNo=" + windowNo + ", tabNo=" + tabNo + ")");
-								setWindowContext(windowNo, tabNo);
-								return;
-							} else {
-								log.warning("[CONTEXT-DEBUG] gridTab is null");
-							}
-						} else {
-							log.warning("[CONTEXT-DEBUG] ADWindowContent is null");
-						}
-					} catch (Exception e) {
-						log.log(Level.WARNING, "[CONTEXT-DEBUG] Reflection error while extracting context", e);
+						// Update context!
+						log.warning("[CONTEXT-DEBUG] ✅ Context updated (windowNo=" + windowNo + ", tabNo=" + tabNo + ")");
+						setWindowContext(windowNo, tabNo);
+						return;
+					} else {
+						log.warning("[CONTEXT-DEBUG] GridTab is null");
 					}
+				} catch (Exception e) {
+					log.log(Level.WARNING, "[CONTEXT-DEBUG] Reflection error: " + e.getClass().getSimpleName() + ": " + e.getMessage(), e);
 				}
+			} else {
+				log.warning("[CONTEXT-DEBUG] No ADTabpanel found in tabpanel tree");
 			}
-			log.warning("[CONTEXT-DEBUG] No ADWindow component found in tabpanel (checked " + childCount + " children)");
 		} catch (Exception e) {
 			log.log(Level.WARNING, "[CONTEXT-DEBUG] Error extracting context from tabpanel", e);
 		}
+	}
+
+	/**
+	 * Recursively search for ADTabpanel component in component tree.
+	 * ADTabpanel contains GridTab which has windowNo and tabNo.
+	 *
+	 * @param parent Parent component to search
+	 * @param depth Current recursion depth (for logging)
+	 * @return ADTabpanel component, or null if not found
+	 */
+	/**
+	 * Find ADTabpanel component in component tree.
+	 * <p>Wrapper method for clarity - delegates to findADWindowRecursive.
+	 *
+	 * @param parent parent component to search from
+	 * @return ADTabpanel component, or null if not found
+	 */
+	private Component findADTabpanel(Component parent) {
+		return findADWindowRecursive(parent, 0);
+	}
+
+	/**
+	 * Recursively search for ADTabpanel component.
+	 * <p>ADTabpanel has the GridTab object which contains windowNo and tabNo.
+	 *
+	 * @param parent parent component
+	 * @param depth current recursion depth
+	 * @return ADTabpanel component, or null if not found
+	 */
+	private Component findADWindowRecursive(Component parent, int depth) {
+		if (depth > 5) {
+			// Reduced max depth since ADTabpanel is usually not very deep
+			return null;
+		}
+
+		for (Component child : parent.getChildren()) {
+			String className = child.getClass().getName();
+			String indent = "  ".repeat(depth);
+
+			// Only log at shallow depths to reduce noise
+			if (depth <= 3) {
+				log.warning("[CONTEXT-DEBUG] " + indent + "├─ " + className);
+			}
+
+			// Look for ADTabpanel which has GridTab
+			if (className.equals("org.adempiere.webui.adwindow.ADTabpanel")) {
+				log.warning("[CONTEXT-DEBUG] " + indent + "└─ ✅ Found ADTabpanel!");
+				return child;
+			}
+
+			// Recursively search children
+			Component found = findADWindowRecursive(child, depth + 1);
+			if (found != null) {
+				return found;
+			}
+		}
+
+		return null;
 	}
 
 	/**

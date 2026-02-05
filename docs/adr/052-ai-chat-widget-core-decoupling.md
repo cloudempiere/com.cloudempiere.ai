@@ -231,43 +231,64 @@ eventManager.register("AI_CHAT_WIDGET_REQUEST", this::provideWidget);
 
 ### Self-Managing Context Tracking
 
-To achieve 100% plugin autonomy, the AI Chat Widget now self-manages window/tab context tracking using **ZK lifecycle hooks** and **event subscription** without requiring any core code changes.
+To achieve 100% plugin autonomy, the AI Chat Widget now self-manages window/tab context tracking using **ZK lifecycle hooks**, **multi-event subscription**, and **timer-based polling** without requiring any core code changes.
 
 **Architecture:**
 
 ```
 AIChatWidget (Plugin)
     ↓ onPageAttached() lifecycle hook
-Discover Desktop → Borderlayout → Center → WindowContainer
-    ↓ Subscribe to Events.ON_SELECT
-WindowContainer fires event on tab change
-    ↓ Event listener
-Extract windowNo/tabNo via reflection
+Discover Desktop → Borderlayout → Center → WindowContainer (Tabbox)
+    ↓ Triple-layered detection
+    ├─► Events.ON_SELECT   (tab switches)
+    ├─► Events.ON_FOCUS    (new tab opens receiving focus)
+    └─► Timer polling      (2s fallback - catches all tab changes)
+         ↓ Any detection method
+Extract windowNo/tabNo from ADTabpanel → GridTab
     ↓ Automatic update
 setWindowContext(windowNo, tabNo)
 ```
 
 **Key Implementation Points:**
 
-1. **Component Discovery** (AIChatWidget.java:1947-1990)
-   - Widget walks component tree to find `WindowContainer` (TabbedDocumentPane)
+1. **Component Discovery** (AIChatWidget.java:~2250-2290)
+   - Widget walks component tree to find `WindowContainer` (Tabbox)
+   - Recognizes `Tabbox` component (not just TabbedDocumentPane)
    - Uses `Executions.schedule()` to defer discovery until component tree stabilizes
    - Defensive programming with null checks and exception handling
 
-2. **Event Subscription** (AIChatWidget.java:1882-1915)
-   - Subscribes to `Events.ON_SELECT` on WindowContainer
-   - Listener fires automatically when user switches tabs
-   - No core intervention required
+2. **Triple-Layered Event Detection** (AIChatWidget.java:~2100-2150)
+   - **Layer 1 - ON_SELECT:** Subscribes to `Events.ON_SELECT` on WindowContainer
+     - Fires when user explicitly switches between existing tabs
+   - **Layer 2 - ON_FOCUS:** Subscribes to `Events.ON_FOCUS` on WindowContainer
+     - Fires when a new tab receives focus (catches tab opens from menu/zoom/drill)
+   - **Layer 3 - Timer Polling:** 2-second interval polling as reliable fallback
+     - Detects tab changes that don't fire events (some menu actions, processes, etc.)
+     - Compares current tab identification (windowNo:tabNo) with last known state
+     - Minimal overhead with suppressed error logging to avoid log spam
+   - **Result:** Context updates reliably regardless of how tabs are opened in iDempiere
 
-3. **Context Extraction** (AIChatWidget.java:2125-2164)
-   - Uses reflection to extract `windowNo` and `tabNo` from ADWindow components
+3. **Context Extraction** (AIChatWidget.java:~2490-2570)
+   - Finds selected Tabpanel from Tabbox using `getSelectedTab().getLinkedPanel()`
+   - Searches for `ADTabpanel` component (not ADWindow/ADWindowContent)
+   - Uses reflection to extract GridTab: `ADTabpanel.getGridTab()`
+   - Gets windowNo/tabNo from GridTab: `gridTab.getWindowNo()`, `gridTab.getTabNo()`
    - No compile-time dependency on core classes
    - Graceful degradation if methods not found
 
-4. **Lifecycle Management** (AIChatWidget.java:1853-1937)
+4. **Lifecycle Management** (AIChatWidget.java:~2225-2260)
    - `onPageAttached()`: Sets up tracking on widget initialization
-   - `onPageDetached()`: Removes event listeners to prevent memory leaks
+   - `onPageDetached()`: Removes event listeners AND stops timer to prevent memory leaks
    - Automatic cleanup on widget removal
+   - Timer detached properly on component removal
+
+**Robustness Features:**
+
+- **Multiple detection strategies** ensure context updates even when events don't fire
+- **Polling fallback** catches edge cases (menu opens, zoom actions, drill assistants)
+- **Tab identification tracking** (windowNo:tabNo string) prevents redundant updates
+- **Error suppression in polling** prevents log spam from transient failures
+- **Graceful degradation** when ADTabpanel not found or reflection fails
 
 **Code Removed from Core:**
 
