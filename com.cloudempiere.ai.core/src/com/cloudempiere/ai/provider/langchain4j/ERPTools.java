@@ -1,6 +1,7 @@
 package com.cloudempiere.ai.provider.langchain4j;
 
 import java.util.Properties;
+import java.util.logging.Level;
 
 import org.compiere.model.MTable;
 import org.compiere.model.PO;
@@ -460,7 +461,7 @@ public class ERPTools {
      * Fire tool start callback if callback is configured.
      */
     private void fireToolStart(String toolName, String args) {
-        log.info("[TOOL] Starting: " + toolName);
+        log.log(Level.FINE, "[TOOL] Starting: " + toolName);
         if (callback != null) {
             try {
                 callback.onToolStart(toolName, args);
@@ -474,7 +475,7 @@ public class ERPTools {
      * Fire tool complete callback if callback is configured.
      */
     private void fireToolComplete(String toolName, String result) {
-        log.info("[TOOL] Completed: " + toolName);
+        log.log(Level.FINE, "[TOOL] Completed: " + toolName);
         if (callback != null) {
             try {
                 callback.onToolComplete(toolName, result);

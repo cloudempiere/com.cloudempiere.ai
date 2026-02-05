@@ -324,7 +324,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 			showUnavailableState(AIUIService.getDisplayStatus());
 			return;
 		}
-		log.fine("AIChatWidget initialized with LangChain4j service");
+		log.log(Level.FINE, "AIChatWidget initialized with LangChain4j service");
 
 		// Context indicator (if enabled)
 		if (contextEnabled) {
@@ -457,7 +457,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 			if (chat == null) {
 				// No chat exists yet - this is OK!
 				// Widget will create one on first message submission
-				log.fine("No existing chat found for user " + Env.getAD_User_ID(sessionCtx) +
+				log.log(Level.FINE, "No existing chat found for user " + Env.getAD_User_ID(sessionCtx) +
 					" in client " + Env.getAD_Client_ID(sessionCtx) + " - will create on first message");
 
 				// Set default access (will be re-evaluated when chat is created)
@@ -471,7 +471,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 
 			// Check user's access level (ADR-036)
 			currentAccess = getChatAccessServiceStub().getAccess(sessionCtx, chat);
-			log.fine("Chat access level: " + currentAccess + " for chat " + chat.get_ID());
+			log.log(Level.FINE, "Chat access level: " + currentAccess + " for chat " + chat.get_ID());
 
 			// If no access, show error and disable input
 			if (currentAccess == ChatAccess.NONE) {
@@ -651,13 +651,13 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 
 			if (contentHtml != null && !contentHtml.trim().isEmpty()) {
 				// NEW format: Use pre-rendered HTML from ContentHTML field
-				log.fine("[RELOAD-DISPLAY] Using ContentHTML | length: " + contentHtml.length());
+				log.log(Level.FINE, "[RELOAD-DISPLAY] Using ContentHTML | length: " + contentHtml.length());
 				sb.append(contentHtml);
 			} else {
 				// LEGACY format: Render markdown from CharacterData
 				String messageMarkdown = entry.getCharacterData();
 				if (messageMarkdown != null && !messageMarkdown.trim().isEmpty()) {
-					log.fine("[RELOAD-RENDER] Rendering legacy markdown from CharacterData | length: " +
+					log.log(Level.FINE, "[RELOAD-RENDER] Rendering legacy markdown from CharacterData | length: " +
 							messageMarkdown.length());
 
 					// Get user's locale for number formatting in tables
@@ -928,7 +928,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 					int recordId = jsonData.optInt("recordId", 0);
 
 					if (tableId > 0 && recordId > 0) {
-						log.fine("Zoom request (legacy format): tableId=" + tableId + ", recordId=" + recordId);
+						log.log(Level.FINE, "Zoom request (legacy format): tableId=" + tableId + ", recordId=" + recordId);
 						AEnv.zoom(tableId, recordId);
 						return;
 					}
@@ -1037,7 +1037,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 		// LAZY CHAT CREATION: Create chat on first message if it doesn't exist
 		if (chat == null) {
 			try {
-				log.fine("Creating chat on first message for user " + Env.getAD_User_ID(sessionCtx) +
+				log.log(Level.FINE, "Creating chat on first message for user " + Env.getAD_User_ID(sessionCtx) +
 					" in client " + Env.getAD_Client_ID(sessionCtx));
 
 				// Create chat in current tenant
@@ -1056,7 +1056,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 				currentAccess = ChatAccess.OWNER; // Creator is always owner
 				updateAccessIndicator();
 
-				log.fine("Chat created successfully: ID=" + chat.get_ID() +
+				log.log(Level.FINE, "Chat created successfully: ID=" + chat.get_ID() +
 					", Client=" + chat.getAD_Client_ID());
 			} catch (Exception e) {
 				log.log(Level.SEVERE, "Failed to create chat on first message", e);
@@ -1202,7 +1202,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 				}
 			}
 		} catch (Exception ex) {
-			log.fine("Could not get AI user name: " + ex.getMessage());
+			log.log(Level.FINE, "Could not get AI user name: " + ex.getMessage());
 		}
 		final String agentName = aiUserName;
 
@@ -1776,7 +1776,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 		// Focus input for new message
 		inputBox.focus();
 
-		log.fine("New thread created (currentThreadRootId reset to 0)");
+		log.log(Level.FINE, "New thread created (currentThreadRootId reset to 0)");
 	}
 
 	/**
@@ -1799,7 +1799,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 			} else {
 				// Positive value = thread ID in current chat
 				currentThreadRootId = selectedValue;
-				log.fine("Switched to thread: " + currentThreadRootId);
+				log.log(Level.FINE, "Switched to thread: " + currentThreadRootId);
 
 				// Re-render messages for this thread
 				renderMessages();
@@ -1839,7 +1839,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 			loadThreadList();
 			renderMessages();
 
-			log.fine("Switched to shared chat: " + chatId + " with access: " + sharedAccess);
+			log.log(Level.FINE, "Switched to shared chat: " + chatId + " with access: " + sharedAccess);
 		} catch (Exception e) {
 			log.log(Level.WARNING, "Failed to switch to shared chat", e);
 			Clients.showNotification(
@@ -1995,7 +1995,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 	 * @param tabNo tab number
 	 */
 	public void setWindowContext(int windowNo, int tabNo) {
-		log.warning("[CONTEXT-DEBUG] setWindowContext() called with windowNo=" + windowNo + ", tabNo=" + tabNo);
+		log.log(Level.FINE, "[CONTEXT-DEBUG] setWindowContext() called with windowNo=" + windowNo + ", tabNo=" + tabNo);
 		this.currentWindowNo = windowNo;
 		this.currentTabNo = tabNo;
 		this.lastKnownTabId = windowNo + ":" + tabNo; // Update for polling mechanism
@@ -2013,11 +2013,11 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 	 * Refresh context from current window/tab settings
 	 */
 	private void refreshContext() {
-		log.warning("[CONTEXT-DEBUG] refreshContext() called - contextEnabled=" + contextEnabled +
+		log.log(Level.FINE, "[CONTEXT-DEBUG] refreshContext() called - contextEnabled=" + contextEnabled +
 			", currentWindowNo=" + currentWindowNo + ", currentTabNo=" + currentTabNo);
 
 		if (!contextEnabled || currentWindowNo < 0) {
-			log.warning("[CONTEXT-DEBUG] Context refresh SKIPPED (contextEnabled=" + contextEnabled +
+			log.log(Level.FINE, "[CONTEXT-DEBUG] Context refresh SKIPPED (contextEnabled=" + contextEnabled +
 				", currentWindowNo=" + currentWindowNo + ")");
 			currentContext = null;
 			updateContextIndicator(false);
@@ -2029,7 +2029,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 			IAIContextProvider provider = registry.getProvider("WINDOW");
 
 			if (provider != null) {
-				log.warning("[CONTEXT-DEBUG] WindowContextProvider found, extracting context...");
+				log.log(Level.FINE, "[CONTEXT-DEBUG] WindowContextProvider found, extracting context...");
 				ContextParameters params = ContextParameters.forWindow(currentWindowNo, currentTabNo)
 					.put("includeChildTabs", true);
 
@@ -2039,15 +2039,15 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 				if (currentContext != null && currentContext.optBoolean("success", false)) {
 					redactSensitiveData(currentContext, provider.getSensitiveFields());
 					updateContextIndicator(true);
-					log.warning("[CONTEXT-DEBUG] ✅ Context refreshed successfully for window " +
+					log.log(Level.FINE, "[CONTEXT-DEBUG] ✅ Context refreshed successfully for window " +
 						currentWindowNo + ", tab " + currentTabNo);
 				} else {
 					currentContext = null;
 					updateContextIndicator(false);
-					log.warning("[CONTEXT-DEBUG] ❌ Context extraction failed or returned unsuccessful result");
+					log.log(Level.FINE, "[CONTEXT-DEBUG] ❌ Context extraction failed or returned unsuccessful result");
 				}
 			} else {
-				log.warning("[CONTEXT-DEBUG] ❌ Window context provider not found in registry");
+				log.log(Level.FINE, "[CONTEXT-DEBUG] ❌ Window context provider not found in registry");
 				currentContext = null;
 				updateContextIndicator(false);
 			}
@@ -2078,11 +2078,11 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 
 		// Only set up context tracking if enabled
 		if (!contextEnabled) {
-			log.warning("[CONTEXT-DEBUG] AI Chat Widget: Context tracking DISABLED (contextEnabled=false)");
+			log.log(Level.FINE, "[CONTEXT-DEBUG] AI Chat Widget: Context tracking DISABLED (contextEnabled=false)");
 			return;
 		}
 
-		log.warning("[CONTEXT-DEBUG] AI Chat Widget: Initializing context tracking (contextEnabled=true)");
+		log.log(Level.FINE, "[CONTEXT-DEBUG] AI Chat Widget: Initializing context tracking (contextEnabled=true)");
 
 		// Defer component discovery to allow component tree to fully stabilize
 		// This prevents timing issues where WindowContainer may not be attached yet
@@ -2100,19 +2100,19 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 	 */
 	private void setupContextTracking() {
 		try {
-			log.warning("[CONTEXT-DEBUG] setupContextTracking() started");
+			log.log(Level.FINE, "[CONTEXT-DEBUG] setupContextTracking() started");
 
 			// Discover window container in component tree
 			windowContainer = discoverWindowContainer();
 
 			if (windowContainer != null) {
-				log.warning("[CONTEXT-DEBUG] WindowContainer FOUND: " + windowContainer.getClass().getName());
+				log.log(Level.FINE, "[CONTEXT-DEBUG] WindowContainer FOUND: " + windowContainer.getClass().getName());
 
 				// Create tab selection listener
 				tabSelectionListener = new EventListener<Event>() {
 					@Override
 					public void onEvent(Event event) throws Exception {
-						log.warning("[CONTEXT-DEBUG] Tab event RECEIVED: " + event.getName() + " from: " + event.getTarget().getClass().getName());
+						log.log(Level.FINE, "[CONTEXT-DEBUG] Tab event RECEIVED: " + event.getName() + " from: " + event.getTarget().getClass().getName());
 						handleTabSelectionEvent(event);
 					}
 				};
@@ -2120,11 +2120,11 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 				// Subscribe to tab selection events
 				// ON_SELECT: Fires when user switches between existing tabs
 				windowContainer.addEventListener(Events.ON_SELECT, tabSelectionListener);
-				log.warning("[CONTEXT-DEBUG] Event listener REGISTERED for ON_SELECT on WindowContainer");
+				log.log(Level.FINE, "[CONTEXT-DEBUG] Event listener REGISTERED for ON_SELECT on WindowContainer");
 
 				// ON_FOCUS: Fires when a tab receives focus (catches new tab opens)
 				windowContainer.addEventListener(Events.ON_FOCUS, tabSelectionListener);
-				log.warning("[CONTEXT-DEBUG] Event listener REGISTERED for ON_FOCUS on WindowContainer");
+				log.log(Level.FINE, "[CONTEXT-DEBUG] Event listener REGISTERED for ON_FOCUS on WindowContainer");
 
 				// Set up polling timer as fallback (catches tab opens that don't fire events)
 				// Poll every 2 seconds to check if active tab has changed
@@ -2139,13 +2139,13 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 				});
 				contextPollTimer.setPage(this.getPage());
 				contextPollTimer.start();
-				log.warning("[CONTEXT-DEBUG] Context polling timer STARTED (2s interval)");
+				log.log(Level.FINE, "[CONTEXT-DEBUG] Context polling timer STARTED (2s interval)");
 
 				// Initialize context with currently active tab (if any)
-				log.warning("[CONTEXT-DEBUG] Calling detectAndSetActiveTab()...");
+				log.log(Level.FINE, "[CONTEXT-DEBUG] Calling detectAndSetActiveTab()...");
 				detectAndSetActiveTab();
 			} else {
-				log.warning("[CONTEXT-DEBUG] WindowContainer NOT FOUND - context tracking disabled. " +
+				log.log(Level.FINE, "[CONTEXT-DEBUG] WindowContainer NOT FOUND - context tracking disabled. " +
 					"This may occur if iDempiere UI structure has changed. See docs/STANDALONE_AI_CHAT_WIDGET.md");
 			}
 		} catch (Exception e) {
@@ -2169,14 +2169,14 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 
 			// Check if tab changed
 			if (currentTabId != null && !currentTabId.equals(lastKnownTabId)) {
-				log.warning("[CONTEXT-DEBUG] Tab change DETECTED by polling: " + lastKnownTabId + " -> " + currentTabId);
+				log.log(Level.FINE, "[CONTEXT-DEBUG] Tab change DETECTED by polling: " + lastKnownTabId + " -> " + currentTabId);
 				lastKnownTabId = currentTabId;
 				detectAndSetActiveTab();
 			}
 		} catch (Exception e) {
 			// Suppress errors in polling to avoid log spam
 			if (log.isLoggable(Level.FINE)) {
-				log.fine("[CONTEXT-DEBUG] Error checking for tab change: " + e.getMessage());
+				log.log(Level.FINE, "[CONTEXT-DEBUG] Error checking for tab change: " + e.getMessage());
 			}
 		}
 	}
@@ -2302,7 +2302,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 	 */
 	private Component discoverWindowContainer() {
 		try {
-			log.warning("[CONTEXT-DEBUG] discoverWindowContainer() started");
+			log.log(Level.FINE, "[CONTEXT-DEBUG] discoverWindowContainer() started");
 
 			// Walk up to Desktop
 			Component current = this;
@@ -2317,34 +2317,34 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 			}
 
 			if (desktop == null) {
-				log.warning("[CONTEXT-DEBUG] Could not find Desktop from AI Chat Widget");
+				log.log(Level.FINE, "[CONTEXT-DEBUG] Could not find Desktop from AI Chat Widget");
 				return null;
 			}
-			log.warning("[CONTEXT-DEBUG] Desktop found: " + desktop.getId());
+			log.log(Level.FINE, "[CONTEXT-DEBUG] Desktop found: " + desktop.getId());
 
 			// Find Borderlayout (main desktop layout)
 			org.zkoss.zul.Borderlayout borderLayout = findComponentByType(
 				desktop.getFirstPage(), org.zkoss.zul.Borderlayout.class, "layout");
 
 			if (borderLayout == null) {
-				log.warning("[CONTEXT-DEBUG] Could not find Borderlayout in Desktop");
+				log.log(Level.FINE, "[CONTEXT-DEBUG] Could not find Borderlayout in Desktop");
 				return null;
 			}
-			log.warning("[CONTEXT-DEBUG] Borderlayout found: " + borderLayout.getClass().getName());
+			log.log(Level.FINE, "[CONTEXT-DEBUG] Borderlayout found: " + borderLayout.getClass().getName());
 
 			// Get Center region (where WindowContainer lives)
 			org.zkoss.zul.Center center = borderLayout.getCenter();
 			if (center == null) {
-				log.warning("[CONTEXT-DEBUG] Could not find Center region in Borderlayout");
+				log.log(Level.FINE, "[CONTEXT-DEBUG] Could not find Center region in Borderlayout");
 				return null;
 			}
-			log.warning("[CONTEXT-DEBUG] Center region found, searching for WindowContainer...");
+			log.log(Level.FINE, "[CONTEXT-DEBUG] Center region found, searching for WindowContainer...");
 
 			// Find WindowContainer (TabbedDocumentPane) in Center
 			// Look for component with specific class name or ID pattern
 			Component result = findWindowContainerInCenter(center);
 			if (result == null) {
-				log.warning("[CONTEXT-DEBUG] WindowContainer NOT found in Center region");
+				log.log(Level.FINE, "[CONTEXT-DEBUG] WindowContainer NOT found in Center region");
 			}
 			return result;
 
@@ -2363,10 +2363,10 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 	 */
 	private Component findWindowContainerInCenter(org.zkoss.zul.Center center) {
 		// Try to find by class name (TabbedDocumentPane, WindowContainer, or Tabbox)
-		log.warning("[CONTEXT-DEBUG] Searching Center children for WindowContainer...");
+		log.log(Level.FINE, "[CONTEXT-DEBUG] Searching Center children for WindowContainer...");
 		for (Component child : center.getChildren()) {
 			String className = child.getClass().getSimpleName();
-			log.warning("[CONTEXT-DEBUG] Center child: " + className);
+			log.log(Level.FINE, "[CONTEXT-DEBUG] Center child: " + className);
 
 			// Check for various WindowContainer implementations:
 			// - TabbedDocumentPane (old iDempiere UI)
@@ -2374,7 +2374,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 			if (className.contains("TabbedDocument") ||
 			    className.contains("WindowContainer") ||
 			    className.equals("Tabbox")) {
-				log.warning("[CONTEXT-DEBUG] Found WindowContainer: " + className);
+				log.log(Level.FINE, "[CONTEXT-DEBUG] Found WindowContainer: " + className);
 				return child;
 			}
 
@@ -2384,7 +2384,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 				return found;
 			}
 		}
-		log.warning("[CONTEXT-DEBUG] No WindowContainer found in Center children");
+		log.log(Level.FINE, "[CONTEXT-DEBUG] No WindowContainer found in Center children");
 		return null;
 	}
 
@@ -2472,7 +2472,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 		try {
 			// Event target should be a Tab or Tabpanel
 			Component target = event.getTarget();
-			log.fine("Tab selection event received from: " + target.getClass().getSimpleName());
+			log.log(Level.FINE, "Tab selection event received from: " + target.getClass().getSimpleName());
 
 			// Extract windowNo and tabNo from the selected tab
 			// The exact approach depends on iDempiere's window implementation
@@ -2502,13 +2502,13 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 	 */
 	private void extractContextFromTabpanel(org.zkoss.zul.Tabpanel panel) {
 		try {
-			log.warning("[CONTEXT-DEBUG] extractContextFromTabpanel() started");
+			log.log(Level.FINE, "[CONTEXT-DEBUG] extractContextFromTabpanel() started");
 
 			// Search for ADTabpanel which contains GridTab
 			Component adTabpanel = findADWindowRecursive(panel, 0);
 
 			if (adTabpanel != null) {
-				log.warning("[CONTEXT-DEBUG] Found ADTabpanel: " + adTabpanel.getClass().getName());
+				log.log(Level.FINE, "[CONTEXT-DEBUG] Found ADTabpanel: " + adTabpanel.getClass().getName());
 
 				try {
 					// ADTabpanel has getGridTab() method which returns GridTab
@@ -2517,30 +2517,30 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 					Object gridTab = getGridTab.invoke(adTabpanel);
 
 					if (gridTab != null) {
-						log.warning("[CONTEXT-DEBUG] GridTab retrieved: " + gridTab.getClass().getName());
+						log.log(Level.FINE, "[CONTEXT-DEBUG] GridTab retrieved: " + gridTab.getClass().getName());
 
 						// Get windowNo from GridTab
 						java.lang.reflect.Method getWindowNo = gridTab.getClass().getMethod("getWindowNo");
 						int windowNo = (Integer) getWindowNo.invoke(gridTab);
-						log.warning("[CONTEXT-DEBUG] Successfully extracted windowNo=" + windowNo);
+						log.log(Level.FINE, "[CONTEXT-DEBUG] Successfully extracted windowNo=" + windowNo);
 
 						// Get tabNo from GridTab
 						java.lang.reflect.Method getTabNo = gridTab.getClass().getMethod("getTabNo");
 						int tabNo = (Integer) getTabNo.invoke(gridTab);
-						log.warning("[CONTEXT-DEBUG] Successfully extracted tabNo=" + tabNo);
+						log.log(Level.FINE, "[CONTEXT-DEBUG] Successfully extracted tabNo=" + tabNo);
 
 						// Update context!
-						log.warning("[CONTEXT-DEBUG] ✅ Context updated (windowNo=" + windowNo + ", tabNo=" + tabNo + ")");
+						log.log(Level.FINE, "[CONTEXT-DEBUG] ✅ Context updated (windowNo=" + windowNo + ", tabNo=" + tabNo + ")");
 						setWindowContext(windowNo, tabNo);
 						return;
 					} else {
-						log.warning("[CONTEXT-DEBUG] GridTab is null");
+						log.log(Level.FINE, "[CONTEXT-DEBUG] GridTab is null");
 					}
 				} catch (Exception e) {
 					log.log(Level.WARNING, "[CONTEXT-DEBUG] Reflection error: " + e.getClass().getSimpleName() + ": " + e.getMessage(), e);
 				}
 			} else {
-				log.warning("[CONTEXT-DEBUG] No ADTabpanel found in tabpanel tree");
+				log.log(Level.FINE, "[CONTEXT-DEBUG] No ADTabpanel found in tabpanel tree");
 			}
 		} catch (Exception e) {
 			log.log(Level.WARNING, "[CONTEXT-DEBUG] Error extracting context from tabpanel", e);
@@ -2586,12 +2586,12 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 
 			// Only log at shallow depths to reduce noise
 			if (depth <= 3) {
-				log.warning("[CONTEXT-DEBUG] " + indent + "├─ " + className);
+				log.log(Level.FINE, "[CONTEXT-DEBUG] " + indent + "├─ " + className);
 			}
 
 			// Look for ADTabpanel which has GridTab
 			if (className.equals("org.adempiere.webui.adwindow.ADTabpanel")) {
-				log.warning("[CONTEXT-DEBUG] " + indent + "└─ ✅ Found ADTabpanel!");
+				log.log(Level.FINE, "[CONTEXT-DEBUG] " + indent + "└─ ✅ Found ADTabpanel!");
 				return child;
 			}
 
@@ -2611,10 +2611,10 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 	 */
 	private void detectAndSetActiveTab() {
 		try {
-			log.warning("[CONTEXT-DEBUG] detectAndSetActiveTab() started");
+			log.log(Level.FINE, "[CONTEXT-DEBUG] detectAndSetActiveTab() started");
 
 			if (windowContainer == null) {
-				log.warning("[CONTEXT-DEBUG] windowContainer is null, cannot detect active tab");
+				log.log(Level.FINE, "[CONTEXT-DEBUG] windowContainer is null, cannot detect active tab");
 				return;
 			}
 
@@ -2623,37 +2623,37 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 			Component tabsComponent = findTabsComponent(windowContainer);
 
 			if (tabsComponent == null) {
-				log.warning("[CONTEXT-DEBUG] No Tabs component found in WindowContainer");
+				log.log(Level.FINE, "[CONTEXT-DEBUG] No Tabs component found in WindowContainer");
 				return;
 			}
 
-			log.warning("[CONTEXT-DEBUG] Tabs component found: " + tabsComponent.getClass().getName());
+			log.log(Level.FINE, "[CONTEXT-DEBUG] Tabs component found: " + tabsComponent.getClass().getName());
 
 			if (tabsComponent instanceof org.zkoss.zul.Tabs) {
 				org.zkoss.zul.Tabs tabs = (org.zkoss.zul.Tabs) tabsComponent;
 				org.zkoss.zul.Tabbox tabbox = tabs.getTabbox();
 
 				if (tabbox != null) {
-					log.warning("[CONTEXT-DEBUG] Tabbox found");
+					log.log(Level.FINE, "[CONTEXT-DEBUG] Tabbox found");
 					org.zkoss.zul.Tab selectedTab = (org.zkoss.zul.Tab) tabbox.getSelectedTab();
 
 					if (selectedTab != null) {
-						log.warning("[CONTEXT-DEBUG] Selected tab found: " + selectedTab.getLabel());
+						log.log(Level.FINE, "[CONTEXT-DEBUG] Selected tab found: " + selectedTab.getLabel());
 						org.zkoss.zul.Tabpanel panel = selectedTab.getLinkedPanel();
 						if (panel != null) {
-							log.warning("[CONTEXT-DEBUG] Tabpanel found, extracting context...");
+							log.log(Level.FINE, "[CONTEXT-DEBUG] Tabpanel found, extracting context...");
 							extractContextFromTabpanel(panel);
 						} else {
-							log.warning("[CONTEXT-DEBUG] Tabpanel is null");
+							log.log(Level.FINE, "[CONTEXT-DEBUG] Tabpanel is null");
 						}
 					} else {
-						log.warning("[CONTEXT-DEBUG] No selected tab found in Tabbox");
+						log.log(Level.FINE, "[CONTEXT-DEBUG] No selected tab found in Tabbox");
 					}
 				} else {
-					log.warning("[CONTEXT-DEBUG] Tabbox is null");
+					log.log(Level.FINE, "[CONTEXT-DEBUG] Tabbox is null");
 				}
 			} else {
-				log.warning("[CONTEXT-DEBUG] tabsComponent is not instanceof org.zkoss.zul.Tabs");
+				log.log(Level.FINE, "[CONTEXT-DEBUG] tabsComponent is not instanceof org.zkoss.zul.Tabs");
 			}
 		} catch (Exception e) {
 			log.log(Level.WARNING, "[CONTEXT-DEBUG] Error detecting active tab on init", e);
@@ -2795,7 +2795,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 			inputBox.setPlaceholder(Msg.getMsg(sessionCtx, "AIChatPlaceholder"));
 		}
 
-		log.fine("Access indicator updated: " + currentAccess + ", canWrite=" + canWrite);
+		log.log(Level.FINE, "Access indicator updated: " + currentAccess + ", canWrite=" + canWrite);
 	}
 
 	/**
@@ -3213,7 +3213,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 	private void safeSchedule(Desktop desktop, java.util.function.Consumer<Event> handler, Event event) {
 		// Check desktop validity before scheduling
 		if (desktop == null || !desktop.isAlive()) {
-			log.fine("Desktop no longer available, cannot schedule UI update: " + event.getName());
+			log.log(Level.FINE, "Desktop no longer available, cannot schedule UI update: " + event.getName());
 			return;
 		}
 
@@ -3223,7 +3223,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 				if (desktop.isAlive()) {
 					handler.accept(e);
 				} else {
-					log.fine("Desktop became unavailable before event executed: " + event.getName());
+					log.log(Level.FINE, "Desktop became unavailable before event executed: " + event.getName());
 				}
 			}, event);
 		} catch (Exception e) {

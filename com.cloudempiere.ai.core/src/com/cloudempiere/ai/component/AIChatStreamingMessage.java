@@ -201,12 +201,12 @@ public class AIChatStreamingMessage extends Div {
         this.markdownRenderer = new StreamingMarkdownRenderer();
         this.markdownRenderer.setContext(ctx, parentWidgetId);
         this.markdownRenderer.setLocale(this.locale); // Pass locale for table number formatting
-        log.info("[STREAM-INIT] Initialized unified StreamingMarkdownRenderer with table support | AD_Client_ID=" + clientId);
+        log.debug("[STREAM-INIT] Initialized unified StreamingMarkdownRenderer with table support | AD_Client_ID=" + clientId);
 
         // Initialize markdown sanitizer with default secure configuration
         // TODO: Load provider-specific config from database (MAIProvider)
         this.markdownSanitizer = new MarkdownSyntaxSanitizer();
-        log.info("[STREAM-INIT] Initialized MarkdownSyntaxSanitizer with secure defaults");
+        log.debug("[STREAM-INIT] Initialized MarkdownSyntaxSanitizer with secure defaults");
 
         injectCSS();
         init();
@@ -465,7 +465,7 @@ public class AIChatStreamingMessage extends Div {
             }
         });
         appendChild(renderTimer);
-        log.info("[BATCH-RENDER] ZK Timer initialized for component: " + componentId);
+        log.debug("[BATCH-RENDER] ZK Timer initialized for component: " + componentId);
     }
 
     /**
@@ -895,7 +895,7 @@ public class AIChatStreamingMessage extends Div {
             // Get field length from AD_Column for CM_ChatEntry.CharacterData
             int maxFieldLength = getCharacterDataFieldLength();
 
-            log.info("[HTML-CAPTURE] Captured rendered HTML | length=" + htmlLength +
+            log.debug("[HTML-CAPTURE] Captured rendered HTML | length=" + htmlLength +
                     " | fieldLimit=" + maxFieldLength +
                     " | withinLimit=" + (htmlLength <= maxFieldLength));
 
@@ -907,7 +907,7 @@ public class AIChatStreamingMessage extends Div {
                 log.error("[HTML-CAPTURE] VALIDATION FAILED: " + errorMsg);
                 throw new AdempiereException(errorMsg);
             } else if (htmlLength > 0) {
-                log.info("[HTML-CAPTURE] Validation passed - HTML within field limit");
+                log.debug("[HTML-CAPTURE] Validation passed - HTML within field limit");
             }
         } else {
             log.warn("[HTML-CAPTURE] streamingContent is null, cannot capture HTML");
@@ -926,11 +926,11 @@ public class AIChatStreamingMessage extends Div {
                         "WHERE AD_Table_ID = (SELECT AD_Table_ID FROM AD_Table WHERE TableName = 'CM_ChatEntry') " +
                         "AND ColumnName = 'CharacterData'";
 
-            log.info("[HTML-CAPTURE] Querying field length with SQL: " + sql);
+            log.debug("[HTML-CAPTURE] Querying field length with SQL: " + sql);
             int fieldLength = org.compiere.util.DB.getSQLValueEx(null, sql);
 
             if (fieldLength > 0) {
-                log.info("[HTML-CAPTURE] Retrieved CharacterData field length from AD_Column: " + fieldLength);
+                log.debug("[HTML-CAPTURE] Retrieved CharacterData field length from AD_Column: " + fieldLength);
                 return fieldLength;
             } else {
                 log.warn("[HTML-CAPTURE] Query returned invalid field length (" + fieldLength + "), using conservative default 4000");
@@ -1309,7 +1309,7 @@ public class AIChatStreamingMessage extends Div {
 
         // Use unified renderer (handles markdown AND tables in single pass)
         if (markdownRenderer != null && markdownRenderer.hasContent()) {
-            log.info("[FINAL-RENDER] Using unified renderer (markdown + tables)");
+            log.debug("[FINAL-RENDER] Using unified renderer (markdown + tables)");
 
             finalHtml = markdownRenderer.renderFinal();
 
@@ -1322,7 +1322,7 @@ public class AIChatStreamingMessage extends Div {
         }
         // Fallback: Use AIMessageRenderer (for messages loaded from DB without streaming)
         else {
-            log.info("[FINAL-RENDER] Using AIMessageRenderer (fallback for non-streamed messages)");
+            log.debug("[FINAL-RENDER] Using AIMessageRenderer (fallback for non-streamed messages)");
             String markdownText = content.flush();
 
             finalHtml = com.cloudempiere.ai.util.AIMessageRenderer.render(
