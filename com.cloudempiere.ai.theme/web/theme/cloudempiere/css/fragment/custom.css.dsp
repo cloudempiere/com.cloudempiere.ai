@@ -611,3 +611,37 @@
     line-height: 13.5px;
     color: #4CAF50;
 }
+
+/* Tool indicators (CLD-1704) - inline execution status */
+.ai-tool-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 0;
+    margin: 4px 0;
+    font-size: 11px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+}
+
+.ai-tool-indicator.running {
+    color: #1976D2;
+}
+
+.ai-tool-indicator.complete {
+    color: #4CAF50;
+}
+
+.ai-tool-indicator.error {
+    color: #F44336;
+}
+
+.ai-tool-spinner {
+    display: inline-block;
+    animation: tool-spin 1s linear infinite;
+}
+
+@keyframes tool-spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}

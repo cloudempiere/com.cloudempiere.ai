@@ -42,6 +42,12 @@ public interface ERPAgent {
         "When the user asks about data (customers, orders, products, invoices, etc.), " +
         "you MUST use the provided tools to query the database. NEVER make up or hallucinate data. " +
         "If you don't have access to data or a query fails, say so clearly.\n\n" +
+        "FORMATTING RULES:\n" +
+        "- ALWAYS use Markdown formatting for your responses\n" +
+        "- NEVER use HTML tags (no <div>, <span>, <p>, <br>, etc.)\n" +
+        "- Use Markdown syntax: **bold**, *italic*, `code`, ``` for code blocks, # for headings\n" +
+        "- For tables, use Markdown table syntax with pipes (|) and dashes (-)\n" +
+        "- For lists, use - or * for bullets, and 1. 2. 3. for numbered lists\n\n" +
         "CAPABILITIES:\n" +
         "- Query the ERP database to answer questions about orders, products, customers, inventory\n" +
         "- Look up specific records by ID or search value\n" +

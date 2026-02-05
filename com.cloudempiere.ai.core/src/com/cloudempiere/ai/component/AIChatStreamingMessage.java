@@ -101,6 +101,12 @@ public class AIChatStreamingMessage extends Div {
     /** Whether thinking section is expanded */
     private boolean isThinkingExpanded = false;
 
+    /** Map of tool names to their inline indicator element IDs (CLD-1704) */
+    private java.util.Map<String, String> toolIndicatorIds = new java.util.HashMap<>();
+
+    /** Counter for generating unique tool IDs */
+    private int toolIdCounter = 0;
+
     // ============= State Management (CLD-1704) =============
 
     /**
@@ -195,12 +201,12 @@ public class AIChatStreamingMessage extends Div {
         this.markdownRenderer = new StreamingMarkdownRenderer();
         this.markdownRenderer.setContext(ctx, parentWidgetId);
         this.markdownRenderer.setLocale(this.locale); // Pass locale for table number formatting
-        log.info("[STREAM-INIT] Initialized unified StreamingMarkdownRenderer with table support | AD_Client_ID=" + clientId);
+        log.debug("[STREAM-INIT] Initialized unified StreamingMarkdownRenderer with table support | AD_Client_ID=" + clientId);
 
         // Initialize markdown sanitizer with default secure configuration
         // TODO: Load provider-specific config from database (MAIProvider)
         this.markdownSanitizer = new MarkdownSyntaxSanitizer();
-        log.info("[STREAM-INIT] Initialized MarkdownSyntaxSanitizer with secure defaults");
+        log.debug("[STREAM-INIT] Initialized MarkdownSyntaxSanitizer with secure defaults");
 
         injectCSS();
         init();
@@ -459,7 +465,7 @@ public class AIChatStreamingMessage extends Div {
             }
         });
         appendChild(renderTimer);
-        log.info("[BATCH-RENDER] ZK Timer initialized for component: " + componentId);
+        log.debug("[BATCH-RENDER] ZK Timer initialized for component: " + componentId);
     }
 
     /**
@@ -586,7 +592,10 @@ public class AIChatStreamingMessage extends Div {
     }
 
     /**
-     * Show tool execution start in the timeline.
+     * Show tool execution start inline in the content stream (CLD-1704).
+     *
+     * <p>Injects a tool indicator directly into the streaming content
+     * with a unique ID for later updates.
      *
      * @param toolName name of the tool being executed
      * @param arguments tool arguments (JSON string)
@@ -597,18 +606,85 @@ public class AIChatStreamingMessage extends Div {
             transitionTo(StreamingState.TOOL_EXECUTING);
         }
 
-        toolsSection.setVisible(true);
+        // Generate unique ID for this tool indicator
+        String toolId = componentId + "_tool_" + (toolIdCounter++);
+        toolIndicatorIds.put(toolName, toolId);
+
+        // Get user-friendly display name
+        String displayName = getToolDisplayName(toolName);
+
+        // Inject inline tool indicator HTML with CSS classes
+        String toolHtml = String.format(
+            "<br/><div id='%s' class='ai-tool-indicator running'>" +
+            "<span class='ai-tool-spinner'>&#8635;</span>" +
+            "<span>%s</span>" +
+            "</div><br/>",
+            toolId, displayName
+        );
+
+        if (markdownRenderer != null) {
+            markdownRenderer.appendRawHtml(toolHtml);
+            // Force immediate rendering so tool indicator appears right away
+            updateContentDisplay();
+        }
+
+        // Keep old implementation for backward compatibility (but hidden)
+        toolsSection.setVisible(false);
         toolEvents.add(new ToolEvent(toolName, ToolStatus.RUNNING, arguments, null));
-        updateToolsDisplay();
     }
 
     /**
-     * Update tool to complete status in the timeline.
+     * Update tool to complete status inline (CLD-1704).
+     *
+     * <p>Updates the inline indicator via JavaScript to show completion.
      *
      * @param toolName name of the tool that completed
      * @param result result of the tool execution
      */
     public void showToolComplete(String toolName, String result) {
+        // Update inline indicator via JavaScript with retry logic
+        String toolId = toolIndicatorIds.get(toolName);
+        if (toolId != null) {
+            String displayName = getToolDisplayName(toolName);
+
+            // Create "complete" state HTML with CSS classes
+            String completeHtml = String.format(
+                "<div id='%s' class='ai-tool-indicator complete'>" +
+                "<span>&#10003;</span>" +
+                "<span>%s</span>" +
+                "</div>",
+                toolId, displayName
+            );
+
+            // Update the HTML in the renderer's buffer (prevents re-rendering from reverting state)
+            if (markdownRenderer != null) {
+                markdownRenderer.replaceHtmlById(toolId, completeHtml);
+            }
+
+            // Also update via JavaScript for immediate visual feedback
+            String script = String.format(
+                "(function() { " +
+                "  var tryUpdate = function(attempt) { " +
+                "    var el = document.getElementById('%s'); " +
+                "    if (el) { " +
+                "      el.className = 'ai-tool-indicator complete'; " +
+                "      el.innerHTML = '<span>&#10003;</span> <span>%s</span>'; " +
+                "      console.log('Tool indicator updated: %s'); " +
+                "    } else if (attempt < 10) { " +
+                "      console.log('Tool indicator not found (attempt ' + attempt + '), retrying...'); " +
+                "      setTimeout(function() { tryUpdate(attempt + 1); }, 50); " +
+                "    } else { " +
+                "      console.error('Tool indicator not found after 10 attempts: %s'); " +
+                "    } " +
+                "  }; " +
+                "  tryUpdate(1); " +
+                "})();",
+                toolId, displayName, toolId, toolId
+            );
+            org.zkoss.zk.ui.util.Clients.evalJavaScript(script);
+        }
+
+        // Update old implementation for backward compatibility
         for (ToolEvent event : toolEvents) {
             if (event.getName().equals(toolName) && event.getStatus() == ToolStatus.RUNNING) {
                 event.setStatus(ToolStatus.COMPLETE);
@@ -616,16 +692,60 @@ public class AIChatStreamingMessage extends Div {
                 break;
             }
         }
-        updateToolsDisplay();
     }
 
     /**
-     * Show tool error in the timeline.
+     * Show tool error inline (CLD-1704).
+     *
+     * <p>Updates the inline indicator via JavaScript to show error.
      *
      * @param toolName name of the tool that failed
      * @param error error message
      */
     public void showToolError(String toolName, String error) {
+        // Update inline indicator via JavaScript with retry logic
+        String toolId = toolIndicatorIds.get(toolName);
+        if (toolId != null) {
+            String displayName = getToolDisplayName(toolName);
+
+            // Create "error" state HTML with CSS classes
+            String errorHtml = String.format(
+                "<div id='%s' class='ai-tool-indicator error'>" +
+                "<span>&#10007;</span>" +
+                "<span>%s failed</span>" +
+                "</div>",
+                toolId, displayName
+            );
+
+            // Update the HTML in the renderer's buffer (prevents re-rendering from reverting state)
+            if (markdownRenderer != null) {
+                markdownRenderer.replaceHtmlById(toolId, errorHtml);
+            }
+
+            // Also update via JavaScript for immediate visual feedback
+            String script = String.format(
+                "(function() { " +
+                "  var tryUpdate = function(attempt) { " +
+                "    var el = document.getElementById('%s'); " +
+                "    if (el) { " +
+                "      el.className = 'ai-tool-indicator error'; " +
+                "      el.innerHTML = '<span>&#10007;</span> <span>%s failed</span>'; " +
+                "      console.log('Tool indicator updated (error): %s'); " +
+                "    } else if (attempt < 10) { " +
+                "      console.log('Tool indicator not found (attempt ' + attempt + '), retrying...'); " +
+                "      setTimeout(function() { tryUpdate(attempt + 1); }, 50); " +
+                "    } else { " +
+                "      console.error('Tool indicator not found after 10 attempts: %s'); " +
+                "    } " +
+                "  }; " +
+                "  tryUpdate(1); " +
+                "})();",
+                toolId, displayName, toolId, toolId
+            );
+            org.zkoss.zk.ui.util.Clients.evalJavaScript(script);
+        }
+
+        // Update old implementation for backward compatibility
         for (ToolEvent event : toolEvents) {
             if (event.getName().equals(toolName) && event.getStatus() == ToolStatus.RUNNING) {
                 event.setStatus(ToolStatus.ERROR);
@@ -633,7 +753,6 @@ public class AIChatStreamingMessage extends Div {
                 break;
             }
         }
-        updateToolsDisplay();
     }
 
     /**
@@ -776,7 +895,7 @@ public class AIChatStreamingMessage extends Div {
             // Get field length from AD_Column for CM_ChatEntry.CharacterData
             int maxFieldLength = getCharacterDataFieldLength();
 
-            log.info("[HTML-CAPTURE] Captured rendered HTML | length=" + htmlLength +
+            log.debug("[HTML-CAPTURE] Captured rendered HTML | length=" + htmlLength +
                     " | fieldLimit=" + maxFieldLength +
                     " | withinLimit=" + (htmlLength <= maxFieldLength));
 
@@ -788,7 +907,7 @@ public class AIChatStreamingMessage extends Div {
                 log.error("[HTML-CAPTURE] VALIDATION FAILED: " + errorMsg);
                 throw new AdempiereException(errorMsg);
             } else if (htmlLength > 0) {
-                log.info("[HTML-CAPTURE] Validation passed - HTML within field limit");
+                log.debug("[HTML-CAPTURE] Validation passed - HTML within field limit");
             }
         } else {
             log.warn("[HTML-CAPTURE] streamingContent is null, cannot capture HTML");
@@ -807,11 +926,11 @@ public class AIChatStreamingMessage extends Div {
                         "WHERE AD_Table_ID = (SELECT AD_Table_ID FROM AD_Table WHERE TableName = 'CM_ChatEntry') " +
                         "AND ColumnName = 'CharacterData'";
 
-            log.info("[HTML-CAPTURE] Querying field length with SQL: " + sql);
+            log.debug("[HTML-CAPTURE] Querying field length with SQL: " + sql);
             int fieldLength = org.compiere.util.DB.getSQLValueEx(null, sql);
 
             if (fieldLength > 0) {
-                log.info("[HTML-CAPTURE] Retrieved CharacterData field length from AD_Column: " + fieldLength);
+                log.debug("[HTML-CAPTURE] Retrieved CharacterData field length from AD_Column: " + fieldLength);
                 return fieldLength;
             } else {
                 log.warn("[HTML-CAPTURE] Query returned invalid field length (" + fieldLength + "), using conservative default 4000");
@@ -1162,6 +1281,10 @@ public class AIChatStreamingMessage extends Div {
         String completeMarkdown = content.toString();
         String validatedMarkdown = com.cloudempiere.ai.util.MarkdownValidator.validate(completeMarkdown);
 
+        // Strip HTML tags from raw markdown (LLM should only use Markdown, not HTML)
+        // This ensures HTML tags don't appear as escaped text in the final output
+        validatedMarkdown = com.cloudempiere.ai.util.HtmlStripper.stripHtml(validatedMarkdown);
+
         // If validation changed the markdown, we need to re-parse with fresh renderer
         // This only happens if the AI generated malformed markdown (unclosed markers, etc.)
         if (!validatedMarkdown.equals(completeMarkdown)) {
@@ -1186,7 +1309,7 @@ public class AIChatStreamingMessage extends Div {
 
         // Use unified renderer (handles markdown AND tables in single pass)
         if (markdownRenderer != null && markdownRenderer.hasContent()) {
-            log.info("[FINAL-RENDER] Using unified renderer (markdown + tables)");
+            log.debug("[FINAL-RENDER] Using unified renderer (markdown + tables)");
 
             finalHtml = markdownRenderer.renderFinal();
 
@@ -1199,7 +1322,7 @@ public class AIChatStreamingMessage extends Div {
         }
         // Fallback: Use AIMessageRenderer (for messages loaded from DB without streaming)
         else {
-            log.info("[FINAL-RENDER] Using AIMessageRenderer (fallback for non-streamed messages)");
+            log.debug("[FINAL-RENDER] Using AIMessageRenderer (fallback for non-streamed messages)");
             String markdownText = content.flush();
 
             finalHtml = com.cloudempiere.ai.util.AIMessageRenderer.render(

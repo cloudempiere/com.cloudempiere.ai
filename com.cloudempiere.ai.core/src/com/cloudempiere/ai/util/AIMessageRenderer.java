@@ -92,6 +92,11 @@ public class AIMessageRenderer {
 		// Some models generate tool-like syntax even without tool support enabled
 		processed = removeFunctionCalls(processed);
 
+		// Step 2.5: Strip HTML tags (defense in depth - LLM should only use Markdown)
+		// System prompt constrains LLM to Markdown-only, but this prevents HTML injection
+		// if the constraint is violated
+		processed = HtmlStripper.stripHtml(processed);
+
 		// Step 3: Pre-render tables (with zoom links in cells)
 		// Tables must be rendered BEFORE markdown parsing to preserve table structure
 		if (MarkdownTableRenderer.containsTable(processed)) {

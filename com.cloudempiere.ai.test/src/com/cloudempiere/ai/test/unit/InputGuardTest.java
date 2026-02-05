@@ -92,6 +92,30 @@ class InputGuardTest {
             assertThat(result.isBlocked()).isFalse();
         }
 
+        @ParameterizedTest
+        @UnitTest
+@DisplayName("Business identifiers with 9 digits are not masked as Tax ID")
+        @ValueSource(strings = {
+            "find me order AQV/PO/260114285",
+            "Check invoice INV-123456789",
+            "Look up reference 987654321",
+            "Order number: 260114285"
+        })
+        void shouldNotMaskBusinessIdentifiersAsTaxId(String input) {
+            log.input("Business identifier", input);
+
+            GuardResult result = guard.validate(input);
+            log.output("Action", result.getAction());
+            log.output("Passed clean", result.passedClean());
+            log.var("processedContent", result.getProcessedContent());
+
+            assertThat(result.passedClean())
+                .as("Business identifier should not be masked: %s", input)
+                .isTrue();
+            assertThat(result.getAction()).isEqualTo(GuardResult.Action.PASS);
+            assertThat(result.getProcessedContent()).isEqualTo(input);
+        }
+
         @Test
         @UnitTest
 @DisplayName("Null input passes")
@@ -139,14 +163,13 @@ class InputGuardTest {
 
         @ParameterizedTest
         @UnitTest
-@DisplayName("SSN variants are detected")
+@DisplayName("SSN with separators is detected")
         @ValueSource(strings = {
             "SSN: 123-45-6789",
-            "SSN: 123 45 6789",
-            "SSN: 123456789"
+            "SSN: 123 45 6789"
         })
-        void shouldDetectSSNVariants(String input) {
-            log.input("SSN variant", input);
+        void shouldDetectSSNWithSeparators(String input) {
+            log.input("SSN with separators", input);
 
             GuardResult result = guard.validate(input);
             log.output("Action", result.getAction());
@@ -155,6 +178,18 @@ class InputGuardTest {
 
             assertThat(result.getAction()).isEqualTo(GuardResult.Action.MASK);
             assertThat(result.getViolations()).contains("SSN");
+        }
+
+        @Test
+        @UnitTest
+@DisplayName("9-digit number without separators is NOT detected as SSN")
+        void shouldNotDetectNineDigitNumberWithoutSeparatorAsSSN() {
+            // Without separators, 9-digit numbers are ambiguous (could be order ID, etc.)
+            GuardResult result = guard.validate("SSN: 123456789");
+
+            assertThat(result.passedClean())
+                .as("9-digit number without separators should not be detected as SSN")
+                .isTrue();
         }
 
         @Test
@@ -207,14 +242,39 @@ class InputGuardTest {
             assertThat(result.getProcessedContent()).contains("4567");
         }
 
-        @Test
+        @ParameterizedTest
         @UnitTest
-@DisplayName("Tax ID is detected and masked")
-        void shouldDetectAndMaskTaxId() {
-            GuardResult result = guard.validate("EIN: 12-3456789");
+@DisplayName("Tax ID with separator is detected and masked")
+        @ValueSource(strings = {
+            "EIN: 12-3456789",
+            "Tax ID: 98 7654321",
+            "Federal EIN 12-3456789 required"
+        })
+        void shouldDetectAndMaskTaxIdWithSeparator(String input) {
+            log.input("Tax ID with separator", input);
+
+            GuardResult result = guard.validate(input);
+            log.output("Action", result.getAction());
+            log.output("Violations", result.getViolations());
 
             assertThat(result.getAction()).isEqualTo(GuardResult.Action.MASK);
             assertThat(result.getViolations()).contains("Tax ID");
+        }
+
+        @Test
+        @UnitTest
+@DisplayName("9-digit number without separator is NOT detected as Tax ID")
+        void shouldNotDetectNineDigitNumberWithoutSeparatorAsTaxId() {
+            // These should NOT be detected as Tax ID (no separator)
+            GuardResult result1 = guard.validate("Order 260114285");
+            assertThat(result1.passedClean())
+                .as("9-digit order number should pass")
+                .isTrue();
+
+            GuardResult result2 = guard.validate("Reference 123456789");
+            assertThat(result2.passedClean())
+                .as("9-digit reference should pass")
+                .isTrue();
         }
 
         @Test

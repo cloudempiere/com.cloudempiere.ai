@@ -168,7 +168,7 @@ public class AIService implements IAIService {
             protected boolean removeEldestEntry(java.util.Map.Entry<Integer, ERPAgent> eldest) {
                 boolean shouldRemove = size() > MAX_CACHE_SIZE;
                 if (shouldRemove) {
-                    log.fine("Evicting eldest agent from cache: provider ID " + eldest.getKey());
+                    log.log(Level.FINE, "Evicting eldest agent from cache: provider ID " + eldest.getKey());
                 }
                 return shouldRemove;
             }
@@ -183,7 +183,7 @@ public class AIService implements IAIService {
             protected boolean removeEldestEntry(java.util.Map.Entry<String, MessageWindowChatMemory> eldest) {
                 boolean shouldRemove = size() > MAX_CACHE_SIZE;
                 if (shouldRemove) {
-                    log.fine("Evicting eldest memory from cache: session ID " + eldest.getKey());
+                    log.log(Level.FINE, "Evicting eldest memory from cache: session ID " + eldest.getKey());
                 }
                 return shouldRemove;
             }
@@ -198,7 +198,7 @@ public class AIService implements IAIService {
             protected boolean removeEldestEntry(java.util.Map.Entry<Integer, StreamingChatLanguageModel> eldest) {
                 boolean shouldRemove = size() > MAX_CACHE_SIZE;
                 if (shouldRemove) {
-                    log.fine("Evicting eldest streaming model from cache: provider ID " + eldest.getKey());
+                    log.log(Level.FINE, "Evicting eldest streaming model from cache: provider ID " + eldest.getKey());
                 }
                 return shouldRemove;
             }
@@ -311,7 +311,7 @@ public class AIService implements IAIService {
      * Default constructor for OSGi instantiation.
      */
     public AIService() {
-        log.fine("AIService instantiated (OSGi)");
+        log.log(Level.FINE, "AIService instantiated (OSGi)");
     }
 
     // ========================================================================
@@ -598,19 +598,19 @@ public class AIService implements IAIService {
             // ================================================================
 
             if (contextData != null && contextData.length() > 0) {
-                log.info("[CONTEXT] Context data received with keys: " + contextData.keySet());
-                log.info("[CONTEXT] Context success flag: " + contextData.optBoolean("success", false));
+                log.log(Level.FINE, "[CONTEXT] Context data received with keys: " + contextData.keySet());
+                log.log(Level.FINE, "[CONTEXT] Context success flag: " + contextData.optBoolean("success", false));
 
                 String contextPrompt = buildContextPrompt(contextData);
                 if (contextPrompt != null && !contextPrompt.isEmpty()) {
                     // Add context as a system-like user message prefix
                     processedMessage = contextPrompt + "\n\nUser question: " + processedMessage;
-                    log.info("[CONTEXT] Context injected into message, total length: " + processedMessage.length());
+                    log.log(Level.FINE, "[CONTEXT] Context injected into message, total length: " + processedMessage.length());
                 } else {
                     log.warning("[CONTEXT] Context prompt was empty or null despite having context data");
                 }
             } else {
-                log.fine("[CONTEXT] No context data provided to chatWithContext");
+                log.log(Level.FINE, "[CONTEXT] No context data provided to chatWithContext");
             }
 
             // ================================================================
@@ -635,10 +635,10 @@ public class AIService implements IAIService {
                 if (rag != null && rag.isAvailable()) {
                     RagTools ragTools = new RagTools(rag, ctx);
                     toolsList = new Object[] { erpTools, ragTools };
-                    log.fine("Agent created with ERPTools + RagTools");
+                    log.log(Level.FINE, "Agent created with ERPTools + RagTools");
                 } else {
                     toolsList = new Object[] { erpTools };
-                    log.fine("Agent created with ERPTools only (RAG not available)");
+                    log.log(Level.FINE, "Agent created with ERPTools only (RAG not available)");
                 }
 
                 // Use chatMemoryProvider for @MemoryId support in ERPAgent
@@ -723,7 +723,7 @@ public class AIService implements IAIService {
     public void chatStreamingWithContext(MAIProvider provider, MChat chat,
                                           String message, JSONObject contextData,
                                           int threadRootId, AIStreamCallback callback) {
-        log.warning("[STREAM] >>> chatStreamingWithContext METHOD ENTRY <<<");
+        log.log(Level.FINE, "[STREAM] >>> chatStreamingWithContext METHOD ENTRY <<<");
 
         // Validate required parameters
         if (provider == null) {
@@ -731,31 +731,31 @@ public class AIService implements IAIService {
             callback.onError(new IllegalArgumentException("AI Provider is not configured"));
             return;
         }
-        log.warning("[STREAM] Provider: " + provider.getName() + " (ID=" + provider.getAIG_Provider_ID() + ")");
+        log.log(Level.FINE, "[STREAM] Provider: " + provider.getName() + " (ID=" + provider.getAIG_Provider_ID() + ")");
 
         if (chat == null) {
             log.severe("[STREAM] Chat is NULL!");
             callback.onError(new IllegalArgumentException("Chat context is required"));
             return;
         }
-        log.warning("[STREAM] Chat ID: " + chat.getCM_Chat_ID());
+        log.log(Level.FINE, "[STREAM] Chat ID: " + chat.getCM_Chat_ID());
 
         if (message == null || message.trim().isEmpty()) {
             log.severe("[STREAM] Message is empty!");
             callback.onError(new IllegalArgumentException("Message cannot be empty"));
             return;
         }
-        log.warning("[STREAM] Message length: " + message.length());
+        log.log(Level.FINE, "[STREAM] Message length: " + message.length());
 
         if (callback == null) {
             log.severe("[STREAM] Callback is NULL!");
             throw new IllegalArgumentException("Callback is required for streaming");
         }
-        log.warning("[STREAM] Callback: OK");
+        log.log(Level.FINE, "[STREAM] Callback: OK");
 
         // Check if provider supports streaming (Ollama/Llama has bug in LangChain4j 0.35.0)
         if (!supportsStreaming(provider)) {
-            log.warning("[STREAM] Provider " + provider.getAIGProviderType() +
+            log.log(Level.FINE, "[STREAM] Provider " + provider.getAIGProviderType() +
                     " doesn't support streaming in LangChain4j 0.35.0, falling back to batch mode");
             // Fall back to non-streaming batch mode
             chatBatchWithStreamingCallback(provider, chat, message, contextData, threadRootId, callback);
@@ -763,13 +763,13 @@ public class AIService implements IAIService {
         }
 
         Properties ctx = chat.getCtx();
-        log.warning("[STREAM] ========================================");
-        log.warning("[STREAM] AIService.chatStreamingWithContext STARTED");
-        log.warning("[STREAM] chat=" + chat.getCM_Chat_ID() +
+        log.log(Level.FINE, "[STREAM] ========================================");
+        log.log(Level.FINE, "[STREAM] AIService.chatStreamingWithContext STARTED");
+        log.log(Level.FINE, "[STREAM] chat=" + chat.getCM_Chat_ID() +
                 ", thread=" + threadRootId +
                 ", provider=" + (provider != null ? provider.getName() : "null"));
-        log.warning("[STREAM] message: " + message.substring(0, Math.min(50, message.length())));
-        log.warning("[STREAM] ========================================");
+        log.log(Level.FINE, "[STREAM] message: " + message.substring(0, Math.min(50, message.length())));
+        log.log(Level.FINE, "[STREAM] ========================================");
 
         try {
             String processedMessage = message;
@@ -971,7 +971,7 @@ public class AIService implements IAIService {
             // UserMessages in the database.
             // ================================================================
             List<ChatMessage> currentMessages = new ArrayList<>(memory.messages());
-            log.warning("[STREAM] Memory loaded " + currentMessages.size() + " messages from DB");
+            log.log(Level.FINE, "[STREAM] Memory loaded " + currentMessages.size() + " messages from DB");
 
             if (!currentMessages.isEmpty()) {
                 // Find where to trim - remove all trailing UserMessages
@@ -982,22 +982,22 @@ public class AIService implements IAIService {
 
                 if (trimIndex < currentMessages.size()) {
                     int removedCount = currentMessages.size() - trimIndex;
-                    log.warning("[STREAM] Removing " + removedCount + " trailing UserMessage(s) from memory to prevent consecutive message sanitization");
+                    log.log(Level.FINE, "[STREAM] Removing " + removedCount + " trailing UserMessage(s) from memory to prevent consecutive message sanitization");
 
                     // Rebuild memory without trailing UserMessages
                     memory.clear();
                     for (int i = 0; i < trimIndex; i++) {
                         memory.add(currentMessages.get(i));
                     }
-                    log.warning("[STREAM] Memory now has " + memory.getMessageCount() + " messages after cleanup");
+                    log.log(Level.FINE, "[STREAM] Memory now has " + memory.getMessageCount() + " messages after cleanup");
                 }
             }
 
             // Log current memory state for debugging
-            log.warning("[STREAM] Memory state before agent.chat(): " + memory.getMessageCount() + " messages");
+            log.log(Level.FINE, "[STREAM] Memory state before agent.chat(): " + memory.getMessageCount() + " messages");
             if (memory.getMessageCount() > 0) {
                 ChatMessage last = memory.messages().get(memory.getMessageCount() - 1);
-                log.warning("[STREAM] Last message type: " + last.type());
+                log.log(Level.FINE, "[STREAM] Last message type: " + last.type());
             }
 
             // ================================================================
@@ -1005,18 +1005,18 @@ public class AIService implements IAIService {
             // ================================================================
 
             if (contextData != null && contextData.length() > 0) {
-                log.info("[CONTEXT-STREAM] Context data received with keys: " + contextData.keySet());
-                log.info("[CONTEXT-STREAM] Context success flag: " + contextData.optBoolean("success", false));
+                log.log(Level.FINE, "[CONTEXT-STREAM] Context data received with keys: " + contextData.keySet());
+                log.log(Level.FINE, "[CONTEXT-STREAM] Context success flag: " + contextData.optBoolean("success", false));
 
                 String contextPrompt = buildContextPrompt(contextData);
                 if (contextPrompt != null && !contextPrompt.isEmpty()) {
                     processedMessage = contextPrompt + "\n\nUser question: " + processedMessage;
-                    log.info("[CONTEXT-STREAM] Context injected into message, total length: " + processedMessage.length());
+                    log.log(Level.FINE, "[CONTEXT-STREAM] Context injected into message, total length: " + processedMessage.length());
                 } else {
                     log.warning("[CONTEXT-STREAM] Context prompt was empty or null despite having context data");
                 }
             } else {
-                log.fine("[CONTEXT-STREAM] No context data provided to chatStreamingWithContext");
+                log.log(Level.FINE, "[CONTEXT-STREAM] No context data provided to chatStreamingWithContext");
             }
 
             // ================================================================
@@ -1025,7 +1025,7 @@ public class AIService implements IAIService {
 
             StreamingChatLanguageModel streamingModel = getOrCreateStreamingModel(provider);
 
-            log.warning("[STREAM] Message preview: " + processedMessage.substring(0, Math.min(50, processedMessage.length())));
+            log.log(Level.FINE, "[STREAM] Message preview: " + processedMessage.substring(0, Math.min(50, processedMessage.length())));
 
             // Track accumulated response for output guardrails and metrics
             final AtomicReference<StringBuilder> responseAccumulator = new AtomicReference<>(new StringBuilder());
@@ -1059,12 +1059,12 @@ public class AIService implements IAIService {
                 // ================================================================
                 // BUILD STREAMING AGENT WITH TOOLS (for Anthropic, OpenAI, Bedrock)
                 // ================================================================
-                log.warning("[STREAM] Building ERPStreamingAgent with tools...");
+                log.log(Level.FINE, "[STREAM] Building ERPStreamingAgent with tools...");
 
                 // Create tools with optional callback support (unified ERPTools)
                 ERPTools erpTools = new ERPTools(provider, ctx, callback);
-                log.warning("[STREAM] ERPTools class: " + erpTools.getClass().getName());
-                log.warning("[STREAM] StreamingModel class: " + streamingModel.getClass().getName());
+                log.log(Level.FINE, "[STREAM] ERPTools class: " + erpTools.getClass().getName());
+                log.log(Level.FINE, "[STREAM] StreamingModel class: " + streamingModel.getClass().getName());
 
                 // Build tools list - include RAG tools if available (P1 Context Layer)
                 Object[] toolsList;
@@ -1072,15 +1072,15 @@ public class AIService implements IAIService {
                 if (rag != null && rag.isAvailable()) {
                     RagTools ragTools = new RagTools(rag, ctx);
                     toolsList = new Object[] { erpTools, ragTools };
-                    log.warning("[STREAM] Agent created with ERPTools + RagTools");
+                    log.log(Level.FINE, "[STREAM] Agent created with ERPTools + RagTools");
                 } else {
                     toolsList = new Object[] { erpTools };
-                    log.warning("[STREAM] Agent created with ERPTools only (RAG not available)");
+                    log.log(Level.FINE, "[STREAM] Agent created with ERPTools only (RAG not available)");
                 }
 
                 // Build system prompt with language instruction (ADR-037)
                 final String systemPrompt = buildSystemPromptWithLanguage(ctx, chat.getCM_Chat_ID(), true);
-                log.warning("[STREAM] System prompt built, length=" + systemPrompt.length());
+                log.log(Level.FINE, "[STREAM] System prompt built, length=" + systemPrompt.length());
 
                 ERPStreamingAgent agent = AiServices.builder(ERPStreamingAgent.class)
                     .streamingChatLanguageModel(streamingModel)
@@ -1089,9 +1089,9 @@ public class AIService implements IAIService {
                     .systemMessageProvider(memoryId -> systemPrompt)
                     .build();
 
-                log.warning("[STREAM] Agent built successfully: " + agent.getClass().getName());
-                log.warning("[STREAM] Starting TokenStream with sessionId: " + sessionId);
-                log.warning("[STREAM] Memory has " + memoryForProvider.getMessageCount() + " messages before agent.chat()");
+                log.log(Level.FINE, "[STREAM] Agent built successfully: " + agent.getClass().getName());
+                log.log(Level.FINE, "[STREAM] Starting TokenStream with sessionId: " + sessionId);
+                log.log(Level.FINE, "[STREAM] Memory has " + memoryForProvider.getMessageCount() + " messages before agent.chat()");
 
                 // Get TokenStream from agent
                 tokenStream = agent.chat(sessionId, processedMessage);
@@ -1099,13 +1099,13 @@ public class AIService implements IAIService {
                 // ================================================================
                 // SIMPLE STREAMING WITHOUT TOOLS (for Ollama/Llama)
                 // ================================================================
-                log.warning("[STREAM] Provider " + provider.getAIGProviderType() +
+                log.log(Level.FINE, "[STREAM] Provider " + provider.getAIGProviderType() +
                         " doesn't support tools, using simple streaming chat mode");
-                log.warning("[STREAM] StreamingModel class: " + streamingModel.getClass().getName());
+                log.log(Level.FINE, "[STREAM] StreamingModel class: " + streamingModel.getClass().getName());
 
                 // Build system prompt with language instruction (ADR-037) - no tools
                 final String systemPrompt = buildSystemPromptWithLanguage(ctx, chat.getCM_Chat_ID(), false);
-                log.warning("[STREAM] System prompt built (no tools), length=" + systemPrompt.length());
+                log.log(Level.FINE, "[STREAM] System prompt built (no tools), length=" + systemPrompt.length());
 
                 // Build SimpleStreamingAgent (no tools, simplified system prompt)
                 SimpleStreamingAgent agent = AiServices.builder(SimpleStreamingAgent.class)
@@ -1114,9 +1114,9 @@ public class AIService implements IAIService {
                     .systemMessageProvider(memoryId -> systemPrompt)
                     .build();
 
-                log.warning("[STREAM] SimpleStreamingAgent built successfully: " + agent.getClass().getName());
-                log.warning("[STREAM] Starting TokenStream with sessionId: " + sessionId);
-                log.warning("[STREAM] Memory has " + memoryForProvider.getMessageCount() + " messages before agent.chat()");
+                log.log(Level.FINE, "[STREAM] SimpleStreamingAgent built successfully: " + agent.getClass().getName());
+                log.log(Level.FINE, "[STREAM] Starting TokenStream with sessionId: " + sessionId);
+                log.log(Level.FINE, "[STREAM] Memory has " + memoryForProvider.getMessageCount() + " messages before agent.chat()");
 
                 // Get TokenStream from agent
                 tokenStream = agent.chat(sessionId, processedMessage);
@@ -1125,7 +1125,7 @@ public class AIService implements IAIService {
             // Wire up TokenStream callbacks (LangChain4j 0.35.0 API)
             tokenStream
                 .onNext(token -> {
-                    log.fine("[STREAM] onNext: " + (token != null ? token.length() : 0) + " chars");
+                    log.log(Level.FINE, "[STREAM] onNext: " + (token != null ? token.length() : 0) + " chars");
                     responseAccumulator.get().append(token);
                     try {
                         callback.onChunk(token);
@@ -1135,7 +1135,7 @@ public class AIService implements IAIService {
                 })
                 .onComplete(response -> {
                     try {
-                        log.warning("[STREAM] onComplete: streaming finished");
+                        log.log(Level.FINE, "[STREAM] onComplete: streaming finished");
                         long streamingEndTime = System.currentTimeMillis();
 
                         // Get AI response text (from response or accumulator)
@@ -1151,7 +1151,7 @@ public class AIService implements IAIService {
                         // Fallback to empty string if still null
                         if (aiResponseText == null) {
                             aiResponseText = "";
-                            log.warning("[STREAM] No response text available from streaming");
+                            log.log(Level.FINE, "[STREAM] No response text available from streaming");
                         }
 
                         // Add AI response to memory for conversation continuity
@@ -1176,7 +1176,7 @@ public class AIService implements IAIService {
                                 // Estimate tokens if not provided (rough: 4 chars = 1 token)
                                 inputTokens = (metricsInputMessage != null) ? metricsInputMessage.length() / 4 : 0;
                                 outputTokens = (aiResponseText != null) ? aiResponseText.length() / 4 : 0;
-                                log.fine("[METRICS] Token usage not provided, estimated: in=" +
+                                log.log(Level.FINE, "[METRICS] Token usage not provided, estimated: in=" +
                                     inputTokens + ", out=" + outputTokens);
                             }
 
@@ -1251,7 +1251,7 @@ public class AIService implements IAIService {
                 })
                 .start();
 
-            log.warning("[STREAM] TokenStream started with tools support");
+            log.log(Level.FINE, "[STREAM] TokenStream started with tools support");
 
         } catch (Exception e) {
             String errorMsg = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
@@ -1421,13 +1421,13 @@ public class AIService implements IAIService {
      */
     private String buildContextPrompt(JSONObject contextData) {
         if (contextData == null || contextData.length() == 0) {
-            log.fine("[CONTEXT] No context data provided");
+            log.log(Level.FINE, "[CONTEXT] No context data provided");
             return null;
         }
 
         // Check for successful context extraction
         if (!contextData.optBoolean("success", false)) {
-            log.fine("[CONTEXT] Context extraction was not successful");
+            log.log(Level.FINE, "[CONTEXT] Context extraction was not successful");
             return null;
         }
 
@@ -1497,7 +1497,7 @@ public class AIService implements IAIService {
         }
 
         String result = sb.toString();
-        log.info("[CONTEXT] Built context prompt (" + result.length() + " chars)");
+        log.log(Level.FINE, "[CONTEXT] Built context prompt (" + result.length() + " chars)");
         return result;
     }
 
@@ -1619,10 +1619,10 @@ public class AIService implements IAIService {
                 if (rag != null && rag.isAvailable()) {
                     RagTools ragTools = new RagTools(rag, ctx);
                     toolsList = new Object[] { erpTools, ragTools };
-                    log.fine("Execute: Agent created with ERPTools + RagTools");
+                    log.log(Level.FINE, "Execute: Agent created with ERPTools + RagTools");
                 } else {
                     toolsList = new Object[] { erpTools };
-                    log.fine("Execute: Agent created with ERPTools only (RAG not available)");
+                    log.log(Level.FINE, "Execute: Agent created with ERPTools only (RAG not available)");
                 }
 
                 ERPAgent agent = AiServices.builder(ERPAgent.class)
@@ -1690,10 +1690,10 @@ public class AIService implements IAIService {
             if (rag != null && rag.isAvailable()) {
                 RagTools ragTools = new RagTools(rag, ctx);
                 toolsList = new Object[] { erpTools, ragTools };
-                log.fine("getOrCreateAgent: Agent created with ERPTools + RagTools");
+                log.log(Level.FINE, "getOrCreateAgent: Agent created with ERPTools + RagTools");
             } else {
                 toolsList = new Object[] { erpTools };
-                log.fine("getOrCreateAgent: Agent created with ERPTools only (RAG not available)");
+                log.log(Level.FINE, "getOrCreateAgent: Agent created with ERPTools only (RAG not available)");
             }
 
             return AiServices.builder(ERPAgent.class)
