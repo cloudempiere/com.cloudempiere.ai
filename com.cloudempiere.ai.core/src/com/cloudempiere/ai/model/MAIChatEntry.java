@@ -77,13 +77,15 @@ public class MAIChatEntry extends MChatEntry {
 	}
 
 	/**
-	 * Create AI Response Entry
+	 * Create AI Response Entry (legacy - HTML only)
 	 * Sets AD_User_ID to the AI user from the provider configuration
 	 *
+	 * @deprecated Use {@link #createAIResponse(MChat, String, String)} with separate markdown and HTML
 	 * @param chat parent chat
-	 * @param data response text
+	 * @param data response text (HTML or markdown)
 	 * @return AI chat entry with AD_User_ID set to AI user
 	 */
+	@Deprecated
 	public static MAIChatEntry createAIResponse(MChat chat, String data) {
 		Properties ctx = chat.getCtx();
 		String trxName = chat.get_TrxName();
@@ -92,6 +94,46 @@ public class MAIChatEntry extends MChatEntry {
 		entry.setCM_Chat_ID(chat.getCM_Chat_ID());
 		entry.setConfidentialType(chat.getConfidentialType());
 		entry.setCharacterData(data);
+		entry.setChatEntryType(CHATENTRYTYPE_NoteFlat);
+
+		// Set AD_User_ID to AI system user from provider
+		Integer aiUserId = getAISystemUserId(ctx);
+		if (aiUserId != null && aiUserId > 0) {
+			entry.setAD_User_ID(aiUserId);
+		}
+
+		return entry;
+	}
+
+	/**
+	 * Create AI Response Entry with separate markdown and HTML
+	 * Sets AD_User_ID to the AI user from the provider configuration
+	 *
+	 * <p>Storage strategy:
+	 * <ul>
+	 *   <li>CharacterData: Stores markdown (source format for AI API)</li>
+	 *   <li>ContentHTML: Stores rendered HTML (for efficient UI display)</li>
+	 * </ul>
+	 *
+	 * @param chat parent chat
+	 * @param markdown markdown text (source)
+	 * @param html rendered HTML
+	 * @return AI chat entry with AD_User_ID set to AI user
+	 */
+	public static MAIChatEntry createAIResponse(MChat chat, String markdown, String html) {
+		Properties ctx = chat.getCtx();
+		String trxName = chat.get_TrxName();
+
+		MAIChatEntry entry = new MAIChatEntry(ctx, 0, trxName);
+		entry.setCM_Chat_ID(chat.getCM_Chat_ID());
+		entry.setConfidentialType(chat.getConfidentialType());
+
+		// Store markdown in CharacterData (for AI API)
+		entry.setCharacterData(markdown);
+
+		// Store HTML in ContentHTML (for UI rendering)
+		entry.set_ValueOfColumn("ContentHTML", html);
+
 		entry.setChatEntryType(CHATENTRYTYPE_NoteFlat);
 
 		// Set AD_User_ID to AI system user from provider
@@ -153,5 +195,21 @@ public class MAIChatEntry extends MChatEntry {
 	 */
 	public boolean isUserMessage() {
 		return !isAIResponse();
+	}
+
+	/**
+	 * Get the rendered HTML content
+	 * @return HTML content or null if not set
+	 */
+	public String getContentHTML() {
+		return (String) get_Value("ContentHTML");
+	}
+
+	/**
+	 * Set the rendered HTML content
+	 * @param html HTML content
+	 */
+	public void setContentHTML(String html) {
+		set_ValueOfColumn("ContentHTML", html);
 	}
 }

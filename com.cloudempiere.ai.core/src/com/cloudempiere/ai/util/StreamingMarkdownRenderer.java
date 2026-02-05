@@ -1066,8 +1066,9 @@ public class StreamingMarkdownRenderer {
             String cellContent = row.get(i);
             String align = getTableAlignment(i);
 
-            // Escape HTML
-            String safeContent = escapeHtml(cellContent);
+            // Process inline markdown (bold, italic, code) instead of just escaping HTML
+            // This ensures **text** becomes <strong>text</strong> in table cells
+            String safeContent = processInlineMarkdown(cellContent);
 
             if (isHeaderRow) {
                 htmlOutput.append("<th style='").append(TH_STYLE);
@@ -1095,6 +1096,43 @@ public class StreamingMarkdownRenderer {
             return tableAlignments[colIndex];
         }
         return "left";
+    }
+
+    /**
+     * Process inline markdown (bold, italic, code) in cell content.
+     * Converts markdown syntax to HTML while escaping other content for security.
+     *
+     * <p>Supported inline markdown:
+     * <ul>
+     *   <li><b>Bold:</b> `**text**` or `__text__` → `<strong>text</strong>`</li>
+     *   <li><b>Italic:</b> `*text*` or `_text_` → `<em>text</em>`</li>
+     *   <li><b>Code:</b> `` `text` `` → `<code>text</code>`</li>
+     * </ul>
+     *
+     * @param text cell content with markdown syntax
+     * @return HTML-safe content with markdown converted to tags
+     */
+    private String processInlineMarkdown(String text) {
+        if (text == null || text.isEmpty()) {
+            return "";
+        }
+
+        // First escape HTML to prevent XSS
+        String escaped = escapeHtml(text);
+
+        // Then convert markdown to HTML tags (in correct order to avoid conflicts)
+        // Process code first (to avoid interfering with bold/italic markers inside code)
+        escaped = escaped.replaceAll("`([^`]+)`", "<code>$1</code>");
+
+        // Process bold (** or __) - must come before italic to avoid conflicts
+        escaped = escaped.replaceAll("\\*\\*([^*]+)\\*\\*", "<strong>$1</strong>");
+        escaped = escaped.replaceAll("__([^_]+)__", "<strong>$1</strong>");
+
+        // Process italic (* or _)
+        escaped = escaped.replaceAll("\\*([^*]+)\\*", "<em>$1</em>");
+        escaped = escaped.replaceAll("_([^_]+)_", "<em>$1</em>");
+
+        return escaped;
     }
 
     /**
@@ -1259,6 +1297,82 @@ public class StreamingMarkdownRenderer {
                markerBuffer.length() > 0 ||
                contentBuffer.length() > 0 ||
                codeBlockBuffer.length() > 0;
+    }
+
+    /**
+     * Append raw HTML directly to the output buffer.
+     *
+     * <p>Used for injecting HTML that should not be processed as markdown.
+     * For example, inline tool indicators (CLD-1704).
+     *
+     * <p><b>Line Break Handling:</b> If the HTML ends with {@code <br/>}, this method
+     * updates internal state to indicate we're at a new line, ensuring subsequent
+     * markdown (like headings) is properly detected.
+     *
+     * @param html raw HTML to append (e.g., "&lt;div&gt;...&lt;/div&gt;")
+     */
+    public void appendRawHtml(String html) {
+        if (html != null && !html.isEmpty()) {
+            htmlOutput.append(html);
+
+            // If HTML ends with <br/>, we're at a new line - update state for markdown parsing
+            // This ensures headings like "# Title" are recognized after tool indicators
+            if (html.endsWith("<br/>") || html.endsWith("<br />")) {
+                lastChar = '\n';
+                isLineStart = true;
+            }
+        }
+    }
+
+    /**
+     * Replace HTML content in the output buffer by element ID.
+     *
+     * <p>Used to update tool indicators from "running" to "complete/error" state
+     * when re-rendering would otherwise revert JavaScript changes (CLD-1704).
+     *
+     * @param elementId the ID of the element to replace (e.g., "stream_123_tool_0")
+     * @param newHtml the new HTML content for the element (full &lt;div&gt;...&lt;/div&gt;)
+     * @return true if replacement succeeded, false if element not found
+     */
+    public boolean replaceHtmlById(String elementId, String newHtml) {
+        if (elementId == null || newHtml == null) {
+            return false;
+        }
+
+        String currentHtml = htmlOutput.toString();
+
+        // Find the opening tag with this ID
+        String idPattern = "id='" + elementId + "'";
+        int startIdx = currentHtml.indexOf(idPattern);
+
+        if (startIdx == -1) {
+            log.warning("Element not found for replacement: " + elementId);
+            return false;
+        }
+
+        // Find the start of the div tag (backtrack to '<div')
+        int divStart = currentHtml.lastIndexOf("<div", startIdx);
+        if (divStart == -1) {
+            log.warning("Could not find opening <div> tag for: " + elementId);
+            return false;
+        }
+
+        // Find the closing </div> tag
+        int divEnd = currentHtml.indexOf("</div>", startIdx);
+        if (divEnd == -1) {
+            log.warning("Could not find closing </div> tag for: " + elementId);
+            return false;
+        }
+        divEnd += "</div>".length();
+
+        // Replace the old HTML with new HTML
+        htmlOutput.setLength(0); // Clear buffer
+        htmlOutput.append(currentHtml.substring(0, divStart));
+        htmlOutput.append(newHtml);
+        htmlOutput.append(currentHtml.substring(divEnd));
+
+        log.warning("Replaced HTML for element: " + elementId);
+        return true;
     }
 
     /**
