@@ -71,14 +71,6 @@
          version="0.0.0"
          unpack="false"/>
 
-   <!-- Legacy Monolithic Plugin (being phased out) -->
-   <plugin
-         id="com.cloudempiere.ai"
-         download-size="0"
-         install-size="0"
-         version="0.0.0"
-         unpack="false"/>
-
    <!-- Theme Fragment -->
    <plugin
          id="com.cloudempiere.ai.theme"
