@@ -1,8 +1,8 @@
 # com.cloudempiere.ai
 
-**AI Plugin for iDempiere ERP**
+**Modular AI Plugin Suite for iDempiere ERP**
 
-[![Version](https://img.shields.io/badge/version-0.9.0-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.32.0-blue.svg)](CHANGELOG.md)
 [![iDempiere](https://img.shields.io/badge/iDempiere-v10-green.svg)](https://www.idempiere.org/)
 [![License](https://img.shields.io/badge/license-Proprietary-red.svg)](LICENSE)
 
@@ -34,7 +34,22 @@ cd ../com.cloudempiere.ai
 
 ## Overview
 
-AI plugin for Cloudempiere that integrates advanced AI capabilities into iDempiere ERP. Supports multiple AI providers (Anthropic Claude, AWS Bedrock, Ollama, OpenAI) with secure, role-based database access.
+Modular AI plugin suite for Cloudempiere that integrates advanced AI capabilities into iDempiere ERP. The project has been refactored from a monolithic plugin into domain-specific modules for better maintainability and flexibility.
+
+### Module Architecture
+
+The plugin suite consists of:
+
+- **com.cloudempiere.ai.deps** (v0.35.0) - Shared dependencies (LangChain4j, Jackson, AWS SDK)
+- **com.cloudempiere.ai.core** (v0.32.0) - Core infrastructure and provider framework
+- **com.cloudempiere.ai.sales** (v0.32.0) - Sales domain AI capabilities
+- **com.cloudempiere.ai.inventory** (v0.32.0) - Inventory domain AI capabilities
+- **com.cloudempiere.ai.purchasing** (v0.32.0) - Purchasing domain AI capabilities
+- **com.cloudempiere.ai.support** (v0.32.0) - Support ticket domain AI capabilities
+- **com.cloudempiere.ai.kb** (v0.32.0) - Knowledge base domain AI capabilities
+- **com.cloudempiere.ai.theme** (v10.0.2) - ZK UI theme customizations
+- **com.cloudempiere.ai.feature** (v10.0.2) - Eclipse feature definition
+- **com.cloudempiere.ai.p2** (v10.0.2) - P2 update site repository
 
 ### Key Features
 
@@ -178,20 +193,33 @@ mvn package
 
 ```
 com.cloudempiere.ai/
-├── src/
-│   ├── com/cloudempiere/ai/
-│   │   ├── provider/          # AI provider implementations
-│   │   ├── model/             # Data models (MAIProvider)
-│   │   ├── service/           # AI services
-│   │   ├── component/         # UI components (chat widget)
-│   │   ├── context/           # Context providers
-│   │   └── database/          # Secure query executor
-│   └── test/                  # Unit tests
-├── lib/                       # Embedded dependencies
-├── docs/                      # Documentation
-├── .claude/                   # Claude Code configuration
-├── pom.xml                    # Maven configuration
-└── META-INF/MANIFEST.MF       # OSGi bundle manifest
+├── com.cloudempiere.ai.parent/       # Maven parent POM
+├── com.cloudempiere.ai.deps/         # Shared dependencies (LangChain4j 0.35.0)
+│   └── lib/                          # 49 embedded JARs
+├── com.cloudempiere.ai.core/         # Core infrastructure
+│   ├── src/com/cloudempiere/ai/
+│   │   ├── provider/                 # AI provider implementations
+│   │   ├── boundary/                 # API boundary interfaces
+│   │   ├── model/                    # Data models (MAIProvider)
+│   │   ├── component/                # UI components (chat widget)
+│   │   ├── context/                  # Context providers
+│   │   ├── database/                 # Secure query executor
+│   │   ├── rag/                      # RAG implementation
+│   │   ├── guardrails/               # Security guardrails
+│   │   └── observability/            # Monitoring & logging
+│   └── lib/                          # AWS Bedrock & Netty (14 JARs)
+├── com.cloudempiere.ai.sales/        # Sales domain plugin
+├── com.cloudempiere.ai.inventory/    # Inventory domain plugin
+├── com.cloudempiere.ai.purchasing/   # Purchasing domain plugin
+├── com.cloudempiere.ai.support/      # Support domain plugin
+├── com.cloudempiere.ai.kb/           # Knowledge base domain plugin
+├── com.cloudempiere.ai.theme/        # ZK UI theme fragment
+├── com.cloudempiere.ai.feature/      # Eclipse feature
+├── com.cloudempiere.ai.p2/           # P2 update site
+├── com.cloudempiere.ai.test/         # Test bundle (JUnit 5)
+├── docs/                             # Documentation
+├── .claude/                          # Claude Code configuration
+└── pom.xml                           # Root aggregator POM
 ```
 
 ---
