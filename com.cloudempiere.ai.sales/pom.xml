@@ -9,7 +9,7 @@
         <groupId>com.cloudempiere.ai</groupId>
         <artifactId>com.cloudempiere.ai.parent</artifactId>
         <version>10.0.2-SNAPSHOT</version>
-        <relativePath>../pom.xml</relativePath>
+        <relativePath>../com.cloudempiere.ai.parent/pom.xml</relativePath>
     </parent>
 
     <artifactId>com.cloudempiere.ai.sales</artifactId>
