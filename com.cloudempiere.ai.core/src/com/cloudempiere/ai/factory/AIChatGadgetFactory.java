@@ -181,12 +181,29 @@ public class AIChatGadgetFactory implements IDashboardGadgetFactory {
             // Real implementation will check AIPluginHealthService
             // For now, just check if provider is configured
 
+            // DEBUG: Log context info
+            log.warning("AI Chat isAvailable() check - AD_Client_ID=" + Env.getAD_Client_ID(Env.getCtx()));
+
             // Check if a default AI provider is configured in the database
             MAIProvider provider = MAIProvider.getDefault(Env.getCtx(), null);
-            return provider != null && provider.isActive();
+
+            if (provider == null) {
+                log.warning("AI Chat Widget not available: No default provider found");
+                return false;
+            }
+
+            log.warning("AI Chat Widget provider found: " + provider.getName() +
+                       " (ID=" + provider.getAIG_Provider_ID() +
+                       ", IsActive=" + provider.isActive() +
+                       ", Client=" + provider.getAD_Client_ID() + ")");
+
+            boolean available = provider.isActive();
+            log.warning("AI Chat Widget isAvailable result: " + available);
+            return available;
+
         } catch (Exception e) {
             // Defensive: never throw from isAvailable - just return false
-            log.log(Level.FINE, "AI Chat Widget not available: " + e.getMessage(), e);
+            log.log(Level.WARNING, "AI Chat Widget not available - Exception: " + e.getMessage(), e);
             return false;
         }
     }
