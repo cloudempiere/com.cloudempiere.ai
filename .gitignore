@@ -18,3 +18,4 @@ com.cloudempiere.cache.test*
 .settings/org.eclipse.core.resources.prefs
 */.settings/org.eclipse.m2e.core.prefs
 */.settings/org.eclipse.core.resources.prefs
+*.class
