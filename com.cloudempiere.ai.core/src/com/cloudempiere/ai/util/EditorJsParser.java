@@ -229,7 +229,7 @@ public class EditorJsParser {
         String title = data.optString("title", "Warning");
         String message = data.optString("message", "");
 
-        return "⚠️ **" + escapeMarkdown(title) + "**: " + escapeMarkdown(message);
+        return "[Warning] **" + escapeMarkdown(title) + "**: " + escapeMarkdown(message);
     }
 
     /**

@@ -40,7 +40,7 @@ public class DatabaseSyntaxHelper {
             // Most modern PostgreSQL (10+) supports EXTRACT, LIMIT, etc.
             return "\n\nCRITICAL SQL SYNTAX RULES (PostgreSQL Database):\n" +
                    "The database is PostgreSQL. You MUST use PostgreSQL syntax, NOT Oracle/MySQL syntax:\n" +
-                   "✓ CORRECT PostgreSQL syntax:\n" +
+                   "CORRECT PostgreSQL syntax:\n" +
                    "  - Date/Time functions: EXTRACT(YEAR FROM date_column), EXTRACT(MONTH FROM date_column), EXTRACT(DAY FROM date_column)\n" +
                    "  - String concat: column1 || ' ' || column2 OR CONCAT(column1, ' ', column2)\n" +
                    "  - Case-insensitive search: ILIKE 'pattern%'\n" +
@@ -48,7 +48,7 @@ public class DatabaseSyntaxHelper {
                    "  - Date arithmetic: date_column + INTERVAL '1 day'\n" +
                    "  - Limit rows: LIMIT n OFFSET m\n" +
                    "  - Date truncation: DATE_TRUNC('month', date_column)\n" +
-                   "✗ WRONG syntax (will cause errors):\n" +
+                   "WRONG syntax (will cause errors):\n" +
                    "  - YEAR(date_column) - does NOT exist in PostgreSQL! Use EXTRACT(YEAR FROM date_column)\n" +
                    "  - MONTH(date_column) - does NOT exist in PostgreSQL! Use EXTRACT(MONTH FROM date_column)\n" +
                    "  - DAY(date_column) - does NOT exist in PostgreSQL! Use EXTRACT(DAY FROM date_column)\n" +
@@ -62,7 +62,7 @@ public class DatabaseSyntaxHelper {
             // Oracle 12c+ supports FETCH FIRST, older versions use ROWNUM
             return "\n\nCRITICAL SQL SYNTAX RULES (Oracle Database):\n" +
                    "The database is Oracle. You MUST use Oracle syntax:\n" +
-                   "✓ CORRECT Oracle syntax:\n" +
+                   "CORRECT Oracle syntax:\n" +
                    "  - Date/Time functions: EXTRACT(YEAR FROM date_column), EXTRACT(MONTH FROM date_column)\n" +
                    "  - String concat: column1 || ' ' || column2 OR CONCAT(column1, column2)\n" +
                    "  - Case-insensitive search: UPPER(column) LIKE UPPER('pattern%')\n" +
@@ -70,7 +70,7 @@ public class DatabaseSyntaxHelper {
                    "  - Date arithmetic: date_column + 1 (adds 1 day)\n" +
                    "  - Limit rows: FETCH FIRST n ROWS ONLY (Oracle 12c+) or use ROWNUM\n" +
                    "  - Date truncation: TRUNC(date_column, 'MM')\n" +
-                   "✗ WRONG syntax (will cause errors):\n" +
+                   "WRONG syntax (will cause errors):\n" +
                    "  - LIMIT n - PostgreSQL syntax, not Oracle\n" +
                    "  - ILIKE - PostgreSQL syntax, not Oracle\n" +
                    "  - INTERVAL '1 day' - PostgreSQL syntax, use +1 instead\n" +

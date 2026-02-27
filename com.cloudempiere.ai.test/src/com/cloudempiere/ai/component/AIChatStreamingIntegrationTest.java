@@ -177,14 +177,14 @@ public class AIChatStreamingIntegrationTest {
     @Test
     @DisplayName("Scenario 9: UTF-8 emojis should be preserved")
     public void testEmojiPreservation() {
-        String withEmoji = "Test with emoji 🚀 and **bold 🎉**";
+        String withEmoji = "Test with emoji \uD83D\uDE80 and **bold \uD83C\uDF89**";
 
         streamingMsg.appendChunk(withEmoji);
         streamingMsg.complete();
 
         String html = streamingMsg.getRenderedHtml();
-        assertTrue(html.contains("🚀"), "Should preserve emoji: " + html);
-        assertTrue(html.contains("🎉"), "Should preserve emoji in bold: " + html);
+        assertTrue(html.contains("\uD83D\uDE80"), "Should preserve emoji: " + html);
+        assertTrue(html.contains("\uD83C\uDF89"), "Should preserve emoji in bold: " + html);
     }
 
     @Test

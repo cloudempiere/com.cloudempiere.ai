@@ -125,7 +125,7 @@ public class AIErrorHandler {
         public String getFormattedChatMessage() {
             // Format: User message + small debug emoji with reference
             // The emoji can have a tooltip in the UI showing the error reference
-            return userMessage + " \u26A0\uFE0F"; // ⚠️ warning emoji
+            return userMessage + " \u26A0\uFE0F"; // warning sign (U+26A0 + variation selector)
         }
 
         /**

@@ -166,7 +166,7 @@ public class StreamingPerformanceMonitor {
 
         boolean overallPass = passFrequency && passBatching && passLatency;
         log.warning("");
-        log.warning("Overall: " + (overallPass ? "✓ PASS" : "✗ FAIL"));
+        log.warning("Overall: " + (overallPass ? "PASS" : "FAIL"));
         log.warning("=====================================");
     }
 
