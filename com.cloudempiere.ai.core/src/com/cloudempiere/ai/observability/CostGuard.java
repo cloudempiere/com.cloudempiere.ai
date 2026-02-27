@@ -14,6 +14,7 @@
 package com.cloudempiere.ai.observability;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.ConcurrentHashMap;
@@ -298,7 +299,7 @@ public class CostGuard {
                 return BigDecimal.ZERO;
             }
             // Convert microdollars to dollars
-            return microdollars.divide(MICRODOLLARS_PER_DOLLAR, 6, BigDecimal.ROUND_HALF_UP);
+            return microdollars.divide(MICRODOLLARS_PER_DOLLAR, 6, RoundingMode.HALF_UP);
         } catch (Exception e) {
             return BigDecimal.ZERO;
         }
@@ -407,6 +408,7 @@ public class CostGuard {
      * Exception thrown when budget is exceeded.
      */
     public static class BudgetExceededException extends Exception {
+        private static final long serialVersionUID = 1L;
         private final BudgetType budgetType;
 
         public BudgetExceededException(String message, BudgetType budgetType) {
@@ -423,6 +425,7 @@ public class CostGuard {
      * Exception thrown when rate limit is exceeded.
      */
     public static class RateLimitExceededException extends Exception {
+        private static final long serialVersionUID = 1L;
         private final int limitPerMinute;
 
         public RateLimitExceededException(String message, int limitPerMinute) {
@@ -439,6 +442,7 @@ public class CostGuard {
      * Exception thrown when token limit is exceeded.
      */
     public static class TokenLimitExceededException extends Exception {
+        private static final long serialVersionUID = 1L;
         private final int maxTokens;
 
         public TokenLimitExceededException(String message, int maxTokens) {

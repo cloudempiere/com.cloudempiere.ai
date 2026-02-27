@@ -14,6 +14,7 @@
 package com.cloudempiere.ai.model;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.sql.ResultSet;
 import java.sql.Timestamp;
 import java.util.List;
@@ -535,7 +536,7 @@ public class MAIBudget extends X_AIG_Budget {
      * @return Daily limit in dollars
      */
     public BigDecimal getDailyLimitAsBigDecimal() {
-        return BigDecimal.valueOf(getDailyLimit()).divide(BigDecimal.valueOf(100), 2, BigDecimal.ROUND_HALF_UP);
+        return BigDecimal.valueOf(getDailyLimit()).divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
     }
 
     /**
@@ -544,7 +545,7 @@ public class MAIBudget extends X_AIG_Budget {
      * @return Monthly limit in dollars
      */
     public BigDecimal getMonthlyLimitAsBigDecimal() {
-        return BigDecimal.valueOf(getMonthlyLimit()).divide(BigDecimal.valueOf(100), 2, BigDecimal.ROUND_HALF_UP);
+        return BigDecimal.valueOf(getMonthlyLimit()).divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
     }
 
     /**
@@ -553,7 +554,7 @@ public class MAIBudget extends X_AIG_Budget {
      * @return Current daily usage in dollars
      */
     public BigDecimal getCurrentDailyAsBigDecimal() {
-        return BigDecimal.valueOf(getCurrentDailyAmt()).divide(BigDecimal.valueOf(100), 2, BigDecimal.ROUND_HALF_UP);
+        return BigDecimal.valueOf(getCurrentDailyAmt()).divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
     }
 
     /**
@@ -562,7 +563,7 @@ public class MAIBudget extends X_AIG_Budget {
      * @return Current monthly usage in dollars
      */
     public BigDecimal getCurrentMonthlyAsBigDecimal() {
-        return BigDecimal.valueOf(getCurrentMonthlyAmt()).divide(BigDecimal.valueOf(100), 2, BigDecimal.ROUND_HALF_UP);
+        return BigDecimal.valueOf(getCurrentMonthlyAmt()).divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
     }
 
     /**

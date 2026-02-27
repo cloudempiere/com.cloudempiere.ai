@@ -14,6 +14,7 @@
 package com.cloudempiere.ai.model;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.sql.ResultSet;
 import java.sql.Timestamp;
 import java.util.List;
@@ -425,7 +426,7 @@ public class MAIUsageMetrics extends X_AIG_UsageMetrics {
      */
     public BigDecimal getCostAsBigDecimal() {
         // CostUSD is stored as microdollars (integer)
-        return BigDecimal.valueOf(getCostAmt()).divide(BigDecimal.valueOf(1000000), 6, BigDecimal.ROUND_HALF_UP);
+        return BigDecimal.valueOf(getCostAmt()).divide(BigDecimal.valueOf(1000000), 6, RoundingMode.HALF_UP);
     }
 
     /**
