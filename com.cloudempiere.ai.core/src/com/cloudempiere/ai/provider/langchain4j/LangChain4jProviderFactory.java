@@ -1,15 +1,11 @@
 package com.cloudempiere.ai.provider.langchain4j;
 
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 
 import org.compiere.util.CLogger;
-import org.osgi.framework.Bundle;
 import org.osgi.framework.BundleContext;
-import org.osgi.framework.FrameworkUtil;
-import org.osgi.framework.ServiceReference;
 import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Deactivate;
@@ -156,37 +152,6 @@ public class LangChain4jProviderFactory implements ILangChain4jProviderFactory {
         instanceStreamingModelCache.clear();
         instanceEmbeddingModelCache.clear();
         log.info("LangChain4j instance model caches cleared");
-    }
-
-    // ========================================================================
-    // OSGi Service Instance Lookup (for deprecated static methods)
-    // ========================================================================
-
-    /**
-     * Get OSGi service instance for backward compatibility.
-     * @return Service instance or null if not available
-     */
-    private static LangChain4jProviderFactory getServiceInstance() {
-        if (serviceInstance != null) {
-            return serviceInstance;
-        }
-        // Fallback: OSGi service lookup
-        try {
-            Bundle bundle = FrameworkUtil.getBundle(LangChain4jProviderFactory.class);
-            if (bundle != null) {
-                BundleContext ctx = bundle.getBundleContext();
-                if (ctx != null) {
-                    ServiceReference<ILangChain4jProviderFactory> ref =
-                        ctx.getServiceReference(ILangChain4jProviderFactory.class);
-                    if (ref != null) {
-                        return (LangChain4jProviderFactory) ctx.getService(ref);
-                    }
-                }
-            }
-        } catch (Exception e) {
-            log.log(Level.WARNING, "Failed to get OSGi service instance", e);
-        }
-        return null;
     }
 
     // ========================================================================

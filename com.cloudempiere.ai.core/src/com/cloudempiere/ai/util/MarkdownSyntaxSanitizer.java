@@ -73,11 +73,6 @@ public class MarkdownSyntaxSanitizer {
     /** Allowed URL protocols (http, https, and mailto) */
     private static final Pattern ALLOWED_PROTOCOL = Pattern.compile("^(https?://.*|mailto:.*)", Pattern.CASE_INSENSITIVE);
 
-    /** Blocked URL protocols (security risk) */
-    private static final Pattern BLOCKED_PROTOCOL = Pattern.compile(
-        "^(javascript|data|file|vbscript|about):",
-        Pattern.CASE_INSENSITIVE
-    );
 
     // ============================================================================
     // Markdown Syntax Patterns
@@ -554,21 +549,6 @@ public class MarkdownSyntaxSanitizer {
 
         // Block all other protocols (javascript, file, vbscript, about, etc.)
         return false;
-    }
-
-    /**
-     * Additional check for image URLs (base64 validation).
-     *
-     * @param url image URL to validate
-     * @return true if image URL is safe
-     */
-    private boolean isImageUrlSafe(String url) {
-        // Block base64 data URLs unless explicitly allowed
-        if (!config.isBase64ImagesAllowed() && url.startsWith("data:")) {
-            return false;
-        }
-
-        return true;
     }
 
     // ============================================================================

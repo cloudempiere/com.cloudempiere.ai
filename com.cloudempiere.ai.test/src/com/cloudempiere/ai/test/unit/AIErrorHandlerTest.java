@@ -19,8 +19,6 @@ import com.cloudempiere.ai.test.support.TestLogger;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.net.SocketTimeoutException;
-import java.util.HashSet;
-import java.util.Set;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -280,7 +278,6 @@ class AIErrorHandlerTest {
         @UnitTest
 @DisplayName("Generates unique reference codes")
         void shouldGenerateUniqueReferenceCodes() {
-            Set<String> codes = new HashSet<>();
             int iterations = 100;
 
             for (int i = 0; i < iterations; i++) {

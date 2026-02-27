@@ -277,9 +277,6 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 		init();
 	}
 
-	/** Flag indicating if widget is in unavailable state */
-	private boolean unavailableState = false;
-
 	/**
 	 * Initialize the widget
 	 */
@@ -1334,7 +1331,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 								// Show error to user without breaking UI
 								String errorHtml =
 									"<div style='padding:12px; margin:12px 0; background:#fff3cd; border-left:4px solid #ffc107;'>" +
-									"<strong>⚠️ Response Too Long</strong><br/>" +
+									"<strong>Response Too Long</strong><br/>" +
 									"The AI response exceeded the database field limit and cannot be saved.<br/>" +
 									"<small style='color:#856404;'>" + Util.maskHTML(ex.getMessage(), true) + "</small>" +
 									"</div>";
@@ -1648,8 +1645,6 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 	 * @param message User-friendly explanation of why AI is unavailable
 	 */
 	private void showUnavailableState(String message) {
-		unavailableState = true;
-
 		// Clear any existing children
 		getChildren().clear();
 
@@ -1659,7 +1654,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 
 		// Icon
 		Html iconHtml = new Html("<div class='ai-unavailable-icon'>" +
-				"\uD83D\uDEAB</div>"); // 🚫 emoji
+				"\uD83D\uDEAB</div>"); // no-entry emoji (U+1F6AB)
 		container.appendChild(iconHtml);
 
 		// Title
@@ -1686,7 +1681,6 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 			}
 			Result<Boolean> availability = AIUIService.checkAvailability();
 			if (availability.isSuccess()) {
-				unavailableState = false;
 				getChildren().clear();
 				init();
 			} else {
@@ -1710,7 +1704,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 		}
 
 		String warningHtml = "<div class='ai-warning-inline'>" +
-			"⚠️ " + Util.maskHTML(warningMessage, true) + "</div>";
+			Util.maskHTML(warningMessage, true) + "</div>";
 
 		Html warningDiv = new Html(warningHtml);
 		messagesContainer.appendChild(warningDiv);
@@ -1947,7 +1941,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 				ChatAccess sharedAccess = getChatAccessServiceStub().getAccess(sessionCtx, sharedChat);
 
 				// Build label with access indicator
-				String accessIcon = (sharedAccess == ChatAccess.READ) ? "📖 " : "✏️ ";
+				String accessIcon = (sharedAccess == ChatAccess.READ) ? "[r] " : "[e] ";
 				String label = sharedChat.getDescription();
 				if (label == null || label.trim().isEmpty()) {
 					label = "Chat " + sharedChat.get_ID();
@@ -2869,149 +2863,6 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 		Clients.evalJavaScript(script);
 	}
 
-	/**
-	 * Render Markdown to HTML using marked.js (client-side)
-	 * Returns a unique ID for the container so we can process it after rendering
-	 * @param markdownText the markdown text to render
-	 * @return HTML string with markdown container and script to render it
-	 */
-	private String renderMarkdown(String markdownText) {
-		// Generate unique ID for this markdown block
-		String containerId = "md_" + System.currentTimeMillis() + "_" + (int)(Math.random() * 10000);
-
-		// Escape the markdown text for JavaScript (critical for security)
-		String escapedMarkdown = markdownText
-			.replace("\\", "\\\\")
-			.replace("'", "\\'")
-			.replace("\r", "")
-			.replace("\n", "\\n")
-			.replace("</script>", "<\\/script>");
-
-		StringBuilder sb = new StringBuilder();
-
-		// Container for rendered markdown
-		sb.append("<div id='").append(containerId).append("' class='ai-markdown-content'></div>");
-
-		// Script to render markdown when libraries are loaded
-		sb.append("<script>");
-		sb.append("(function() {");
-		sb.append("  var renderMD = function() {");
-		sb.append("    if (!window.marked || !window.Prism) {");
-		sb.append("      setTimeout(renderMD, 100);");
-		sb.append("      return;");
-		sb.append("    }");
-		sb.append("    var container = document.getElementById('").append(containerId).append("');");
-		sb.append("    if (!container) return;");
-
-		// Configure marked to use Prism for code highlighting
-		// IMPORTANT: sanitize must be false to allow HTML zoom links (ADR-039)
-		sb.append("    marked.setOptions({");
-		sb.append("      highlight: function(code, lang) {");
-		sb.append("        if (lang && Prism.languages[lang]) {");
-		sb.append("          return Prism.highlight(code, Prism.languages[lang], lang);");
-		sb.append("        }");
-		sb.append("        return code;");
-		sb.append("      },");
-		sb.append("      breaks: true,");
-		sb.append("      gfm: true,");
-		sb.append("      sanitize: false");  // Allow HTML for zoom links
-		sb.append("    });");
-
-		sb.append("    var html = marked.parse('").append(escapedMarkdown).append("');");
-		sb.append("    container.innerHTML = html;");
-
-		// Apply Prism to any code blocks that weren't caught by marked's highlight
-		sb.append("    container.querySelectorAll('pre code').forEach(function(block) {");
-		sb.append("      if (!block.classList.contains('language-')) {");
-		sb.append("        Prism.highlightElement(block);");
-		sb.append("      }");
-		sb.append("    });");
-		sb.append("  };");
-		sb.append("  renderMD();");
-		sb.append("})();");
-		sb.append("</script>");
-
-		return sb.toString();
-	}
-
-	/**
-	 * Render markdown while preserving existing HTML (tables and zoom links).
-	 * Simplified version of AIChatStreamingMessage.processMarkdownPreservingHTML()
-	 */
-	private String renderMarkdownPreservingHTML(String text) {
-		if (text == null || text.isEmpty()) return "";
-
-		// Normalize excessive line breaks (3+ newlines → 2 newlines for proper paragraph spacing)
-		text = text.replaceAll("\n{3,}", "\n\n");
-
-		StringBuilder result = new StringBuilder();
-		int pos = 0;
-
-		while (pos < text.length()) {
-			int tagStart = text.indexOf('<', pos);
-			if (tagStart == -1) {
-				result.append(renderSimpleMarkdown(text.substring(pos)));
-				break;
-			}
-			if (tagStart > pos) {
-				result.append(renderSimpleMarkdown(text.substring(pos, tagStart)));
-			}
-			int tagEnd = text.indexOf('>', tagStart);
-			if (tagEnd == -1) {
-				result.append(text.substring(tagStart));
-				break;
-			}
-			String tag = text.substring(tagStart, tagEnd + 1);
-			result.append(tag);
-			String tagName = extractTagName(tag);
-			if (tagName != null && !tag.endsWith("/>") && !isSelfClosingTag(tagName)) {
-				String closingTag = "</" + tagName + ">";
-				int closingPos = text.indexOf(closingTag, tagEnd + 1);
-				if (closingPos != -1) {
-					result.append(text.substring(tagEnd + 1, closingPos + closingTag.length()));
-					pos = closingPos + closingTag.length();
-					continue;
-				}
-			}
-			pos = tagEnd + 1;
-		}
-		return result.toString();
-	}
-
-	private String extractTagName(String tag) {
-		if (tag == null || tag.length() < 3) return null;
-		String content = tag.substring(1, tag.length() - 1).trim();
-		if (content.startsWith("/")) content = content.substring(1).trim();
-		if (content.endsWith("/")) content = content.substring(0, content.length() - 1).trim();
-		int spacePos = content.indexOf(' ');
-		if (spacePos > 0) content = content.substring(0, spacePos);
-		return content.toLowerCase();
-	}
-
-	private boolean isSelfClosingTag(String tagName) {
-		return tagName.equals("br") || tagName.equals("hr") || tagName.equals("img") || tagName.equals("input");
-	}
-
-	private String renderSimpleMarkdown(String text) {
-		if (text == null || text.isEmpty()) return "";
-		String result = Util.maskHTML(text, true);
-		result = result.replaceAll("(?m)^### (.+)$", "<h4 style='font-size: 14px; font-weight: 600; margin: 12px 0 8px 0;'>$1</h4>");
-		result = result.replaceAll("(?m)^## (.+)$", "<h3 style='font-size: 15px; font-weight: 600; margin: 14px 0 8px 0;'>$1</h3>");
-		result = result.replaceAll("(?m)^# (.+)$", "<h2 style='font-size: 16px; font-weight: 600; margin: 16px 0 10px 0;'>$1</h2>");
-		result = result.replaceAll("\\*\\*(.+?)\\*\\*", "<strong>$1</strong>");
-		result = result.replaceAll("__(.+?)__", "<strong>$1</strong>");
-		result = result.replaceAll("(?<!\\*)\\*(?!\\*)(.+?)(?<!\\*)\\*(?!\\*)", "<em>$1</em>");
-		result = result.replaceAll("`([^`]+)`", "<code style='background: #f5f5f5; padding: 2px 6px; border-radius: 3px; font-family: monospace; font-size: 0.9em;'>$1</code>");
-		result = result.replaceAll("(?m)^- (.+)$", "<li style='margin-left: 16px; list-style-type: disc;'>$1</li>");
-		result = result.replaceAll("(?m)^\\* (.+)$", "<li style='margin-left: 16px; list-style-type: disc;'>$1</li>");
-		result = result.replace("\n", "<br/>");
-		result = result.replaceAll("</h2><br/>", "</h2>");
-		result = result.replaceAll("</h3><br/>", "</h3>");
-		result = result.replaceAll("</h4><br/>", "</h4>");
-		result = result.replaceAll("</li><br/>", "</li>");
-		return result;
-	}
-
 	// ========================================================================
 	// Stop Button / Request Cancellation (ADR-031)
 	// ========================================================================
@@ -3137,36 +2988,6 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 					", HTML len=" + persistedHtml.length());
 		} catch (Exception e) {
 			log.log(Level.WARNING, "Failed to persist cancelled response", e);
-		}
-	}
-
-	/**
-	 * Safely schedule a UI update event, handling cases where desktop becomes unavailable.
-	 * SAFETY: Prevents silent failures when user navigates away during streaming.
-	 *
-	 * @param desktop Desktop instance to schedule on
-	 * @param handler Event handler to execute
-	 * @param event Event to send
-	 */
-	private void safeSchedule(Desktop desktop, java.util.function.Consumer<Event> handler, Event event) {
-		// Check desktop validity before scheduling
-		if (desktop == null || !desktop.isAlive()) {
-			log.log(Level.FINE, "Desktop no longer available, cannot schedule UI update: " + event.getName());
-			return;
-		}
-
-		try {
-			Executions.schedule(desktop, e -> {
-				// Double-check desktop is still alive when event executes
-				if (desktop.isAlive()) {
-					handler.accept(e);
-				} else {
-					log.log(Level.FINE, "Desktop became unavailable before event executed: " + event.getName());
-				}
-			}, event);
-		} catch (Exception e) {
-			// Catch any ZK exceptions related to desktop unavailability
-			log.log(Level.FINE, "Desktop became unavailable during schedule: " + e.getMessage(), e);
 		}
 	}
 

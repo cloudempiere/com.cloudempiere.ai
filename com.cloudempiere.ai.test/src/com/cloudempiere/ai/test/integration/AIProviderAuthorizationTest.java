@@ -68,7 +68,6 @@ class AIProviderAuthorizationTest extends AbstractTestCase {
 
     // Environment variable keys for API keys (fallback when not in DB)
     private static final String ENV_ANTHROPIC_API_KEY = "ANTHROPIC_API_KEY";
-    private static final String ENV_OPENAI_API_KEY = "OPENAI_API_KEY";
 
     @BeforeEach
     @Override

@@ -849,11 +849,11 @@ public class AIService implements IAIService {
 
             // Check if current differs from login
             if (!currentLang.equals(loginLanguage)) {
-                log.warning("[LANGUAGE] ⚠ LANGUAGE MISMATCH: Session (" + currentLang + ") != Login (" + loginLanguage + ")");
+                log.warning("[LANGUAGE] WARN: LANGUAGE MISMATCH: Session (" + currentLang + ") != Login (" + loginLanguage + ")");
                 if (hasOverride) {
-                    log.warning("[LANGUAGE] ⚠ Reason: Session override is active");
+                    log.warning("[LANGUAGE] WARN: Reason: Session override is active");
                 } else {
-                    log.warning("[LANGUAGE] ⚠ Reason: Unknown - this should not happen!");
+                    log.warning("[LANGUAGE] WARN: Reason: Unknown - this should not happen!");
                 }
             }
 
@@ -868,22 +868,22 @@ public class AIService implements IAIService {
                     org.compiere.util.Language detectedLangObj = org.compiere.util.Language.getLanguage(detected);
                     String detectedLangName = detectedLangObj != null ? detectedLangObj.getName() : detected;
 
-                    log.warning("[LANGUAGE] ✓ Auto-detected: " + detectedLangName + " (" + detected + ")");
+                    log.warning("[LANGUAGE] Auto-detected: " + detectedLangName + " (" + detected + ")");
 
                     // Check if detected differs from login
                     if (!detected.equals(loginLanguage)) {
-                        log.warning("[LANGUAGE] ⚠ CHANGE: Auto-detected (" + detected + ") != Login (" + loginLanguage + ")");
-                        log.warning("[LANGUAGE] ⚠ This will override the user's login language!");
+                        log.warning("[LANGUAGE] WARN: CHANGE: Auto-detected (" + detected + ") != Login (" + loginLanguage + ")");
+                        log.warning("[LANGUAGE] WARN: This will override the user's login language!");
                     } else {
-                        log.warning("[LANGUAGE] ✓ Auto-detected matches login language");
+                        log.warning("[LANGUAGE] Auto-detected matches login language");
                     }
 
                     // setOverrideLanguage will log the language switch if there was a previous one
                     languageService.setOverrideLanguage(chatId, detected);
                     callback.onProgress("language", getLocalizedProgressMessage(ctx, "AIG_LanguageDetected") + " " + detectedLangName);
                 } else {
-                    log.warning("[LANGUAGE] ✗ Could not auto-detect language from input");
-                    log.warning("[LANGUAGE] ✓ Will use login language: " + loginLangName);
+                    log.warning("[LANGUAGE] Could not auto-detect language from input");
+                    log.warning("[LANGUAGE] Will use login language: " + loginLangName);
                 }
             } else {
                 log.warning("[LANGUAGE] Override already exists - checking for explicit language change requests");
@@ -896,21 +896,21 @@ public class AIService implements IAIService {
                 Language requestedLangObj = Language.getLanguage(requested);
                 String requestedLangName = requestedLangObj != null ? requestedLangObj.getName() : requested;
 
-                log.warning("[LANGUAGE] ✓ User explicitly requested: " + requestedLangName + " (" + requested + ")");
+                log.warning("[LANGUAGE] User explicitly requested: " + requestedLangName + " (" + requested + ")");
 
                 // Check if requested differs from current session language
                 String previousSessionLang = languageService.getSessionLanguage(ctx, chatId);
                 if (!requested.equals(previousSessionLang)) {
-                    log.warning("[LANGUAGE] ⚠ USER INITIATED SWITCH: " + previousSessionLang + " → " + requested);
+                    log.warning("[LANGUAGE] WARN: USER INITIATED SWITCH: " + previousSessionLang + " -> " + requested);
                 } else {
-                    log.warning("[LANGUAGE] ✓ User requested matches current session language (no change)");
+                    log.warning("[LANGUAGE] User requested matches current session language (no change)");
                 }
 
                 // Check if requested differs from login
                 if (!requested.equals(loginLanguage)) {
-                    log.warning("[LANGUAGE] ⚠ Requested language (" + requested + ") != Login (" + loginLanguage + ")");
+                    log.warning("[LANGUAGE] WARN: Requested language (" + requested + ") != Login (" + loginLanguage + ")");
                 } else {
-                    log.warning("[LANGUAGE] ✓ User requested matches login language");
+                    log.warning("[LANGUAGE] User requested matches login language");
                 }
 
                 // setOverrideLanguage will log the language switch detection
@@ -929,7 +929,7 @@ public class AIService implements IAIService {
             log.warning("[LANGUAGE]   Final/Active: " + finalLangName + " (" + finalLang + ")");
 
             if (!finalLang.equals(loginLanguage)) {
-                log.warning("[LANGUAGE]   ⚠ CHANGED FROM LOGIN LANGUAGE!");
+                log.warning("[LANGUAGE]   WARN: CHANGED FROM LOGIN LANGUAGE!");
                 if (requestedLang.isPresent()) {
                     log.warning("[LANGUAGE]   Reason: User explicitly requested");
                 } else if (languageService.hasOverrideLanguage(chatId)) {
@@ -938,13 +938,13 @@ public class AIService implements IAIService {
                     log.warning("[LANGUAGE]   Reason: UNKNOWN - INVESTIGATE!");
                 }
             } else {
-                log.warning("[LANGUAGE]   ✓ Using login language");
+                log.warning("[LANGUAGE]   Using login language");
             }
 
             // Validate final language
             if (finalLangObj == null) {
-                log.warning("[LANGUAGE]   ⚠⚠⚠ ERROR: Unknown language code: " + finalLang);
-                log.warning("[LANGUAGE]   ⚠⚠⚠ This may cause response issues!");
+                log.warning("[LANGUAGE]   ERROR: Unknown language code: " + finalLang);
+                log.warning("[LANGUAGE]   ERROR: This may cause response issues!");
             }
 
             log.warning("[LANGUAGE] ========================================");
@@ -1352,8 +1352,6 @@ public class AIService implements IAIService {
         // Use CompletableFuture to block on streaming response
         CompletableFuture<ChatResult> future = new CompletableFuture<>();
         StringBuilder responseAccumulator = new StringBuilder();
-        AtomicReference<String> warningRef = new AtomicReference<>();
-
         AIStreamCallback blockingCallback = AIStreamCallback.builder()
             .onChunk(responseAccumulator::append)
             .onComplete(() -> {
@@ -1671,8 +1669,6 @@ public class AIService implements IAIService {
      * Get or create an agent for the given provider and session.
      */
     private ERPAgent getOrCreateAgent(MAIProvider provider, Properties ctx, String sessionId) {
-        int providerId = provider.getAIG_Provider_ID();
-
         // Get or create memory for this session
         MessageWindowChatMemory memory = memoryCache.computeIfAbsent(sessionId,
             id -> MessageWindowChatMemory.withMaxMessages(DEFAULT_MEMORY_SIZE));
@@ -1834,7 +1830,7 @@ public class AIService implements IAIService {
      */
     @Override
     public void clearBudgetCache(int clientId) {
-        costGuard.clearBudgetCache(clientId);
+        CostGuard.clearBudgetCache(clientId);
     }
 
     // ========================================================================

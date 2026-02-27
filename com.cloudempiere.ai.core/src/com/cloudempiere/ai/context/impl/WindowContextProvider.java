@@ -403,7 +403,6 @@ public class WindowContextProvider implements IAIContextProvider {
 
             // Extract sub-tab record data (similar to addRecordData but for specific sub-tab)
             JSONObject subTabRecordData = new JSONObject();
-            String tableName = tab.getAD_Table().getTableName();
             String prefixWithTab = windowNo + "|" + tabNo + "|";
 
             // Limit fields to avoid too much data
