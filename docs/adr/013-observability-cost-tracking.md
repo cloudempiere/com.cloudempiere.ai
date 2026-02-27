@@ -110,6 +110,7 @@ Log to files/message queue, process async.
 | `CostGuard` | Budget/rate enforcement | `observability/` |
 | `AIG_UsageMetrics` | Metrics storage | Database |
 | `AIG_UsageSummary` | Aggregated view | Database |
+| `AIG_ModelPricing` | Per-model token pricing | Database |
 
 ### Key Metrics
 
@@ -119,6 +120,56 @@ Log to files/message queue, process async.
 | Tokens/Request | Usage patterns | >4000 tokens avg |
 | Latency P95 | Performance | >5000ms |
 | Error Rate | Reliability | >5% |
+
+### Model Pricing Table (`AIG_ModelPricing`)
+
+Token-to-cost conversion rates are stored in a dedicated table rather than hardcoded in `AIMetricsListener`. This allows pricing updates (providers change rates frequently) without code changes or redeployment.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `AIG_ModelPricing_ID` | PK | |
+| `AIG_Provider_ID` | FK → AIG_Provider | Optional — null means applies to any provider |
+| `ModelName` | String(100) | Substring match against model name, e.g. `claude-3-5-sonnet`, `gpt-4o` |
+| `InputCostPerMToken` | Decimal(20,6) | Provider cost per million **input** tokens |
+| `OutputCostPerMToken` | Decimal(20,6) | Provider cost per million **output** tokens |
+| `C_Currency_ID` | FK → C_Currency | Provider's billing currency (USD, EUR…) |
+| `ValidFrom` | Date | Pricing effective date (latest active row wins) |
+| `IsActive` | YesNo | Standard iDempiere flag |
+
+**Lookup logic in `AIMetricsListener.calculateCost()`:**
+1. Query `AIG_ModelPricing` where `ModelName` is contained in the response model name, ordered by `ValidFrom DESC`, take first active row
+2. Calculate: `cost = (inputTokens / 1,000,000 × InputCostPerMToken) + (outputTokens / 1,000,000 × OutputCostPerMToken)`
+3. Convert from `C_Currency_ID` to the comparison currency via iDempiere `MConversionRate` if needed
+4. Cache results for 30 minutes to avoid repeated DB lookups
+
+**Fallback:** If no matching row is found, fall back to hardcoded defaults (existing behaviour) and log a warning.
+
+### Provider Pricing API Availability
+
+Researched 2026-02-27. Summary of whether each provider exposes pricing data programmatically:
+
+| Provider | Programmatic Pricing API | Notes |
+|----------|--------------------------|-------|
+| **Anthropic** | ❌ None | Rates published on docs/pricing page only. Must be inserted into `AIG_ModelPricing` manually. |
+| **AWS Bedrock** | ✅ AWS Price List API | `aws pricing get-products --service-code "AmazonBedrock"` returns per-model `pricePerUnit.USD`. Requires `pricing:GetProducts` IAM permission. Region must be `us-east-1` (pricing API is global but only available there). |
+| **OpenAI** | ❌ None | Long-standing community request, never implemented. Manual maintenance required. |
+| **Ollama (local)** | N/A — always $0 | Local inference has no cost. If using Ollama Cloud (launched Sep 2025), pricing is flat subscription tiers, not per-token. |
+
+**AWS Bedrock example query:**
+```bash
+aws pricing get-products \
+  --service-code "AmazonBedrock" \
+  --filters Type=TERM_MATCH,Field=provider,Value="Anthropic" \
+            Type=TERM_MATCH,Field=feature,Value="On-demand Inference" \
+  --region us-east-1
+```
+
+**Implication:** A scheduled iDempiere process could auto-sync `AIG_ModelPricing` rows for Bedrock models via the AWS Price List API. Anthropic and OpenAI rows must be maintained manually when providers publish rate changes.
+
+**Sources (retrieved 2026-02-27):**
+- [AWS Pricing API for Bedrock models (GitHub Gist)](https://gist.github.com/mikamboo/afd98fb78c3ada58b56acfd38dd342f3)
+- [API for Bedrock pricing — AWS re:Post](https://repost.aws/questions/QU1IfSsHSsTbKfUtMlhvOHxw/api-for-the-pricing-of-bedrock-foundational-models)
+- [OpenAI pricing API request thread](https://community.openai.com/t/is-there-an-endpoint-to-programmatically-fetch-openai-model-pricing/1229924)
 
 ### Currency Unit Conventions
 
