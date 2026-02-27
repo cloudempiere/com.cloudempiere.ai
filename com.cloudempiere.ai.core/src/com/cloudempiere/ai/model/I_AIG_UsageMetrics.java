@@ -32,8 +32,8 @@ public interface I_AIG_UsageMetrics
     /** TableName=AIG_UsageMetrics */
     public static final String Table_Name = "AIG_UsageMetrics";
 
-    /** AD_Table_ID=800205 */
-    public static final int Table_ID = 800205;
+    /** AD_Table_ID=800225 */
+    public static final int Table_ID = 800225;
 
     KeyNamePair Model = new KeyNamePair(Table_ID, Table_Name);
 
@@ -130,10 +130,10 @@ public interface I_AIG_UsageMetrics
     /** Column name AIG_UsageMetrics_ID */
     public static final String COLUMNNAME_AIG_UsageMetrics_ID = "AIG_UsageMetrics_ID";
 
-	/** Set Usage Metrics	  */
+	/** Set AI Usage Metrics	  */
 	public void setAIG_UsageMetrics_ID (int AIG_UsageMetrics_ID);
 
-	/** Get Usage Metrics	  */
+	/** Get AI Usage Metrics	  */
 	public int getAIG_UsageMetrics_ID();
 
     /** Column name AIG_UsageMetrics_UU */
@@ -145,14 +145,18 @@ public interface I_AIG_UsageMetrics
 	/** Get AIG_UsageMetrics_UU	  */
 	public String getAIG_UsageMetrics_UU();
 
-    /** Column name CostUSD */
-    public static final String COLUMNNAME_CostUSD = "CostUSD";
+    /** Column name CostAmt */
+    public static final String COLUMNNAME_CostAmt = "CostAmt";
 
-	/** Set Cost USD	  */
-	public void setCostUSD (int CostUSD);
+	/** Set Cost Value.
+	  * Value with Cost
+	  */
+	public void setCostAmt (int CostAmt);
 
-	/** Get Cost USD	  */
-	public int getCostUSD();
+	/** Get Cost Value.
+	  * Value with Cost
+	  */
+	public int getCostAmt();
 
     /** Column name Created */
     public static final String COLUMNNAME_Created = "Created";
@@ -204,10 +208,10 @@ public interface I_AIG_UsageMetrics
     /** Column name LatencyMs */
     public static final String COLUMNNAME_LatencyMs = "LatencyMs";
 
-	/** Set Latency Ms	  */
+	/** Set Latency ms	  */
 	public void setLatencyMs (int LatencyMs);
 
-	/** Get Latency Ms	  */
+	/** Get Latency ms	  */
 	public int getLatencyMs();
 
     /** Column name ModelName */

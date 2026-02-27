@@ -32,7 +32,7 @@ public class X_AIG_UsageMetrics extends PO implements I_AIG_UsageMetrics, I_Pers
 	/**
 	 *
 	 */
-	private static final long serialVersionUID = 20251204L;
+	private static final long serialVersionUID = 20260227L;
 
     /** Standard Constructor */
     public X_AIG_UsageMetrics (Properties ctx, int AIG_UsageMetrics_ID, String trxName)
@@ -198,8 +198,8 @@ public class X_AIG_UsageMetrics extends PO implements I_AIG_UsageMetrics, I_Pers
 		return ii.intValue();
 	}
 
-	/** Set Usage Metrics.
-		@param AIG_UsageMetrics_ID Usage Metrics
+	/** Set AI Usage Metrics.
+		@param AIG_UsageMetrics_ID AI Usage Metrics
 	*/
 	public void setAIG_UsageMetrics_ID (int AIG_UsageMetrics_ID)
 	{
@@ -209,8 +209,8 @@ public class X_AIG_UsageMetrics extends PO implements I_AIG_UsageMetrics, I_Pers
 			set_ValueNoCheck (COLUMNNAME_AIG_UsageMetrics_ID, Integer.valueOf(AIG_UsageMetrics_ID));
 	}
 
-	/** Get Usage Metrics.
-		@return Usage Metrics	  */
+	/** Get AI Usage Metrics.
+		@return AI Usage Metrics	  */
 	public int getAIG_UsageMetrics_ID()
 	{
 		Integer ii = (Integer)get_Value(COLUMNNAME_AIG_UsageMetrics_ID);
@@ -234,19 +234,20 @@ public class X_AIG_UsageMetrics extends PO implements I_AIG_UsageMetrics, I_Pers
 		return (String)get_Value(COLUMNNAME_AIG_UsageMetrics_UU);
 	}
 
-	/** Set Cost USD.
-		@param CostUSD Cost USD
+	/** Set Cost Value.
+		@param CostAmt Value with Cost
 	*/
-	public void setCostUSD (int CostUSD)
+	public void setCostAmt (int CostAmt)
 	{
-		set_Value (COLUMNNAME_CostUSD, Integer.valueOf(CostUSD));
+		set_Value (COLUMNNAME_CostAmt, Integer.valueOf(CostAmt));
 	}
 
-	/** Get Cost USD.
-		@return Cost USD	  */
-	public int getCostUSD()
+	/** Get Cost Value.
+		@return Value with Cost
+	  */
+	public int getCostAmt()
 	{
-		Integer ii = (Integer)get_Value(COLUMNNAME_CostUSD);
+		Integer ii = (Integer)get_Value(COLUMNNAME_CostAmt);
 		if (ii == null)
 			 return 0;
 		return ii.intValue();
@@ -285,16 +286,16 @@ public class X_AIG_UsageMetrics extends PO implements I_AIG_UsageMetrics, I_Pers
 		return ii.intValue();
 	}
 
-	/** Set Latency Ms.
-		@param LatencyMs Latency Ms
+	/** Set Latency ms.
+		@param LatencyMs Latency ms
 	*/
 	public void setLatencyMs (int LatencyMs)
 	{
 		set_Value (COLUMNNAME_LatencyMs, Integer.valueOf(LatencyMs));
 	}
 
-	/** Get Latency Ms.
-		@return Latency Ms	  */
+	/** Get Latency ms.
+		@return Latency ms	  */
 	public int getLatencyMs()
 	{
 		Integer ii = (Integer)get_Value(COLUMNNAME_LatencyMs);

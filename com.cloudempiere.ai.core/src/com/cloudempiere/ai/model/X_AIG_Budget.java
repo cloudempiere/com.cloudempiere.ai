@@ -32,7 +32,7 @@ public class X_AIG_Budget extends PO implements I_AIG_Budget, I_Persistent
 	/**
 	 *
 	 */
-	private static final long serialVersionUID = 20251203L;
+	private static final long serialVersionUID = 20260227L;
 
     /** Standard Constructor */
     public X_AIG_Budget (Properties ctx, int AIG_Budget_ID, String trxName)
@@ -178,55 +178,55 @@ public class X_AIG_Budget extends PO implements I_AIG_Budget, I_Persistent
 		return (String)get_Value(COLUMNNAME_BudgetScope);
 	}
 
-	/** Set CurrentDaily USD.
-		@param CurrentDailyUSD CurrentDaily USD
+	/** Set Current Daily Amt.
+		@param CurrentDailyAmt Current Daily Amt
 	*/
-	public void setCurrentDailyUSD (int CurrentDailyUSD)
+	public void setCurrentDailyAmt (int CurrentDailyAmt)
 	{
-		set_Value (COLUMNNAME_CurrentDailyUSD, Integer.valueOf(CurrentDailyUSD));
+		set_Value (COLUMNNAME_CurrentDailyAmt, Integer.valueOf(CurrentDailyAmt));
 	}
 
-	/** Get CurrentDaily USD.
-		@return CurrentDaily USD	  */
-	public int getCurrentDailyUSD()
+	/** Get Current Daily Amt.
+		@return Current Daily Amt	  */
+	public int getCurrentDailyAmt()
 	{
-		Integer ii = (Integer)get_Value(COLUMNNAME_CurrentDailyUSD);
+		Integer ii = (Integer)get_Value(COLUMNNAME_CurrentDailyAmt);
 		if (ii == null)
 			 return 0;
 		return ii.intValue();
 	}
 
-	/** Set CurrentMonthly USD.
-		@param CurrentMonthlyUSD CurrentMonthly USD
+	/** Set Current Monthly Amt.
+		@param CurrentMonthlyAmt Current Monthly Amt
 	*/
-	public void setCurrentMonthlyUSD (int CurrentMonthlyUSD)
+	public void setCurrentMonthlyAmt (int CurrentMonthlyAmt)
 	{
-		set_Value (COLUMNNAME_CurrentMonthlyUSD, Integer.valueOf(CurrentMonthlyUSD));
+		set_Value (COLUMNNAME_CurrentMonthlyAmt, Integer.valueOf(CurrentMonthlyAmt));
 	}
 
-	/** Get CurrentMonthly USD.
-		@return CurrentMonthly USD	  */
-	public int getCurrentMonthlyUSD()
+	/** Get Current Monthly Amt.
+		@return Current Monthly Amt	  */
+	public int getCurrentMonthlyAmt()
 	{
-		Integer ii = (Integer)get_Value(COLUMNNAME_CurrentMonthlyUSD);
+		Integer ii = (Integer)get_Value(COLUMNNAME_CurrentMonthlyAmt);
 		if (ii == null)
 			 return 0;
 		return ii.intValue();
 	}
 
-	/** Set Daily Limit USD.
-		@param DailyLimitUSD Daily Limit USD
+	/** Set Daily Limit.
+		@param DailyLimit Daily Limit
 	*/
-	public void setDailyLimitUSD (int DailyLimitUSD)
+	public void setDailyLimit (int DailyLimit)
 	{
-		set_Value (COLUMNNAME_DailyLimitUSD, Integer.valueOf(DailyLimitUSD));
+		set_Value (COLUMNNAME_DailyLimit, Integer.valueOf(DailyLimit));
 	}
 
-	/** Get Daily Limit USD.
-		@return Daily Limit USD	  */
-	public int getDailyLimitUSD()
+	/** Get Daily Limit.
+		@return Daily Limit	  */
+	public int getDailyLimit()
 	{
-		Integer ii = (Integer)get_Value(COLUMNNAME_DailyLimitUSD);
+		Integer ii = (Integer)get_Value(COLUMNNAME_DailyLimit);
 		if (ii == null)
 			 return 0;
 		return ii.intValue();
@@ -262,34 +262,34 @@ public class X_AIG_Budget extends PO implements I_AIG_Budget, I_Persistent
 		return (Timestamp)get_Value(COLUMNNAME_LastResetMonthly);
 	}
 
-	/** Set MonthlyLimit USD.
-		@param MonthlyLimitUSD MonthlyLimit USD
+	/** Set Monthly Limit.
+		@param MonthlyLimit Monthly Limit
 	*/
-	public void setMonthlyLimitUSD (int MonthlyLimitUSD)
+	public void setMonthlyLimit (int MonthlyLimit)
 	{
-		set_Value (COLUMNNAME_MonthlyLimitUSD, Integer.valueOf(MonthlyLimitUSD));
+		set_Value (COLUMNNAME_MonthlyLimit, Integer.valueOf(MonthlyLimit));
 	}
 
-	/** Get MonthlyLimit USD.
-		@return MonthlyLimit USD	  */
-	public int getMonthlyLimitUSD()
+	/** Get Monthly Limit.
+		@return Monthly Limit	  */
+	public int getMonthlyLimit()
 	{
-		Integer ii = (Integer)get_Value(COLUMNNAME_MonthlyLimitUSD);
+		Integer ii = (Integer)get_Value(COLUMNNAME_MonthlyLimit);
 		if (ii == null)
 			 return 0;
 		return ii.intValue();
 	}
 
-	/** Set Requests Per Minute.
-		@param RequestsPerMinute Requests Per Minute
+	/** Set Requests/Minute.
+		@param RequestsPerMinute Requests/Minute
 	*/
 	public void setRequestsPerMinute (int RequestsPerMinute)
 	{
 		set_Value (COLUMNNAME_RequestsPerMinute, Integer.valueOf(RequestsPerMinute));
 	}
 
-	/** Get Requests Per Minute.
-		@return Requests Per Minute	  */
+	/** Get Requests/Minute.
+		@return Requests/Minute	  */
 	public int getRequestsPerMinute()
 	{
 		Integer ii = (Integer)get_Value(COLUMNNAME_RequestsPerMinute);

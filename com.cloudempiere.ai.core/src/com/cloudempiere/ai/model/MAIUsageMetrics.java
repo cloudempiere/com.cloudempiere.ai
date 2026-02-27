@@ -125,7 +125,7 @@ public class MAIUsageMetrics extends X_AIG_UsageMetrics {
         metrics.setInputTokens(inputTokens);
         metrics.setOutputTokens(outputTokens);
         metrics.setTotalTokens(inputTokens + outputTokens);
-        metrics.setCostUSD(costUSD);
+        metrics.setCostAmt(costUSD);
         metrics.setLatencyMs(latencyMs);
         metrics.setRequestTimestamp(new Timestamp(System.currentTimeMillis()));
         metrics.setSuccessFlag(true);
@@ -180,7 +180,7 @@ public class MAIUsageMetrics extends X_AIG_UsageMetrics {
         metrics.setInputTokens(inputTokens);
         metrics.setOutputTokens(outputTokens);
         metrics.setTotalTokens(inputTokens + outputTokens);
-        metrics.setCostUSD(costUSD);
+        metrics.setCostAmt(costUSD);
         metrics.setLatencyMs(latencyMs);
         metrics.setSessionID(sessionId);
         metrics.setRequestType(requestType);
@@ -391,7 +391,7 @@ public class MAIUsageMetrics extends X_AIG_UsageMetrics {
             .list();
 
         return metrics.stream()
-            .mapToInt(MAIUsageMetrics::getCostUSD)
+            .mapToInt(MAIUsageMetrics::getCostAmt)
             .sum();
     }
 
@@ -425,7 +425,7 @@ public class MAIUsageMetrics extends X_AIG_UsageMetrics {
      */
     public BigDecimal getCostAsBigDecimal() {
         // CostUSD is stored as microdollars (integer)
-        return BigDecimal.valueOf(getCostUSD()).divide(BigDecimal.valueOf(1000000), 6, BigDecimal.ROUND_HALF_UP);
+        return BigDecimal.valueOf(getCostAmt()).divide(BigDecimal.valueOf(1000000), 6, BigDecimal.ROUND_HALF_UP);
     }
 
     /**
@@ -459,7 +459,7 @@ public class MAIUsageMetrics extends X_AIG_UsageMetrics {
         return "MAIUsageMetrics[" + getAIG_UsageMetrics_ID() +
             ", agent=" + getAgentName() +
             ", tokens=" + getTotalTokens() +
-            ", cost=" + getCostUSD() +
+            ", cost=" + getCostAmt() +
             ", latency=" + getLatencyMs() + "ms]";
     }
 }

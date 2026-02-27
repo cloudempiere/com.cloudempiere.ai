@@ -282,12 +282,12 @@ public class MAIBudget extends X_AIG_Budget {
 
         MAIBudget budget = new MAIBudget(ctx, 0, trxName);
         budget.setBudgetScope(SCOPE_CLIENT);
-        budget.setDailyLimitUSD(dailyLimitCents);
-        budget.setMonthlyLimitUSD(monthlyLimitCents);
+        budget.setDailyLimit(dailyLimitCents);
+        budget.setMonthlyLimit(monthlyLimitCents);
         budget.setTokenLimitPerRequest(DEFAULT_TOKEN_LIMIT);
         budget.setRequestsPerMinute(DEFAULT_REQUESTS_PER_MINUTE);
-        budget.setCurrentDailyUSD(0);
-        budget.setCurrentMonthlyUSD(0);
+        budget.setCurrentDailyAmt(0);
+        budget.setCurrentMonthlyAmt(0);
 
         if (!budget.save()) {
             log.warning("Failed to create client budget");
@@ -315,12 +315,12 @@ public class MAIBudget extends X_AIG_Budget {
         MAIBudget budget = new MAIBudget(ctx, 0, trxName);
         budget.setBudgetScope(SCOPE_USER);
         budget.setAD_User_ID(userId);
-        budget.setDailyLimitUSD(dailyLimitCents);
-        budget.setMonthlyLimitUSD(monthlyLimitCents);
+        budget.setDailyLimit(dailyLimitCents);
+        budget.setMonthlyLimit(monthlyLimitCents);
         budget.setTokenLimitPerRequest(DEFAULT_TOKEN_LIMIT);
         budget.setRequestsPerMinute(DEFAULT_REQUESTS_PER_MINUTE);
-        budget.setCurrentDailyUSD(0);
-        budget.setCurrentMonthlyUSD(0);
+        budget.setCurrentDailyAmt(0);
+        budget.setCurrentMonthlyAmt(0);
 
         if (!budget.save()) {
             log.warning("Failed to create user budget for user=" + userId);
@@ -346,12 +346,12 @@ public class MAIBudget extends X_AIG_Budget {
         MAIBudget budget = new MAIBudget(ctx, 0, trxName);
         budget.setBudgetScope(SCOPE_AGENT);
         budget.setAgentName(agentName);
-        budget.setDailyLimitUSD(dailyLimitCents);
-        budget.setMonthlyLimitUSD(monthlyLimitCents);
+        budget.setDailyLimit(dailyLimitCents);
+        budget.setMonthlyLimit(monthlyLimitCents);
         budget.setTokenLimitPerRequest(DEFAULT_TOKEN_LIMIT);
         budget.setRequestsPerMinute(DEFAULT_REQUESTS_PER_MINUTE);
-        budget.setCurrentDailyUSD(0);
-        budget.setCurrentMonthlyUSD(0);
+        budget.setCurrentDailyAmt(0);
+        budget.setCurrentMonthlyAmt(0);
 
         if (!budget.save()) {
             log.warning("Failed to create agent budget for agent=" + agentName);
@@ -371,11 +371,11 @@ public class MAIBudget extends X_AIG_Budget {
      * @return true if daily budget exceeded
      */
     public boolean isDailyBudgetExceeded() {
-        int limit = getDailyLimitUSD();
+        int limit = getDailyLimit();
         if (limit <= 0) {
             return false; // No limit set
         }
-        return getCurrentDailyUSD() >= limit;
+        return getCurrentDailyAmt() >= limit;
     }
 
     /**
@@ -384,11 +384,11 @@ public class MAIBudget extends X_AIG_Budget {
      * @return true if monthly budget exceeded
      */
     public boolean isMonthlyBudgetExceeded() {
-        int limit = getMonthlyLimitUSD();
+        int limit = getMonthlyLimit();
         if (limit <= 0) {
             return false; // No limit set
         }
-        return getCurrentMonthlyUSD() >= limit;
+        return getCurrentMonthlyAmt() >= limit;
     }
 
     /**
@@ -398,11 +398,11 @@ public class MAIBudget extends X_AIG_Budget {
      * @return true if would exceed
      */
     public boolean wouldExceedDailyBudget(int additionalCostCents) {
-        int limit = getDailyLimitUSD();
+        int limit = getDailyLimit();
         if (limit <= 0) {
             return false; // No limit set
         }
-        return (getCurrentDailyUSD() + additionalCostCents) > limit;
+        return (getCurrentDailyAmt() + additionalCostCents) > limit;
     }
 
     /**
@@ -412,11 +412,11 @@ public class MAIBudget extends X_AIG_Budget {
      * @return true if would exceed
      */
     public boolean wouldExceedMonthlyBudget(int additionalCostCents) {
-        int limit = getMonthlyLimitUSD();
+        int limit = getMonthlyLimit();
         if (limit <= 0) {
             return false; // No limit set
         }
-        return (getCurrentMonthlyUSD() + additionalCostCents) > limit;
+        return (getCurrentMonthlyAmt() + additionalCostCents) > limit;
     }
 
     /**
@@ -425,11 +425,11 @@ public class MAIBudget extends X_AIG_Budget {
      * @return Percentage (0-100+)
      */
     public double getDailyUsagePercent() {
-        int limit = getDailyLimitUSD();
+        int limit = getDailyLimit();
         if (limit <= 0) {
             return 0;
         }
-        return (getCurrentDailyUSD() * 100.0) / limit;
+        return (getCurrentDailyAmt() * 100.0) / limit;
     }
 
     /**
@@ -438,11 +438,11 @@ public class MAIBudget extends X_AIG_Budget {
      * @return Percentage (0-100+)
      */
     public double getMonthlyUsagePercent() {
-        int limit = getMonthlyLimitUSD();
+        int limit = getMonthlyLimit();
         if (limit <= 0) {
             return 0;
         }
-        return (getCurrentMonthlyUSD() * 100.0) / limit;
+        return (getCurrentMonthlyAmt() * 100.0) / limit;
     }
 
     /**
@@ -451,11 +451,11 @@ public class MAIBudget extends X_AIG_Budget {
      * @return Remaining cents (may be negative if exceeded)
      */
     public int getRemainingDailyCents() {
-        int limit = getDailyLimitUSD();
+        int limit = getDailyLimit();
         if (limit <= 0) {
             return Integer.MAX_VALUE; // Unlimited
         }
-        return limit - getCurrentDailyUSD();
+        return limit - getCurrentDailyAmt();
     }
 
     /**
@@ -464,11 +464,11 @@ public class MAIBudget extends X_AIG_Budget {
      * @return Remaining cents (may be negative if exceeded)
      */
     public int getRemainingMonthlyCents() {
-        int limit = getMonthlyLimitUSD();
+        int limit = getMonthlyLimit();
         if (limit <= 0) {
             return Integer.MAX_VALUE; // Unlimited
         }
-        return limit - getCurrentMonthlyUSD();
+        return limit - getCurrentMonthlyAmt();
     }
 
     // ========================================================================
@@ -484,8 +484,8 @@ public class MAIBudget extends X_AIG_Budget {
     public boolean addUsage(int costCents) {
         maybeResetCounters();
 
-        setCurrentDailyUSD(getCurrentDailyUSD() + costCents);
-        setCurrentMonthlyUSD(getCurrentMonthlyUSD() + costCents);
+        setCurrentDailyAmt(getCurrentDailyAmt() + costCents);
+        setCurrentMonthlyAmt(getCurrentMonthlyAmt() + costCents);
 
         return save();
     }
@@ -499,14 +499,14 @@ public class MAIBudget extends X_AIG_Budget {
         // Check if daily reset needed
         Timestamp lastDaily = getLastResetDaily();
         if (lastDaily == null || !isSameDay(lastDaily, now)) {
-            setCurrentDailyUSD(0);
+            setCurrentDailyAmt(0);
             setLastResetDaily(now);
         }
 
         // Check if monthly reset needed
         Timestamp lastMonthly = getLastResetMonthly();
         if (lastMonthly == null || !isSameMonth(lastMonthly, now)) {
-            setCurrentMonthlyUSD(0);
+            setCurrentMonthlyAmt(0);
             setLastResetMonthly(now);
         }
     }
@@ -518,8 +518,8 @@ public class MAIBudget extends X_AIG_Budget {
      */
     public boolean resetCounters() {
         Timestamp now = new Timestamp(System.currentTimeMillis());
-        setCurrentDailyUSD(0);
-        setCurrentMonthlyUSD(0);
+        setCurrentDailyAmt(0);
+        setCurrentMonthlyAmt(0);
         setLastResetDaily(now);
         setLastResetMonthly(now);
         return save();
@@ -535,7 +535,7 @@ public class MAIBudget extends X_AIG_Budget {
      * @return Daily limit in dollars
      */
     public BigDecimal getDailyLimitAsBigDecimal() {
-        return BigDecimal.valueOf(getDailyLimitUSD()).divide(BigDecimal.valueOf(100), 2, BigDecimal.ROUND_HALF_UP);
+        return BigDecimal.valueOf(getDailyLimit()).divide(BigDecimal.valueOf(100), 2, BigDecimal.ROUND_HALF_UP);
     }
 
     /**
@@ -544,7 +544,7 @@ public class MAIBudget extends X_AIG_Budget {
      * @return Monthly limit in dollars
      */
     public BigDecimal getMonthlyLimitAsBigDecimal() {
-        return BigDecimal.valueOf(getMonthlyLimitUSD()).divide(BigDecimal.valueOf(100), 2, BigDecimal.ROUND_HALF_UP);
+        return BigDecimal.valueOf(getMonthlyLimit()).divide(BigDecimal.valueOf(100), 2, BigDecimal.ROUND_HALF_UP);
     }
 
     /**
@@ -553,7 +553,7 @@ public class MAIBudget extends X_AIG_Budget {
      * @return Current daily usage in dollars
      */
     public BigDecimal getCurrentDailyAsBigDecimal() {
-        return BigDecimal.valueOf(getCurrentDailyUSD()).divide(BigDecimal.valueOf(100), 2, BigDecimal.ROUND_HALF_UP);
+        return BigDecimal.valueOf(getCurrentDailyAmt()).divide(BigDecimal.valueOf(100), 2, BigDecimal.ROUND_HALF_UP);
     }
 
     /**
@@ -562,7 +562,7 @@ public class MAIBudget extends X_AIG_Budget {
      * @return Current monthly usage in dollars
      */
     public BigDecimal getCurrentMonthlyAsBigDecimal() {
-        return BigDecimal.valueOf(getCurrentMonthlyUSD()).divide(BigDecimal.valueOf(100), 2, BigDecimal.ROUND_HALF_UP);
+        return BigDecimal.valueOf(getCurrentMonthlyAmt()).divide(BigDecimal.valueOf(100), 2, BigDecimal.ROUND_HALF_UP);
     }
 
     /**
@@ -596,7 +596,7 @@ public class MAIBudget extends X_AIG_Budget {
     public String toString() {
         return "MAIBudget[" + getAIG_Budget_ID() +
             ", scope=" + getBudgetScope() +
-            ", daily=" + getDailyLimitUSD() + "¢ (used " + getCurrentDailyUSD() + "¢)" +
-            ", monthly=" + getMonthlyLimitUSD() + "¢ (used " + getCurrentMonthlyUSD() + "¢)]";
+            ", daily=" + getDailyLimit() + "¢ (used " + getCurrentDailyAmt() + "¢)" +
+            ", monthly=" + getMonthlyLimit() + "¢ (used " + getCurrentMonthlyAmt() + "¢)]";
     }
 }
