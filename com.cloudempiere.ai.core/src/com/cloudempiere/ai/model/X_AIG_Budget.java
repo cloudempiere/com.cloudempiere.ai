@@ -32,7 +32,7 @@ public class X_AIG_Budget extends PO implements I_AIG_Budget, I_Persistent
 	/**
 	 *
 	 */
-	private static final long serialVersionUID = 20260227L;
+	private static final long serialVersionUID = 20260302L;
 
     /** Standard Constructor */
     public X_AIG_Budget (Properties ctx, int AIG_Budget_ID, String trxName)
@@ -163,11 +163,20 @@ public class X_AIG_Budget extends PO implements I_AIG_Budget, I_Persistent
 		return (String)get_Value(COLUMNNAME_AIG_Budget_UU);
 	}
 
+	/** BudgetScope AD_Reference_ID=800138 */
+	public static final int BUDGETSCOPE_AD_Reference_ID=800138;
+	/** Agent = A */
+	public static final String BUDGETSCOPE_Agent = "A";
+	/** Client = C */
+	public static final String BUDGETSCOPE_Client = "C";
+	/** User = U */
+	public static final String BUDGETSCOPE_User = "U";
 	/** Set Budget Scope.
 		@param BudgetScope Budget Scope
 	*/
 	public void setBudgetScope (String BudgetScope)
 	{
+
 		set_Value (COLUMNNAME_BudgetScope, BudgetScope);
 	}
 
