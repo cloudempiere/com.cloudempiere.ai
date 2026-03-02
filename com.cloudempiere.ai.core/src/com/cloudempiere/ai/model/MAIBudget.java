@@ -32,7 +32,7 @@ import org.compiere.util.CLogger;
  *
  * <p>Key features:
  * <ul>
- *   <li>Budget scope management (CLIENT, USER, AGENT)</li>
+ *   <li>Budget scope management (C=Client, U=User, A=Agent)</li>
  *   <li>Daily and monthly limit enforcement</li>
  *   <li>Current usage tracking</li>
  *   <li>Rate limiting configuration</li>
@@ -51,19 +51,6 @@ public class MAIBudget extends X_AIG_Budget {
 
     private static final long serialVersionUID = 1L;
     private static final CLogger log = CLogger.getCLogger(MAIBudget.class);
-
-    // ========================================================================
-    // Budget Scope Constants
-    // ========================================================================
-
-    /** Budget scope: Client level (applies to entire tenant) */
-    public static final String SCOPE_CLIENT = "CLIENT";
-
-    /** Budget scope: User level (applies to specific user) */
-    public static final String SCOPE_USER = "USER";
-
-    /** Budget scope: Agent level (applies to specific agent) */
-    public static final String SCOPE_AGENT = "AGENT";
 
     // ========================================================================
     // Default Values
@@ -178,7 +165,7 @@ public class MAIBudget extends X_AIG_Budget {
 
         budget = new Query(ctx, Table_Name,
                 COLUMNNAME_BudgetScope + "=? AND AD_Client_ID=? AND IsActive='Y'", trxName)
-            .setParameters(SCOPE_CLIENT, clientId)
+            .setParameters(BUDGETSCOPE_Client, clientId)
             .first();
 
         if (budget != null) {
@@ -200,7 +187,7 @@ public class MAIBudget extends X_AIG_Budget {
         return new Query(ctx, Table_Name,
                 COLUMNNAME_BudgetScope + "=? AND " + COLUMNNAME_AD_User_ID + "=? AND IsActive='Y'", trxName)
             .setClient_ID()
-            .setParameters(SCOPE_USER, userId)
+            .setParameters(BUDGETSCOPE_User, userId)
             .first();
     }
 
@@ -220,7 +207,7 @@ public class MAIBudget extends X_AIG_Budget {
         return new Query(ctx, Table_Name,
                 COLUMNNAME_BudgetScope + "=? AND " + COLUMNNAME_AgentName + "=? AND IsActive='Y'", trxName)
             .setClient_ID()
-            .setParameters(SCOPE_AGENT, agentName)
+            .setParameters(BUDGETSCOPE_Agent, agentName)
             .first();
     }
 
@@ -282,7 +269,7 @@ public class MAIBudget extends X_AIG_Budget {
             int monthlyLimitCents, String trxName) {
 
         MAIBudget budget = new MAIBudget(ctx, 0, trxName);
-        budget.setBudgetScope(SCOPE_CLIENT);
+        budget.setBudgetScope(BUDGETSCOPE_Client);
         budget.setDailyLimit(dailyLimitCents);
         budget.setMonthlyLimit(monthlyLimitCents);
         budget.setTokenLimitPerRequest(DEFAULT_TOKEN_LIMIT);
@@ -314,7 +301,7 @@ public class MAIBudget extends X_AIG_Budget {
             int dailyLimitCents, int monthlyLimitCents, String trxName) {
 
         MAIBudget budget = new MAIBudget(ctx, 0, trxName);
-        budget.setBudgetScope(SCOPE_USER);
+        budget.setBudgetScope(BUDGETSCOPE_User);
         budget.setAD_User_ID(userId);
         budget.setDailyLimit(dailyLimitCents);
         budget.setMonthlyLimit(monthlyLimitCents);
@@ -345,7 +332,7 @@ public class MAIBudget extends X_AIG_Budget {
             int dailyLimitCents, int monthlyLimitCents, String trxName) {
 
         MAIBudget budget = new MAIBudget(ctx, 0, trxName);
-        budget.setBudgetScope(SCOPE_AGENT);
+        budget.setBudgetScope(BUDGETSCOPE_Agent);
         budget.setAgentName(agentName);
         budget.setDailyLimit(dailyLimitCents);
         budget.setMonthlyLimit(monthlyLimitCents);
