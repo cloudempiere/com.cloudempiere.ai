@@ -304,6 +304,7 @@ public class AIMetricsListener implements ChatModelListener {
                     sess, null, // requestType
                     null // trxName
                 );
+
             } else {
                 MAIUsageMetrics.recordError(
                     ctx, uId, agnt, modelName,
