@@ -76,9 +76,6 @@ public class RecordReferenceExtractor {
 			this.whereClause = whereClause;
 		}
 
-		PatternConfig(Pattern pattern, String tableName, String documentNoColumn) {
-			this(pattern, tableName, documentNoColumn, null);
-		}
 	}
 
 	/**

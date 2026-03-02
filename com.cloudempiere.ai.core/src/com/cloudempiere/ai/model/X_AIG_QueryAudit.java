@@ -31,7 +31,7 @@ public class X_AIG_QueryAudit extends PO implements I_AIG_QueryAudit, I_Persiste
 	/**
 	 *
 	 */
-	private static final long serialVersionUID = 20251119L;
+	private static final long serialVersionUID = 20260227L;
 
     /** Standard Constructor */
     public X_AIG_QueryAudit (Properties ctx, int AIG_QueryAudit_ID, String trxName)

@@ -26,7 +26,6 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import org.compiere.model.MClient;
-import org.compiere.model.MLanguage;
 import org.compiere.util.CLogger;
 import org.compiere.util.DB;
 import org.compiere.util.Env;
@@ -286,10 +285,10 @@ public class LanguageDetectionService {
         if (override != null && !override.isBlank()) {
             Language lang = Language.getLanguage(override);
             String langName = lang != null ? lang.getName() : override;
-            log.warning("[LANGUAGE] ✓ Priority 1: Session override → " + langName + " (" + override + ")");
+            log.warning("[LANGUAGE] Priority 1: Session override -> " + langName + " (" + override + ")");
             return override;
         } else {
-            log.warning("[LANGUAGE] ✗ Priority 1: No session override found");
+            log.warning("[LANGUAGE] Priority 1: No session override found");
         }
 
         // 2. Use iDempiere context language (user login language)
@@ -298,10 +297,10 @@ public class LanguageDetectionService {
             if (adLanguage != null && !adLanguage.isBlank()) {
                 Language lang = Language.getLanguage(adLanguage);
                 String langName = lang != null ? lang.getName() : adLanguage;
-                log.warning("[LANGUAGE] ✓ Priority 2: User login language → " + langName + " (" + adLanguage + ")");
+                log.warning("[LANGUAGE] Priority 2: User login language -> " + langName + " (" + adLanguage + ")");
                 return adLanguage;
             } else {
-                log.warning("[LANGUAGE] ✗ Priority 2: User login language is null/blank");
+                log.warning("[LANGUAGE] Priority 2: User login language is null/blank");
             }
 
             // 3. Use tenant/client language
@@ -314,26 +313,26 @@ public class LanguageDetectionService {
                         if (clientLang != null && !clientLang.isBlank()) {
                             Language lang = Language.getLanguage(clientLang);
                             String langName = lang != null ? lang.getName() : clientLang;
-                            log.warning("[LANGUAGE] ✓ Priority 3: Tenant/Client language → " + langName + " (" + clientLang + ")");
+                            log.warning("[LANGUAGE] Priority 3: Tenant/Client language -> " + langName + " (" + clientLang + ")");
                             return clientLang;
                         } else {
-                            log.warning("[LANGUAGE] ✗ Priority 3: Client language is null/blank for client " + clientId);
+                            log.warning("[LANGUAGE] Priority 3: Client language is null/blank for client " + clientId);
                         }
                     } else {
-                        log.warning("[LANGUAGE] ✗ Priority 3: Client not found for ID " + clientId);
+                        log.warning("[LANGUAGE] Priority 3: Client not found for ID " + clientId);
                     }
                 } catch (Exception e) {
-                    log.warning("[LANGUAGE] ✗ Priority 3: Error loading client " + clientId + ": " + e.getMessage());
+                    log.warning("[LANGUAGE] Priority 3: Error loading client " + clientId + ": " + e.getMessage());
                 }
             } else {
-                log.warning("[LANGUAGE] ✗ Priority 3: Client ID is 0 or negative");
+                log.warning("[LANGUAGE] Priority 3: Client ID is 0 or negative");
             }
         } else {
-            log.warning("[LANGUAGE] ✗ Priority 2-3: Context is null");
+            log.warning("[LANGUAGE] Priority 2-3: Context is null");
         }
 
         // 4. Final fallback to English
-        log.warning("[LANGUAGE] ✓ Priority 4: Final fallback → English (" + DEFAULT_LANGUAGE + ")");
+        log.warning("[LANGUAGE] Priority 4: Final fallback -> English (" + DEFAULT_LANGUAGE + ")");
         return DEFAULT_LANGUAGE;
     }
 
@@ -557,9 +556,9 @@ public class LanguageDetectionService {
         }
 
         // Cannot determine - log error and return empty
-        log.severe("[LANGUAGE] ⚠ ERROR: Cannot auto-detect language from text: " + normalized.substring(0, Math.min(100, normalized.length())));
-        log.severe("[LANGUAGE] ⚠ ERROR: No distinctive patterns found (scripts, diacritics, or common words)");
-        log.severe("[LANGUAGE] ⚠ ERROR: Will fall back to user login or tenant language");
+        log.severe("[LANGUAGE] ERROR: Cannot auto-detect language from text: " + normalized.substring(0, Math.min(100, normalized.length())));
+        log.severe("[LANGUAGE] ERROR: No distinctive patterns found (scripts, diacritics, or common words)");
+        log.severe("[LANGUAGE] ERROR: Will fall back to user login or tenant language");
         return Optional.empty();
     }
 
@@ -622,17 +621,17 @@ public class LanguageDetectionService {
                 String prevLangName = prevLang != null ? prevLang.getName() : previousOverride;
 
                 log.warning("[LANGUAGE] ========================================");
-                log.warning("[LANGUAGE] ⚠ LANGUAGE SWITCH DETECTED");
+                log.warning("[LANGUAGE] WARN: LANGUAGE SWITCH DETECTED");
                 log.warning("[LANGUAGE] Chat ID: " + chatId);
                 log.warning("[LANGUAGE] Previous: " + prevLangName + " (" + previousOverride + ")");
                 log.warning("[LANGUAGE] Current:  " + langName + " (" + languageCode + ")");
                 log.warning("[LANGUAGE] ========================================");
             } else if (previousOverride == null) {
                 // First time setting override
-                log.warning("[LANGUAGE] ✓ Override set for chat " + chatId + ": " + languageCode + " (" + langName + ")");
+                log.warning("[LANGUAGE] Override set for chat " + chatId + ": " + languageCode + " (" + langName + ")");
             } else {
                 // Same language, no change
-                log.warning("[LANGUAGE] ✓ Override confirmed for chat " + chatId + ": " + languageCode + " (" + langName + ")");
+                log.warning("[LANGUAGE] Override confirmed for chat " + chatId + ": " + languageCode + " (" + langName + ")");
             }
         }
     }
@@ -687,19 +686,19 @@ public class LanguageDetectionService {
         }
 
         return "## CRITICAL LANGUAGE REQUIREMENT - HIGHEST PRIORITY\n\n" +
-               "🔴 **MANDATORY:** You MUST respond EXCLUSIVELY and COMPLETELY in **" + language.getName() + "** (" + language.getLanguageCode() + ").\n\n" +
+               "**MANDATORY:** You MUST respond EXCLUSIVELY and COMPLETELY in **" + language.getName() + "** (" + language.getLanguageCode() + ").\n\n" +
                "This is NON-NEGOTIABLE and applies to:\n" +
-               "- ✅ ALL explanations and descriptions\n" +
-               "- ✅ ALL questions you ask the user\n" +
-               "- ✅ ALL suggestions and recommendations\n" +
-               "- ✅ ALL data summaries and analysis\n" +
-               "- ✅ ALL error messages and warnings\n" +
-               "- ✅ ALL introductory and concluding statements\n\n" +
+               "- ALL explanations and descriptions\n" +
+               "- ALL questions you ask the user\n" +
+               "- ALL suggestions and recommendations\n" +
+               "- ALL data summaries and analysis\n" +
+               "- ALL error messages and warnings\n" +
+               "- ALL introductory and concluding statements\n\n" +
                "ONLY EXCEPTION: Technical identifiers (table names like 'C_Order', column names like 'DocumentNo', " +
                "SQL keywords, ERP process names, window names) remain in English for technical accuracy.\n\n" +
-               "❌ DO NOT mix languages - user speaks " + language.getName() + ", you respond in " + language.getName() + ".\n" +
-               "❌ DO NOT default to English - this is explicitly forbidden.\n" +
-               "❌ DO NOT explain in English - everything in " + language.getName() + ".\n\n" +
+               "DO NOT mix languages - user speaks " + language.getName() + ", you respond in " + language.getName() + ".\n" +
+               "DO NOT default to English - this is explicitly forbidden.\n" +
+               "DO NOT explain in English - everything in " + language.getName() + ".\n\n" +
                "If user requests language change, acknowledge and switch immediately.";
     }
 

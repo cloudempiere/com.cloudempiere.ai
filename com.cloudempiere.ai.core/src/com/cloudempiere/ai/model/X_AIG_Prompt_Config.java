@@ -31,7 +31,7 @@ public class X_AIG_Prompt_Config extends PO implements I_AIG_Prompt_Config, I_Pe
 	/**
 	 *
 	 */
-	private static final long serialVersionUID = 20251124L;
+	private static final long serialVersionUID = 20260227L;
 
     /** Standard Constructor */
     public X_AIG_Prompt_Config (Properties ctx, int AIG_Prompt_Config_ID, String trxName)

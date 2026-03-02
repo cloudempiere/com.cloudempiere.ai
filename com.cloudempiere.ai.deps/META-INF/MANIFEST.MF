@@ -96,3 +96,4 @@ Export-Package: dev.langchain4j;version="0.35.0",
  org.commonmark.renderer.html;version="0.22.0",
  org.commonmark.ext.gfm.tables;version="0.22.0",
  org.commonmark.ext.gfm.strikethrough;version="0.22.0"
+Automatic-Module-Name: com.cloudempiere.ai.deps

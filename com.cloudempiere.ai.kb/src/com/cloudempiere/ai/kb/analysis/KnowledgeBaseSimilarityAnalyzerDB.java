@@ -16,7 +16,6 @@ package com.cloudempiere.ai.kb.analysis;
 import org.compiere.util.CLogger;
 
 import com.cloudempiere.ai.kb.database.KnowledgeBaseQuery;
-import com.cloudempiere.ai.kb.dto.KnowledgeBaseHierarchy;
 import com.cloudempiere.ai.kb.dto.SimilarityResult;
 
 import java.util.logging.Level;

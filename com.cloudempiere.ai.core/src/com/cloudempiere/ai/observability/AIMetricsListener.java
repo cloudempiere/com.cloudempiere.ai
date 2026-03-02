@@ -14,6 +14,7 @@
 package com.cloudempiere.ai.observability;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.ConcurrentHashMap;
@@ -255,11 +256,11 @@ public class AIMetricsListener implements ChatModelListener {
         // Cost = (input_tokens / 1000 * input_rate) + (output_tokens / 1000 * output_rate)
         BigDecimal inputCost = pricing[0]
             .multiply(new BigDecimal(inputTokens))
-            .divide(new BigDecimal(1000), 6, BigDecimal.ROUND_HALF_UP);
+            .divide(new BigDecimal(1000), 6, RoundingMode.HALF_UP);
 
         BigDecimal outputCost = pricing[1]
             .multiply(new BigDecimal(outputTokens))
-            .divide(new BigDecimal(1000), 6, BigDecimal.ROUND_HALF_UP);
+            .divide(new BigDecimal(1000), 6, RoundingMode.HALF_UP);
 
         return inputCost.add(outputCost);
     }
@@ -303,6 +304,7 @@ public class AIMetricsListener implements ChatModelListener {
                     sess, null, // requestType
                     null // trxName
                 );
+
             } else {
                 MAIUsageMetrics.recordError(
                     ctx, uId, agnt, modelName,
@@ -331,7 +333,7 @@ public class AIMetricsListener implements ChatModelListener {
      * @return Today's total cost in USD (dollars)
      */
     public static BigDecimal getTodayCost(int clientId) {
-        String sql = "SELECT COALESCE(SUM(CostUSD), 0) FROM AIG_UsageMetrics " +
+        String sql = "SELECT COALESCE(SUM(CostAmt), 0) FROM AIG_UsageMetrics " +
                     "WHERE AD_Client_ID = ? AND Created >= CURRENT_DATE";
 
         try {
@@ -340,7 +342,7 @@ public class AIMetricsListener implements ChatModelListener {
                 return BigDecimal.ZERO;
             }
             // Convert microdollars to dollars
-            return microdollars.divide(MICRODOLLARS_PER_DOLLAR, 6, BigDecimal.ROUND_HALF_UP);
+            return microdollars.divide(MICRODOLLARS_PER_DOLLAR, 6, RoundingMode.HALF_UP);
         } catch (Exception e) {
             return BigDecimal.ZERO;
         }

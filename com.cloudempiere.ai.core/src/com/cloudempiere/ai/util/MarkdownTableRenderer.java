@@ -70,11 +70,6 @@ public class MarkdownTableRenderer {
 
     private static final CLogger log = CLogger.getCLogger(MarkdownTableRenderer.class);
 
-    /** Pattern to match a potential table row (pipe-separated) */
-    private static final Pattern TABLE_ROW_PATTERN = Pattern.compile(
-        "^\\|(.+)\\|\\s*$", Pattern.MULTILINE
-    );
-
     /** Pattern to match the separator row (|---|---|) */
     private static final Pattern SEPARATOR_PATTERN = Pattern.compile(
         "^\\|[:\\-\\|\\s]+\\|\\s*$", Pattern.MULTILINE
@@ -408,7 +403,6 @@ public class MarkdownTableRenderer {
         List<String[]> rows = new ArrayList<>();
         String[] alignments = null;
         int endIndex = startIndex;
-        boolean foundSeparator = false;
 
         for (int i = startIndex; i < lines.length; i++) {
             String line = lines[i].trim();
@@ -421,7 +415,6 @@ public class MarkdownTableRenderer {
 
             if (isSeparatorRow(line)) {
                 // This is the separator row - extract alignments
-                foundSeparator = true;
                 alignments = parseAlignments(line);
                 endIndex = i;
                 continue;
@@ -619,14 +612,14 @@ public class MarkdownTableRenderer {
                     displayContent = com.cloudempiere.ai.util.ZoomLinkProcessor.processZoomLinks(
                         displayContent, ctx, widgetId);
                     if (!displayContent.equals(beforeZoom)) {
-                        log.warning("[TABLE-ZOOM] ✅ Processed zoom link in cell: " + beforeZoom.substring(0, Math.min(50, beforeZoom.length())));
-                        log.warning("[TABLE-ZOOM] ✅ Result: " + displayContent.substring(0, Math.min(100, displayContent.length())));
+                        log.warning("[TABLE-ZOOM] OK: Processed zoom link in cell: " + beforeZoom.substring(0, Math.min(50, beforeZoom.length())));
+                        log.warning("[TABLE-ZOOM] OK: Result: " + displayContent.substring(0, Math.min(100, displayContent.length())));
                     } else {
-                        log.warning("[TABLE-ZOOM] ⚠️ No change after zoom processing (pattern didn't match?)");
+                        log.warning("[TABLE-ZOOM] WARN: No change after zoom processing (pattern didn't match?)");
                     }
                 } else {
-                    log.warning("[TABLE-ZOOM] ❌ Context or widgetId is null - cannot process zoom links");
-                    log.warning("[TABLE-ZOOM] ❌ This means zoom links will NOT be clickable!");
+                    log.warning("[TABLE-ZOOM] ERROR: Context or widgetId is null - cannot process zoom links");
+                    log.warning("[TABLE-ZOOM] ERROR: This means zoom links will NOT be clickable!");
                 }
 
                 // Process inline markdown BEFORE escaping to render bold, italic, code

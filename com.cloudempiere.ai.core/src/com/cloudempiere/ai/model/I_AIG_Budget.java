@@ -32,8 +32,8 @@ public interface I_AIG_Budget
     /** TableName=AIG_Budget */
     public static final String Table_Name = "AIG_Budget";
 
-    /** AD_Table_ID=800206 */
-    public static final int Table_ID = 800206;
+    /** AD_Table_ID=800226 */
+    public static final int Table_ID = 800226;
 
     KeyNamePair Model = new KeyNamePair(Table_ID, Table_Name);
 
@@ -131,32 +131,32 @@ public interface I_AIG_Budget
 	  */
 	public int getCreatedBy();
 
-    /** Column name CurrentDailyUSD */
-    public static final String COLUMNNAME_CurrentDailyUSD = "CurrentDailyUSD";
+    /** Column name CurrentDailyAmt */
+    public static final String COLUMNNAME_CurrentDailyAmt = "CurrentDailyAmt";
 
-	/** Set CurrentDaily USD	  */
-	public void setCurrentDailyUSD (int CurrentDailyUSD);
+	/** Set Current Daily Amt	  */
+	public void setCurrentDailyAmt (int CurrentDailyAmt);
 
-	/** Get CurrentDaily USD	  */
-	public int getCurrentDailyUSD();
+	/** Get Current Daily Amt	  */
+	public int getCurrentDailyAmt();
 
-    /** Column name CurrentMonthlyUSD */
-    public static final String COLUMNNAME_CurrentMonthlyUSD = "CurrentMonthlyUSD";
+    /** Column name CurrentMonthlyAmt */
+    public static final String COLUMNNAME_CurrentMonthlyAmt = "CurrentMonthlyAmt";
 
-	/** Set CurrentMonthly USD	  */
-	public void setCurrentMonthlyUSD (int CurrentMonthlyUSD);
+	/** Set Current Monthly Amt	  */
+	public void setCurrentMonthlyAmt (int CurrentMonthlyAmt);
 
-	/** Get CurrentMonthly USD	  */
-	public int getCurrentMonthlyUSD();
+	/** Get Current Monthly Amt	  */
+	public int getCurrentMonthlyAmt();
 
-    /** Column name DailyLimitUSD */
-    public static final String COLUMNNAME_DailyLimitUSD = "DailyLimitUSD";
+    /** Column name DailyLimit */
+    public static final String COLUMNNAME_DailyLimit = "DailyLimit";
 
-	/** Set Daily Limit USD	  */
-	public void setDailyLimitUSD (int DailyLimitUSD);
+	/** Set Daily Limit	  */
+	public void setDailyLimit (int DailyLimit);
 
-	/** Get Daily Limit USD	  */
-	public int getDailyLimitUSD();
+	/** Get Daily Limit	  */
+	public int getDailyLimit();
 
     /** Column name IsActive */
     public static final String COLUMNNAME_IsActive = "IsActive";
@@ -189,22 +189,22 @@ public interface I_AIG_Budget
 	/** Get Last Reset Monthly	  */
 	public Timestamp getLastResetMonthly();
 
-    /** Column name MonthlyLimitUSD */
-    public static final String COLUMNNAME_MonthlyLimitUSD = "MonthlyLimitUSD";
+    /** Column name MonthlyLimit */
+    public static final String COLUMNNAME_MonthlyLimit = "MonthlyLimit";
 
-	/** Set MonthlyLimit USD	  */
-	public void setMonthlyLimitUSD (int MonthlyLimitUSD);
+	/** Set Monthly Limit	  */
+	public void setMonthlyLimit (int MonthlyLimit);
 
-	/** Get MonthlyLimit USD	  */
-	public int getMonthlyLimitUSD();
+	/** Get Monthly Limit	  */
+	public int getMonthlyLimit();
 
     /** Column name RequestsPerMinute */
     public static final String COLUMNNAME_RequestsPerMinute = "RequestsPerMinute";
 
-	/** Set Requests Per Minute	  */
+	/** Set Requests/Minute	  */
 	public void setRequestsPerMinute (int RequestsPerMinute);
 
-	/** Get Requests Per Minute	  */
+	/** Get Requests/Minute	  */
 	public int getRequestsPerMinute();
 
     /** Column name TokenLimitPerRequest */

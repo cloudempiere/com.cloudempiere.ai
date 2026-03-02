@@ -14,7 +14,6 @@
 package com.cloudempiere.ai.model;
 
 import java.sql.ResultSet;
-import java.util.List;
 import java.util.Properties;
 
 import org.compiere.model.I_AD_User;

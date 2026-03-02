@@ -202,7 +202,7 @@ public class StreamingMarkdownRendererTest {
         renderer.appendChunk("** text");
 
         // Get streaming state
-        String streamingHtml = renderer.renderCurrentState();
+        renderer.renderCurrentState();
 
         // Get final state
         String finalHtml = renderer.renderFinal();
@@ -313,22 +313,22 @@ public class StreamingMarkdownRendererTest {
 
     @Test
     public void testEmoji() {
-        renderer.appendChunk("Hello 😊 World");
+        renderer.appendChunk("Hello \uD83D\uDE0A World");
 
         String html = renderer.renderFinal();
         // Should preserve emoji
-        assertTrue(html.contains("😊"),
+        assertTrue(html.contains("\uD83D\uDE0A"),
             "Should contain emoji: " + html);
-        assertFalse(html.contains("��"),
+        assertFalse(html.contains("\uFFFD"),
             "Should not show replacement character: " + html);
     }
 
     @Test
     public void testMultipleEmojis() {
-        renderer.appendChunk("Can I help? 👍😊");
+        renderer.appendChunk("Can I help? \uD83D\uDC4D\uD83D\uDE0A");
 
         String html = renderer.renderFinal();
-        assertTrue(html.contains("👍") && html.contains("😊"),
+        assertTrue(html.contains("\uD83D\uDC4D") && html.contains("\uD83D\uDE0A"),
             "Should contain both emojis: " + html);
     }
 

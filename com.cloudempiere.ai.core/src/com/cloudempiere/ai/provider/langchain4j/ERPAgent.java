@@ -1,7 +1,6 @@
 package com.cloudempiere.ai.provider.langchain4j;
 
 import dev.langchain4j.service.MemoryId;
-import dev.langchain4j.service.SystemMessage;
 import dev.langchain4j.service.UserMessage;
 
 /**

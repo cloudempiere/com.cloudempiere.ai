@@ -23,7 +23,6 @@ import java.util.Properties;
 import org.compiere.model.MChat;
 import org.compiere.util.CLogger;
 import org.compiere.util.DB;
-import org.compiere.util.Env;
 
 import com.cloudempiere.ai.model.MAIChatEntry;
 

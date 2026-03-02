@@ -103,6 +103,7 @@ public class MAIProviderAccess extends X_AIG_Provider_Access implements Immutabl
 					.setParameters(parameters.toArray())
 					.setOrderBy("AD_User_ID DESC") // User-level takes precedence over role-level
 					.setOnlyActiveRecords(true)
+					.setClient_ID()
 					.first();
 
 			if (result != null)

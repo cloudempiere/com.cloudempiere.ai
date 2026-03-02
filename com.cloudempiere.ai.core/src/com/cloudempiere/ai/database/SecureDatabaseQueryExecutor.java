@@ -429,20 +429,6 @@ public class SecureDatabaseQueryExecutor {
     }
 
     /**
-     * Extract table names from SQL query (for backward compatibility and audit logging)
-     * @param sql SQL query to parse
-     * @return list of table names
-     */
-    private List<String> extractTableNames(String sql) {
-        List<TableInfoHolder> tableInfo = extractTableInfo(sql);
-        List<String> tableNames = new ArrayList<>();
-        for (TableInfoHolder info : tableInfo) {
-            tableNames.add(info.getTableName());
-        }
-        return tableNames;
-    }
-
-    /**
      * Validate if a string is a valid iDempiere table name
      * <p>
      * Filters out:

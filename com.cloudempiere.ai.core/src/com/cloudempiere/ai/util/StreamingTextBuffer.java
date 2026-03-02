@@ -22,7 +22,7 @@ package com.cloudempiere.ai.util;
  *
  * <p><b>Problem Solved:</b>
  * <ul>
- *   <li>Emojis like 📖 (U+1F4D6) are represented as surrogate pairs in UTF-16</li>
+ *   <li>Emojis like U+1F4D6 (Open Book) are represented as surrogate pairs in UTF-16</li>
  *   <li>Streaming may deliver the high surrogate (\uD83D) in one chunk and
  *       low surrogate (\uDCE5) in the next</li>
  *   <li>Displaying incomplete surrogates shows replacement characters (�)</li>

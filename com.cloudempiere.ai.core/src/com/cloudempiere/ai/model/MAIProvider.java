@@ -2,9 +2,6 @@ package com.cloudempiere.ai.model;
 
 import java.sql.ResultSet;
 import java.util.Properties;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.Map;
-
 import org.compiere.model.Query;
 import org.compiere.util.CCache;
 import org.compiere.util.Env;

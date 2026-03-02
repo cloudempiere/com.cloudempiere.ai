@@ -83,7 +83,6 @@ public class MarkdownValidatorTest {
     @DisplayName("Should handle multiple unclosed markers")
     public void testMultipleUnclosedMarkers() {
         String input = "**Bold and *italic and `code";
-        String expected = "**Bold and *italic and `code`**";
         String result = MarkdownValidator.validate(input);
         // Note: Auto-closes in LIFO order (last opened, first closed)
         assertTrue(result.contains("**"), "Should have bold markers");
