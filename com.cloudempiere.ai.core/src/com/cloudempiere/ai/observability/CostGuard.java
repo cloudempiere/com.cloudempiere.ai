@@ -289,7 +289,7 @@ public class CostGuard {
      * @return Month-to-date cost in USD (dollars)
      */
     private BigDecimal getMonthCost(int clientId) {
-        String sql = "SELECT COALESCE(SUM(CostUSD), 0) FROM AIG_UsageMetrics " +
+        String sql = "SELECT COALESCE(SUM(CostAmt), 0) FROM AIG_UsageMetrics " +
                     "WHERE AD_Client_ID = ? " +
                     "AND Created >= DATE_TRUNC('month', CURRENT_DATE)";
 

@@ -425,7 +425,7 @@ public class MAIUsageMetrics extends X_AIG_UsageMetrics {
      * @return Cost in USD
      */
     public BigDecimal getCostAsBigDecimal() {
-        // CostUSD is stored as microdollars (integer)
+        // CostAmt is stored as microdollars (integer)
         return BigDecimal.valueOf(getCostAmt()).divide(BigDecimal.valueOf(1000000), 6, RoundingMode.HALF_UP);
     }
 

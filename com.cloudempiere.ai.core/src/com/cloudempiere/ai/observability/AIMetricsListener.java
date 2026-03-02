@@ -332,7 +332,7 @@ public class AIMetricsListener implements ChatModelListener {
      * @return Today's total cost in USD (dollars)
      */
     public static BigDecimal getTodayCost(int clientId) {
-        String sql = "SELECT COALESCE(SUM(CostUSD), 0) FROM AIG_UsageMetrics " +
+        String sql = "SELECT COALESCE(SUM(CostAmt), 0) FROM AIG_UsageMetrics " +
                     "WHERE AD_Client_ID = ? AND Created >= CURRENT_DATE";
 
         try {
