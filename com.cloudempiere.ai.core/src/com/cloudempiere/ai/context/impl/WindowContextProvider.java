@@ -13,17 +13,19 @@
  *****************************************************************************/
 package com.cloudempiere.ai.context.impl;
 
-import org.compiere.model.MWindow;
-import org.compiere.model.MTab;
-import org.compiere.util.Env;
-import org.compiere.util.CLogger;
-import org.json.JSONObject;
-import org.json.JSONArray;
-import com.cloudempiere.ai.context.IAIContextProvider;
-import com.cloudempiere.ai.context.ContextParameters;
-
 import java.util.Properties;
 import java.util.logging.Level;
+
+import org.compiere.model.MTab;
+import org.compiere.model.MTable;
+import org.compiere.model.MWindow;
+import org.compiere.util.CLogger;
+import org.compiere.util.Env;
+import org.json.JSONArray;
+import org.json.JSONObject;
+
+import com.cloudempiere.ai.context.ContextParameters;
+import com.cloudempiere.ai.context.IAIContextProvider;
 
 /**
  * Context provider for iDempiere windows/tabs
@@ -95,8 +97,8 @@ public class WindowContextProvider implements IAIContextProvider {
             // 1. User context
             addUserContext(context, ctx);
 
-            // 2. Window metadata
-            int windowId = Env.getContextAsInt(ctx, windowNo, "AD_Window_ID");
+            // 2. Window metadata — iDempiere stores window ID under _WinInfo_AD_Window_ID
+            int windowId = Env.getContextAsInt(ctx, windowNo, "_WinInfo_AD_Window_ID");
             if (windowId > 0) {
                 MWindow window = MWindow.get(ctx, windowId);
                 if (window != null) {
@@ -189,46 +191,53 @@ public class WindowContextProvider implements IAIContextProvider {
     ) {
         JSONObject tabCtx = new JSONObject();
 
-        // Get tab metadata from context
-        String tableName = Env.getContext(ctx, windowNo, tabNo, "TableName", false);
-        int recordId = Env.getContextAsInt(ctx, windowNo, "Record_ID");
-        int tabLevel = Env.getContextAsInt(ctx, windowNo, tabNo, "TabLevel", false);
-        String tabName = Env.getContext(ctx, windowNo, tabNo, "Name", false);
+        // iDempiere stores tab metadata with the _TabInfo_ prefix, e.g. "1|0|_TabInfo_Name".
+        // Field values (record data) are stored directly, e.g. "1|0|C_Vocabulary_ID".
+        int adTableId = Env.getContextAsInt(ctx, windowNo, tabNo, "_TabInfo_AD_Table_ID");
+        int adTabId   = Env.getContextAsInt(ctx, windowNo, tabNo, "_TabInfo_AD_Tab_ID");
+        String tabName      = Env.getContext(ctx, windowNo, tabNo, "_TabInfo_Name", true);
+        int tabLevel        = Env.getContextAsInt(ctx, windowNo, tabNo, "_TabInfo_TabLevel");
+        String keyColumnName = Env.getContext(ctx, windowNo, tabNo, "_TabInfo_KeyColumnName", true);
+
+        // Derive table name from AD_Table_ID
+        String tableName = "";
+        if (adTableId > 0) {
+            MTable table = MTable.get(ctx, adTableId);
+            if (table != null) {
+                tableName = table.getTableName();
+            }
+        }
 
         tabCtx.put("tab_no", tabNo);
         tabCtx.put("tab_name", tabName);
         tabCtx.put("table_name", tableName);
-        tabCtx.put("record_id", recordId);
         tabCtx.put("tab_level", tabLevel);
 
-        // Track exact current row being viewed (not just Record_ID)
+        // Track exact current row being viewed
         int currentRow = Env.getContextAsInt(ctx, windowNo, "CurrentRow");
         if (currentRow >= 0) {
             tabCtx.put("current_row", currentRow);
         }
 
-        // Also track selected row ID (the actual primary key value of the selected record)
-        // This is the specific record ID for the current tab, not just the generic Record_ID
-        String tableKeyColumn = tableName + "_ID";
-        int selectedRecordId = Env.getContextAsInt(ctx, windowNo, tabNo, tableKeyColumn);
-        if (selectedRecordId > 0) {
-            tabCtx.put("selected_record_id", selectedRecordId);
-            tabCtx.put("selected_record_key", tableKeyColumn);
+        // Get record ID from the primary key column stored in context (e.g. "1|0|C_Vocabulary_ID")
+        if (keyColumnName != null && !keyColumnName.isEmpty()) {
+            int selectedRecordId = Env.getContextAsInt(ctx, windowNo, tabNo, keyColumnName);
+            if (selectedRecordId > 0) {
+                tabCtx.put("selected_record_id", selectedRecordId);
+                tabCtx.put("selected_record_key", keyColumnName);
+            }
         }
 
-        // Get AD_Tab_ID if available
-        int tabId = Env.getContextAsInt(ctx, windowNo, tabNo, "AD_Tab_ID");
-        if (tabId > 0) {
-            tabCtx.put("tab_id", tabId);
-
-            // Load full tab metadata
-            MTab tab = MTab.get(tabId);
+        // Load AD tab metadata
+        if (adTabId > 0) {
+            tabCtx.put("tab_id", adTabId);
+            MTab tab = MTab.get(adTabId);
             if (tab != null) {
-                tabCtx.put("tab_description", tab.getDescription());
-                tabCtx.put("tab_help", tab.getHelp());
+                if (tab.getDescription() != null && !tab.getDescription().isEmpty()) {
+                    tabCtx.put("tab_description", tab.getDescription());
+                }
                 tabCtx.put("is_readonly", tab.isReadOnly());
                 tabCtx.put("is_insert_record", tab.isInsertRecord());
-                tabCtx.put("commit_warning", tab.getCommitWarning());
             }
         }
 
@@ -403,7 +412,6 @@ public class WindowContextProvider implements IAIContextProvider {
 
             // Extract sub-tab record data (similar to addRecordData but for specific sub-tab)
             JSONObject subTabRecordData = new JSONObject();
-            String tableName = tab.getAD_Table().getTableName();
             String prefixWithTab = windowNo + "|" + tabNo + "|";
 
             // Limit fields to avoid too much data

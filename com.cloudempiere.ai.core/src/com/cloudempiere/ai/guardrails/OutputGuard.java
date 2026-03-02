@@ -14,9 +14,7 @@
 package com.cloudempiere.ai.guardrails;
 
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -93,11 +91,6 @@ public class OutputGuard {
         "\\b(AD_Client_ID|AD_Org_ID|AD_User_ID|AD_Role_ID|AD_Table_ID|AD_Column_ID)\\s*[:=]\\s*\\d+"
     );
 
-    /** UUID patterns (might indicate internal references) */
-    private static final Pattern UUID_PATTERN = Pattern.compile(
-        "[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}"
-    );
-
     // ========================================================================
     // Hallucination Indicators
     // ========================================================================
@@ -153,27 +146,10 @@ public class OutputGuard {
     /** Whether to mask internal IDs */
     private boolean maskInternalIds = true;
 
-    /** Set of table names from current context (to validate references) */
-    private Set<String> knownTables = new HashSet<>();
-
-    /** Set of column names from current context */
-    private Set<String> knownColumns = new HashSet<>();
-
     /**
      * Create output guard with default configuration.
      */
     public OutputGuard() {
-    }
-
-    /**
-     * Create output guard with context.
-     *
-     * @param knownTables Tables referenced in the current query/context
-     * @param knownColumns Columns referenced in the current query/context
-     */
-    public OutputGuard(Set<String> knownTables, Set<String> knownColumns) {
-        this.knownTables = knownTables != null ? knownTables : new HashSet<>();
-        this.knownColumns = knownColumns != null ? knownColumns : new HashSet<>();
     }
 
     /**
@@ -342,14 +318,6 @@ public class OutputGuard {
 
     public void setMaskInternalIds(boolean maskInternalIds) {
         this.maskInternalIds = maskInternalIds;
-    }
-
-    public void setKnownTables(Set<String> knownTables) {
-        this.knownTables = knownTables;
-    }
-
-    public void setKnownColumns(Set<String> knownColumns) {
-        this.knownColumns = knownColumns;
     }
 
     // ========================================================================

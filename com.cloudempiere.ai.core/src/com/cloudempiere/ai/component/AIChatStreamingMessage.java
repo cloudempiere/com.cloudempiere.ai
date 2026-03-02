@@ -131,9 +131,6 @@ public class AIChatStreamingMessage extends Div {
     /** Parent widget ID for zoom event targeting */
     private String parentWidgetId;
 
-    /** Chat ID for session language lookup */
-    private int chatId;
-
     /** Language detection service for session language (ADR-037) */
     // TEMPORARILY DISABLED - LanguageDetectionService will be implemented in future phase
     // private com.cloudempiere.ai.service.LanguageDetectionService languageService;
@@ -191,7 +188,6 @@ public class AIChatStreamingMessage extends Div {
         this.componentId = "stream_" + System.currentTimeMillis() + "_" + (int)(Math.random() * 10000);
         this.ctx = ctx != null ? ctx : Env.getCtx();
         this.parentWidgetId = parentWidgetId;
-        this.chatId = chatId;
         // TEMPORARILY DISABLED - LanguageDetectionService will be implemented in future phase
         // this.languageService = chatId > 0 ? com.cloudempiere.ai.service.LanguageDetectionService.getInstance() : null;
 
@@ -1391,68 +1387,6 @@ public class AIChatStreamingMessage extends Div {
         copyButton.getChildren().clear();
         Html copyHtmlContent = new Html(copyHtml);
         copyButton.appendChild(copyHtmlContent);
-    }
-
-    /**
-     * Render partial markdown (simple implementation for streaming).
-     *
-     * <p><b>DEPRECATED (ADR-047 Phase 2.5):</b> This method used regex-based
-     * MarkdownRenderer which caused inconsistencies with the CommonMark-based
-     * final rendering. Use {@link #processMarkdownPreservingHTML(String)} instead
-     * for consistent rendering in both streaming and final phases.
-     *
-     * <p>This method is kept for backward compatibility but now delegates to
-     * the unified CommonMark renderer to ensure consistency.
-     *
-     * @deprecated Use {@link #processMarkdownPreservingHTML(String)} for unified
-     *             CommonMark-based rendering. This method will be removed in v0.32.0.
-     */
-    @Deprecated
-    private String renderPartialMarkdown(String text) {
-        // ADR-047 Phase 2.5: Delegate to unified CommonMark renderer
-        // This ensures consistency between streaming and final rendering
-        log.warn("renderPartialMarkdown() is deprecated - using CommonMark renderer");
-        return processMarkdownPreservingHTML(text);
-    }
-
-    /**
-     * Escape HTML in non-table content while preserving table HTML tags.
-     *
-     * <p>This splits the content by table tags, escapes the non-table parts,
-     * and reassembles them.
-     */
-    private String escapeNonTableContent(String content) {
-        StringBuilder result = new StringBuilder();
-        int pos = 0;
-
-        while (pos < content.length()) {
-            int tableStart = content.indexOf("<table", pos);
-            if (tableStart == -1) {
-                // No more tables - escape the rest
-                result.append(Util.maskHTML(content.substring(pos), true));
-                break;
-            }
-
-            // Escape content before the table
-            if (tableStart > pos) {
-                result.append(Util.maskHTML(content.substring(pos, tableStart), true));
-            }
-
-            // Find the end of the table
-            int tableEnd = content.indexOf("</table>", tableStart);
-            if (tableEnd == -1) {
-                // Incomplete table - keep as is (will be completed in next chunk)
-                result.append(content.substring(tableStart));
-                break;
-            }
-            tableEnd += "</table>".length();
-
-            // Append table as-is (already has escaped cell content)
-            result.append(content.substring(tableStart, tableEnd));
-            pos = tableEnd;
-        }
-
-        return result.toString();
     }
 
     /**

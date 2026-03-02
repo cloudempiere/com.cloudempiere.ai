@@ -50,6 +50,7 @@ public class AIErrorHandler {
     public static final String CATEGORY_CONFIGURATION = "CONFIGURATION";
     public static final String CATEGORY_CONTEXT_LENGTH = "CONTEXT_LENGTH";
     public static final String CATEGORY_SERVICE_UNAVAILABLE = "SERVICE_UNAVAILABLE";
+    public static final String CATEGORY_BUDGET_EXCEEDED = "BUDGET_EXCEEDED";
     public static final String CATEGORY_GENERIC = "GENERIC";
 
     /** AD_Message keys for each category */
@@ -59,6 +60,7 @@ public class AIErrorHandler {
     private static final String MSG_CONFIGURATION = "AIG_Error_Configuration";
     private static final String MSG_CONTEXT_LENGTH = "AIG_Error_ContextLength";
     private static final String MSG_SERVICE_UNAVAILABLE = "AIG_Error_ServiceUnavailable";
+    private static final String MSG_BUDGET_EXCEEDED = "AIG_BudgetExceeded";
     private static final String MSG_GENERIC = "AIG_Error_Generic";
 
     /** Fallback messages (used if AD_Message not found) - includes user-friendly text + actionable hint */
@@ -85,6 +87,10 @@ public class AIErrorHandler {
     private static final String FALLBACK_SERVICE_UNAVAILABLE =
         "The AI service is temporarily unavailable. " +
         "\n\n**What you can do:** Please wait a few minutes and try again. If the problem persists, contact support.";
+
+    private static final String FALLBACK_BUDGET_EXCEEDED =
+        "You have reached your AI usage budget limit for today or this month. " +
+        "\n\n**What you can do:** Wait until the limit resets, or contact your system administrator to increase your budget.";
 
     private static final String FALLBACK_GENERIC =
         "Something unexpected went wrong while processing your request. " +
@@ -125,7 +131,7 @@ public class AIErrorHandler {
         public String getFormattedChatMessage() {
             // Format: User message + small debug emoji with reference
             // The emoji can have a tooltip in the UI showing the error reference
-            return userMessage + " \u26A0\uFE0F"; // ⚠️ warning emoji
+            return userMessage + " \u26A0\uFE0F"; // warning sign (U+26A0 + variation selector)
         }
 
         /**
@@ -228,6 +234,13 @@ public class AIErrorHandler {
             return CATEGORY_SERVICE_UNAVAILABLE;
         }
 
+        // Budget exceeded
+        if (className.contains("budgetexceeded") ||
+            message.contains("budget exceeded") || message.contains("daily ai budget") ||
+            message.contains("monthly ai budget")) {
+            return CATEGORY_BUDGET_EXCEEDED;
+        }
+
         return CATEGORY_GENERIC;
     }
 
@@ -288,6 +301,10 @@ public class AIErrorHandler {
             case CATEGORY_SERVICE_UNAVAILABLE:
                 msgKey = MSG_SERVICE_UNAVAILABLE;
                 fallback = FALLBACK_SERVICE_UNAVAILABLE;
+                break;
+            case CATEGORY_BUDGET_EXCEEDED:
+                msgKey = MSG_BUDGET_EXCEEDED;
+                fallback = FALLBACK_BUDGET_EXCEEDED;
                 break;
             default:
                 msgKey = MSG_GENERIC;

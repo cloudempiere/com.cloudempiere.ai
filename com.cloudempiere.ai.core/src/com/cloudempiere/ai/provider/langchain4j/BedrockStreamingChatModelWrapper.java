@@ -23,6 +23,7 @@ import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.model.StreamingResponseHandler;
 import dev.langchain4j.model.chat.StreamingChatLanguageModel;
 import dev.langchain4j.model.output.Response;
+import dev.langchain4j.model.output.TokenUsage;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
@@ -193,6 +194,8 @@ public class BedrockStreamingChatModelWrapper implements StreamingChatLanguageMo
 
             StringBuilder fullResponse = new StringBuilder();
             AtomicReference<Throwable> errorRef = new AtomicReference<>();
+            AtomicInteger inputTokenCount = new AtomicInteger(0);
+            AtomicInteger outputTokenCount = new AtomicInteger(0);
             // Track tool use blocks
             AtomicReference<JSONArray> toolUseBlocks = new AtomicReference<>(new JSONArray());
             AtomicReference<StringBuilder> currentToolInput = new AtomicReference<>();
@@ -213,7 +216,18 @@ public class BedrockStreamingChatModelWrapper implements StreamingChatLanguageMo
                                         if (chunkObj.has("type")) {
                                             String type = chunkObj.getString("type");
 
-                                            if ("content_block_start".equals(type)) {
+                                            if ("message_start".equals(type)) {
+                                                JSONObject msg = chunkObj.optJSONObject("message");
+                                                if (msg != null) {
+                                                    JSONObject u = msg.optJSONObject("usage");
+                                                    if (u != null)
+                                                        inputTokenCount.set(u.optInt("input_tokens", 0));
+                                                }
+                                            } else if ("message_delta".equals(type)) {
+                                                JSONObject u = chunkObj.optJSONObject("usage");
+                                                if (u != null)
+                                                    outputTokenCount.set(u.optInt("output_tokens", 0));
+                                            } else if ("content_block_start".equals(type)) {
                                                 JSONObject contentBlock = chunkObj.optJSONObject("content_block");
                                                 if (contentBlock != null && "tool_use".equals(contentBlock.optString("type"))) {
                                                     currentToolId.set(contentBlock.getString("id"));
@@ -299,7 +313,8 @@ public class BedrockStreamingChatModelWrapper implements StreamingChatLanguageMo
                                 log.warning("Bedrock streaming completed with no text and no tools");
                                 aiMessage = AiMessage.from("(No response generated)");
                             }
-                            handler.onComplete(Response.from(aiMessage));
+                            TokenUsage tokenUsage = new TokenUsage(inputTokenCount.get(), outputTokenCount.get());
+                            handler.onComplete(Response.from(aiMessage, tokenUsage, null));
                         }
                     })
                     .onError(error -> {

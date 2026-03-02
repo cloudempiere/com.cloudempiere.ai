@@ -32,7 +32,7 @@ public class X_AIG_ChatOwnership extends PO implements I_AIG_ChatOwnership, I_Pe
 	/**
 	 *
 	 */
-	private static final long serialVersionUID = 20251204L;
+	private static final long serialVersionUID = 20260227L;
 
     /** Standard Constructor */
     public X_AIG_ChatOwnership (Properties ctx, int AIG_ChatOwnership_ID, String trxName)

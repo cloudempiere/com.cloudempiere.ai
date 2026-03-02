@@ -452,10 +452,7 @@ public class RAGContextManager {
      */
     private static class FallbackContentRetriever implements ContentRetriever {
 
-        private final EmbeddingStore<TextSegment> store;
-
         FallbackContentRetriever(EmbeddingStore<TextSegment> store) {
-            this.store = store;
         }
 
         @Override

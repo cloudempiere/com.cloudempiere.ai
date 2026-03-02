@@ -14,6 +14,7 @@ import dev.langchain4j.data.message.SystemMessage;
 import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.model.chat.ChatLanguageModel;
 import dev.langchain4j.model.output.Response;
+import dev.langchain4j.model.output.TokenUsage;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
@@ -132,8 +133,14 @@ public class BedrockChatModelWrapper implements ChatLanguageModel {
             JSONObject responseObj = new JSONObject(responseJson);
             String responseText = extractResponseText(responseObj);
 
+            // Extract token usage from Anthropic response
+            JSONObject usage = responseObj.optJSONObject("usage");
+            TokenUsage tokenUsage = usage != null
+                ? new TokenUsage(usage.optInt("input_tokens", 0), usage.optInt("output_tokens", 0))
+                : new TokenUsage(0, 0);
+
             AiMessage aiMessage = AiMessage.from(responseText);
-            return Response.from(aiMessage);
+            return Response.from(aiMessage, tokenUsage, null);
 
         } catch (Exception e) {
             log.severe("Bedrock invocation failed: " + e.getMessage());

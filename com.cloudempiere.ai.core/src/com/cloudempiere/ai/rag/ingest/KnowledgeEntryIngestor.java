@@ -79,9 +79,6 @@ public class KnowledgeEntryIngestor implements IKnowledgeIngestor {
     private static final String SOURCE_TYPE = "knowledge_entry";
     private static final int DEFAULT_PROVIDER_ID = 1000001;
 
-    /** Knowledge Base client ID (from ADR-029) */
-    private static final int KNOWLEDGE_BASE_CLIENT_ID = 1000014;
-
     @Reference
     private IEmbeddingStoreProvider storeProvider;
 
