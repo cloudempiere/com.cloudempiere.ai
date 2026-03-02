@@ -372,6 +372,67 @@ The Share Button is planned for Phase 3. It will:
 
 The backend service methods are already implemented and ready for UI integration.
 
+#### Phase 2b: Context Chat UI Switching (approved)
+
+This phase wires the existing `MAIChat` context chat model to the `AIChatWidget` UI.
+The sidebar widget (`contextEnabled=true`) currently always loads the global chat.
+These changes make it context-aware.
+
+##### 1. Record identifier stored in `CM_ChatEntry.Subject`
+
+When creating the first `CM_ChatEntry` of a context chat thread, the record identifier
+is stored in `CM_ChatEntry.Subject`. The identifier is resolved in priority order:
+`DocumentNo` → `Name` → `Value` from `currentContext.record_data`, falling back to
+`tableName + "#" + recordId`.
+
+This makes the identifier persistent and session-independent — the thread selector and
+context indicator read it directly from `Subject` without re-deriving it from window context.
+
+##### 2. No automatic chat switching on navigation
+
+Tab/window navigation fires `refreshContext()` which updates `currentContext` (for AI
+answer quality) and the context indicator, but does **not** switch `this.chat`.
+The rendered chat stays on whatever was last active until the user acts manually.
+
+Auto-switching was considered and removed: it caused unwanted chat resets on every
+tab click and made the UX unpredictable. May be reconsidered in a future phase if
+a clear user need emerges.
+
+##### 3. New (+) button behaviour
+
+| Where user is | New (+) creates |
+|---------------|-----------------|
+| Dashboard / no record open | new thread in global chat |
+| Specific record open | new thread in contextual chat for that record |
+
+`refreshContext()` is called at the start of `createNewThread()` if `currentContext`
+is null (panel opened while record was already open), ensuring the context is available
+before the chat is resolved.
+
+##### 4. Context indicator
+
+`updateContextIndicator()` shows the record identifier (read from `CM_ChatEntry.Subject`
+of the current thread root entry) when `chat.hasContext()` is true. This reflects the
+bound `CM_Chat` record, not just the injected prompt context.
+
+##### 5. Thread dropdown: all chats, capped at 20
+
+The thread selector loads threads from **all** user chats (global + all private context
+chats) at all times, grouped by `CM_Chat` with section headers. The dropdown always shows
+the same list regardless of which iDempiere window is active.
+
+**Known limitation — older threads not accessible via dropdown:**
+Only the most recent **20 threads** across all chats are shown (`THREAD_DROPDOWN_LIMIT = 20`
+in `AIChatWidget`). Threads older than the 20th are not reachable through the UI.
+A dedicated chat history screen or "load more" mechanism is deferred to a future phase.
+
+##### Implementation order
+
+1. Record identifier written to `CM_ChatEntry.Subject` on thread creation
+2. New (+) button creates contextual chat when on a record
+3. Context indicator reads `Subject` from root entry
+4. Thread dropdown loads all chats, capped at 20 most-recent threads
+
 #### Phase 3: Advanced Features (v0.7.0)
 
 1. **Share button in AIChatWidget** (deferred from Phase 2)
@@ -575,4 +636,4 @@ public class MAIChat extends MChat {
 
 ---
 
-*ADR-036 | Version 1.0 | 2025-12-04*
+*ADR-036 | Version 1.2 | 2025-12-04 (Phase 2b added 2026-03-02, auto-switch removed + 20-thread limit documented 2026-03-02)*
