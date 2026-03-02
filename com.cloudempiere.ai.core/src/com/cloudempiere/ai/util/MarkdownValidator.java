@@ -69,12 +69,10 @@ public class MarkdownValidator {
     private static class MarkerInfo {
         ElementType type;
         String marker;
-        int position;
 
-        MarkerInfo(ElementType type, String marker, int position) {
+        MarkerInfo(ElementType type, String marker) {
             this.type = type;
             this.marker = marker;
-            this.position = position;
         }
     }
 
@@ -271,23 +269,23 @@ public class MarkdownValidator {
         // Check for code block marker (```)
         if (ch == '`' && pos + 2 < text.length() &&
             text.charAt(pos + 1) == '`' && text.charAt(pos + 2) == '`') {
-            return new MarkerInfo(ElementType.CODE_BLOCK, "```", pos);
+            return new MarkerInfo(ElementType.CODE_BLOCK, "```");
         }
 
         // Check for inline code marker (`)
         if (ch == '`') {
-            return new MarkerInfo(ElementType.CODE, "`", pos);
+            return new MarkerInfo(ElementType.CODE, "`");
         }
 
         // Check for bold marker (** or __)
         if ((ch == '*' || ch == '_') && pos + 1 < text.length() && text.charAt(pos + 1) == ch) {
             String marker = String.valueOf(ch) + ch;
-            return new MarkerInfo(ElementType.BOLD, marker, pos);
+            return new MarkerInfo(ElementType.BOLD, marker);
         }
 
         // Check for italic marker (* or _)
         if (ch == '*' || ch == '_') {
-            return new MarkerInfo(ElementType.ITALIC, String.valueOf(ch), pos);
+            return new MarkerInfo(ElementType.ITALIC, String.valueOf(ch));
         }
 
         return null;

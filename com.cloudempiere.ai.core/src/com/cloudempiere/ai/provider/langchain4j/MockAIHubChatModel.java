@@ -24,18 +24,18 @@ import java.util.logging.Logger;
  *
  * <p><b>Benefits vs HTTP Mock Server:</b>
  * <ul>
- *   <li>✅ No external process needed</li>
- *   <li>✅ No port conflicts</li>
- *   <li>✅ Automatic - works out of the box</li>
- *   <li>✅ Faster (in-memory)</li>
- *   <li>✅ Can be used as production fallback</li>
+ *   <li>[+] No external process needed</li>
+ *   <li>[+] No port conflicts</li>
+ *   <li>[+] Automatic - works out of the box</li>
+ *   <li>[+] Faster (in-memory)</li>
+ *   <li>[+] Can be used as production fallback</li>
  * </ul>
  *
  * <p><b>Drawbacks:</b>
  * <ul>
- *   <li>❌ Doesn't test HTTP/network layer</li>
- *   <li>❌ Less realistic than external service</li>
- *   <li>⚠️ Not suitable for integration testing with real HTTP</li>
+ *   <li>[-] Doesn't test HTTP/network layer</li>
+ *   <li>[-] Less realistic than external service</li>
+ *   <li>[!] Not suitable for integration testing with real HTTP</li>
  * </ul>
  *
  * @author Cloudempiere
@@ -171,11 +171,11 @@ public class MockAIHubChatModel implements StreamingChatLanguageModel {
 
         if (lower.contains("help") || lower.contains("what can you")) {
             return "I'm the in-plugin Mock AI Hub provider. Benefits:\n" +
-                   "✅ No external server required\n" +
-                   "✅ No port conflicts\n" +
-                   "✅ Works offline\n" +
-                   "✅ Fast in-memory processing\n" +
-                   "✅ Perfect for development\n\n" +
+                   "[OK] No external server required\n" +
+                   "[OK] No port conflicts\n" +
+                   "[OK] Works offline\n" +
+                   "[OK] Fast in-memory processing\n" +
+                   "[OK] Perfect for development\n\n" +
                    "Try asking about orders, invoices, or products!";
         }
 

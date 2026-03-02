@@ -500,12 +500,12 @@ public class MarkdownSyntaxSanitizerTest {
     @Test
     @DisplayName("Should handle UTF-8 and emojis")
     public void testUtf8Emojis() {
-        String input = "Hello 世界 🌍 **bold** 你好";
+        String input = "Hello \u4E16\u754C \uD83C\uDF0D **bold** \u4F60\u597D";
         String output = sanitizer.sanitize(input);
 
-        assertTrue(output.contains("世界"), "Chinese characters should be preserved");
-        assertTrue(output.contains("🌍"), "Emoji should be preserved");
-        assertTrue(output.contains("你好"), "Chinese characters should be preserved");
+        assertTrue(output.contains("\u4E16\u754C"), "Chinese characters should be preserved");
+        assertTrue(output.contains("\uD83C\uDF0D"), "Emoji should be preserved");
+        assertTrue(output.contains("\u4F60\u597D"), "Chinese characters should be preserved");
         assertTrue(output.contains("**bold**"), "Markdown should still work with UTF-8");
     }
 

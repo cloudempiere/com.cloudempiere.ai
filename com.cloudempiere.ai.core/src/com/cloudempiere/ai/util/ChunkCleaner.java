@@ -114,8 +114,8 @@ public class ChunkCleaner {
      *
      * <p><b>Example:</b>
      * <pre>
-     * // Valid surrogate pair (emoji 😀 = U+D83D U+DE00)
-     * "Hello 😀" → "Hello 😀" (preserved)
+     * // Valid surrogate pair (emoji U+1F600, encoded as surrogate pair U+D83D U+DE00)
+     * "Hello \uD83D\uDE00" -> "Hello \uD83D\uDE00" (preserved)
      *
      * // Unpaired high surrogate
      * "Hello \uD83D world" → "Hello  world" (removed)

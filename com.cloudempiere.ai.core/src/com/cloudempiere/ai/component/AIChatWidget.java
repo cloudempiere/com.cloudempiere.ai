@@ -29,6 +29,7 @@ import org.adempiere.webui.util.ZKUpdateUtil;
 import org.compiere.model.MChat;
 import org.compiere.model.MChatEntry;
 import org.compiere.model.MQuery;
+import org.compiere.model.MTable;
 import org.compiere.model.MUser;
 import org.compiere.util.CLogger;
 import org.compiere.util.DisplayType;
@@ -276,9 +277,6 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 		this.contextEnabled = enableContext;
 		init();
 	}
-
-	/** Flag indicating if widget is in unavailable state */
-	private boolean unavailableState = false;
 
 	/**
 	 * Initialize the widget
@@ -1036,16 +1034,21 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 
 		// LAZY CHAT CREATION: Create chat on first message if it doesn't exist
 		if (chat == null) {
+			// Ensure context is populated before resolving (same issue as in createNewThread)
+			if (contextEnabled && currentContext == null && currentWindowNo >= 0) {
+				refreshContext();
+			}
 			try {
 				log.log(Level.FINE, "Creating chat on first message for user " + Env.getAD_User_ID(sessionCtx) +
 					" in client " + Env.getAD_Client_ID(sessionCtx));
 
-				// Create chat in current tenant
-				chat = MAIChat.getOrCreateGlobalChat(sessionCtx, null, false);
+				// Create chat: use context chat if on a record, otherwise global (ADR-036 Phase 2b)
+				MAIChat contextChat = resolveContextChatFromContext();
+				chat = contextChat != null ? contextChat : MAIChat.getOrCreateGlobalChat(sessionCtx, null, false);
 
 				if (chat == null) {
 					// This should not happen, but handle defensively
-					log.severe("Failed to create chat - MAIChat.getOrCreateGlobalChat returned null");
+					log.severe("Failed to create chat - no context or global chat could be created");
 					Clients.showNotification(
 						"Failed to create chat. Please contact administrator.",
 						"error", inputBox, "top_center", 5000);
@@ -1094,6 +1097,12 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 			// We only support one level: root message + children (no grandchildren)
 			if (currentThreadRootId > 0) {
 				userEntry.setCM_ChatEntryParent_ID(currentThreadRootId);
+			} else if (chat instanceof MAIChat && ((MAIChat) chat).hasContext()) {
+				// New thread in a context chat: store record identifier in Subject (ADR-036 Phase 2b)
+				String identifier = resolveRecordIdentifier();
+				if (identifier != null) {
+					userEntry.setSubject(identifier);
+				}
 			}
 
 			userEntry.saveEx();
@@ -1334,7 +1343,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 								// Show error to user without breaking UI
 								String errorHtml =
 									"<div style='padding:12px; margin:12px 0; background:#fff3cd; border-left:4px solid #ffc107;'>" +
-									"<strong>⚠️ Response Too Long</strong><br/>" +
+									"<strong>Response Too Long</strong><br/>" +
 									"The AI response exceeded the database field limit and cannot be saved.<br/>" +
 									"<small style='color:#856404;'>" + Util.maskHTML(ex.getMessage(), true) + "</small>" +
 									"</div>";
@@ -1648,8 +1657,6 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 	 * @param message User-friendly explanation of why AI is unavailable
 	 */
 	private void showUnavailableState(String message) {
-		unavailableState = true;
-
 		// Clear any existing children
 		getChildren().clear();
 
@@ -1659,7 +1666,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 
 		// Icon
 		Html iconHtml = new Html("<div class='ai-unavailable-icon'>" +
-				"\uD83D\uDEAB</div>"); // 🚫 emoji
+				"\uD83D\uDEAB</div>"); // no-entry emoji (U+1F6AB)
 		container.appendChild(iconHtml);
 
 		// Title
@@ -1686,7 +1693,6 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 			}
 			Result<Boolean> availability = AIUIService.checkAvailability();
 			if (availability.isSuccess()) {
-				unavailableState = false;
 				getChildren().clear();
 				init();
 			} else {
@@ -1710,7 +1716,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 		}
 
 		String warningHtml = "<div class='ai-warning-inline'>" +
-			"⚠️ " + Util.maskHTML(warningMessage, true) + "</div>";
+			Util.maskHTML(warningMessage, true) + "</div>";
 
 		Html warningDiv = new Html(warningHtml);
 		messagesContainer.appendChild(warningDiv);
@@ -1761,6 +1767,25 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 	 * Create a new conversation thread
 	 */
 	private void createNewThread() {
+		// Ensure context is populated before resolving context chat (ADR-036 Phase 2b).
+		// currentContext may be null if no tab-selection event has fired since widget attach
+		// (e.g. user opened the AI panel while a record was already open).
+		if (contextEnabled && currentContext == null && currentWindowNo >= 0) {
+			refreshContext();
+		}
+
+		// If on a specific record, ensure chat is the context chat for that record (ADR-036 Phase 2b)
+		MAIChat contextChat = resolveContextChatFromContext();
+		if (contextChat != null && (chat == null || contextChat.get_ID() != chat.get_ID())) {
+			chat = contextChat;
+			currentAccess = ChatAccess.OWNER;
+			updateAccessIndicator();
+		} else if (chat == null) {
+			chat = MAIChat.getOrCreateGlobalChat(sessionCtx, null, false);
+			currentAccess = ChatAccess.OWNER;
+			updateAccessIndicator();
+		}
+
 		// Reset current thread (next message will start a new root thread)
 		currentThreadRootId = 0;
 
@@ -1780,8 +1805,9 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 	}
 
 	/**
-	 * Switch to selected thread from dropdown
-	 * Handles both local threads (positive IDs) and shared chats (negative IDs)
+	 * Switch to selected thread from dropdown.
+	 * Item values are int[]{chatId, entryId} for own threads,
+	 * or negative Integer for shared chats (ADR-036).
 	 */
 	private void switchThread() {
 		if (threadSelector.getSelectedItem() == null) {
@@ -1789,20 +1815,27 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 		}
 
 		Object value = threadSelector.getSelectedItem().getValue();
-		if (value instanceof Integer) {
-			int selectedValue = (Integer) value;
+		if (value instanceof int[]) {
+			int[] ref = (int[]) value;
+			int chatId = ref[0];
+			int entryId = ref[1];
 
+			// Switch chat if different from current
+			if (chat == null || chat.get_ID() != chatId) {
+				chat = new MAIChat(sessionCtx, chatId, null);
+				currentAccess = ChatAccess.OWNER;
+				updateAccessIndicator();
+			}
+
+			currentThreadRootId = entryId;
+			log.log(Level.FINE, "Switched to chat " + chatId + " thread " + entryId);
+			renderMessages();
+
+		} else if (value instanceof Integer) {
+			int selectedValue = (Integer) value;
 			if (selectedValue < 0) {
 				// Negative value = shared chat ID (ADR-036)
-				int sharedChatId = -selectedValue;
-				switchToSharedChat(sharedChatId);
-			} else {
-				// Positive value = thread ID in current chat
-				currentThreadRootId = selectedValue;
-				log.log(Level.FINE, "Switched to thread: " + currentThreadRootId);
-
-				// Re-render messages for this thread
-				renderMessages();
+				switchToSharedChat(-selectedValue);
 			}
 		}
 	}
@@ -1848,81 +1881,131 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 		}
 	}
 
+	/** Maximum number of threads shown across all chats in the dropdown (ADR-036). */
+	private static final int THREAD_DROPDOWN_LIMIT = 20;
+
 	/**
-	 * Load thread list into dropdown
-	 * Threads are identified by their root message (first message with no parent)
-	 * Also loads shared chats (ADR-036)
+	 * Load the most recent {@value #THREAD_DROPDOWN_LIMIT} threads across all user's chats
+	 * (global + private context chats) into the dropdown, grouped by CM_Chat.
+	 * Older threads beyond the limit are not accessible via this UI — see ADR-036.
+	 * Also appends shared chats (ADR-036).
 	 */
 	private void loadThreadList() {
-		if (chat == null) {
-			return;
-		}
-
 		threadSelector.getItems().clear();
 
-		// Add "New Thread" option (only if user can write)
-		if (currentAccess.ordinal() >= ChatAccess.WRITE.ordinal()) {
-			Comboitem newItem = new Comboitem("+ New Thread");
-			newItem.setValue(0);
-			threadSelector.appendChild(newItem);
+		int userId = Env.getAD_User_ID(sessionCtx);
+		int clientId = Env.getAD_Client_ID(sessionCtx);
+
+		// Collect all user's chats in preferred display order
+		List<MAIChat> allChats = new ArrayList<>();
+		MAIChat globalChat = MAIChat.getOrCreateGlobalChat(sessionCtx, null, true);
+		if (globalChat != null) {
+			allChats.add(globalChat);
+		}
+		String whereClause = "AD_Table_ID != ? AND CreatedBy = ? AND ConfidentialType = 'P' AND AD_Client_ID = ? AND IsActive = 'Y'";
+		List<MChat> rawContextChats = new org.compiere.model.Query(sessionCtx, MChat.Table_Name, whereClause, null)
+			.setParameters(MAIChat.AI_GLOBAL_TABLE_ID, userId, clientId)
+			.setOrderBy("Updated DESC")
+			.list();
+		for (MChat mc : rawContextChats) {
+			allChats.add(new MAIChat(sessionCtx, mc.get_ID(), null));
 		}
 
-		// --- My Chats section ---
-		// Get all root-level entries (messages with no parent)
-		MChatEntry[] entries = chat.getEntries(true);
-		List<MChatEntry> rootEntries = new ArrayList<>();
-
-		for (MChatEntry entry : entries) {
-			if (entry.isActive() && entry.getCM_ChatEntryParent_ID() == 0) {
-				rootEntries.add(entry);
+		// Gather all root entries (one per thread) from all chats, paired with their chat
+		List<Object[]> allRootEntries = new ArrayList<>(); // {MAIChat, MChatEntry}
+		for (MAIChat c : allChats) {
+			for (MChatEntry e : c.getEntries(true)) {
+				if (e.isActive() && e.getCM_ChatEntryParent_ID() == 0) {
+					allRootEntries.add(new Object[]{c, e});
+				}
 			}
 		}
 
-		// Add threads to dropdown (most recent first)
-		for (int i = rootEntries.size() - 1; i >= 0; i--) {
-			MChatEntry rootEntry = rootEntries.get(i);
+		// Sort by created date descending and cap at THREAD_DROPDOWN_LIMIT
+		allRootEntries.sort((a, b) -> {
+			java.util.Date da = ((MChatEntry) a[1]).getCreated();
+			java.util.Date db = ((MChatEntry) b[1]).getCreated();
+			if (da == null) return 1;
+			if (db == null) return -1;
+			return db.compareTo(da);
+		});
+		List<Object[]> topEntries = allRootEntries.subList(0, Math.min(THREAD_DROPDOWN_LIMIT, allRootEntries.size()));
 
-			// Create thread label (first 50 chars of first message)
-			String label = rootEntry.getCharacterData();
+		// Group by chat preserving order of first appearance in topEntries
+		java.util.LinkedHashMap<Integer, List<MChatEntry>> grouped = new java.util.LinkedHashMap<>();
+		java.util.Map<Integer, MAIChat> chatById = new java.util.LinkedHashMap<>();
+		for (Object[] pair : topEntries) {
+			MAIChat c = (MAIChat) pair[0];
+			MChatEntry e = (MChatEntry) pair[1];
+			grouped.computeIfAbsent(c.get_ID(), k -> new ArrayList<>()).add(e);
+			chatById.putIfAbsent(c.get_ID(), c);
+		}
+
+		// Render one section per chat
+		for (java.util.Map.Entry<Integer, List<MChatEntry>> entry : grouped.entrySet()) {
+			MAIChat c = chatById.get(entry.getKey());
+			String sectionLabel = c.isGlobalChat() ? "AI Chat" : c.getDescription();
+			if (sectionLabel == null || sectionLabel.trim().isEmpty()) {
+				sectionLabel = "Chat " + c.get_ID();
+			}
+			addChatSection(c, sectionLabel, entry.getValue());
+		}
+
+		// Shared with me (ADR-036)
+		loadSharedChatsSection();
+	}
+
+	/**
+	 * Add a section for one chat to the thread selector.
+	 * Entries are already sorted most-recent-first by the caller.
+	 */
+	private void addChatSection(MAIChat sectionChat, String sectionLabel, List<MChatEntry> rootEntries) {
+		// Section header (disabled)
+		Comboitem header = new Comboitem("\u2500\u2500\u2500 " + sectionLabel + " \u2500\u2500\u2500");
+		header.setDisabled(true);
+		header.setSclass("ai-thread-separator");
+		threadSelector.appendChild(header);
+
+		for (int i = 0; i < rootEntries.size(); i++) {
+			MChatEntry rootEntry = rootEntries.get(i);
+			String label = buildThreadLabel(sectionChat, rootEntry, i + 1);
+			Comboitem item = new Comboitem(label);
+			item.setValue(new int[]{sectionChat.get_ID(), rootEntry.getCM_ChatEntry_ID()});
+			threadSelector.appendChild(item);
+
+			if (chat != null && sectionChat.get_ID() == chat.get_ID()
+					&& currentThreadRootId == rootEntry.getCM_ChatEntry_ID()) {
+				threadSelector.setSelectedItem(item);
+			}
+		}
+	}
+
+	/**
+	 * Build a display label for a thread root entry.
+	 * Context chats use the Subject field; global chats use the first 50 chars of the message.
+	 */
+	private String buildThreadLabel(MAIChat c, MChatEntry rootEntry, int fallbackIndex) {
+		String label;
+		if (c.hasContext()) {
+			label = rootEntry.getSubject();
 			if (label == null || label.trim().isEmpty()) {
-				label = "Thread " + (rootEntries.size() - i);
+				label = "Thread " + fallbackIndex;
+			}
+		} else {
+			label = rootEntry.getCharacterData();
+			if (label == null || label.trim().isEmpty()) {
+				label = "Thread " + fallbackIndex;
 			} else {
 				label = label.trim();
 				if (label.length() > 50) {
 					label = label.substring(0, 47) + "...";
 				}
 			}
-
-			// Add formatted date
-			if (rootEntry.getCreated() != null) {
-				String date = dateFormat.format(rootEntry.getCreated());
-				label = label + " (" + date + ")";
-			}
-
-			Comboitem item = new Comboitem(label);
-			item.setValue(rootEntry.getCM_ChatEntry_ID());
-			threadSelector.appendChild(item);
-
-			// Select current thread
-			if (currentThreadRootId == rootEntry.getCM_ChatEntry_ID()) {
-				threadSelector.setSelectedItem(item);
-			}
 		}
-
-		// --- Shared with me section (ADR-036) ---
-		loadSharedChatsSection();
-
-		// If no thread selected and we have threads, select the most recent
-		if (threadSelector.getSelectedItem() == null && rootEntries.size() > 0) {
-			currentThreadRootId = rootEntries.get(rootEntries.size() - 1).getCM_ChatEntry_ID();
-			threadSelector.setSelectedIndex(currentAccess.ordinal() >= ChatAccess.WRITE.ordinal() ? 1 : 0);
-		} else if (rootEntries.size() == 0) {
-			// No threads yet, select "New Thread" if available
-			currentThreadRootId = 0;
-			if (threadSelector.getItemCount() > 0) {
-				threadSelector.setSelectedIndex(0);
-			}
+		if (rootEntry.getCreated() != null) {
+			label = label + " (" + dateFormat.format(rootEntry.getCreated()) + ")";
 		}
+		return label;
 	}
 
 	/**
@@ -1937,7 +2020,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 			}
 
 			// Add separator
-			Comboitem separator = new Comboitem("─── " + Msg.getMsg(sessionCtx, "SharedWithMe") + " ───");
+			Comboitem separator = new Comboitem("\u2500\u2500\u2500 " + Msg.getMsg(sessionCtx, "SharedWithMe") + " \u2500\u2500\u2500");
 			separator.setDisabled(true);
 			separator.setSclass("ai-thread-separator");
 			threadSelector.appendChild(separator);
@@ -1947,7 +2030,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 				ChatAccess sharedAccess = getChatAccessServiceStub().getAccess(sessionCtx, sharedChat);
 
 				// Build label with access indicator
-				String accessIcon = (sharedAccess == ChatAccess.READ) ? "📖 " : "✏️ ";
+				String accessIcon = (sharedAccess == ChatAccess.READ) ? "[r] " : "[e] ";
 				String label = sharedChat.getDescription();
 				if (label == null || label.trim().isEmpty()) {
 					label = "Chat " + sharedChat.get_ID();
@@ -1961,8 +2044,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 				label = accessIcon + label + " (from " + ownerName + ")";
 
 				Comboitem item = new Comboitem(label);
-				// Store chat ID as negative to distinguish from thread IDs
-				item.setValue(-sharedChat.get_ID());
+				item.setValue(-sharedChat.get_ID()); // Negative = shared chat ID
 				threadSelector.appendChild(item);
 			}
 		} catch (Exception e) {
@@ -2032,19 +2114,70 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 				// Redact sensitive fields
 				if (currentContext != null && currentContext.optBoolean("success", false)) {
 					redactSensitiveData(currentContext, provider.getSensitiveFields());
-					updateContextIndicator(true);
 				} else {
 					currentContext = null;
-					updateContextIndicator(false);
 				}
 			} else {
 				currentContext = null;
-				updateContextIndicator(false);
 			}
 		} catch (Exception e) {
 			currentContext = null;
-			updateContextIndicator(false);
 		}
+
+		updateContextIndicator(currentContext != null);
+	}
+
+	/**
+	 * Resolve a private context chat for the record currently open in the window context.
+	 * Returns null if no valid record is in context (dashboard, list view, etc.).
+	 * <p>
+	 * ADR-036 Phase 2b
+	 */
+	private MAIChat resolveContextChatFromContext() {
+		if (currentContext == null || !currentContext.has("tab_context")) return null;
+
+		JSONObject tabCtx = currentContext.getJSONObject("tab_context");
+		String tableName = tabCtx.optString("table_name", null);
+		int recordId = tabCtx.optInt("selected_record_id", 0);
+
+		if (tableName == null || tableName.isEmpty() || recordId <= 0) return null;
+
+		int tableId = MTable.getTable_ID(tableName);
+		if (tableId <= 0) return null;
+
+		String identifier = resolveRecordIdentifier();
+		String description = identifier != null ? identifier : (tableName + "#" + recordId);
+		return MAIChat.getOrCreatePrivateContextChat(sessionCtx, tableId, recordId, description, null);
+	}
+
+	/**
+	 * Resolve a display identifier for the record currently open in the window context.
+	 * Priority: DocumentNo -> Name -> Value -> tableName#recordId.
+	 * Returns null if no record context is available.
+	 * <p>
+	 * ADR-036 Phase 2b
+	 */
+	private String resolveRecordIdentifier() {
+		if (currentContext == null) return null;
+
+		if (currentContext.has("record_data")) {
+			JSONObject data = currentContext.getJSONObject("record_data");
+			String identifier = data.optString("DocumentNo", null);
+			if (identifier == null) identifier = data.optString("Name", null);
+			if (identifier == null) identifier = data.optString("Value", null);
+			if (identifier != null && !identifier.isEmpty()) return identifier;
+		}
+
+		// Fallback: tableName#recordId
+		if (currentContext.has("tab_context")) {
+			JSONObject tabCtx = currentContext.getJSONObject("tab_context");
+			String tableName = tabCtx.optString("table_name", null);
+			int recordId = tabCtx.optInt("selected_record_id", 0);
+			if (tableName != null && recordId > 0) {
+				return tableName + "#" + recordId;
+			}
+		}
+		return null;
 	}
 
 	// =========================================================================================
@@ -2657,10 +2790,31 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 			return;
 		}
 
-		String windowName = "No window";
-		String tabName = "";
+		boolean show;
+		String contextInfo;
 
-		if (hasContext && currentContext != null) {
+		if (chat instanceof MAIChat && ((MAIChat) chat).hasContext()) {
+			// Context chat: show record identifier from the current thread root entry Subject (ADR-036 Phase 2b)
+			show = true;
+			String subject = null;
+			if (currentThreadRootId > 0) {
+				MChatEntry rootEntry = new MChatEntry(sessionCtx, currentThreadRootId, null);
+				if (rootEntry.get_ID() > 0) {
+					subject = rootEntry.getSubject();
+				}
+			}
+			if (subject != null && !subject.trim().isEmpty()) {
+				contextInfo = subject;
+			} else {
+				// Fall back to identifier from live context if Subject not yet written
+				String identifier = resolveRecordIdentifier();
+				contextInfo = identifier != null ? identifier : "Record";
+			}
+		} else if (hasContext && currentContext != null) {
+			// Global chat with context: show window > tab name
+			show = true;
+			String windowName = "No window";
+			String tabName = "";
 			if (currentContext.has("window_metadata")) {
 				JSONObject windowMeta = currentContext.getJSONObject("window_metadata");
 				windowName = windowMeta.optString("name", "Unknown");
@@ -2669,10 +2823,13 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 				JSONObject tabCtx = currentContext.getJSONObject("tab_context");
 				tabName = tabCtx.optString("tab_name", "Unknown");
 			}
+			contextInfo = windowName + " > " + tabName;
+		} else {
+			show = false;
+			contextInfo = "No window open";
 		}
 
-		String display = hasContext ? "block" : "none";
-		String contextInfo = hasContext ? windowName + " > " + tabName : "No window open";
+		String display = show ? "block" : "none";
 		String escapedInfo = Util.maskHTML(contextInfo, true);
 
 		Clients.evalJavaScript(
@@ -2869,149 +3026,6 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 		Clients.evalJavaScript(script);
 	}
 
-	/**
-	 * Render Markdown to HTML using marked.js (client-side)
-	 * Returns a unique ID for the container so we can process it after rendering
-	 * @param markdownText the markdown text to render
-	 * @return HTML string with markdown container and script to render it
-	 */
-	private String renderMarkdown(String markdownText) {
-		// Generate unique ID for this markdown block
-		String containerId = "md_" + System.currentTimeMillis() + "_" + (int)(Math.random() * 10000);
-
-		// Escape the markdown text for JavaScript (critical for security)
-		String escapedMarkdown = markdownText
-			.replace("\\", "\\\\")
-			.replace("'", "\\'")
-			.replace("\r", "")
-			.replace("\n", "\\n")
-			.replace("</script>", "<\\/script>");
-
-		StringBuilder sb = new StringBuilder();
-
-		// Container for rendered markdown
-		sb.append("<div id='").append(containerId).append("' class='ai-markdown-content'></div>");
-
-		// Script to render markdown when libraries are loaded
-		sb.append("<script>");
-		sb.append("(function() {");
-		sb.append("  var renderMD = function() {");
-		sb.append("    if (!window.marked || !window.Prism) {");
-		sb.append("      setTimeout(renderMD, 100);");
-		sb.append("      return;");
-		sb.append("    }");
-		sb.append("    var container = document.getElementById('").append(containerId).append("');");
-		sb.append("    if (!container) return;");
-
-		// Configure marked to use Prism for code highlighting
-		// IMPORTANT: sanitize must be false to allow HTML zoom links (ADR-039)
-		sb.append("    marked.setOptions({");
-		sb.append("      highlight: function(code, lang) {");
-		sb.append("        if (lang && Prism.languages[lang]) {");
-		sb.append("          return Prism.highlight(code, Prism.languages[lang], lang);");
-		sb.append("        }");
-		sb.append("        return code;");
-		sb.append("      },");
-		sb.append("      breaks: true,");
-		sb.append("      gfm: true,");
-		sb.append("      sanitize: false");  // Allow HTML for zoom links
-		sb.append("    });");
-
-		sb.append("    var html = marked.parse('").append(escapedMarkdown).append("');");
-		sb.append("    container.innerHTML = html;");
-
-		// Apply Prism to any code blocks that weren't caught by marked's highlight
-		sb.append("    container.querySelectorAll('pre code').forEach(function(block) {");
-		sb.append("      if (!block.classList.contains('language-')) {");
-		sb.append("        Prism.highlightElement(block);");
-		sb.append("      }");
-		sb.append("    });");
-		sb.append("  };");
-		sb.append("  renderMD();");
-		sb.append("})();");
-		sb.append("</script>");
-
-		return sb.toString();
-	}
-
-	/**
-	 * Render markdown while preserving existing HTML (tables and zoom links).
-	 * Simplified version of AIChatStreamingMessage.processMarkdownPreservingHTML()
-	 */
-	private String renderMarkdownPreservingHTML(String text) {
-		if (text == null || text.isEmpty()) return "";
-
-		// Normalize excessive line breaks (3+ newlines → 2 newlines for proper paragraph spacing)
-		text = text.replaceAll("\n{3,}", "\n\n");
-
-		StringBuilder result = new StringBuilder();
-		int pos = 0;
-
-		while (pos < text.length()) {
-			int tagStart = text.indexOf('<', pos);
-			if (tagStart == -1) {
-				result.append(renderSimpleMarkdown(text.substring(pos)));
-				break;
-			}
-			if (tagStart > pos) {
-				result.append(renderSimpleMarkdown(text.substring(pos, tagStart)));
-			}
-			int tagEnd = text.indexOf('>', tagStart);
-			if (tagEnd == -1) {
-				result.append(text.substring(tagStart));
-				break;
-			}
-			String tag = text.substring(tagStart, tagEnd + 1);
-			result.append(tag);
-			String tagName = extractTagName(tag);
-			if (tagName != null && !tag.endsWith("/>") && !isSelfClosingTag(tagName)) {
-				String closingTag = "</" + tagName + ">";
-				int closingPos = text.indexOf(closingTag, tagEnd + 1);
-				if (closingPos != -1) {
-					result.append(text.substring(tagEnd + 1, closingPos + closingTag.length()));
-					pos = closingPos + closingTag.length();
-					continue;
-				}
-			}
-			pos = tagEnd + 1;
-		}
-		return result.toString();
-	}
-
-	private String extractTagName(String tag) {
-		if (tag == null || tag.length() < 3) return null;
-		String content = tag.substring(1, tag.length() - 1).trim();
-		if (content.startsWith("/")) content = content.substring(1).trim();
-		if (content.endsWith("/")) content = content.substring(0, content.length() - 1).trim();
-		int spacePos = content.indexOf(' ');
-		if (spacePos > 0) content = content.substring(0, spacePos);
-		return content.toLowerCase();
-	}
-
-	private boolean isSelfClosingTag(String tagName) {
-		return tagName.equals("br") || tagName.equals("hr") || tagName.equals("img") || tagName.equals("input");
-	}
-
-	private String renderSimpleMarkdown(String text) {
-		if (text == null || text.isEmpty()) return "";
-		String result = Util.maskHTML(text, true);
-		result = result.replaceAll("(?m)^### (.+)$", "<h4 style='font-size: 14px; font-weight: 600; margin: 12px 0 8px 0;'>$1</h4>");
-		result = result.replaceAll("(?m)^## (.+)$", "<h3 style='font-size: 15px; font-weight: 600; margin: 14px 0 8px 0;'>$1</h3>");
-		result = result.replaceAll("(?m)^# (.+)$", "<h2 style='font-size: 16px; font-weight: 600; margin: 16px 0 10px 0;'>$1</h2>");
-		result = result.replaceAll("\\*\\*(.+?)\\*\\*", "<strong>$1</strong>");
-		result = result.replaceAll("__(.+?)__", "<strong>$1</strong>");
-		result = result.replaceAll("(?<!\\*)\\*(?!\\*)(.+?)(?<!\\*)\\*(?!\\*)", "<em>$1</em>");
-		result = result.replaceAll("`([^`]+)`", "<code style='background: #f5f5f5; padding: 2px 6px; border-radius: 3px; font-family: monospace; font-size: 0.9em;'>$1</code>");
-		result = result.replaceAll("(?m)^- (.+)$", "<li style='margin-left: 16px; list-style-type: disc;'>$1</li>");
-		result = result.replaceAll("(?m)^\\* (.+)$", "<li style='margin-left: 16px; list-style-type: disc;'>$1</li>");
-		result = result.replace("\n", "<br/>");
-		result = result.replaceAll("</h2><br/>", "</h2>");
-		result = result.replaceAll("</h3><br/>", "</h3>");
-		result = result.replaceAll("</h4><br/>", "</h4>");
-		result = result.replaceAll("</li><br/>", "</li>");
-		return result;
-	}
-
 	// ========================================================================
 	// Stop Button / Request Cancellation (ADR-031)
 	// ========================================================================
@@ -3137,36 +3151,6 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 					", HTML len=" + persistedHtml.length());
 		} catch (Exception e) {
 			log.log(Level.WARNING, "Failed to persist cancelled response", e);
-		}
-	}
-
-	/**
-	 * Safely schedule a UI update event, handling cases where desktop becomes unavailable.
-	 * SAFETY: Prevents silent failures when user navigates away during streaming.
-	 *
-	 * @param desktop Desktop instance to schedule on
-	 * @param handler Event handler to execute
-	 * @param event Event to send
-	 */
-	private void safeSchedule(Desktop desktop, java.util.function.Consumer<Event> handler, Event event) {
-		// Check desktop validity before scheduling
-		if (desktop == null || !desktop.isAlive()) {
-			log.log(Level.FINE, "Desktop no longer available, cannot schedule UI update: " + event.getName());
-			return;
-		}
-
-		try {
-			Executions.schedule(desktop, e -> {
-				// Double-check desktop is still alive when event executes
-				if (desktop.isAlive()) {
-					handler.accept(e);
-				} else {
-					log.log(Level.FINE, "Desktop became unavailable before event executed: " + event.getName());
-				}
-			}, event);
-		} catch (Exception e) {
-			// Catch any ZK exceptions related to desktop unavailability
-			log.log(Level.FINE, "Desktop became unavailable during schedule: " + e.getMessage(), e);
 		}
 	}
 

@@ -20,7 +20,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.compiere.util.CLogger;
-import org.compiere.util.DB;
 import org.compiere.util.Env;
 
 import com.cloudempiere.ai.model.MAIBudget;
@@ -84,54 +83,65 @@ public class CostGuard {
     /** Last reset time for rate limiting */
     private volatile long lastRateLimitReset = System.currentTimeMillis();
 
-    /** Cached budget limits per client (static so event handler can clear it) */
-    private static final Map<Integer, BudgetLimits> clientBudgets = new ConcurrentHashMap<>();
-
     /**
      * Check if budget allows the estimated cost.
      *
+     * <p>Resolves the effective AIG_Budget record for the user (agent → user → client scope)
+     * and checks the stored CurrentDailyAmt / CurrentMonthlyAmt counters directly.
+     *
      * @param clientId Client ID
+     * @param userId User ID
      * @param estimatedCost Estimated cost for this request (USD)
      * @throws BudgetExceededException if budget would be exceeded
      */
-    public void checkBudget(int clientId, BigDecimal estimatedCost)
+    public void checkBudget(int clientId, int userId, BigDecimal estimatedCost)
             throws BudgetExceededException {
 
-        BudgetLimits limits = getBudgetLimits(clientId);
+        Properties ctx = Env.getCtx();
+        MAIBudget budget = MAIBudget.getEffective(ctx, userId, null, null);
 
-        // Check daily budget
-        BigDecimal todayCost = AIMetricsListener.getTodayCost(clientId);
-        BigDecimal projectedDaily = todayCost.add(estimatedCost);
+        if (budget == null) {
+            return; // No budget configured for this user/client
+        }
 
-        if (projectedDaily.compareTo(limits.dailyBudget) > 0) {
-            log.warning("Daily budget exceeded for client " + clientId +
-                       ": projected $" + projectedDaily + " > limit $" + limits.dailyBudget);
+        // Run lazy reset before checking — counters are normally reset inside addUsage(),
+        // but if the guard blocks the request, addUsage() is never called and the stale
+        // counter would permanently block the user after a day/month boundary.
+        budget.maybeResetCounters();
+        if (budget.is_Changed()) {
+            budget.save();
+        }
+
+        // Check daily budget against current usage (not projected)
+        // Actual cost is tracked post-request via addUsage(); pre-flight only blocks when limit is reached
+        if (budget.isDailyBudgetExceeded()) {
+            log.warning("Daily budget exceeded for user " + userId +
+                       ": used=" + budget.getCurrentDailyAmt() + "¢, limit=" + budget.getDailyLimit() + "¢");
             throw new BudgetExceededException(
-                "Daily AI budget exceeded. Used: $" + todayCost +
-                ", Limit: $" + limits.dailyBudget,
+                "Daily AI budget exceeded. Used: " + budget.getCurrentDailyAsBigDecimal() +
+                " USD, Limit: " + budget.getDailyLimitAsBigDecimal() + " USD",
                 BudgetType.DAILY
             );
         }
 
-        // Check monthly budget
-        BigDecimal monthCost = getMonthCost(clientId);
-        BigDecimal projectedMonthly = monthCost.add(estimatedCost);
-
-        if (projectedMonthly.compareTo(limits.monthlyBudget) > 0) {
-            log.warning("Monthly budget exceeded for client " + clientId +
-                       ": projected $" + projectedMonthly + " > limit $" + limits.monthlyBudget);
+        // Check monthly budget against current usage (not projected)
+        if (budget.isMonthlyBudgetExceeded()) {
+            log.warning("Monthly budget exceeded for user " + userId +
+                       ": used=" + budget.getCurrentMonthlyAmt() + "¢, limit=" + budget.getMonthlyLimit() + "¢");
             throw new BudgetExceededException(
-                "Monthly AI budget exceeded. Used: $" + monthCost +
-                ", Limit: $" + limits.monthlyBudget,
+                "Monthly AI budget exceeded. Used: " + budget.getCurrentMonthlyAsBigDecimal() +
+                " USD, Limit: " + budget.getMonthlyLimitAsBigDecimal() + " USD",
                 BudgetType.MONTHLY
             );
         }
 
-        // Alert if approaching limit
-        double dailyPercent = projectedDaily.doubleValue() / limits.dailyBudget.doubleValue();
-        if (dailyPercent >= ALERT_THRESHOLD) {
-            log.warning("Daily budget alert for client " + clientId +
-                       ": " + String.format("%.1f%%", dailyPercent * 100) + " used");
+        // Alert if approaching daily limit
+        if (budget.getDailyLimit() > 0) {
+            double dailyPercent = budget.getDailyUsagePercent() / 100.0;
+            if (dailyPercent >= ALERT_THRESHOLD) {
+                log.warning("Daily budget alert for user " + userId +
+                           ": " + String.format("%.1f%%", dailyPercent * 100) + " used");
+            }
         }
     }
 
@@ -144,18 +154,25 @@ public class CostGuard {
     public void checkRateLimit(int userId) throws RateLimitExceededException {
         maybeResetRateLimits();
 
+        // Resolve the effective rate limit from AIG_Budget (falls back to default)
+        Properties ctx = Env.getCtx();
+        MAIBudget budget = MAIBudget.getEffective(ctx, userId, null, null);
+        int maxRequestsPerMinute = budget != null && budget.getRequestsPerMinute() > 0
+            ? budget.getRequestsPerMinute()
+            : DEFAULT_REQUESTS_PER_MINUTE;
+
         AtomicInteger count = userRequestCounts.computeIfAbsent(
             userId, k -> new AtomicInteger(0)
         );
 
         int currentCount = count.incrementAndGet();
 
-        if (currentCount > DEFAULT_REQUESTS_PER_MINUTE) {
+        if (currentCount > maxRequestsPerMinute) {
             log.warning("Rate limit exceeded for user " + userId +
-                       ": " + currentCount + " requests/minute");
+                       ": " + currentCount + " requests/minute (limit=" + maxRequestsPerMinute + ")");
             throw new RateLimitExceededException(
                 "AI request rate limit exceeded. Please wait before making more requests.",
-                DEFAULT_REQUESTS_PER_MINUTE
+                maxRequestsPerMinute
             );
         }
     }
@@ -164,21 +181,26 @@ public class CostGuard {
      * Check token limit for a request.
      *
      * @param clientId Client ID
+     * @param userId User ID
      * @param estimatedTokens Estimated tokens for this request
      * @throws TokenLimitExceededException if token limit exceeded
      */
-    public void checkTokenLimit(int clientId, int estimatedTokens)
+    public void checkTokenLimit(int clientId, int userId, int estimatedTokens)
             throws TokenLimitExceededException {
 
-        BudgetLimits limits = getBudgetLimits(clientId);
+        Properties ctx = Env.getCtx();
+        MAIBudget budget = MAIBudget.getEffective(ctx, userId, null, null);
 
-        if (estimatedTokens > limits.maxTokensPerRequest) {
-            log.warning("Token limit exceeded: " + estimatedTokens +
-                       " > " + limits.maxTokensPerRequest);
+        int maxTokens = budget != null && budget.getTokenLimitPerRequest() > 0
+            ? budget.getTokenLimitPerRequest()
+            : DEFAULT_MAX_TOKENS_PER_REQUEST;
+
+        if (estimatedTokens > maxTokens) {
+            log.warning("Token limit exceeded: " + estimatedTokens + " > " + maxTokens);
             throw new TokenLimitExceededException(
                 "Request too large. Estimated tokens: " + estimatedTokens +
-                ", Limit: " + limits.maxTokensPerRequest,
-                limits.maxTokensPerRequest
+                ", Limit: " + maxTokens,
+                maxTokens
             );
         }
     }
@@ -199,9 +221,9 @@ public class CostGuard {
             throws BudgetExceededException, RateLimitExceededException,
                    TokenLimitExceededException {
 
-        checkBudget(clientId, estimatedCost);
+        checkBudget(clientId, userId, estimatedCost);
         checkRateLimit(userId);
-        checkTokenLimit(clientId, estimatedTokens);
+        checkTokenLimit(clientId, userId, estimatedTokens);
     }
 
     /**
@@ -211,97 +233,23 @@ public class CostGuard {
      * @return Budget status information
      */
     public BudgetStatus getBudgetStatus(int clientId) {
-        BudgetLimits limits = getBudgetLimits(clientId);
-        BigDecimal todayCost = AIMetricsListener.getTodayCost(clientId);
-        BigDecimal monthCost = getMonthCost(clientId);
+        Properties ctx = Env.getCtx();
+        MAIBudget budget = MAIBudget.getForClient(ctx, clientId, null);
+
+        if (budget == null) {
+            return new BudgetStatus(BigDecimal.ZERO, DEFAULT_DAILY_BUDGET,
+                BigDecimal.ZERO, DEFAULT_MONTHLY_BUDGET, 0);
+        }
+
         int todayRequests = AIMetricsListener.getTodayRequestCount(clientId);
 
         return new BudgetStatus(
-            todayCost,
-            limits.dailyBudget,
-            monthCost,
-            limits.monthlyBudget,
+            budget.getCurrentDailyAsBigDecimal(),
+            budget.getDailyLimitAsBigDecimal(),
+            budget.getCurrentMonthlyAsBigDecimal(),
+            budget.getMonthlyLimitAsBigDecimal(),
             todayRequests
         );
-    }
-
-    /**
-     * Get budget limits for a client (from database or defaults).
-     *
-     * @param clientId Client ID
-     * @return Budget limits
-     */
-    private BudgetLimits getBudgetLimits(int clientId) {
-        return clientBudgets.computeIfAbsent(clientId, this::loadBudgetLimits);
-    }
-
-    /**
-     * Load budget limits from database using MAIBudget model.
-     *
-     * @param clientId Client ID
-     * @return Budget limits (defaults if not configured)
-     */
-    private BudgetLimits loadBudgetLimits(int clientId) {
-        // Try to load from AIG_Budget table using model
-        try {
-            Properties ctx = Env.getCtx();
-            Env.setContext(ctx, "#AD_Client_ID", clientId);
-
-            MAIBudget budget = MAIBudget.getForClient(ctx, clientId, null);
-
-            if (budget != null) {
-                // Convert cents to dollars for BigDecimal limits
-                BigDecimal daily = budget.getDailyLimitAsBigDecimal();
-                BigDecimal monthly = budget.getMonthlyLimitAsBigDecimal();
-                int maxTokens = budget.getTokenLimitPerRequest();
-
-                return new BudgetLimits(
-                    daily,
-                    monthly,
-                    maxTokens > 0 ? maxTokens : DEFAULT_MAX_TOKENS_PER_REQUEST
-                );
-            }
-        } catch (Exception e) {
-            // Table might not exist yet
-            log.fine("AIG_Budget table not available, using defaults: " + e.getMessage());
-        }
-
-        // Return defaults
-        return new BudgetLimits(
-            DEFAULT_DAILY_BUDGET,
-            DEFAULT_MONTHLY_BUDGET,
-            DEFAULT_MAX_TOKENS_PER_REQUEST
-        );
-    }
-
-    /** Microdollars per dollar (1 USD = 1,000,000 microdollars) */
-    private static final BigDecimal MICRODOLLARS_PER_DOLLAR = new BigDecimal("1000000");
-
-    /**
-     * Get month-to-date cost for a client.
-     *
-     * <p>Note: CostUSD in AIG_UsageMetrics is stored in microdollars
-     * (1 USD = 1,000,000 microdollars) for precision. This method
-     * converts to dollars for comparison with budget limits.
-     *
-     * @param clientId Client ID
-     * @return Month-to-date cost in USD (dollars)
-     */
-    private BigDecimal getMonthCost(int clientId) {
-        String sql = "SELECT COALESCE(SUM(CostUSD), 0) FROM AIG_UsageMetrics " +
-                    "WHERE AD_Client_ID = ? " +
-                    "AND Created >= DATE_TRUNC('month', CURRENT_DATE)";
-
-        try {
-            BigDecimal microdollars = DB.getSQLValueBD(null, sql, clientId);
-            if (microdollars == null) {
-                return BigDecimal.ZERO;
-            }
-            // Convert microdollars to dollars
-            return microdollars.divide(MICRODOLLARS_PER_DOLLAR, 6, BigDecimal.ROUND_HALF_UP);
-        } catch (Exception e) {
-            return BigDecimal.ZERO;
-        }
     }
 
     /**
@@ -323,7 +271,7 @@ public class CostGuard {
      * Clear cached budget limits (call when configuration changes).
      */
     public static void clearBudgetCache() {
-        clientBudgets.clear();
+        MAIBudget.clearCache();
         log.info("All budget caches cleared");
     }
 
@@ -333,29 +281,13 @@ public class CostGuard {
      * @param clientId Client ID
      */
     public static void clearBudgetCache(int clientId) {
-        clientBudgets.remove(clientId);
+        MAIBudget.clearCache();
         log.fine("Budget cache cleared for client " + clientId);
     }
 
     // ========================================================================
     // Inner Classes
     // ========================================================================
-
-    /**
-     * Budget limits configuration.
-     */
-    public static class BudgetLimits {
-        public final BigDecimal dailyBudget;
-        public final BigDecimal monthlyBudget;
-        public final int maxTokensPerRequest;
-
-        public BudgetLimits(BigDecimal dailyBudget, BigDecimal monthlyBudget,
-                          int maxTokensPerRequest) {
-            this.dailyBudget = dailyBudget;
-            this.monthlyBudget = monthlyBudget;
-            this.maxTokensPerRequest = maxTokensPerRequest;
-        }
-    }
 
     /**
      * Current budget status.
@@ -407,6 +339,7 @@ public class CostGuard {
      * Exception thrown when budget is exceeded.
      */
     public static class BudgetExceededException extends Exception {
+        private static final long serialVersionUID = 1L;
         private final BudgetType budgetType;
 
         public BudgetExceededException(String message, BudgetType budgetType) {
@@ -423,6 +356,7 @@ public class CostGuard {
      * Exception thrown when rate limit is exceeded.
      */
     public static class RateLimitExceededException extends Exception {
+        private static final long serialVersionUID = 1L;
         private final int limitPerMinute;
 
         public RateLimitExceededException(String message, int limitPerMinute) {
@@ -439,6 +373,7 @@ public class CostGuard {
      * Exception thrown when token limit is exceeded.
      */
     public static class TokenLimitExceededException extends Exception {
+        private static final long serialVersionUID = 1L;
         private final int maxTokens;
 
         public TokenLimitExceededException(String message, int maxTokens) {

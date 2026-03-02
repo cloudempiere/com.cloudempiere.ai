@@ -119,3 +119,4 @@ Export-Package: com.cloudempiere.ai;version="0.32.0",
  org.reactivestreams;version="1.0.4"
 Service-Component: OSGI-INF/*.xml
 Bundle-ActivationPolicy: lazy
+Automatic-Module-Name: com.cloudempiere.ai.core

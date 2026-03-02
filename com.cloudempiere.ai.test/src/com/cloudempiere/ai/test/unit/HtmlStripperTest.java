@@ -245,8 +245,8 @@ public class HtmlStripperTest {
 
     @Test
     public void testUnicodeAndEmojis() {
-        String input = "<div>Hello 世界 🌍</div>";
-        String expected = "Hello 世界 🌍";
+        String input = "<div>Hello \u4E16\u754C \uD83C\uDF0D</div>";
+        String expected = "Hello \u4E16\u754C \uD83C\uDF0D";
         String actual = HtmlStripper.stripHtml(input);
         assertEquals(expected, actual, "Should preserve Unicode and emojis");
     }

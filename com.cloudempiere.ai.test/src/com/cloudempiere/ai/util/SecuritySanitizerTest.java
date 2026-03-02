@@ -60,11 +60,11 @@ public class SecuritySanitizerTest {
         @Test
         @DisplayName("Should preserve UTF-8 characters (emojis)")
         public void testUtf8Preservation() {
-            String input = "Hello 🚀 World 🎉";
+            String input = "Hello \uD83D\uDE80 World \uD83C\uDF89";
             String escaped = SecuritySanitizer.escapeHtml(input);
 
-            assertTrue(escaped.contains("🚀"), "Should preserve rocket emoji");
-            assertTrue(escaped.contains("🎉"), "Should preserve party emoji");
+            assertTrue(escaped.contains("\uD83D\uDE80"), "Should preserve rocket emoji");
+            assertTrue(escaped.contains("\uD83C\uDF89"), "Should preserve party emoji");
             assertEquals(input, escaped, "Plain text with emojis should not change");
         }
 
@@ -196,11 +196,11 @@ public class SecuritySanitizerTest {
         @Test
         @DisplayName("Should preserve UTF-8 in JavaScript strings")
         public void testUtf8InJs() {
-            String input = "Emoji: 🚀 Text: 你好";
+            String input = "Emoji: \uD83D\uDE80 Text: \u4F60\u597D";
             String escaped = SecuritySanitizer.escapeJavaScript(input);
 
-            assertTrue(escaped.contains("🚀"), "Should preserve emoji");
-            assertTrue(escaped.contains("你好"), "Should preserve Chinese characters");
+            assertTrue(escaped.contains("\uD83D\uDE80"), "Should preserve emoji");
+            assertTrue(escaped.contains("\u4F60\u597D"), "Should preserve Chinese characters");
         }
     }
 
@@ -600,7 +600,7 @@ public class SecuritySanitizerTest {
         @Test
         @DisplayName("Should handle mixed content types")
         public void testMixedContent() {
-            String mixed = "Text\n<html>\tTab\r\nEmoji 🚀\u0000Null";
+            String mixed = "Text\n<html>\tTab\r\nEmoji \uD83D\uDE80\u0000Null";
             assertDoesNotThrow(() -> {
                 String validated = SecuritySanitizer.validateInput(mixed, 1000);
                 String escaped = SecuritySanitizer.escapeHtml(validated);

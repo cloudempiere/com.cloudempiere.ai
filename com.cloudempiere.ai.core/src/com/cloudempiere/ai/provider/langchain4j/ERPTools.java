@@ -4,11 +4,7 @@ import java.util.Properties;
 import java.util.logging.Level;
 
 import org.compiere.model.MTable;
-import org.compiere.model.PO;
-import org.compiere.model.Query;
 import org.compiere.util.CLogger;
-import org.compiere.util.Env;
-import org.json.JSONArray;
 import org.json.JSONObject;
 
 import com.cloudempiere.ai.database.SecureDatabaseQueryExecutor;

@@ -14,6 +14,7 @@
 package com.cloudempiere.ai.observability.dto;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.sql.Timestamp;
 
 /**
@@ -284,7 +285,7 @@ public class UsageMetrics {
      */
     public BigDecimal getCostPerToken() {
         if (totalTokens <= 0) return BigDecimal.ZERO;
-        return costUsd.divide(new BigDecimal(totalTokens), 8, BigDecimal.ROUND_HALF_UP);
+        return costUsd.divide(new BigDecimal(totalTokens), 8, RoundingMode.HALF_UP);
     }
 
     @Override

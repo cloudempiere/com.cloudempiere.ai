@@ -492,10 +492,8 @@ class APICreditsTest {
         public boolean isTransient() { return transient_; }
         public void setTransient(boolean transient_) { this.transient_ = transient_; }
 
-        public boolean isUnknown() { return unknown; }
         public void setUnknown(boolean unknown) { this.unknown = unknown; }
 
-        public long getSuggestedRetryDelayMs() { return suggestedRetryDelayMs; }
         public void setSuggestedRetryDelayMs(long delay) { this.suggestedRetryDelayMs = delay; }
     }
 }
