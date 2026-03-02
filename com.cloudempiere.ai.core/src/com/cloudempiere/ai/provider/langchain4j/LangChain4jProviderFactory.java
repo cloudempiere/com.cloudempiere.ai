@@ -12,7 +12,7 @@ import org.osgi.service.component.annotations.Deactivate;
 
 import com.cloudempiere.ai.model.MAIProvider;
 import com.cloudempiere.ai.model.X_AIG_Provider;
-// TEMPORARILY DISABLED - Metrics/observability will be implemented in future phase
+// TEMPORARILY DISABLED - LangChain4j 0.35.0 (Java 11) has limited listener events; enhanced observability requires 0.36+ (Java 17). See ADR-035, ADR-013.
 // import com.cloudempiere.ai.observability.AIMetricsListener;
 
 import dev.langchain4j.model.anthropic.AnthropicChatModel;
@@ -509,7 +509,7 @@ public class LangChain4jProviderFactory implements ILangChain4jProviderFactory {
             .logResponses(true);
 
         // Add observability listener (ADR-013)
-        // TEMPORARILY DISABLED - Metrics/observability will be implemented in future phase
+        // TEMPORARILY DISABLED - LangChain4j 0.35.0 (Java 11) has limited listener events; enhanced observability requires 0.36+ (Java 17). See ADR-035, ADR-013.
         /* if (metricsEnabled) {
             builder.listeners(List.of(createMetricsListener("anthropic")));
         } */
@@ -536,7 +536,7 @@ public class LangChain4jProviderFactory implements ILangChain4jProviderFactory {
             .temperature(0.7);
 
         // Add observability listener (ADR-013)
-        // TEMPORARILY DISABLED - Metrics/observability will be implemented in future phase
+        // TEMPORARILY DISABLED - LangChain4j 0.35.0 (Java 11) has limited listener events; enhanced observability requires 0.36+ (Java 17). See ADR-035, ADR-013.
         /* if (metricsEnabled) {
             builder.listeners(List.of(createMetricsListener("ollama")));
         } */
@@ -575,7 +575,7 @@ public class LangChain4jProviderFactory implements ILangChain4jProviderFactory {
             .temperature(0.7);
 
         // Add observability listener (ADR-013)
-        // TEMPORARILY DISABLED - Metrics/observability will be implemented in future phase
+        // TEMPORARILY DISABLED - LangChain4j 0.35.0 (Java 11) has limited listener events; enhanced observability requires 0.36+ (Java 17). See ADR-035, ADR-013.
         /* if (metricsEnabled) {
             builder.listeners(List.of(createMetricsListener("llama")));
         } */
@@ -631,7 +631,7 @@ public class LangChain4jProviderFactory implements ILangChain4jProviderFactory {
             .logResponses(true);
 
         // Add observability listener (ADR-013)
-        // TEMPORARILY DISABLED - Metrics/observability will be implemented in future phase
+        // TEMPORARILY DISABLED - LangChain4j 0.35.0 (Java 11) has limited listener events; enhanced observability requires 0.36+ (Java 17). See ADR-035, ADR-013.
         /* if (metricsEnabled) {
             builder.listeners(List.of(createMetricsListener("mock-openai")));
         } */
@@ -668,7 +668,7 @@ public class LangChain4jProviderFactory implements ILangChain4jProviderFactory {
             .logResponses(true);
 
         // Add observability listener (ADR-013)
-        // TEMPORARILY DISABLED - Metrics/observability will be implemented in future phase
+        // TEMPORARILY DISABLED - LangChain4j 0.35.0 (Java 11) has limited listener events; enhanced observability requires 0.36+ (Java 17). See ADR-035, ADR-013.
         /* if (metricsEnabled) {
             builder.listeners(List.of(createMetricsListener("openai")));
         } */
@@ -879,7 +879,7 @@ public class LangChain4jProviderFactory implements ILangChain4jProviderFactory {
     // Observability (ADR-013)
     // ========================================================================
 
-    // TEMPORARILY DISABLED - Metrics/observability will be implemented in future phase
+    // TEMPORARILY DISABLED - LangChain4j 0.35.0 (Java 11) has limited listener events; enhanced observability requires 0.36+ (Java 17). See ADR-035, ADR-013.
     /*
     /**
      * Create a metrics listener for the given agent name.
