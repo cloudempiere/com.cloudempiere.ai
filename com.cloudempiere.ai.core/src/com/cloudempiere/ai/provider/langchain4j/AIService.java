@@ -31,6 +31,7 @@ import org.osgi.service.component.annotations.ReferencePolicy;
 import com.cloudempiere.ai.guardrails.InputGuard;
 import com.cloudempiere.ai.guardrails.OutputGuard;
 import com.cloudempiere.ai.guardrails.dto.GuardResult;
+import com.cloudempiere.ai.model.MAIBudget;
 import com.cloudempiere.ai.model.MAIProvider;
 import com.cloudempiere.ai.model.MAIUsageMetrics;
 import com.cloudempiere.ai.observability.CostGuard;
@@ -419,7 +420,7 @@ public class AIService implements IAIService {
             if (guardrailsEnabled) {
                 // 1. Cost Guard: Check budget before making request
                 try {
-                    costGuard.checkBudget(clientId, ESTIMATED_COST_PER_REQUEST);
+                    costGuard.checkBudget(clientId, userId, ESTIMATED_COST_PER_REQUEST);
                     costGuard.checkRateLimit(userId);
                 } catch (CostGuard.BudgetExceededException e) {
                     log.warning("Budget exceeded for client " + clientId + ": " + e.getMessage());
@@ -535,7 +536,7 @@ public class AIService implements IAIService {
             if (guardrailsEnabled) {
                 // 1. Cost Guard: Check budget
                 try {
-                    costGuard.checkBudget(clientId, ESTIMATED_COST_PER_REQUEST);
+                    costGuard.checkBudget(clientId, userId, ESTIMATED_COST_PER_REQUEST);
                     costGuard.checkRateLimit(userId);
                 } catch (CostGuard.BudgetExceededException e) {
                     log.warning("Budget exceeded for client " + clientId + ": " + e.getMessage());
@@ -783,7 +784,7 @@ public class AIService implements IAIService {
             if (guardrailsEnabled) {
                 // 1. Cost Guard: Check budget
                 try {
-                    costGuard.checkBudget(clientId, ESTIMATED_COST_PER_REQUEST);
+                    costGuard.checkBudget(clientId, userId, ESTIMATED_COST_PER_REQUEST);
                     costGuard.checkRateLimit(userId);
                 } catch (CostGuard.BudgetExceededException e) {
                     log.warning("Budget exceeded for client " + clientId + ": " + e.getMessage());
@@ -1209,6 +1210,16 @@ public class AIService implements IAIService {
                                 ", cost=$" + String.format("%.6f", costMicrodollars / 1000000.0) +
                                 ", latency=" + latencyMs + "ms");
 
+                            // Update AIG_Budget CurrentDailyAmt / CurrentMonthlyAmt
+                            // 1 cent = 10,000 microdollars
+                            int costCents = costMicrodollars / 10000;
+                            if (costCents > 0) {
+                                MAIBudget budget = MAIBudget.getEffective(metricsCtx, metricsUserId, null, null);
+                                if (budget != null && !budget.addUsage(costCents)) {
+                                    log.warning("[METRICS] Failed to update budget for user=" + metricsUserId);
+                                }
+                            }
+
                         } catch (Exception e) {
                             log.log(Level.WARNING, "[METRICS] Failed to record metrics: " + e.getMessage(), e);
                         }
@@ -1578,7 +1589,7 @@ public class AIService implements IAIService {
             if (guardrailsEnabled) {
                 // 1. Cost Guard: Check budget
                 try {
-                    costGuard.checkBudget(clientId, ESTIMATED_COST_PER_REQUEST);
+                    costGuard.checkBudget(clientId, userId, ESTIMATED_COST_PER_REQUEST);
                     costGuard.checkRateLimit(userId);
                 } catch (CostGuard.BudgetExceededException e) {
                     log.warning("Budget exceeded for client " + clientId + ": " + e.getMessage());
