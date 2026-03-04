@@ -13,7 +13,6 @@
  *****************************************************************************/
 package com.cloudempiere.ai.event;
 
-import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -298,16 +297,19 @@ public class KEntryEventHandler extends AbstractEventHandler {
         }
 
         String sql = "SELECT Name FROM K_Topic WHERE K_Topic_ID = ?";
-        try (Connection conn = DB.getConnectionRO();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+        PreparedStatement pstmt = null;
+        ResultSet rs = null;
+        try {
+            pstmt = DB.prepareStatement(sql, null);
             pstmt.setInt(1, topicId);
-            try (ResultSet rs = pstmt.executeQuery()) {
-                if (rs.next()) {
-                    return rs.getString("Name");
-                }
+            rs = pstmt.executeQuery();
+            if (rs.next()) {
+                return rs.getString("Name");
             }
         } catch (SQLException e) {
             log.log(Level.FINE, "Failed to get topic name", e);
+        } finally {
+            DB.close(rs, pstmt);
         }
         return null;
     }
@@ -327,16 +329,19 @@ public class KEntryEventHandler extends AbstractEventHandler {
         }
 
         String sql = "SELECT Name FROM K_Type WHERE K_Type_ID = ?";
-        try (Connection conn = DB.getConnectionRO();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+        PreparedStatement pstmt = null;
+        ResultSet rs = null;
+        try {
+            pstmt = DB.prepareStatement(sql, null);
             pstmt.setInt(1, typeId);
-            try (ResultSet rs = pstmt.executeQuery()) {
-                if (rs.next()) {
-                    return rs.getString("Name");
-                }
+            rs = pstmt.executeQuery();
+            if (rs.next()) {
+                return rs.getString("Name");
             }
         } catch (SQLException e) {
             log.log(Level.FINE, "Failed to get type name", e);
+        } finally {
+            DB.close(rs, pstmt);
         }
         return null;
     }
