@@ -1,10 +1,22 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<scr:component xmlns:scr="http://www.osgi.org/xmlns/scr/v1.3.0" activate="activate" immediate="true" name="com.cloudempiere.ai.kb.agent.KbAgent">
+<scr:component xmlns:scr="http://www.osgi.org/xmlns/scr/v1.3.0"
+               name="com.cloudempiere.ai.kb.agent.KbAgent"
+               activate="activate">
    <implementation class="com.cloudempiere.ai.kb.agent.KbAgent"/>
    <service>
       <provide interface="com.cloudempiere.ai.kb.agent.KbAgent"/>
       <provide interface="com.cloudempiere.ai.boundary.IDomainAgent"/>
    </service>
-   <reference cardinality="1..1" field="kbTools" interface="com.cloudempiere.ai.kb.tools.KbTools" name="kbTools" policy="dynamic"/>
-   <reference cardinality="1..1" field="providerFactory" interface="com.cloudempiere.ai.provider.langchain4j.ILangChain4jProviderFactory" name="providerFactory" policy="dynamic"/>
+   <reference bind="setProviderFactory"
+              cardinality="1..1"
+              field="providerFactory"
+              interface="com.cloudempiere.ai.provider.langchain4j.ILangChain4jProviderFactory"
+              name="ILangChain4jProviderFactory"
+              policy="static"/>
+   <reference bind="setKbTools"
+              cardinality="1..1"
+              field="kbTools"
+              interface="com.cloudempiere.ai.kb.tools.KbTools"
+              name="KbTools"
+              policy="static"/>
 </scr:component>

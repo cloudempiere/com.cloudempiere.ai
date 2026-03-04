@@ -1,10 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<scr:component xmlns:scr="http://www.osgi.org/xmlns/scr/v1.3.0" activate="activate" immediate="true" name="com.cloudempiere.ai.inventory.agent.InventoryAgent">
+<scr:component xmlns:scr="http://www.osgi.org/xmlns/scr/v1.3.0"
+               name="com.cloudempiere.ai.inventory.agent.InventoryAgent"
+               activate="activate">
    <implementation class="com.cloudempiere.ai.inventory.agent.InventoryAgent"/>
    <service>
       <provide interface="com.cloudempiere.ai.inventory.agent.InventoryAgent"/>
       <provide interface="com.cloudempiere.ai.boundary.IDomainAgent"/>
    </service>
-   <reference cardinality="1..1" field="inventoryTools" interface="com.cloudempiere.ai.inventory.tools.InventoryTools" name="inventoryTools" policy="dynamic"/>
-   <reference cardinality="1..1" field="providerFactory" interface="com.cloudempiere.ai.provider.langchain4j.ILangChain4jProviderFactory" name="providerFactory" policy="dynamic"/>
+   <reference bind="setProviderFactory" cardinality="1..1" field="providerFactory"
+              interface="com.cloudempiere.ai.provider.langchain4j.ILangChain4jProviderFactory"
+              name="ILangChain4jProviderFactory" policy="static"/>
+   <reference bind="setInventoryTools" cardinality="1..1" field="inventoryTools"
+              interface="com.cloudempiere.ai.inventory.tools.InventoryTools"
+              name="InventoryTools" policy="static"/>
 </scr:component>
