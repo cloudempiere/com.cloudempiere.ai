@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<scr:component xmlns:scr="http://www.osgi.org/xmlns/scr/v1.3.0" activate="activate" immediate="true" name="com.cloudempiere.ai.Activator">
-   <reference cardinality="1..1" field="mappedModelFactory" interface="org.idempiere.model.IMappedModelFactory" name="mappedModelFactory"/>
-   <reference cardinality="1..1" field="mappedProcessFactory" interface="org.idempiere.process.IMappedProcessFactory" name="mappedProcessFactory"/>
-   <implementation class="com.cloudempiere.ai.Activator"/>
-</scr:component>
