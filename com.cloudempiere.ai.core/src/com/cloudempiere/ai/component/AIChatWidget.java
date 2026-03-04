@@ -2667,11 +2667,6 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 
 		for (Component child : parent.getChildren()) {
 			String className = child.getClass().getName();
-			String indent = "  ".repeat(depth);
-
-			// Only log at shallow depths to reduce noise
-			if (depth <= 3) {
-			}
 
 			// Look for ADTabpanel which has GridTab
 			if (className.equals("org.adempiere.webui.adwindow.ADTabpanel")) {

@@ -32,7 +32,6 @@ import org.zkoss.zul.Html;
 import org.zkoss.zul.Timer;
 
 import com.cloudempiere.ai.util.ChunkCleaner;
-import com.cloudempiere.ai.util.CommonMarkRenderer;
 import com.cloudempiere.ai.util.MarkdownSyntaxSanitizer;
 import com.cloudempiere.ai.util.StreamingMarkdownRenderer;
 import com.cloudempiere.ai.util.StreamingTextBuffer;
@@ -195,8 +194,6 @@ public class AIChatStreamingMessage extends Div {
 
         // Initialize unified streaming renderer for progressive markdown and table formatting (ADR-047 Phase 4)
         this.markdownRenderer = new StreamingMarkdownRenderer();
-        this.markdownRenderer.setContext(ctx, parentWidgetId);
-        this.markdownRenderer.setLocale(this.locale); // Pass locale for table number formatting
         log.debug("[STREAM-INIT] Initialized unified StreamingMarkdownRenderer with table support | AD_Client_ID=" + clientId);
 
         // Initialize markdown sanitizer with default secure configuration
@@ -967,10 +964,6 @@ public class AIChatStreamingMessage extends Div {
      */
     public void setLocale(Locale locale) {
         this.locale = locale != null ? locale : Locale.getDefault();
-        // Update unified renderer locale for table number formatting (ADR-047 Phase 4)
-        if (markdownRenderer != null) {
-            markdownRenderer.setLocale(this.locale);
-        }
     }
 
     /**
@@ -1289,8 +1282,6 @@ public class AIChatStreamingMessage extends Div {
             // Create fresh renderer for validated content
             com.cloudempiere.ai.util.StreamingMarkdownRenderer freshRenderer =
                 new com.cloudempiere.ai.util.StreamingMarkdownRenderer();
-            freshRenderer.setContext(ctx, parentWidgetId);
-            freshRenderer.setLocale(this.locale);
             freshRenderer.appendChunk(validatedMarkdown);
 
             finalHtml = freshRenderer.renderFinal();
@@ -1387,101 +1378,6 @@ public class AIChatStreamingMessage extends Div {
         copyButton.getChildren().clear();
         Html copyHtmlContent = new Html(copyHtml);
         copyButton.appendChild(copyHtmlContent);
-    }
-
-    /**
-     * Process markdown while preserving existing HTML (tables and zoom links).
-     */
-    private String processMarkdownPreservingHTML(String text) {
-        if (text == null || text.isEmpty()) {
-            return "";
-        }
-
-        StringBuilder result = new StringBuilder();
-        int pos = 0;
-
-        while (pos < text.length()) {
-            int tagStart = text.indexOf('<', pos);
-
-            if (tagStart == -1) {
-                result.append(processSimpleMarkdown(text.substring(pos)));
-                break;
-            }
-
-            if (tagStart > pos) {
-                result.append(processSimpleMarkdown(text.substring(pos, tagStart)));
-            }
-
-            int tagEnd = text.indexOf('>', tagStart);
-            if (tagEnd == -1) {
-                result.append(text.substring(tagStart));
-                break;
-            }
-
-            String tag = text.substring(tagStart, tagEnd + 1);
-            result.append(tag);
-            String tagName = extractTagName(tag);
-
-            if (tagName != null && !tag.endsWith("/>") && !isSelfClosingTag(tagName)) {
-                String closingTag = "</" + tagName + ">";
-                int closingPos = text.indexOf(closingTag, tagEnd + 1);
-                if (closingPos != -1) {
-                    result.append(text.substring(tagEnd + 1, closingPos + closingTag.length()));
-                    pos = closingPos + closingTag.length();
-                    continue;
-                }
-            }
-
-            pos = tagEnd + 1;
-        }
-
-        return result.toString();
-    }
-
-    private String extractTagName(String tag) {
-        if (tag == null || tag.length() < 3) return null;
-        String content = tag.substring(1, tag.length() - 1).trim();
-        if (content.startsWith("/")) content = content.substring(1).trim();
-        if (content.endsWith("/")) content = content.substring(0, content.length() - 1).trim();
-        int spacePos = content.indexOf(' ');
-        if (spacePos > 0) content = content.substring(0, spacePos);
-        return content.toLowerCase();
-    }
-
-    private boolean isSelfClosingTag(String tagName) {
-        return tagName.equals("br") || tagName.equals("hr") ||
-               tagName.equals("img") || tagName.equals("input");
-    }
-
-    /**
-     * Process simple markdown (for final rendering with HTML preservation).
-     *
-     * <p>Uses CommonMark Java library for full markdown support (ADR-047).
-     * Preserves pre-rendered HTML elements (tables, zoom links).
-     *
-     * <p><b>Supported Features:</b>
-     * <ul>
-     *   <li>Numbered lists (1. 2. 3.)</li>
-     *   <li>Unordered lists (-, *)</li>
-     *   <li>Nested lists</li>
-     *   <li>Code blocks (```)</li>
-     *   <li>Headings (# ## ###)</li>
-     *   <li>Bold, italic, strikethrough</li>
-     *   <li>Links and images</li>
-     *   <li>Blockquotes</li>
-     * </ul>
-     *
-     * @param text markdown text to process
-     * @return HTML output
-     */
-    private String processSimpleMarkdown(String text) {
-        if (text == null || text.isEmpty()) {
-            return "";
-        }
-
-        // Use CommonMark for full markdown support (ADR-047)
-        // This handles lists, code blocks, and all standard markdown
-        return CommonMarkRenderer.render(text);
     }
 
     /**

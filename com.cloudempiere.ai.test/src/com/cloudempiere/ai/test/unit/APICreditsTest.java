@@ -429,7 +429,6 @@ class APICreditsTest {
         ErrorClassification classification = new ErrorClassification();
 
         if (errorMessage == null || errorMessage.isEmpty()) {
-            classification.setUnknown(true);
             return classification;
         }
 
@@ -448,7 +447,6 @@ class APICreditsTest {
         if (lower.contains("rate limit") || lower.contains("throttl")) {
             classification.setRecoverable(true);
             classification.setUserRetryable(true);
-            classification.setSuggestedRetryDelayMs(60000); // 1 minute
             return classification;
         }
 
@@ -458,7 +456,6 @@ class APICreditsTest {
             classification.setTransient(true);
             classification.setRecoverable(true);
             classification.setUserRetryable(true);
-            classification.setSuggestedRetryDelayMs(5000); // 5 seconds
             return classification;
         }
 
@@ -475,8 +472,6 @@ class APICreditsTest {
         private boolean requiresAdminAction;
         private boolean userRetryable;
         private boolean transient_;
-        private boolean unknown;
-        private long suggestedRetryDelayMs;
 
         public boolean isRecoverable() { return recoverable; }
         public void setRecoverable(boolean recoverable) { this.recoverable = recoverable; }
@@ -491,9 +486,5 @@ class APICreditsTest {
 
         public boolean isTransient() { return transient_; }
         public void setTransient(boolean transient_) { this.transient_ = transient_; }
-
-        public void setUnknown(boolean unknown) { this.unknown = unknown; }
-
-        public void setSuggestedRetryDelayMs(long delay) { this.suggestedRetryDelayMs = delay; }
     }
 }

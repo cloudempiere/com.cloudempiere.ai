@@ -13,7 +13,6 @@
  *****************************************************************************/
 package com.cloudempiere.ai.rag.ingest;
 
-import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -166,63 +165,63 @@ public class KnowledgeEntryIngestor implements IKnowledgeIngestor {
 
         String sql = buildEntriesQuery(since);
 
-        try (Connection conn = DB.getConnectionRO();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
-
+        PreparedStatement pstmt = null;
+        ResultSet rs = null;
+        try {
+            pstmt = DB.prepareStatement(sql, null);
             int paramIdx = 1;
             pstmt.setInt(paramIdx++, clientId);
             if (since != null) {
                 pstmt.setTimestamp(paramIdx++, since);
             }
-
-            try (ResultSet rs = pstmt.executeQuery()) {
-                while (rs.next()) {
-                    try {
-                        String text = buildEntryText(rs);
-                        if (text == null || text.trim().isEmpty()) {
-                            result.incrementSkipped();
-                            continue;
-                        }
-
-                        int entryId = rs.getInt("K_Entry_ID");
-                        String name = rs.getString("Name");
-                        String topicName = rs.getString("TopicName");
-                        String typeName = rs.getString("TypeName");
-
-                        Metadata metadata = Metadata.from("source_type", SOURCE_TYPE)
-                            .put("source_id", String.valueOf(entryId))
-                            .put("source_table", "K_Entry")
-                            .put("entity_type", "knowledge")
-                            .put("title", name)
-                            .put("ad_client_id", String.valueOf(clientId));
-
-                        if (topicName != null) {
-                            metadata.put("topic", topicName);
-                        }
-                        if (typeName != null) {
-                            metadata.put("type", typeName);
-                        }
-
-                        TextSegment segment = TextSegment.from(text, metadata);
-                        Embedding embedding = embeddingModel.embed(segment).content();
-                        store.add(embedding, segment);
-
-                        result.incrementAdded();
-
-                        if (result.getDocumentsAdded() % 50 == 0) {
-                            log.info("Ingested " + result.getDocumentsAdded() + " K_Entry records...");
-                        }
-
-                    } catch (Exception e) {
-                        log.log(Level.WARNING, "Failed to ingest K_Entry", e);
-                        result.addError("K_Entry: " + e.getMessage());
+            rs = pstmt.executeQuery();
+            while (rs.next()) {
+                try {
+                    String text = buildEntryText(rs);
+                    if (text == null || text.trim().isEmpty()) {
+                        result.incrementSkipped();
+                        continue;
                     }
+
+                    int entryId = rs.getInt("K_Entry_ID");
+                    String name = rs.getString("Name");
+                    String topicName = rs.getString("TopicName");
+                    String typeName = rs.getString("TypeName");
+
+                    Metadata metadata = Metadata.from("source_type", SOURCE_TYPE)
+                        .put("source_id", String.valueOf(entryId))
+                        .put("source_table", "K_Entry")
+                        .put("entity_type", "knowledge")
+                        .put("title", name)
+                        .put("ad_client_id", String.valueOf(clientId));
+
+                    if (topicName != null) {
+                        metadata.put("topic", topicName);
+                    }
+                    if (typeName != null) {
+                        metadata.put("type", typeName);
+                    }
+
+                    TextSegment segment = TextSegment.from(text, metadata);
+                    Embedding embedding = embeddingModel.embed(segment).content();
+                    store.add(embedding, segment);
+
+                    result.incrementAdded();
+
+                    if (result.getDocumentsAdded() % 50 == 0) {
+                        log.info("Ingested " + result.getDocumentsAdded() + " K_Entry records...");
+                    }
+
+                } catch (Exception e) {
+                    log.log(Level.WARNING, "Failed to ingest K_Entry", e);
+                    result.addError("K_Entry: " + e.getMessage());
                 }
             }
-
         } catch (SQLException e) {
             log.log(Level.SEVERE, "Failed to query K_Entry records", e);
             result.addError("K_Entry query failed: " + e.getMessage());
+        } finally {
+            DB.close(rs, pstmt);
         }
 
         log.info("Ingested " + result.getDocumentsAdded() + " K_Entry records, " +
@@ -372,20 +371,20 @@ public class KnowledgeEntryIngestor implements IKnowledgeIngestor {
         // Check if any K_Entry was updated since last ingestion
         String sql = "SELECT MAX(Updated) FROM K_Entry WHERE IsActive = 'Y' AND AD_Client_ID = ?";
 
-        try (Connection conn = DB.getConnectionRO();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
-
+        PreparedStatement pstmt = null;
+        ResultSet rs = null;
+        try {
+            pstmt = DB.prepareStatement(sql, null);
             pstmt.setInt(1, clientId);
-
-            try (ResultSet rs = pstmt.executeQuery()) {
-                if (rs.next()) {
-                    Timestamp lastUpdate = rs.getTimestamp(1);
-                    return lastUpdate != null && lastUpdate.after(lastIngestion);
-                }
+            rs = pstmt.executeQuery();
+            if (rs.next()) {
+                Timestamp lastUpdate = rs.getTimestamp(1);
+                return lastUpdate != null && lastUpdate.after(lastIngestion);
             }
-
         } catch (SQLException e) {
             log.log(Level.WARNING, "Failed to check refresh status", e);
+        } finally {
+            DB.close(rs, pstmt);
         }
 
         return true;  // Default to refresh if check fails
@@ -398,20 +397,20 @@ public class KnowledgeEntryIngestor implements IKnowledgeIngestor {
         String sql = "SELECT last_successful_ingestion FROM aig_ingestion_metadata " +
                     "WHERE ad_client_id = ? AND source_type = ?";
 
-        try (Connection conn = DB.getConnectionRO();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
-
+        PreparedStatement pstmt = null;
+        ResultSet rs = null;
+        try {
+            pstmt = DB.prepareStatement(sql, null);
             pstmt.setInt(1, clientId);
             pstmt.setString(2, SOURCE_TYPE);
-
-            try (ResultSet rs = pstmt.executeQuery()) {
-                if (rs.next()) {
-                    return rs.getTimestamp("last_successful_ingestion");
-                }
+            rs = pstmt.executeQuery();
+            if (rs.next()) {
+                return rs.getTimestamp("last_successful_ingestion");
             }
-
         } catch (SQLException e) {
             log.log(Level.FINE, "Failed to get last ingestion", e);
+        } finally {
+            DB.close(rs, pstmt);
         }
 
         return null;
@@ -423,19 +422,19 @@ public class KnowledgeEntryIngestor implements IKnowledgeIngestor {
 
         String sql = "SELECT COUNT(*) FROM K_Entry WHERE IsActive = 'Y' AND AD_Client_ID = ?";
 
-        try (Connection conn = DB.getConnectionRO();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
-
+        PreparedStatement pstmt = null;
+        ResultSet rs = null;
+        try {
+            pstmt = DB.prepareStatement(sql, null);
             pstmt.setInt(1, clientId);
-
-            try (ResultSet rs = pstmt.executeQuery()) {
-                if (rs.next()) {
-                    return rs.getInt(1);
-                }
+            rs = pstmt.executeQuery();
+            if (rs.next()) {
+                return rs.getInt(1);
             }
-
         } catch (SQLException e) {
             log.log(Level.FINE, "Failed to get estimated count", e);
+        } finally {
+            DB.close(rs, pstmt);
         }
 
         return 0;
