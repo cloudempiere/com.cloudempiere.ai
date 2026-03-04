@@ -2,7 +2,6 @@ package com.cloudempiere.ai.provider.langchain4j;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.logging.Level;
 
 import org.compiere.util.CLogger;
 import org.osgi.framework.BundleContext;
@@ -57,9 +56,6 @@ import software.amazon.awssdk.regions.Region;
     property = {"service.ranking:Integer=100"}
 )
 public class LangChain4jProviderFactory implements ILangChain4jProviderFactory {
-
-    /** OSGi service instance for static method bridge */
-    private static volatile LangChain4jProviderFactory serviceInstance;
 
     private static final CLogger log = CLogger.getCLogger(LangChain4jProviderFactory.class);
 
@@ -127,8 +123,6 @@ public class LangChain4jProviderFactory implements ILangChain4jProviderFactory {
         long startTime = System.currentTimeMillis();
         log.warning("[STARTUP TIMING] LangChain4jProviderFactory.activate() START");
 
-        serviceInstance = this;
-
         long elapsed = System.currentTimeMillis() - startTime;
         log.warning("[STARTUP TIMING] LangChain4jProviderFactory.activate() COMPLETED in " + elapsed + "ms");
     }
@@ -140,7 +134,6 @@ public class LangChain4jProviderFactory implements ILangChain4jProviderFactory {
     @Deactivate
     protected void deactivate() {
         clearInstanceCaches();
-        serviceInstance = null;
         log.info("LangChain4jProviderFactory deactivated");
     }
 

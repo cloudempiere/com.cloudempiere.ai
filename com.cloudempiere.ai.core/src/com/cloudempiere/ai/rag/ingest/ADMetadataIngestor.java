@@ -13,7 +13,6 @@
  *****************************************************************************/
 package com.cloudempiere.ai.rag.ingest;
 
-import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -160,47 +159,47 @@ public class ADMetadataIngestor implements IKnowledgeIngestor {
         int clientId = Env.getAD_Client_ID(ctx);
         String language = Env.getAD_Language(ctx);
 
-        try (Connection conn = DB.getConnectionRO();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
-
+        PreparedStatement pstmt = null;
+        ResultSet rs = null;
+        try {
+            pstmt = DB.prepareStatement(sql, null);
             pstmt.setString(1, language);
             pstmt.setInt(2, clientId);
-
-            try (ResultSet rs = pstmt.executeQuery()) {
-                while (rs.next()) {
-                    try {
-                        String text = buildWindowText(rs);
-                        if (text == null || text.trim().isEmpty()) {
-                            result.incrementSkipped();
-                            continue;
-                        }
-
-                        int windowId = rs.getInt("AD_Window_ID");
-                        String name = rs.getString("TrlName");
-
-                        Metadata metadata = Metadata.from("source_type", SOURCE_TYPE)
-                            .put("source_id", String.valueOf(windowId))
-                            .put("source_table", "AD_Window")
-                            .put("entity_type", "window")
-                            .put("title", name)
-                            .put("ad_client_id", String.valueOf(clientId));
-
-                        TextSegment segment = TextSegment.from(text, metadata);
-                        Embedding embedding = embeddingModel.embed(segment).content();
-                        store.add(embedding, segment);
-
-                        result.incrementAdded();
-
-                    } catch (Exception e) {
-                        log.log(Level.WARNING, "Failed to ingest window", e);
-                        result.addError("Window: " + e.getMessage());
+            rs = pstmt.executeQuery();
+            while (rs.next()) {
+                try {
+                    String text = buildWindowText(rs);
+                    if (text == null || text.trim().isEmpty()) {
+                        result.incrementSkipped();
+                        continue;
                     }
+
+                    int windowId = rs.getInt("AD_Window_ID");
+                    String name = rs.getString("TrlName");
+
+                    Metadata metadata = Metadata.from("source_type", SOURCE_TYPE)
+                        .put("source_id", String.valueOf(windowId))
+                        .put("source_table", "AD_Window")
+                        .put("entity_type", "window")
+                        .put("title", name)
+                        .put("ad_client_id", String.valueOf(clientId));
+
+                    TextSegment segment = TextSegment.from(text, metadata);
+                    Embedding embedding = embeddingModel.embed(segment).content();
+                    store.add(embedding, segment);
+
+                    result.incrementAdded();
+
+                } catch (Exception e) {
+                    log.log(Level.WARNING, "Failed to ingest window", e);
+                    result.addError("Window: " + e.getMessage());
                 }
             }
-
         } catch (SQLException e) {
             log.log(Level.SEVERE, "Failed to query windows", e);
             result.addError("Windows query failed: " + e.getMessage());
+        } finally {
+            DB.close(rs, pstmt);
         }
 
         log.info("Ingested " + result.getDocumentsAdded() + " windows");
@@ -260,47 +259,47 @@ public class ADMetadataIngestor implements IKnowledgeIngestor {
         String language = Env.getAD_Language(ctx);
         int addedBefore = result.getDocumentsAdded();
 
-        try (Connection conn = DB.getConnectionRO();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
-
+        PreparedStatement pstmt = null;
+        ResultSet rs = null;
+        try {
+            pstmt = DB.prepareStatement(sql, null);
             pstmt.setString(1, language);
             pstmt.setInt(2, clientId);
-
-            try (ResultSet rs = pstmt.executeQuery()) {
-                while (rs.next()) {
-                    try {
-                        String text = buildProcessText(rs);
-                        if (text == null || text.trim().isEmpty()) {
-                            result.incrementSkipped();
-                            continue;
-                        }
-
-                        int processId = rs.getInt("AD_Process_ID");
-                        String name = rs.getString("TrlName");
-
-                        Metadata metadata = Metadata.from("source_type", SOURCE_TYPE)
-                            .put("source_id", String.valueOf(processId))
-                            .put("source_table", "AD_Process")
-                            .put("entity_type", "process")
-                            .put("title", name)
-                            .put("ad_client_id", String.valueOf(clientId));
-
-                        TextSegment segment = TextSegment.from(text, metadata);
-                        Embedding embedding = embeddingModel.embed(segment).content();
-                        store.add(embedding, segment);
-
-                        result.incrementAdded();
-
-                    } catch (Exception e) {
-                        log.log(Level.WARNING, "Failed to ingest process", e);
-                        result.addError("Process: " + e.getMessage());
+            rs = pstmt.executeQuery();
+            while (rs.next()) {
+                try {
+                    String text = buildProcessText(rs);
+                    if (text == null || text.trim().isEmpty()) {
+                        result.incrementSkipped();
+                        continue;
                     }
+
+                    int processId = rs.getInt("AD_Process_ID");
+                    String name = rs.getString("TrlName");
+
+                    Metadata metadata = Metadata.from("source_type", SOURCE_TYPE)
+                        .put("source_id", String.valueOf(processId))
+                        .put("source_table", "AD_Process")
+                        .put("entity_type", "process")
+                        .put("title", name)
+                        .put("ad_client_id", String.valueOf(clientId));
+
+                    TextSegment segment = TextSegment.from(text, metadata);
+                    Embedding embedding = embeddingModel.embed(segment).content();
+                    store.add(embedding, segment);
+
+                    result.incrementAdded();
+
+                } catch (Exception e) {
+                    log.log(Level.WARNING, "Failed to ingest process", e);
+                    result.addError("Process: " + e.getMessage());
                 }
             }
-
         } catch (SQLException e) {
             log.log(Level.SEVERE, "Failed to query processes", e);
             result.addError("Processes query failed: " + e.getMessage());
+        } finally {
+            DB.close(rs, pstmt);
         }
 
         log.info("Ingested " + (result.getDocumentsAdded() - addedBefore) + " processes");
@@ -347,46 +346,46 @@ public class ADMetadataIngestor implements IKnowledgeIngestor {
         int clientId = Env.getAD_Client_ID(ctx);
         int addedBefore = result.getDocumentsAdded();
 
-        try (Connection conn = DB.getConnectionRO();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
-
+        PreparedStatement pstmt = null;
+        ResultSet rs = null;
+        try {
+            pstmt = DB.prepareStatement(sql, null);
             pstmt.setInt(1, clientId);
-
-            try (ResultSet rs = pstmt.executeQuery()) {
-                while (rs.next()) {
-                    try {
-                        String text = buildTableText(rs);
-                        if (text == null || text.trim().isEmpty()) {
-                            result.incrementSkipped();
-                            continue;
-                        }
-
-                        int tableId = rs.getInt("AD_Table_ID");
-                        String tableName = rs.getString("TableName");
-
-                        Metadata metadata = Metadata.from("source_type", SOURCE_TYPE)
-                            .put("source_id", String.valueOf(tableId))
-                            .put("source_table", "AD_Table")
-                            .put("entity_type", "table")
-                            .put("title", tableName)
-                            .put("ad_client_id", String.valueOf(clientId));
-
-                        TextSegment segment = TextSegment.from(text, metadata);
-                        Embedding embedding = embeddingModel.embed(segment).content();
-                        store.add(embedding, segment);
-
-                        result.incrementAdded();
-
-                    } catch (Exception e) {
-                        log.log(Level.WARNING, "Failed to ingest table", e);
-                        result.addError("Table: " + e.getMessage());
+            rs = pstmt.executeQuery();
+            while (rs.next()) {
+                try {
+                    String text = buildTableText(rs);
+                    if (text == null || text.trim().isEmpty()) {
+                        result.incrementSkipped();
+                        continue;
                     }
+
+                    int tableId = rs.getInt("AD_Table_ID");
+                    String tableName = rs.getString("TableName");
+
+                    Metadata metadata = Metadata.from("source_type", SOURCE_TYPE)
+                        .put("source_id", String.valueOf(tableId))
+                        .put("source_table", "AD_Table")
+                        .put("entity_type", "table")
+                        .put("title", tableName)
+                        .put("ad_client_id", String.valueOf(clientId));
+
+                    TextSegment segment = TextSegment.from(text, metadata);
+                    Embedding embedding = embeddingModel.embed(segment).content();
+                    store.add(embedding, segment);
+
+                    result.incrementAdded();
+
+                } catch (Exception e) {
+                    log.log(Level.WARNING, "Failed to ingest table", e);
+                    result.addError("Table: " + e.getMessage());
                 }
             }
-
         } catch (SQLException e) {
             log.log(Level.SEVERE, "Failed to query tables", e);
             result.addError("Tables query failed: " + e.getMessage());
+        } finally {
+            DB.close(rs, pstmt);
         }
 
         log.info("Ingested " + (result.getDocumentsAdded() - addedBefore) + " tables");
@@ -468,17 +467,19 @@ public class ADMetadataIngestor implements IKnowledgeIngestor {
                     "SELECT MAX(Updated) FROM AD_Table WHERE IsActive = 'Y'" +
                     ") updates";
 
-        try (Connection conn = DB.getConnectionRO();
-             PreparedStatement pstmt = conn.prepareStatement(sql);
-             ResultSet rs = pstmt.executeQuery()) {
-
+        PreparedStatement pstmt = null;
+        ResultSet rs = null;
+        try {
+            pstmt = DB.prepareStatement(sql, null);
+            rs = pstmt.executeQuery();
             if (rs.next()) {
                 Timestamp lastUpdate = rs.getTimestamp("LastUpdate");
                 return lastUpdate != null && lastUpdate.after(lastIngestion);
             }
-
         } catch (SQLException e) {
             log.log(Level.WARNING, "Failed to check refresh status", e);
+        } finally {
+            DB.close(rs, pstmt);
         }
 
         return true;  // Default to refresh if check fails
@@ -491,20 +492,20 @@ public class ADMetadataIngestor implements IKnowledgeIngestor {
         String sql = "SELECT last_successful_ingestion FROM aig_ingestion_metadata " +
                     "WHERE ad_client_id = ? AND source_type = ?";
 
-        try (Connection conn = DB.getConnectionRO();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
-
+        PreparedStatement pstmt = null;
+        ResultSet rs = null;
+        try {
+            pstmt = DB.prepareStatement(sql, null);
             pstmt.setInt(1, clientId);
             pstmt.setString(2, SOURCE_TYPE);
-
-            try (ResultSet rs = pstmt.executeQuery()) {
-                if (rs.next()) {
-                    return rs.getTimestamp("last_successful_ingestion");
-                }
+            rs = pstmt.executeQuery();
+            if (rs.next()) {
+                return rs.getTimestamp("last_successful_ingestion");
             }
-
         } catch (SQLException e) {
             log.log(Level.FINE, "Failed to get last ingestion", e);
+        } finally {
+            DB.close(rs, pstmt);
         }
 
         return null;
@@ -520,21 +521,21 @@ public class ADMetadataIngestor implements IKnowledgeIngestor {
                     "(SELECT COUNT(*) FROM AD_Table WHERE IsActive = 'Y' AND IsView = 'N' AND (AD_Client_ID = 0 OR AD_Client_ID = ?)) " +
                     "as total";
 
-        try (Connection conn = DB.getConnectionRO();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
-
+        PreparedStatement pstmt = null;
+        ResultSet rs = null;
+        try {
+            pstmt = DB.prepareStatement(sql, null);
             pstmt.setInt(1, clientId);
             pstmt.setInt(2, clientId);
             pstmt.setInt(3, clientId);
-
-            try (ResultSet rs = pstmt.executeQuery()) {
-                if (rs.next()) {
-                    return rs.getInt("total");
-                }
+            rs = pstmt.executeQuery();
+            if (rs.next()) {
+                return rs.getInt("total");
             }
-
         } catch (SQLException e) {
             log.log(Level.FINE, "Failed to get estimated count", e);
+        } finally {
+            DB.close(rs, pstmt);
         }
 
         return 0;

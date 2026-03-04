@@ -1,22 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<scr:component xmlns:scr="http://www.osgi.org/xmlns/scr/v1.3.0"
-               name="com.cloudempiere.ai.purchasing.agent.PurchasingAgent"
-               activate="activate">
+<scr:component xmlns:scr="http://www.osgi.org/xmlns/scr/v1.3.0" activate="activate" immediate="true" name="com.cloudempiere.ai.purchasing.agent.PurchasingAgent">
    <implementation class="com.cloudempiere.ai.purchasing.agent.PurchasingAgent"/>
    <service>
       <provide interface="com.cloudempiere.ai.purchasing.agent.PurchasingAgent"/>
       <provide interface="com.cloudempiere.ai.boundary.IDomainAgent"/>
    </service>
-   <reference bind="setProviderFactory"
-              cardinality="1..1"
-              field="providerFactory"
-              interface="com.cloudempiere.ai.provider.langchain4j.ILangChain4jProviderFactory"
-              name="ILangChain4jProviderFactory"
-              policy="static"/>
-   <reference bind="setPurchasingTools"
-              cardinality="1..1"
-              field="purchasingTools"
-              interface="com.cloudempiere.ai.purchasing.tools.PurchasingTools"
-              name="PurchasingTools"
-              policy="static"/>
+   <reference cardinality="1..1" field="providerFactory" interface="com.cloudempiere.ai.provider.langchain4j.ILangChain4jProviderFactory" name="providerFactory" policy="dynamic"/>
+   <reference cardinality="1..1" field="purchasingTools" interface="com.cloudempiere.ai.purchasing.tools.PurchasingTools" name="purchasingTools" policy="dynamic"/>
 </scr:component>
