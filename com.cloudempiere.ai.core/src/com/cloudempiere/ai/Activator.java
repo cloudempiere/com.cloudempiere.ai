@@ -8,7 +8,7 @@ public class Activator extends Incremental2PackActivator {
 
 	@Override
 	public void start(BundleContext context) throws Exception {
-		super.start(context);
+		System.out.println("=== CloudEmpiere AI Activator START ===");
 
 		try {
 			Core.getMappedModelFactory().scan(context, "com.cloudempiere.ai.model");
@@ -21,6 +21,8 @@ public class Activator extends Incremental2PackActivator {
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
+
+		super.start(context);
 	}
 
 }
