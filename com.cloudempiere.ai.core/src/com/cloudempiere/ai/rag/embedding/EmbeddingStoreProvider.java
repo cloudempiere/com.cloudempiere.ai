@@ -13,7 +13,6 @@
  *****************************************************************************/
 package com.cloudempiere.ai.rag.embedding;
 
-import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -242,11 +241,7 @@ public class EmbeddingStoreProvider implements IEmbeddingStoreProvider {
      */
     private boolean isDatabaseAvailable() {
         try {
-            Connection conn = DB.getConnectionRO();
-            if (conn != null) {
-                conn.close();
-                return true;
-            }
+            return DB.getSQLValue(null, "SELECT 1") == 1;
         } catch (Exception e) {
             log.log(Level.FINE, "Database not yet available: " + e.getMessage());
         }
@@ -478,15 +473,17 @@ public class EmbeddingStoreProvider implements IEmbeddingStoreProvider {
     private boolean checkPgVectorExtension() {
         String sql = "SELECT 1 FROM pg_extension WHERE extname = 'vector'";
 
-        try (Connection conn = DB.getConnectionRO();
-             PreparedStatement pstmt = conn.prepareStatement(sql);
-             ResultSet rs = pstmt.executeQuery()) {
-
+        PreparedStatement pstmt = null;
+        ResultSet rs = null;
+        try {
+            pstmt = DB.prepareStatement(sql, null);
+            rs = pstmt.executeQuery();
             return rs.next();
-
         } catch (SQLException e) {
             log.log(Level.FINE, "Could not check pgvector extension: " + e.getMessage(), e);
             return false;
+        } finally {
+            DB.close(rs, pstmt);
         }
     }
 
@@ -537,17 +534,18 @@ public class EmbeddingStoreProvider implements IEmbeddingStoreProvider {
     private boolean checkTableExists() {
         String sql = "SELECT 1 FROM information_schema.tables WHERE table_name = ?";
 
-        try (Connection conn = DB.getConnectionRO();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
-
+        PreparedStatement pstmt = null;
+        ResultSet rs = null;
+        try {
+            pstmt = DB.prepareStatement(sql, null);
             pstmt.setString(1, TABLE_NAME);
-            try (ResultSet rs = pstmt.executeQuery()) {
-                return rs.next();
-            }
-
+            rs = pstmt.executeQuery();
+            return rs.next();
         } catch (SQLException e) {
             log.log(Level.FINE, "Could not check table existence: " + e.getMessage(), e);
             return false;
+        } finally {
+            DB.close(rs, pstmt);
         }
     }
 
@@ -644,21 +642,22 @@ public class EmbeddingStoreProvider implements IEmbeddingStoreProvider {
         Map<String, Long> countsBySource = new HashMap<>();
         long totalCount = 0;
 
-        try (Connection conn = DB.getConnectionRO();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
-
+        PreparedStatement pstmt = null;
+        ResultSet rs = null;
+        try {
+            pstmt = DB.prepareStatement(sql, null);
             pstmt.setInt(1, clientId);
-            try (ResultSet rs = pstmt.executeQuery()) {
-                while (rs.next()) {
-                    String sourceType = rs.getString("source_type");
-                    long count = rs.getLong("cnt");
-                    countsBySource.put(sourceType, count);
-                    totalCount += count;
-                }
+            rs = pstmt.executeQuery();
+            while (rs.next()) {
+                String sourceType = rs.getString("source_type");
+                long count = rs.getLong("cnt");
+                countsBySource.put(sourceType, count);
+                totalCount += count;
             }
-
         } catch (SQLException e) {
             log.log(Level.WARNING, "Failed to get statistics", e);
+        } finally {
+            DB.close(rs, pstmt);
         }
 
         stats.put("countsBySource", countsBySource);

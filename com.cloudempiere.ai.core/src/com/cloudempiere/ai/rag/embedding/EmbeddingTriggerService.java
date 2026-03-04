@@ -14,7 +14,6 @@
 package com.cloudempiere.ai.rag.embedding;
 
 import java.security.MessageDigest;
-import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -208,19 +207,20 @@ public class EmbeddingTriggerService implements IEmbeddingTriggerService {
         String sql = "SELECT 1 FROM " + storeProvider.getTableName() +
                     " WHERE source_type = ? AND source_id = ? AND ad_client_id = ? LIMIT 1";
 
-        try (Connection conn = DB.getConnectionRO();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
-
+        PreparedStatement pstmt = null;
+        ResultSet rs = null;
+        try {
+            pstmt = DB.prepareStatement(sql, null);
             pstmt.setString(1, sourceType);
             pstmt.setString(2, sourceId);
             pstmt.setInt(3, clientId);
-
-            try (ResultSet rs = pstmt.executeQuery()) {
-                return rs.next();
-            }
+            rs = pstmt.executeQuery();
+            return rs.next();
         } catch (SQLException e) {
             log.log(Level.WARNING, "Failed to check embedding existence", e);
             return false;
+        } finally {
+            DB.close(rs, pstmt);
         }
     }
 
@@ -258,21 +258,22 @@ public class EmbeddingTriggerService implements IEmbeddingTriggerService {
         String sql = "SELECT aig_embedding_uu FROM " + storeProvider.getTableName() +
                     " WHERE source_type = ? AND source_id = ? AND ad_client_id = ? AND text_segment_hash = ?";
 
-        try (Connection conn = DB.getConnectionRO();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
-
+        PreparedStatement pstmt = null;
+        ResultSet rs = null;
+        try {
+            pstmt = DB.prepareStatement(sql, null);
             pstmt.setString(1, sourceType);
             pstmt.setString(2, sourceId);
             pstmt.setInt(3, clientId);
             pstmt.setString(4, contentHash);
-
-            try (ResultSet rs = pstmt.executeQuery()) {
-                if (rs.next()) {
-                    return rs.getString(1);
-                }
+            rs = pstmt.executeQuery();
+            if (rs.next()) {
+                return rs.getString(1);
             }
         } catch (SQLException e) {
             log.log(Level.FINE, "Failed to find embedding by hash", e);
+        } finally {
+            DB.close(rs, pstmt);
         }
         return null;
     }

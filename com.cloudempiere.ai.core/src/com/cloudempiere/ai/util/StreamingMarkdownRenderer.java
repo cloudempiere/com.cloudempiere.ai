@@ -13,7 +13,6 @@
  *****************************************************************************/
 package com.cloudempiere.ai.util;
 
-import java.util.Properties;
 import java.util.Stack;
 
 import org.compiere.util.CLogger;
@@ -125,12 +124,6 @@ public class StreamingMarkdownRenderer {
     /** Flag indicating we're accumulating an incomplete code block */
     private boolean bufferingCodeBlock = false;
 
-    /** Context for zoom link processing (passed through, not used during streaming) */
-    private Properties ctx;
-
-    /** Widget ID for zoom events (passed through, not used during streaming) */
-    private String widgetId;
-
     // ============= Table State Tracking =============
 
     /** CSS styles for rendered tables */
@@ -161,9 +154,6 @@ public class StreamingMarkdownRenderer {
 
     /** Flag indicating table has opened <table> tag */
     private boolean tableOpened = false;
-
-    /** Locale for number formatting in tables */
-    private java.util.Locale locale = java.util.Locale.getDefault();
 
     /**
      * Create a new streaming markdown renderer.
@@ -199,26 +189,6 @@ public class StreamingMarkdownRenderer {
      */
     private State getCurrentState() {
         return currentState;
-    }
-
-    /**
-     * Set context for zoom link processing (used in final render only).
-     *
-     * @param ctx iDempiere context
-     * @param widgetId parent widget ID for zoom events
-     */
-    public void setContext(Properties ctx, String widgetId) {
-        this.ctx = ctx;
-        this.widgetId = widgetId;
-    }
-
-    /**
-     * Set locale for number formatting in tables.
-     *
-     * @param locale the locale to use (if null, uses system default)
-     */
-    public void setLocale(java.util.Locale locale) {
-        this.locale = locale != null ? locale : java.util.Locale.getDefault();
     }
 
     /**
