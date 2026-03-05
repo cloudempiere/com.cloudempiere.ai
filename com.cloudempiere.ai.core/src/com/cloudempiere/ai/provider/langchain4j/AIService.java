@@ -32,6 +32,7 @@ import com.cloudempiere.ai.guardrails.InputGuard;
 import com.cloudempiere.ai.guardrails.OutputGuard;
 import com.cloudempiere.ai.guardrails.dto.GuardResult;
 import com.cloudempiere.ai.model.MAIBudget;
+import com.cloudempiere.ai.model.MAIPromptConfig;
 import com.cloudempiere.ai.model.MAIProvider;
 import com.cloudempiere.ai.model.MAIUsageMetrics;
 import com.cloudempiere.ai.observability.CostGuard;
@@ -150,6 +151,10 @@ class LanguageDetectionService {
 public class AIService implements IAIService {
 
     private static final CLogger log = CLogger.getCLogger(AIService.class);
+
+    /** Spotlighting delimiters for the operator addendum (ADR-059). */
+    public static final String OPERATOR_SECTION_OPEN  = "\n\n[OPERATOR_INSTRUCTIONS]\n";
+    public static final String OPERATOR_SECTION_CLOSE = "\n[/OPERATOR_INSTRUCTIONS]";
 
     /** OSGi service instance for static method bridge */
     private static volatile AIService serviceInstance;
@@ -1542,6 +1547,9 @@ public class AIService implements IAIService {
             ? DatabaseSyntaxHelper.appendDatabaseGuidance(ERPAgent.SYSTEM_PROMPT)
             : SimpleStreamingAgent.SIMPLE_SYSTEM_PROMPT;
 
+        // Append operator addendum if configured (ADR-059)
+        basePrompt = appendOperatorAddendum(ctx, basePrompt);
+
         // If no language instruction, just return the base prompt
         if (languageInstruction == null || languageInstruction.isEmpty()) {
             log.warning("[LANGUAGE] No language instruction - using base prompt only");
@@ -1557,9 +1565,26 @@ public class AIService implements IAIService {
         log.warning("[LANGUAGE] Language instruction length: " + languageInstruction.length() + " chars");
         log.warning("[DATABASE] System prompt includes " + dbType + "-specific SQL syntax guidance");
 
-        // Combine: language instruction FIRST, then base prompt
+        // Combine: language instruction FIRST, then base prompt (with any operator addendum)
         // This ensures language compliance is prioritized
         return languageInstruction + "\n\n" + basePrompt;
+    }
+
+    /**
+     * Appends the operator-configured addendum to the base prompt (ADR-059).
+     *
+     * <p>Loads the SYSTEM_ADDENDUM record from AIG_Prompt_Config and wraps it
+     * in spotlighting delimiters so the model treats it as operator-level
+     * configuration, not as instructions that can override the base prompt.
+     *
+     * <p>Returns the base prompt unchanged if no active addendum is configured.
+     */
+    public static String appendOperatorAddendum(Properties ctx, String basePrompt) {
+        String addendum = MAIPromptConfig.getPromptText(ctx, "SYSTEM_ADDENDUM", null);
+        if (addendum == null || addendum.trim().isEmpty()) {
+            return basePrompt;
+        }
+        return basePrompt + OPERATOR_SECTION_OPEN + addendum.trim() + OPERATOR_SECTION_CLOSE;
     }
 
     /**
