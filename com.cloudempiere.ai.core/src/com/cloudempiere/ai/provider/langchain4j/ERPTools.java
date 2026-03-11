@@ -1,7 +1,9 @@
 package com.cloudempiere.ai.provider.langchain4j;
 
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 import java.util.logging.Level;
@@ -51,6 +53,12 @@ public class ERPTools {
     /** Optional callback for streaming tool events */
     private final AIStreamCallback callback;
 
+    /** Tracks consecutive queryDatabase failures to suppress intermediate errors from the UI */
+    private int queryFailureCount = 0;
+
+    /** After this many consecutive failures, terminate the agent with a user-facing message */
+    private static final int MAX_QUERY_FAILURES = 6;
+
     /**
      * Create ERPTools with security context (no streaming callbacks).
      *
@@ -80,7 +88,10 @@ public class ERPTools {
     // ========================================================================
 
     @Tool("Execute a read-only SQL SELECT query against the iDempiere ERP database. " +
-          "Results are filtered by user's role permissions. Returns JSON array of rows.")
+          "Results are filtered by user's role permissions. Returns JSON array of rows with schemaHints. " +
+          "IMPORTANT: Call getTableMetadata() for each table BEFORE writing SQL to discover exact column names. " +
+          "ON conditions MUST be wrapped in parentheses: JOIN t ON (a.col = b.col). " +
+          "schemaHints in the result show available columns for follow-up queries.")
     public String queryDatabase(
         @P("SQL SELECT query to execute") String sql,
         @P("Maximum number of rows to return (default 50, max 500)") Integer maxRows,
@@ -93,13 +104,6 @@ public class ERPTools {
         long startTime = System.currentTimeMillis();
 
         try {
-            // ADR-060: Validate table names against AD schema cache
-            String tableValidationError = validateTablesInSql(sql);
-            if (tableValidationError != null) {
-                fireToolError(toolName, tableValidationError);
-                return createErrorResponse(tableValidationError);
-            }
-
             SecureQueryRequest request = new SecureQueryRequest();
             request.setCtx(ctx);
             request.setProviderId(provider.getAIG_Provider_ID());
@@ -107,22 +111,57 @@ public class ERPTools {
             request.setMaxRows(maxRows != null ? Math.min(maxRows, 500) : 50);
             request.setQueryPurpose(purpose != null ? purpose : "AI Agent Query");
 
+            // ADR-060: Validate table names against AD schema cache
+            String tableValidationError = validateTablesInSql(sql);
+            if (tableValidationError != null) {
+                executor.auditRejectedQuery(request, tableValidationError,
+                        System.currentTimeMillis() - startTime);
+                return handleQueryFailure(toolName, tableValidationError, sql);
+            }
+
             SecureQueryResult result = executor.executeQuery(request);
 
             if (result.isSuccess()) {
-                String resultStr = result.getRows().toString();
+                queryFailureCount = 0; // reset on success
                 long elapsed = System.currentTimeMillis() - startTime;
+                JSONObject response = new JSONObject();
+                response.put("rows", result.getRows());
+                JSONObject hints = generateSchemaHints(sql);
+                if (hints != null) {
+                    response.put("schemaHints", hints);
+                }
+                String resultStr = response.toString();
                 fireToolComplete(toolName, truncate(resultStr, 200) + " (" + elapsed + "ms)");
                 return resultStr;
             } else {
-                fireToolError(toolName, result.getErrorMessage());
-                return createErrorResponse(result.getErrorMessage());
+                return handleQueryFailure(toolName, result.getErrorMessage(), sql);
             }
+        } catch (RuntimeException e) {
+            throw e; // terminal failure — let it propagate to stop the agent
         } catch (Exception e) {
-            log.severe("Query execution failed: " + e.getMessage());
-            fireToolError(toolName, e.getMessage());
-            return createErrorResponse(e.getMessage());
+            log.warning("Query execution failed: " + e.getMessage());
+            return handleQueryFailure(toolName, e.getMessage(), sql);
         }
+    }
+
+    /**
+     * Handles a queryDatabase failure. Below the threshold: suppresses the error from the UI
+     * (logged only) and returns schema hints inline so the LLM can self-correct silently.
+     * At the threshold: fires a single user-visible error and throws to terminate the agent.
+     */
+    private String handleQueryFailure(String toolName, String errorMsg, String sql) {
+        queryFailureCount++;
+        log.warning("[QUERY-FAIL " + queryFailureCount + "/" + MAX_QUERY_FAILURES + "] " + errorMsg);
+
+        if (queryFailureCount >= MAX_QUERY_FAILURES) {
+            String terminalMsg = "Unable to retrieve data after " + MAX_QUERY_FAILURES +
+                " attempts. Please rephrase your question or contact support.";
+            fireToolError(toolName, terminalMsg); // single visible error to the user
+            throw new RuntimeException(terminalMsg); // stops the agent
+        }
+
+        // Transient failure — return error + schema hints to the LLM, but don't surface to UI
+        return createErrorResponseWithSchema(errorMsg, sql);
     }
 
     @Tool("Look up a specific record by ID from an iDempiere table. " +
@@ -138,14 +177,7 @@ public class ERPTools {
         long startTime = System.currentTimeMillis();
 
         try {
-            // ADR-060: Validate table name against AD schema cache
-            String tableValidationError = validateTableName(tableName);
-            if (tableValidationError != null) {
-                fireToolError(toolName, tableValidationError);
-                return createErrorResponse(tableValidationError);
-            }
-
-            // Build secure SELECT query
+            // Build query for audit trail (before validation so it's recorded on failure too)
             String sql = String.format(
                 "SELECT * FROM %s WHERE %s_ID = %d",
                 tableName, tableName, recordId
@@ -157,6 +189,15 @@ public class ERPTools {
             request.setSql(sql);
             request.setMaxRows(1);
             request.setQueryPurpose("Record lookup: " + tableName + "#" + recordId);
+
+            // ADR-060: Validate table name against AD schema cache
+            String tableValidationError = validateTableName(tableName);
+            if (tableValidationError != null) {
+                executor.auditRejectedQuery(request, tableValidationError,
+                        System.currentTimeMillis() - startTime);
+                fireToolError(toolName, tableValidationError);
+                return createErrorResponse(tableValidationError);
+            }
 
             SecureQueryResult result = executor.executeQuery(request);
 
@@ -190,13 +231,7 @@ public class ERPTools {
         long startTime = System.currentTimeMillis();
 
         try {
-            // ADR-060: Validate table name against AD schema cache
-            String tableValidationError = validateTableName(tableName);
-            if (tableValidationError != null) {
-                fireToolError(toolName, tableValidationError);
-                return createErrorResponse(tableValidationError);
-            }
-
+            // Build query for audit trail (before validation so it's recorded on failure too)
             String sql = String.format("SELECT * FROM %s WHERE %s", tableName, whereClause);
 
             SecureQueryRequest request = new SecureQueryRequest();
@@ -205,6 +240,15 @@ public class ERPTools {
             request.setSql(sql);
             request.setMaxRows(maxRows != null ? Math.min(maxRows, 500) : 50);
             request.setQueryPurpose("Search: " + tableName);
+
+            // ADR-060: Validate table name against AD schema cache
+            String tableValidationError = validateTableName(tableName);
+            if (tableValidationError != null) {
+                executor.auditRejectedQuery(request, tableValidationError,
+                        System.currentTimeMillis() - startTime);
+                fireToolError(toolName, tableValidationError);
+                return createErrorResponse(tableValidationError);
+            }
 
             SecureQueryResult result = executor.executeQuery(request);
 
@@ -507,6 +551,37 @@ public class ERPTools {
         Pattern.compile("(?:FROM|JOIN)\\s+([A-Za-z_][A-Za-z0-9_]*)", Pattern.CASE_INSENSITIVE);
 
     /**
+     * Detects comma-separated table joins combined with ON clauses, e.g.
+     * "FROM M_InOut s, C_BPartner bp ON s.C_BPartner_ID = bp.C_BPartner_ID"
+     * which is invalid SQL that AccessSqlParser cannot parse.
+     * Note: alias may be 1 char (s, t, p) so use [A-Za-z0-9_]* (zero or more after first char).
+     */
+    private static final Pattern COMMA_JOIN_WITH_ON =
+        Pattern.compile(",\\s*[A-Za-z_][A-Za-z0-9_]*(\\s+[A-Za-z_][A-Za-z0-9_]*)?\\s+ON\\b",
+                        Pattern.CASE_INSENSITIVE);
+
+    /**
+     * Detects ON conditions not wrapped in parentheses, e.g. "JOIN t ON a = b".
+     * AccessSqlParser requires "JOIN t ON (a = b)" — it strips ON clauses by finding
+     * the closing ')' after ON, so missing parentheses cause "Could not remove ON" errors.
+     */
+    private static final Pattern ON_WITHOUT_PARENS =
+        Pattern.compile("\\bON\\s+(?!\\()", Pattern.CASE_INSENSITIVE);
+
+    /**
+     * Extracts table name and optional alias from FROM/JOIN clauses.
+     * Handles: FROM Table, FROM Table alias, FROM Table AS alias, JOIN Table alias
+     */
+    private static final Pattern TABLE_ALIAS_PATTERN =
+        Pattern.compile("(?:FROM|JOIN)\\s+([A-Za-z_][A-Za-z0-9_]*)(?:\\s+(?:AS\\s+)?([A-Za-z_][A-Za-z0-9_]*))?",
+                        Pattern.CASE_INSENSITIVE);
+
+    /** Matches qualified column references like alias.column or table.column */
+    private static final Pattern COLUMN_REF_PATTERN =
+        Pattern.compile("([A-Za-z_][A-Za-z0-9_]*)\\.([A-Za-z_][A-Za-z0-9_]*)",
+                        Pattern.CASE_INSENSITIVE);
+
+    /**
      * Validate all table names referenced in a SQL query against the AD schema cache.
      * Extracts table names from FROM and JOIN clauses and checks each one.
      *
@@ -518,6 +593,27 @@ public class ERPTools {
             return "SQL query is empty";
         }
 
+        log.warning("[SCHEMA-VALIDATE] SQL: " + truncate(sql, 300));
+
+        // Detect comma-join + ON pattern: invalid SQL that AccessSqlParser cannot handle
+        if (COMMA_JOIN_WITH_ON.matcher(sql).find()) {
+            String msg = "Invalid JOIN syntax: do not use comma-separated tables with ON clauses. " +
+                   "Use explicit JOIN...ON instead, e.g. " +
+                   "FROM M_InOut s JOIN C_BPartner bp ON (s.C_BPartner_ID = bp.C_BPartner_ID)";
+            log.warning("[SCHEMA-VALIDATE] REJECTED comma-join+ON: " + msg);
+            return msg;
+        }
+
+        // AccessSqlParser requires ON conditions wrapped in parentheses: JOIN t ON (a = b)
+        // It removes ON clauses by finding the closing ')' — without parens it fails with
+        // "Could not remove ON" and security filtering is skipped.
+        if (ON_WITHOUT_PARENS.matcher(sql).find()) {
+            String msg = "ON conditions must be wrapped in parentheses for iDempiere security parsing. " +
+                   "Use: JOIN table alias ON (alias.col = other.col), not JOIN table alias ON alias.col = other.col";
+            log.warning("[SCHEMA-VALIDATE] REJECTED ON-without-parens: " + msg);
+            return msg;
+        }
+
         ADSchemaCache schemaCache = ADSchemaCache.get();
         Set<String> tableNames = new LinkedHashSet<String>();
 
@@ -526,8 +622,13 @@ public class ERPTools {
             tableNames.add(matcher.group(1));
         }
 
+        log.warning("[SCHEMA-VALIDATE] Tables found in SQL: " + tableNames);
+
         if (tableNames.isEmpty()) {
-            return null; // No tables to validate (could be a function call etc.)
+            // No FROM clause — queries like SELECT CURRENT_DATE will crash SecureDatabaseQueryExecutor
+            // which requires at least one table for role-based security filtering.
+            return "Query has no FROM clause. Use getTableMetadata() to find the right table, " +
+                   "then write a SELECT ... FROM <table> query.";
         }
 
         for (String tableName : tableNames) {
@@ -538,11 +639,122 @@ public class ERPTools {
                 if (!suggestions.isEmpty()) {
                     msg.append(". Did you mean: ").append(suggestions);
                 }
+                log.warning("[SCHEMA-VALIDATE] REJECTED unknown table: " + msg);
+                return msg.toString();
+            }
+        }
+        log.warning("[SCHEMA-VALIDATE] All tables OK: " + tableNames);
+
+        // Build alias -> table map for column validation
+        Map<String, String> aliasToTable = new java.util.HashMap<String, String>();
+        Matcher aliasMatcher = TABLE_ALIAS_PATTERN.matcher(sql);
+        while (aliasMatcher.find()) {
+            String tblName = aliasMatcher.group(1);
+            String alias = aliasMatcher.group(2);
+            // Map both the table name itself and any alias to the table
+            aliasToTable.put(tblName.toUpperCase(), tblName);
+            if (alias != null && !alias.isEmpty()) {
+                aliasToTable.put(alias.toUpperCase(), tblName);
+            }
+        }
+
+        // Validate qualified column references (alias.column or table.column)
+        Matcher colMatcher = COLUMN_REF_PATTERN.matcher(sql);
+        while (colMatcher.find()) {
+            String prefix = colMatcher.group(1);
+            String column = colMatcher.group(2);
+            String resolvedTable = aliasToTable.get(prefix.toUpperCase());
+            if (resolvedTable == null) continue; // prefix is not a known table/alias — skip
+
+            ADTableMeta tableMeta = schemaCache.getTableMetadata(resolvedTable);
+            if (tableMeta == null) continue; // already caught above
+
+            if (!tableMeta.hasColumn(column)) {
+                StringBuilder msg = new StringBuilder();
+                msg.append("Column '").append(column).append("' does not exist in table '")
+                   .append(resolvedTable).append("'");
+                List<String> colSuggestions = tableMeta.findSimilarColumns(column);
+                if (!colSuggestions.isEmpty()) {
+                    msg.append(". Did you mean: ").append(colSuggestions);
+                }
+                // Include available columns so the LLM can self-correct without an extra getTableMetadata call
+                msg.append(". Available columns in ").append(resolvedTable).append(": ")
+                   .append(getColumnSummary(tableMeta));
+                log.warning("[SCHEMA-VALIDATE] REJECTED unknown column: " + msg);
                 return msg.toString();
             }
         }
 
-        return null; // All tables valid
+        return null; // All tables and columns valid
+    }
+
+    /**
+     * Builds schema hints for tables referenced in a SQL query.
+     * Injected into successful query results so the LLM has column context
+     * for follow-up queries without an extra getTableMetadata call.
+     * Mirrors QueryToolLogic.generateSchemaHints() from idempiere-hub.
+     */
+    private JSONObject generateSchemaHints(String sql) {
+        ADSchemaCache schemaCache = ADSchemaCache.get();
+        Set<String> tableNames = new LinkedHashSet<String>();
+        Matcher matcher = TABLE_NAME_PATTERN.matcher(sql);
+        while (matcher.find()) {
+            tableNames.add(matcher.group(1));
+        }
+        if (tableNames.isEmpty()) return null;
+
+        JSONArray tablesArray = new JSONArray();
+        for (String tableName : tableNames) {
+            ADTableMeta meta = schemaCache.getTableMetadata(tableName);
+            if (meta == null) continue;
+
+            JSONObject tableInfo = new JSONObject();
+            tableInfo.put("tableName", meta.getTableName());
+
+            // Key + FK columns first (most useful for JOIN construction)
+            JSONArray keyAndFk = new JSONArray();
+            JSONArray other = new JSONArray();
+            for (ADColumnMeta col : meta.getColumns()) {
+                if (col.isKey() || col.getForeignTable() != null) {
+                    keyAndFk.put(col.getColumnName());
+                } else {
+                    other.put(col.getColumnName());
+                }
+            }
+            tableInfo.put("keyAndFkColumns", keyAndFk);
+            tableInfo.put("otherColumns", other);
+            tablesArray.put(tableInfo);
+        }
+
+        if (tablesArray.length() == 0) return null;
+
+        JSONObject hints = new JSONObject();
+        hints.put("tables", tablesArray);
+        hints.put("hint", "Use exact column names above for follow-up queries.");
+        return hints;
+    }
+
+    /**
+     * Returns a compact column list for the table: column names grouped as
+     * key, FKs, and other — enough for the LLM to rewrite a query without
+     * a separate getTableMetadata call.
+     */
+    private String getColumnSummary(ADTableMeta tableMeta) {
+        List<String> keyAndFk = new ArrayList<String>();
+        List<String> other = new ArrayList<String>();
+        for (ADColumnMeta col : tableMeta.getColumns()) {
+            if (col.isKey() || col.getForeignTable() != null) {
+                keyAndFk.add(col.getColumnName());
+            } else {
+                other.add(col.getColumnName());
+            }
+        }
+        StringBuilder sb = new StringBuilder();
+        sb.append(keyAndFk); // key + FK columns first (most useful for JOINs)
+        if (!other.isEmpty()) {
+            sb.append(", other: ").append(other);
+        }
+        return sb.toString();
     }
 
     /**
@@ -574,6 +786,21 @@ public class ERPTools {
         JSONObject error = new JSONObject();
         error.put("error", true);
         error.put("message", message);
+        return error.toString();
+    }
+
+    /**
+     * Error response that includes schema hints for tables mentioned in the failed SQL.
+     * Lets the LLM self-correct in the next attempt without a separate getTableMetadata call.
+     */
+    private String createErrorResponseWithSchema(String message, String sql) {
+        JSONObject error = new JSONObject();
+        error.put("error", true);
+        error.put("message", message);
+        JSONObject hints = generateSchemaHints(sql);
+        if (hints != null) {
+            error.put("schemaHints", hints);
+        }
         return error.toString();
     }
 
