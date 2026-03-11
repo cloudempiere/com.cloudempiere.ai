@@ -193,6 +193,60 @@ ALTER TABLE AIG_Prompt_Config ADD COLUMN AIGStatus CHAR(1) DEFAULT 'A';
 
 `MAIPromptConfig.getPromptText()` already filters by `IsActive = 'Y'`; the Status column adds draft/archive lifecycle on top.
 
+### Potential Future Improvement: Context-Aware Automatic Profile Switching
+
+A natural extension of the behavioral profile model is **automatic profile selection based on UI context** — e.g., loading a "Sales" addendum when the user chats while a Sales Order window is open, and a "Business Partner" addendum when chatting over the Business Partner window, without any manual selection by the user.
+
+#### Why LLM-directed routing does not work for this
+
+An approach where the LLM itself reads a routing instruction and "selects" which profile to apply is not viable. The system prompt is assembled in Java before the first LLM call; the LLM cannot choose its own prompt. Additionally, the window context (`AD_Window_ID`, record ID) is already known to Java at prompt assembly time via `WindowContextProvider` — there is no need to involve the LLM in a decision Java can make deterministically and at zero cost.
+
+#### Proposed design: `AIG_Prompt_Context` mapping table
+
+Rather than adding `AD_Window_ID` directly to `AIG_Prompt_Config` (which would lock each profile to a single window, preventing reuse across windows backed by the same table), a separate context mapping table would express the selection rules:
+
+```sql
+AIG_Prompt_Context
+├── AIG_Prompt_Context_ID (PK)
+├── AIG_Prompt_Config_ID (FK) -- which profile to activate
+├── AD_Window_ID (FK, nullable) -- match by specific window (highest priority)
+├── AD_Table_ID  (FK, nullable) -- or match by table, covers all windows on that table
+├── SeqNo (INTEGER)             -- tie-breaking when multiple rules match
+├── IsActive
+```
+
+This allows one `AIG_Prompt_Config` record (e.g., "Order Context") to cover both the Sales Order and Purchase Order windows via a shared table-level rule on `C_Order`, while still permitting a more specific window-level override where needed.
+
+#### Resolution chain in Java
+
+A `PromptContextResolver` class would execute the following fallback chain at prompt assembly time:
+
+```
+1. AIG_Prompt_Context match by AD_Window_ID (most specific)
+2. AIG_Prompt_Context match by AD_Table_ID  (broader, covers all windows on the table)
+3. Provider's configured AIG_Prompt_Config_ID (explicit per-provider default)
+4. AIG_Prompt_Config record with IsDefault='Y' for the client
+5. AIG_Prompt_Config record with AIGPromptKey='SYSTEM_ADDENDUM' (legacy fallback)
+6. No addendum — base prompt returned unchanged
+```
+
+The resolved profile flows into `buildSystemPromptWithLanguage` exactly as a manually configured profile would. No change to the agent classes, tool sets, or the locked base prompt sections.
+
+#### Example configuration
+
+| Context | Mapping rule | Profile loaded |
+|---------|-------------|----------------|
+| Chat over Sales Order window | `AD_Window_ID = Sales Order → "Order Profile"` | Order addendum |
+| Chat over Purchase Order window | `AD_Table_ID = C_Order → "Order Profile"` | Same order addendum (table-level rule) |
+| Chat over Business Partner window | `AD_Window_ID = Business Partner → "BPartner Profile"` | BPartner addendum |
+| Chat with no open window | No match → falls through to provider default | Generic addendum |
+
+#### Why this is deferred
+
+The mechanism requires `WindowContextProvider` to reliably surface `AD_Window_ID` into the prompt assembly call path, and requires the `AIG_Prompt_Context` table, its iDempiere window, and the `PromptContextResolver` class. The business value depends on operators having multiple profiles worth routing to, which requires the base multi-profile feature (behavioral profiles, `IsDefault`, `AIG_Prompt_Config_ID` on `AIG_Provider`) to be in place first. It is therefore deferred until those foundations are stable.
+
+---
+
 ### Related ADRs
 
 - [ADR-014](014-guardrails-and-safety.md) — Guardrails and Safety (InputGuard, OutputGuard — the Java enforcement layer)
@@ -214,4 +268,4 @@ ALTER TABLE AIG_Prompt_Config ADD COLUMN AIGStatus CHAR(1) DEFAULT 'A';
 
 ---
 
-*ADR-059 | Version 1.0 | 2026-03-05*
+*ADR-059 | Version 1.1 | 2026-03-11 — Added future improvement: context-aware automatic profile switching*

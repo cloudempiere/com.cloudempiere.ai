@@ -29,6 +29,7 @@ import org.osgi.service.component.annotations.ReferenceCardinality;
 import org.osgi.service.component.annotations.ReferencePolicy;
 
 import com.cloudempiere.ai.guardrails.InputGuard;
+import com.cloudempiere.ai.util.SecuritySanitizer;
 import com.cloudempiere.ai.guardrails.OutputGuard;
 import com.cloudempiere.ai.guardrails.dto.GuardResult;
 import com.cloudempiere.ai.model.MAIBudget;
@@ -1493,7 +1494,8 @@ public class AIService implements IAIService {
                 for (String key : recordData.keySet()) {
                     Object value = recordData.get(key);
                     if (value != null && !value.toString().isEmpty()) {
-                        sb.append("- ").append(key).append(": ").append(value).append("\n");
+                        sb.append("- ").append(key).append(": ")
+                          .append(SecuritySanitizer.wrapWithSentinel(value.toString())).append("\n");
                     }
                 }
                 sb.append("\n");
@@ -1504,10 +1506,10 @@ public class AIService implements IAIService {
         if (contextData.has("user_context")) {
             JSONObject userCtx = contextData.getJSONObject("user_context");
             sb.append("## User Context\n");
-            sb.append("- User: ").append(userCtx.optString("user_name", "Unknown")).append("\n");
-            sb.append("- Role: ").append(userCtx.optString("role_name", "Unknown")).append("\n");
-            sb.append("- Client: ").append(userCtx.optString("client_name", "Unknown")).append("\n");
-            sb.append("- Organization: ").append(userCtx.optString("org_name", "Unknown")).append("\n");
+            sb.append("- User: ").append(SecuritySanitizer.wrapWithSentinel(userCtx.optString("user_name", "Unknown"))).append("\n");
+            sb.append("- Role: ").append(SecuritySanitizer.wrapWithSentinel(userCtx.optString("role_name", "Unknown"))).append("\n");
+            sb.append("- Client: ").append(SecuritySanitizer.wrapWithSentinel(userCtx.optString("client_name", "Unknown"))).append("\n");
+            sb.append("- Organization: ").append(SecuritySanitizer.wrapWithSentinel(userCtx.optString("org_name", "Unknown"))).append("\n");
         }
 
         String result = sb.toString();
