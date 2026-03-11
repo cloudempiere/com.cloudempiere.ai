@@ -1,6 +1,6 @@
 # ADR-029: Multi-Tenant AI Access for Service Providers
 
-**Status:** Partially Implemented — `AIG_Provider_Access` table and `MAIProviderAccess` model exist; **role-based access check is NOT enforced** in `AIService` (provider is accepted as a parameter without checking the caller's role against `AIG_Provider_Access`); dual-identity DB security active via `SecureDatabaseQueryExecutor`
+**Status:** Partially Implemented — `AIG_Provider_Access` table and `MAIProviderAccess` model exist; **role-based access enforced at the UI layer** in `AIChatGadgetFactory.isAvailable()` (chat panel not rendered for blocked roles/users); **not enforced at the `AIService` backend level** (direct API calls bypass the check); dual-identity DB security active via `SecureDatabaseQueryExecutor`
 **Date:** 2025-12-03
 **Updated:** 2026-03-11
 **Deciders:** Cloudempiere AI Team

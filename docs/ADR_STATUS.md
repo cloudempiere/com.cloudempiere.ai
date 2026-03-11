@@ -74,7 +74,7 @@
 | [026](adr/026-vector-database-strategy.md) | Vector DB Strategy (pgvector) | 🚧 Schema created (`AIG_Embedding`); pgvector persistence pending (Java 17 blocker) |
 | [027](adr/027-implementation-roadmap-priority.md) | Implementation Roadmap & Priority | ✅ Accepted (context-first approach) |
 | [028](adr/028-mcp-applicability-study.md) | MCP Applicability Study | ⚠️ Deprecated — superseded by ADR-003 |
-| [029](adr/029-multi-tenant-ai-access.md) | Multi-Tenant AI Access | 🚧 Partial — `AIG_Provider_Access` table + model exist; **access not enforced** in AIService; dual-identity DB security active |
+| [029](adr/029-multi-tenant-ai-access.md) | Multi-Tenant AI Access | 🚧 Partial — `AIG_Provider_Access` table + model exist; **access enforced at UI layer** in `AIChatGadgetFactory.isAvailable()` (chat panel hidden); **not enforced at AIService backend**; dual-identity DB security active |
 | [030](adr/030-ecommerce-operations-automation.md) | E-Commerce Operations Automation | 📋 Planned |
 
 ---
@@ -121,7 +121,7 @@
 | [055](adr/055-constrained-markdown-syntax-support.md) | Constrained Markdown Sanitization | 📋 Proposed |
 | [056](adr/056-html-field-length-handling.md) | HTML Field Length Handling | ✅ Implemented |
 | [057](adr/057-context-aware-pii-detection.md) | Context-Aware PII Detection | ✅ Implemented |
-| [058](adr/058-ai-provider-user-role-access-control.md) | Provider-Level Role Access Control | 🚧 Partial — see ADR-029; table + model exist, enforcement not wired |
+| [058](adr/058-ai-provider-user-role-access-control.md) | Provider-Level Role Access Control | ✅ Implemented — `AD_Role.AIAccessLevel` + `AIG_Provider_Access` enforced in `AIChatGadgetFactory.isAvailable()` (UI layer); not enforced at AIService backend |
 | [059](adr/059-configurable-system-prompt-architecture.md) | Configurable System Prompt (DB-driven addendum, `MAIPromptConfig`) | ✅ Implemented (v0.19.0+) |
 
 ---
@@ -140,8 +140,8 @@
 
 | Status | Count | ADRs |
 |--------|-------|------|
-| ✅ Fully Wired & Active | ~18 | 001, 002, 004, 006, 007, 008, 027, 031, 035, 036, 037, 039, 042, 050, 051, 056, 057, 059 |
-| 🚧 Scaffolded / Partially Wired | ~18 | 009 (boundary classes only), 010 (ERPAgent only), 011 (agents not reachable), 012 (pgvector blocker), 013 (CostGuard only), 014 (no ExecutionGuard), 015 (link classes unwired), 016 (KbAgent not reachable), 026 (schema only), 029 (access not enforced), 032 (tests only), 033 (streaming agent only), 038 (AIErrorHandler unwired), 040 (ingestors only), 047 (renderer class unwired), 052 (superseded), 054 (infra only), 058 (access not enforced) |
+| ✅ Fully Wired & Active | ~19 | 001, 002, 004, 006, 007, 008, 027, 031, 035, 036, 037, 039, 042, 050, 051, 056, 057, 058 (UI layer), 059 |
+| 🚧 Scaffolded / Partially Wired | ~17 | 009 (boundary classes only), 010 (ERPAgent only), 011 (agents not reachable), 012 (pgvector blocker), 013 (CostGuard only), 014 (no ExecutionGuard), 015 (link classes unwired), 016 (KbAgent not reachable), 026 (schema only), 029 (UI layer only, not backend), 032 (tests only), 033 (streaming agent only), 038 (AIErrorHandler unwired), 040 (ingestors only), 047 (renderer class unwired), 052 (superseded), 054 (infra only) |
 | 📋 Not Started / Planned | ~16 | 017, 018, 019, 020, 021, 022, 023, 024, 025, 030, 041, 048, 053, 055, 061, 062 |
 | ❌ Blocked (Java 17) | 3 | 003, 034, 049 |
 | ⚠️ Superseded/Deprecated | 2 | 005 (→ ADR-012), 028 (→ ADR-003) |

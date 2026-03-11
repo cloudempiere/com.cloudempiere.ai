@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Accepted — **Implemented** (UI layer): `AIChatGadgetFactory.isAvailable()` enforces `AD_Role.AIAccessLevel` + `AIG_Provider_Access` lookup. **Not enforced at `AIService` backend** — direct API calls bypass the check.
 
 ## Date
 
