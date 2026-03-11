@@ -1,13 +1,21 @@
 package com.cloudempiere.ai.provider.langchain4j;
 
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Properties;
+import java.util.Set;
 import java.util.logging.Level;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
-import org.compiere.model.MTable;
 import org.compiere.util.CLogger;
+import org.json.JSONArray;
 import org.json.JSONObject;
 
+import com.cloudempiere.ai.database.ADSchemaCache;
 import com.cloudempiere.ai.database.SecureDatabaseQueryExecutor;
+import com.cloudempiere.ai.database.dto.ADColumnMeta;
+import com.cloudempiere.ai.database.dto.ADTableMeta;
 import com.cloudempiere.ai.database.dto.SecureQueryRequest;
 import com.cloudempiere.ai.database.dto.SecureQueryResult;
 import com.cloudempiere.ai.model.MAIProvider;
@@ -85,6 +93,13 @@ public class ERPTools {
         long startTime = System.currentTimeMillis();
 
         try {
+            // ADR-060: Validate table names against AD schema cache
+            String tableValidationError = validateTablesInSql(sql);
+            if (tableValidationError != null) {
+                fireToolError(toolName, tableValidationError);
+                return createErrorResponse(tableValidationError);
+            }
+
             SecureQueryRequest request = new SecureQueryRequest();
             request.setCtx(ctx);
             request.setProviderId(provider.getAIG_Provider_ID());
@@ -123,6 +138,13 @@ public class ERPTools {
         long startTime = System.currentTimeMillis();
 
         try {
+            // ADR-060: Validate table name against AD schema cache
+            String tableValidationError = validateTableName(tableName);
+            if (tableValidationError != null) {
+                fireToolError(toolName, tableValidationError);
+                return createErrorResponse(tableValidationError);
+            }
+
             // Build secure SELECT query
             String sql = String.format(
                 "SELECT * FROM %s WHERE %s_ID = %d",
@@ -168,6 +190,13 @@ public class ERPTools {
         long startTime = System.currentTimeMillis();
 
         try {
+            // ADR-060: Validate table name against AD schema cache
+            String tableValidationError = validateTableName(tableName);
+            if (tableValidationError != null) {
+                fireToolError(toolName, tableValidationError);
+                return createErrorResponse(tableValidationError);
+            }
+
             String sql = String.format("SELECT * FROM %s WHERE %s", tableName, whereClause);
 
             SecureQueryRequest request = new SecureQueryRequest();
@@ -210,33 +239,56 @@ public class ERPTools {
         long startTime = System.currentTimeMillis();
 
         try {
-            MTable table = MTable.get(ctx, tableName);
-            if (table == null || table.getAD_Table_ID() == 0) {
-                fireToolError(toolName, "Table not found: " + tableName);
-                return createErrorResponse("Table not found: " + tableName);
+            // ADR-060: Use schema cache for fast metadata lookup
+            ADSchemaCache schemaCache = ADSchemaCache.get();
+            ADTableMeta tableMeta = schemaCache.getTableMetadata(tableName);
+
+            if (tableMeta == null) {
+                // Table not in cache — provide suggestions
+                List<String> suggestions = schemaCache.suggestTable(tableName);
+                String msg = "Table not found: " + tableName;
+                if (!suggestions.isEmpty()) {
+                    msg += ". Did you mean: " + suggestions;
+                }
+                fireToolError(toolName, msg);
+                return createErrorResponse(msg);
             }
 
             JSONObject metadata = new JSONObject();
-            metadata.put("tableName", table.getTableName());
-            metadata.put("name", table.getName());
-            metadata.put("description", table.getDescription());
-            metadata.put("isView", table.isView());
+            metadata.put("tableName", tableMeta.getTableName());
+            metadata.put("name", tableMeta.getName());
+            metadata.put("description", tableMeta.getDescription());
+            metadata.put("isView", tableMeta.isView());
+            metadata.put("accessLevel", tableMeta.getAccessLevelDescription());
+            metadata.put("usageHint", tableMeta.getUsageHint());
 
-            // Get columns
-            String colSql = "SELECT ColumnName, Name, Description, AD_Reference_ID, IsMandatory, IsKey " +
-                           "FROM AD_Column WHERE AD_Table_ID = ? AND IsActive = 'Y' ORDER BY ColumnName";
+            // Build columns array from cache
+            JSONArray columnsArray = new JSONArray();
+            for (ADColumnMeta col : tableMeta.getColumns()) {
+                JSONObject colJson = new JSONObject();
+                colJson.put("columnName", col.getColumnName());
+                colJson.put("name", col.getName());
+                colJson.put("description", col.getDescription());
+                colJson.put("referenceType", col.getReferenceType());
+                colJson.put("isMandatory", col.isMandatory());
+                colJson.put("isKey", col.isKey());
+                colJson.put("fieldLength", col.getFieldLength());
+                String fkTable = col.getForeignTable();
+                if (fkTable != null) {
+                    colJson.put("foreignTable", fkTable);
+                }
+                columnsArray.put(colJson);
+            }
+            metadata.put("columns", columnsArray);
 
-            SecureQueryRequest request = new SecureQueryRequest();
-            request.setCtx(ctx);
-            request.setProviderId(provider.getAIG_Provider_ID());
-            request.setSql(colSql.replace("?", String.valueOf(table.getAD_Table_ID())));
-            request.setMaxRows(200);
-            request.setQueryPurpose("Table metadata: " + tableName);
-
-            SecureQueryResult result = executor.executeQuery(request);
-
-            if (result.isSuccess()) {
-                metadata.put("columns", result.getRows());
+            // Add FK relationships summary
+            List<ADColumnMeta> fkColumns = tableMeta.getForeignKeyColumns();
+            if (!fkColumns.isEmpty()) {
+                JSONArray fkArray = new JSONArray();
+                for (ADColumnMeta fk : fkColumns) {
+                    fkArray.put(fk.getColumnName() + " -> " + fk.getForeignTable());
+                }
+                metadata.put("foreignKeys", fkArray);
             }
 
             long elapsed = System.currentTimeMillis() - startTime;
@@ -260,33 +312,33 @@ public class ERPTools {
         long startTime = System.currentTimeMillis();
 
         try {
-            StringBuilder sql = new StringBuilder();
-            sql.append("SELECT TableName, Name, Description FROM AD_Table ");
-            sql.append("WHERE IsActive = 'Y' AND IsView = 'N' ");
+            // ADR-060: Use schema cache for fast table listing
+            ADSchemaCache schemaCache = ADSchemaCache.get();
+            JSONArray tablesArray = new JSONArray();
 
-            if (namePattern != null && !namePattern.isEmpty()) {
-                sql.append("AND TableName LIKE '").append(namePattern.replace("'", "''")).append("' ");
+            for (ADTableMeta table : schemaCache.getAllTables()) {
+                // Apply name pattern filter if provided
+                if (namePattern != null && !namePattern.isEmpty()) {
+                    // Convert SQL LIKE pattern to regex: % = .*, leave _ as literal
+                    String regex = "(?i)" + namePattern.replace("%", ".*");
+                    if (!table.getTableName().matches(regex)) {
+                        continue;
+                    }
+                }
+
+                JSONObject tableJson = new JSONObject();
+                tableJson.put("tableName", table.getTableName());
+                tableJson.put("name", table.getName());
+                tableJson.put("description", table.getDescription());
+                tableJson.put("isView", table.isView());
+                tableJson.put("usageHint", table.getUsageHint());
+                tableJson.put("columnCount", table.getColumns().size());
+                tablesArray.put(tableJson);
             }
 
-            sql.append("ORDER BY TableName");
-
-            SecureQueryRequest request = new SecureQueryRequest();
-            request.setCtx(ctx);
-            request.setProviderId(provider.getAIG_Provider_ID());
-            request.setSql(sql.toString());
-            request.setMaxRows(100);
-            request.setQueryPurpose("List tables");
-
-            SecureQueryResult result = executor.executeQuery(request);
-
-            if (result.isSuccess()) {
-                long elapsed = System.currentTimeMillis() - startTime;
-                fireToolComplete(toolName, "Listed tables (" + elapsed + "ms)");
-                return result.getRows().toString();
-            } else {
-                fireToolError(toolName, result.getErrorMessage());
-                return createErrorResponse(result.getErrorMessage());
-            }
+            long elapsed = System.currentTimeMillis() - startTime;
+            fireToolComplete(toolName, "Listed " + tablesArray.length() + " tables (" + elapsed + "ms)");
+            return tablesArray.toString();
         } catch (Exception e) {
             log.severe("List tables failed: " + e.getMessage());
             fireToolError(toolName, e.getMessage());
@@ -445,6 +497,78 @@ public class ERPTools {
     // ========================================================================
     // Helper Methods
     // ========================================================================
+
+    // ========================================================================
+    // ADR-060: Schema Cache Validation Helpers
+    // ========================================================================
+
+    /** Pattern to extract table names from FROM and JOIN clauses */
+    private static final Pattern TABLE_NAME_PATTERN =
+        Pattern.compile("(?:FROM|JOIN)\\s+([A-Za-z_][A-Za-z0-9_]*)", Pattern.CASE_INSENSITIVE);
+
+    /**
+     * Validate all table names referenced in a SQL query against the AD schema cache.
+     * Extracts table names from FROM and JOIN clauses and checks each one.
+     *
+     * @param sql SQL query to validate
+     * @return error message if any table is invalid, null if all tables are valid
+     */
+    private String validateTablesInSql(String sql) {
+        if (sql == null || sql.isEmpty()) {
+            return "SQL query is empty";
+        }
+
+        ADSchemaCache schemaCache = ADSchemaCache.get();
+        Set<String> tableNames = new LinkedHashSet<String>();
+
+        Matcher matcher = TABLE_NAME_PATTERN.matcher(sql);
+        while (matcher.find()) {
+            tableNames.add(matcher.group(1));
+        }
+
+        if (tableNames.isEmpty()) {
+            return null; // No tables to validate (could be a function call etc.)
+        }
+
+        for (String tableName : tableNames) {
+            if (!schemaCache.tableExists(tableName)) {
+                List<String> suggestions = schemaCache.suggestTable(tableName);
+                StringBuilder msg = new StringBuilder();
+                msg.append("Table '").append(tableName).append("' does not exist in the Application Dictionary");
+                if (!suggestions.isEmpty()) {
+                    msg.append(". Did you mean: ").append(suggestions);
+                }
+                return msg.toString();
+            }
+        }
+
+        return null; // All tables valid
+    }
+
+    /**
+     * Validate a single table name against the AD schema cache.
+     *
+     * @param tableName table name to validate
+     * @return error message if invalid, null if valid
+     */
+    private String validateTableName(String tableName) {
+        if (tableName == null || tableName.isEmpty()) {
+            return "Table name is required";
+        }
+
+        ADSchemaCache schemaCache = ADSchemaCache.get();
+        if (!schemaCache.tableExists(tableName)) {
+            List<String> suggestions = schemaCache.suggestTable(tableName);
+            StringBuilder msg = new StringBuilder();
+            msg.append("Table '").append(tableName).append("' does not exist in the Application Dictionary");
+            if (!suggestions.isEmpty()) {
+                msg.append(". Did you mean: ").append(suggestions);
+            }
+            return msg.toString();
+        }
+
+        return null; // Valid
+    }
 
     private String createErrorResponse(String message) {
         JSONObject error = new JSONObject();

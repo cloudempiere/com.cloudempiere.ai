@@ -31,6 +31,9 @@ This directory contains architecture decisions for the Cloudempiere AI plugin.
 | [026](026-vector-database-strategy.md) | Vector Database Strategy | Proposed | 2025-12-03 |
 | [029](029-multi-tenant-ai-access.md) | Multi-Tenant AI Access for Service Providers | Proposed | 2025-12-03 |
 | [040](040-embedding-ingestion-evolution.md) | Embedding Ingestion Evolution Strategy | Accepted | 2025-12-10 |
+| [060](060-ad-metadata-schema-cache.md) | AD Metadata Schema Cache | Proposed | 2026-03-11 |
+| [061](061-sql-context-enrichment.md) | SQL Query Context Enrichment | Proposed | 2026-03-11 |
+| [062](062-schema-aware-system-prompt.md) | Schema-Aware System Prompt and RAG Integration | Proposed | 2026-03-11 |
 
 ### Agent Architecture
 
