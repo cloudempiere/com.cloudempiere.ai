@@ -277,6 +277,23 @@ Our LangChain4j architecture (ADR-002) fully supports MCP:
 }
 ```
 
+### Pre-Implementation Requirement: Backend Access Enforcement (ADR-058)
+
+**Before any REST or HTTP endpoint wraps `AIService`, backend access control must be implemented.**
+
+Currently `AD_Role.AIAccessLevel` + `AIG_Provider_Access` (ADR-058) are enforced only at the ZK UI layer in `AIChatGadgetFactory.isAvailable()`. `AIService` itself performs no access check — this is safe today because `AIService` is an OSGi service reachable only from within the JVM.
+
+Adding a REST endpoint changes this: any authenticated user could POST to `/api/ai/chat` regardless of their role's `AIAccessLevel`, bypassing the access control and incurring real token costs.
+
+**Required before implementing REST endpoints:**
+1. Extract access-check logic into `MAIProviderAccess.checkAccess(ctx, AIG_Provider_ID)` (or equivalent shared utility)
+2. Call it at the entry point of `AIService.processMessage()` — throw a `SecurityException` / return HTTP 403 for blocked callers
+3. Verify `CostGuard` budget checks remain active as a secondary backstop
+
+See [ADR-058 Known Limitation](058-ai-provider-user-role-access-control.md#known-limitation-ui-layer-enforcement-only) for full details.
+
+---
+
 ### Security Model
 
 **Authentication:**
