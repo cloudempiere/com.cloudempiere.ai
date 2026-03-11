@@ -89,7 +89,7 @@
 | [034](adr/034-google-gemini-provider-integration.md) | Google Gemini Provider | 📋 Deferred — blocked by Java 11 + LangChain4j 0.35.0 |
 | [035](adr/035-java-version-strategy.md) | Java Version Strategy (11 → 17 migration) | ✅ Accepted, Phase 2 target |
 | [036](adr/036-chat-ownership-and-sharing-model.md) | Chat Ownership & Sharing Model | ✅ Implemented |
-| [037](adr/037-language-detection-session-management.md) | Language Detection & Session Language | ✅ Implemented (CLD-1703 fixed) |
+| [037](adr/037-language-detection-session-management.md) | Language Detection & Session Language | 🚧 Partial — `LanguageDetectionService` class exists but import disabled in AIService; stub used instead; language detection works functionally |
 | [038](adr/038-user-friendly-error-handling.md) | User-Friendly Error Handling | 🚧 Partial — `AIErrorHandler` class + migration scripts exist; **not called** from AIService catch blocks; no AD_Issue records created |
 | [039](adr/039-chat-panel-record-zoom-drill.md) | Record Zoom & Drill Integration | ✅ Implemented — Phase 1 & 2 complete |
 | [040](adr/040-embedding-ingestion-evolution.md) | Embedding Ingestion Evolution | 🚧 Ingestors implemented; pgvector persistence pending (ADR-026) |
@@ -115,7 +115,7 @@
 | [049](adr/049-mcp-client-external-tools-integration.md) | MCP Client for External Tools | ❌ Blocked (Java 17) — ready for iDempiere v11 |
 | [050](adr/050-plugin-health-prerequisite-verification.md) | Plugin Health & Prerequisite Checks | ✅ Implemented |
 | [051](adr/051-zk-ui-defensive-programming.md) | ZK UI Defensive Programming | ✅ Implemented |
-| [052](adr/052-ai-chat-widget-core-decoupling.md) | AI Chat Widget Core Decoupling | ✅ Implemented (superseded by ADR-053) |
+| [052](adr/052-ai-chat-widget-core-decoupling.md) | AI Chat Widget Core Decoupling | 🚧 Partial — `IAIChatWidgetFactory` removed ✅; `AIChatGadgetFactory` in plugin ✅; **1-line HelpController temp call still in iDempiereCLDE** pending ADR-053 |
 | [053](adr/053-floating-chat-bubble-zero-core-changes.md) | Floating Chat Bubble (ZK fragment injection) | 📋 Not implemented — `AIChatBubble.java`, `AIChatBubbleInjector.java`, `WEB-INF/zk.xml` do not exist |
 | [054](adr/054-html-only-chat-message-storage.md) | HTML-Only Message Storage | 🚧 Accepted — infrastructure done, integration pending |
 | [055](adr/055-constrained-markdown-syntax-support.md) | Constrained Markdown Sanitization | 📋 Proposed |
@@ -140,8 +140,8 @@
 
 | Status | Count | ADRs |
 |--------|-------|------|
-| ✅ Fully Wired & Active | ~19 | 001, 002, 004, 006, 007, 008, 027, 031, 035, 036, 037, 039, 042, 050, 051, 056, 057, 058 (UI layer), 059 |
-| 🚧 Scaffolded / Partially Wired | ~17 | 009 (boundary classes only), 010 (ERPAgent only), 011 (agents not reachable), 012 (pgvector blocker), 013 (CostGuard only), 014 (no ExecutionGuard), 015 (link classes unwired), 016 (KbAgent not reachable), 026 (schema only), 029 (UI layer only, not backend), 032 (tests only), 033 (streaming agent only), 038 (AIErrorHandler unwired), 040 (ingestors only), 047 (renderer class unwired), 052 (superseded), 054 (infra only) |
+| ✅ Fully Wired & Active | ~18 | 001, 002, 004, 006, 007, 008, 027, 031, 035, 036, 039, 042, 050, 051, 056, 057, 058 (UI layer), 059 |
+| 🚧 Scaffolded / Partially Wired | ~18 | 009 (boundary classes only), 010 (ERPAgent only), 011 (agents not reachable), 012 (pgvector blocker), 013 (CostGuard only), 014 (no ExecutionGuard), 015 (link classes unwired), 016 (KbAgent not reachable), 026 (schema only), 029 (UI layer only, not backend), 032 (tests only), 033 (streaming agent only), 037 (stub active, real service disabled), 038 (AIErrorHandler unwired), 040 (ingestors only), 047 (renderer class unwired), 052 (HelpController temp code pending ADR-053), 054 (infra only) |
 | 📋 Not Started / Planned | ~16 | 017, 018, 019, 020, 021, 022, 023, 024, 025, 030, 041, 048, 053, 055, 061, 062 |
 | ❌ Blocked (Java 17) | 3 | 003, 034, 049 |
 | ⚠️ Superseded/Deprecated | 2 | 005 (→ ADR-012), 028 (→ ADR-003) |
