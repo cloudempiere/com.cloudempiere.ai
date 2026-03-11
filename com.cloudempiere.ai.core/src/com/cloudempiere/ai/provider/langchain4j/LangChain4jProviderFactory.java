@@ -11,8 +11,6 @@ import org.osgi.service.component.annotations.Deactivate;
 
 import com.cloudempiere.ai.model.MAIProvider;
 import com.cloudempiere.ai.model.X_AIG_Provider;
-// TEMPORARILY DISABLED - LangChain4j 0.35.0 (Java 11) has limited listener events; enhanced observability requires 0.36+ (Java 17). See ADR-035, ADR-013.
-// import com.cloudempiere.ai.observability.AIMetricsListener;
 
 import dev.langchain4j.model.anthropic.AnthropicChatModel;
 import dev.langchain4j.model.anthropic.AnthropicStreamingChatModel;
@@ -90,9 +88,6 @@ public class LangChain4jProviderFactory implements ILangChain4jProviderFactory {
     private final Map<Integer, StreamingChatLanguageModel> instanceStreamingModelCache = new ConcurrentHashMap<>();
     private final Map<Integer, EmbeddingModel> instanceEmbeddingModelCache = new ConcurrentHashMap<>();
 
-    /** Flag to enable/disable metrics listener (default: enabled) */
-    private boolean instanceMetricsEnabled = true;
-
     // ========================================================================
     // Legacy static caches (deprecated, for backward compatibility)
     // ========================================================================
@@ -106,9 +101,6 @@ public class LangChain4jProviderFactory implements ILangChain4jProviderFactory {
     /** @deprecated Use instance caches via OSGi service */
     @Deprecated
     private static final Map<Integer, EmbeddingModel> embeddingModelCache = new ConcurrentHashMap<>();
-    /** @deprecated Use instance field via OSGi service */
-    @Deprecated
-    private static boolean metricsEnabled = true;
 
     // ========================================================================
     // OSGi Lifecycle
@@ -228,18 +220,6 @@ public class LangChain4jProviderFactory implements ILangChain4jProviderFactory {
         modelCache.remove(providerId);
         streamingModelCache.remove(providerId);
         embeddingModelCache.remove(providerId);
-    }
-
-    @Override
-    public void enableMetrics(boolean enabled) {
-        this.instanceMetricsEnabled = enabled;
-        metricsEnabled = enabled;  // Also set static for backward compat
-        log.info("Metrics collection " + (enabled ? "enabled" : "disabled"));
-    }
-
-    @Override
-    public boolean metricsEnabled() {
-        return instanceMetricsEnabled;
     }
 
     // ========================================================================
@@ -501,12 +481,6 @@ public class LangChain4jProviderFactory implements ILangChain4jProviderFactory {
             .logRequests(true)
             .logResponses(true);
 
-        // Add observability listener (ADR-013)
-        // TEMPORARILY DISABLED - LangChain4j 0.35.0 (Java 11) has limited listener events; enhanced observability requires 0.36+ (Java 17). See ADR-035, ADR-013.
-        /* if (metricsEnabled) {
-            builder.listeners(List.of(createMetricsListener("anthropic")));
-        } */
-
         return builder.build();
     }
 
@@ -527,12 +501,6 @@ public class LangChain4jProviderFactory implements ILangChain4jProviderFactory {
             .baseUrl(baseUrl != null ? baseUrl : DEFAULT_OLLAMA_URL)
             .modelName(modelName != null ? modelName : DEFAULT_OLLAMA_MODEL)
             .temperature(0.7);
-
-        // Add observability listener (ADR-013)
-        // TEMPORARILY DISABLED - LangChain4j 0.35.0 (Java 11) has limited listener events; enhanced observability requires 0.36+ (Java 17). See ADR-035, ADR-013.
-        /* if (metricsEnabled) {
-            builder.listeners(List.of(createMetricsListener("ollama")));
-        } */
 
         return builder.build();
     }
@@ -566,12 +534,6 @@ public class LangChain4jProviderFactory implements ILangChain4jProviderFactory {
             .baseUrl(baseUrl != null ? baseUrl : DEFAULT_OLLAMA_URL)
             .modelName(modelName != null ? modelName : DEFAULT_LLAMA_MODEL)
             .temperature(0.7);
-
-        // Add observability listener (ADR-013)
-        // TEMPORARILY DISABLED - LangChain4j 0.35.0 (Java 11) has limited listener events; enhanced observability requires 0.36+ (Java 17). See ADR-035, ADR-013.
-        /* if (metricsEnabled) {
-            builder.listeners(List.of(createMetricsListener("llama")));
-        } */
 
         return builder.build();
     }
@@ -623,12 +585,6 @@ public class LangChain4jProviderFactory implements ILangChain4jProviderFactory {
             .logRequests(true)
             .logResponses(true);
 
-        // Add observability listener (ADR-013)
-        // TEMPORARILY DISABLED - LangChain4j 0.35.0 (Java 11) has limited listener events; enhanced observability requires 0.36+ (Java 17). See ADR-035, ADR-013.
-        /* if (metricsEnabled) {
-            builder.listeners(List.of(createMetricsListener("mock-openai")));
-        } */
-
         return builder.build();
     }
 
@@ -659,12 +615,6 @@ public class LangChain4jProviderFactory implements ILangChain4jProviderFactory {
             .temperature(0.7)
             .logRequests(true)
             .logResponses(true);
-
-        // Add observability listener (ADR-013)
-        // TEMPORARILY DISABLED - LangChain4j 0.35.0 (Java 11) has limited listener events; enhanced observability requires 0.36+ (Java 17). See ADR-035, ADR-013.
-        /* if (metricsEnabled) {
-            builder.listeners(List.of(createMetricsListener("openai")));
-        } */
 
         return builder.build();
     }
@@ -868,49 +818,4 @@ public class LangChain4jProviderFactory implements ILangChain4jProviderFactory {
             .build();
     }
 
-    // ========================================================================
-    // Observability (ADR-013)
-    // ========================================================================
-
-    // TEMPORARILY DISABLED - LangChain4j 0.35.0 (Java 11) has limited listener events; enhanced observability requires 0.36+ (Java 17). See ADR-035, ADR-013.
-    /*
-    /**
-     * Create a metrics listener for the given agent name.
-     *
-     * <p>The listener captures token usage, latency, and cost metrics
-     * and persists them to the AIG_UsageMetrics table.
-     *
-     * @param agentName Agent/provider name for tracking
-     * @return AIMetricsListener instance
-     */
-    /*
-    private static AIMetricsListener createMetricsListener(String agentName) {
-        // Generate a session ID based on current context
-        String sessionId = "provider-" + System.currentTimeMillis();
-        return new AIMetricsListener(agentName, sessionId);
-    }
-    */
-
-    /**
-     * Enable or disable metrics collection.
-     *
-     * <p>When disabled, ChatLanguageModel instances are created without
-     * the AIMetricsListener, which can be useful for testing or
-     * high-throughput scenarios where metrics overhead is a concern.
-     *
-     * @param enabled true to enable metrics, false to disable
-     */
-    public static void setMetricsEnabled(boolean enabled) {
-        metricsEnabled = enabled;
-        log.info("Metrics collection " + (enabled ? "enabled" : "disabled"));
-    }
-
-    /**
-     * Check if metrics collection is enabled.
-     *
-     * @return true if metrics are enabled
-     */
-    public static boolean isMetricsEnabled() {
-        return metricsEnabled;
-    }
 }
