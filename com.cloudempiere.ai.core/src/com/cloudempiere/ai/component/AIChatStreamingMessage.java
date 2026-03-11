@@ -1268,16 +1268,31 @@ public class AIChatStreamingMessage extends Div {
         // MarkdownValidator was removed from streaming pipeline (breaks cross-chunk markdown)
         // Now validate the complete accumulated content before final rendering
         String completeMarkdown = content.toString();
-        String validatedMarkdown = com.cloudempiere.ai.util.MarkdownValidator.validate(completeMarkdown);
+
+        // Extract sentinel-wrapped data values and backslash-escape them before any markdown
+        // parsing. Sentinels (⟦value⟧) were injected in buildContextPrompt() around raw DB
+        // values; the LLM passes them through opaquely, and now we replace each with its
+        // backslash-escaped equivalent so the renderer treats it as literal text.
+        String processedMarkdown = com.cloudempiere.ai.util.SecuritySanitizer.extractAndEscapeSentinels(completeMarkdown);
+        boolean sentinelsExtracted = !processedMarkdown.equals(completeMarkdown);
+
+        String validatedMarkdown = com.cloudempiere.ai.util.MarkdownValidator.validate(processedMarkdown);
 
         // Strip HTML tags from raw markdown (LLM should only use Markdown, not HTML)
         // This ensures HTML tags don't appear as escaped text in the final output
         validatedMarkdown = com.cloudempiere.ai.util.HtmlStripper.stripHtml(validatedMarkdown);
 
-        // If validation changed the markdown, we need to re-parse with fresh renderer
-        // This only happens if the AI generated malformed markdown (unclosed markers, etc.)
-        if (!validatedMarkdown.equals(completeMarkdown)) {
-            log.warn("Markdown validation fixed structure, re-rendering from validated content");
+        // Re-render with a fresh renderer when:
+        // (a) sentinels were extracted — the live streaming renderer already processed the
+        //     original content with raw ⟦⟧ markers, so its renderFinal() would return
+        //     broken HTML; a fresh render on the processed content is always needed, or
+        // (b) MarkdownValidator fixed malformed markdown structure
+        if (sentinelsExtracted || !validatedMarkdown.equals(processedMarkdown)) {
+            if (sentinelsExtracted) {
+                log.debug("[FINAL-RENDER] Sentinel values extracted, re-rendering with fresh renderer");
+            } else {
+                log.warn("Markdown validation fixed structure, re-rendering from validated content");
+            }
 
             // Create fresh renderer for validated content
             com.cloudempiere.ai.util.StreamingMarkdownRenderer freshRenderer =

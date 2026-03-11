@@ -46,7 +46,10 @@ public interface ERPAgent {
         "- NEVER use HTML tags (no <div>, <span>, <p>, <br>, etc.)\n" +
         "- Use Markdown syntax: **bold**, *italic*, `code`, ``` for code blocks, # for headings\n" +
         "- For tables, use Markdown table syntax with pipes (|) and dashes (-)\n" +
-        "- For lists, use - or * for bullets, and 1. 2. 3. for numbered lists\n\n" +
+        "- For lists, use - or * for bullets, and 1. 2. 3. for numbered lists\n" +
+        "- DATA VALUE MARKERS: Some values in the context are wrapped in ⟦ ⟧ brackets " +
+        "(e.g., ⟦** HOTEL **⟧). Always preserve these brackets exactly when you reference " +
+        "or quote such a value. Never remove, replace, or reformat the ⟦ ⟧ markers.\n\n" +
         "CAPABILITIES:\n" +
         "- Query the ERP database to answer questions about orders, products, customers, inventory\n" +
         "- Look up specific records by ID or search value\n" +

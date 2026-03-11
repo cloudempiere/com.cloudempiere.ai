@@ -15,6 +15,7 @@ package com.cloudempiere.ai.util;
 
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import org.compiere.util.CLogger;
@@ -370,6 +371,183 @@ public class SecuritySanitizer {
         }
 
         return encoded.toString();
+    }
+
+    // ============================================================================
+    // Markdown Context Escaping (LLM Output Safety)
+    // ============================================================================
+
+    /**
+     * Opening sentinel for wrapping raw data values injected into LLM context.
+     *
+     * <p>LLMs treat these Unicode brackets as opaque tokens (no semantic meaning),
+     * so they pass them through unchanged — unlike backslash escaping which LLMs
+     * interpret and strip. After the LLM response is received, sentinel-wrapped
+     * content is extracted and backslash-escaped before markdown rendering.
+     *
+     * @see #SENTINEL_CLOSE
+     * @see #wrapWithSentinel(String)
+     * @see #extractAndEscapeSentinels(String)
+     */
+    public static final String SENTINEL_OPEN  = "\u27E6"; // ⟦ MATHEMATICAL LEFT WHITE SQUARE BRACKET
+    public static final String SENTINEL_CLOSE = "\u27E7"; // ⟧ MATHEMATICAL RIGHT WHITE SQUARE BRACKET
+
+    /** Markdown special characters that require sentinel protection. */
+    private static final String MARKDOWN_SPECIAL_CHARS = "*_`#[]|!>~\\";
+
+    /**
+     * Wrap a raw data value in sentinel markers, but only if it contains markdown
+     * special characters that would break rendering.
+     *
+     * <p>Values without special chars (e.g., {@code "12436"}, {@code "Customer"}) are
+     * returned as-is — no sentinel, no code styling in the final output.
+     * Values with special chars (e.g., {@code "** HOTEL **"}) are wrapped so the
+     * renderer can later protect them via backtick code spans.
+     *
+     * @param value raw data value (can be null or empty)
+     * @return value wrapped in sentinel markers if it needs protection, otherwise unchanged
+     */
+    public static String wrapWithSentinel(String value) {
+        if (value == null || value.isEmpty()) {
+            return value;
+        }
+        for (int i = 0; i < value.length(); i++) {
+            if (MARKDOWN_SPECIAL_CHARS.indexOf(value.charAt(i)) >= 0) {
+                return SENTINEL_OPEN + value + SENTINEL_CLOSE;
+            }
+        }
+        return value; // no special chars — no protection needed
+    }
+
+    /**
+     * Extract sentinel-wrapped substrings from LLM output and wrap them in backtick
+     * code spans so the markdown renderer treats them as literal text.
+     *
+     * <p>Call this on the complete LLM response text, right before markdown rendering.
+     * Any {@code ⟦value⟧} found is replaced with {@code `value`}, which
+     * {@link StreamingMarkdownRenderer} renders as {@code <code>value</code>} verbatim —
+     * no markdown interpretation of the content.
+     *
+     * <p>Sentinels without a matching close (e.g., LLM dropped the marker) are left as-is
+     * to avoid corrupting the surrounding text.
+     *
+     * @param text LLM output text (can be null or empty)
+     * @return text with sentinel-wrapped values replaced by backtick code spans
+     */
+    public static String extractAndEscapeSentinels(String text) {
+        if (text == null || text.isEmpty()) {
+            return text;
+        }
+        if (!text.contains(SENTINEL_OPEN)) {
+            return text; // fast path: no sentinels present
+        }
+        // Also consume any emphasis markers (**/__/*/_) the LLM may have wrapped around
+        // the sentinel (e.g. **⟦value⟧** → `value`). Order matters: ** before * and __ before _.
+        Pattern pattern = Pattern.compile(
+            "(?:\\*\\*|__|\\*|_)?" + Pattern.quote(SENTINEL_OPEN) + "(.*?)" + Pattern.quote(SENTINEL_CLOSE) + "(?:\\*\\*|__|\\*|_)?",
+            Pattern.DOTALL
+        );
+        Matcher matcher = pattern.matcher(text);
+        StringBuffer sb = new StringBuffer();
+        while (matcher.find()) {
+            // Wrap in backtick code span — StreamingMarkdownRenderer renders this as
+            // <code>value</code>, treating all content literally (no markdown inside).
+            matcher.appendReplacement(sb, Matcher.quoteReplacement("`" + matcher.group(1) + "`"));
+        }
+        matcher.appendTail(sb);
+        return sb.toString();
+    }
+
+    /**
+     * Escape markdown special characters in a data value so it renders as literal text.
+     *
+     * <p><b>Use Case:</b> Database field values embedded in LLM markdown output.
+     * Prevents accidental markdown formatting from data like {@code **CompanyName**}.
+     *
+     * <p><b>Escapes:</b> {@code \ * _ ` # [ ] | ! > ~}
+     *
+     * @param value data value (can be null or empty)
+     * @return markdown-safe text, or the original value if null/empty
+     */
+    public static String escapeMarkdown(String value) {
+        if (value == null || value.isEmpty()) {
+            return value;
+        }
+        StringBuilder sb = new StringBuilder(value.length() + 8);
+        for (int i = 0; i < value.length(); i++) {
+            char ch = value.charAt(i);
+            switch (ch) {
+                case '\\': sb.append("\\\\"); break;
+                case '*':  sb.append("\\*");  break;
+                case '_':  sb.append("\\_");  break;
+                case '`':  sb.append("\\`");  break;
+                case '#':  sb.append("\\#");  break;
+                case '[':  sb.append("\\[");  break;
+                case ']':  sb.append("\\]");  break;
+                case '|':  sb.append("\\|");  break;
+                case '!':  sb.append("\\!");  break;
+                case '>':  sb.append("\\>");  break;
+                case '~':  sb.append("\\~");  break;
+                default:   sb.append(ch);     break;
+            }
+        }
+        return sb.toString();
+    }
+
+    /**
+     * Recursively escape markdown special characters in all string values of a JSONArray.
+     *
+     * <p>Non-string values (numbers, booleans, null) are passed through unchanged.
+     *
+     * @param array source array (not modified)
+     * @return new JSONArray with string values escaped for markdown, or null if input is null
+     */
+    public static JSONArray escapeMarkdownInJson(JSONArray array) {
+        if (array == null) {
+            return null;
+        }
+        JSONArray result = new JSONArray();
+        for (int i = 0; i < array.length(); i++) {
+            Object val = array.get(i);
+            if (val instanceof String) {
+                result.put(escapeMarkdown((String) val));
+            } else if (val instanceof JSONObject) {
+                result.put(escapeMarkdownInJson((JSONObject) val));
+            } else if (val instanceof JSONArray) {
+                result.put(escapeMarkdownInJson((JSONArray) val));
+            } else {
+                result.put(val);
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Recursively escape markdown special characters in all string values of a JSONObject.
+     *
+     * <p>Non-string values (numbers, booleans, null) are passed through unchanged.
+     *
+     * @param obj source object (not modified)
+     * @return new JSONObject with string values escaped for markdown, or null if input is null
+     */
+    public static JSONObject escapeMarkdownInJson(JSONObject obj) {
+        if (obj == null) {
+            return null;
+        }
+        JSONObject result = new JSONObject();
+        for (String key : obj.keySet()) {
+            Object val = obj.get(key);
+            if (val instanceof String) {
+                result.put(key, escapeMarkdown((String) val));
+            } else if (val instanceof JSONObject) {
+                result.put(key, escapeMarkdownInJson((JSONObject) val));
+            } else if (val instanceof JSONArray) {
+                result.put(key, escapeMarkdownInJson((JSONArray) val));
+            } else {
+                result.put(key, val);
+            }
+        }
+        return result;
     }
 
     // ============================================================================

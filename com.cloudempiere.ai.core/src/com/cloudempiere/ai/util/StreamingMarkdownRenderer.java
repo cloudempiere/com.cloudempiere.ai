@@ -372,15 +372,25 @@ public class StreamingMarkdownRenderer {
      */
     private void processNormalState(char ch) {
         if (ch == '*' || ch == '_') {
-            markerBuffer.append(ch);
-            // Don't emit yet - need to see if it's ** or just *
+            if (markerBuffer.length() > 0 && markerBuffer.charAt(0) == '`') {
+                // Backtick already in buffer - resolve it now (inline code opener) before accumulating *
+                checkAndTransitionState(ch);
+            } else {
+                markerBuffer.append(ch);
+                // Don't emit yet - need to see if it's ** or just *
+            }
         } else if (ch == '-' && (isLineStart || isHorizontalRuleMarker())) {
             // Allow accumulating - markers for horizontal rule
             markerBuffer.append(ch);
             return; // Keep building --- marker
         } else if (ch == '`') {
-            markerBuffer.append(ch);
-            // Don't emit yet - need to see if it's ``` or just `
+            if (markerBuffer.length() > 0 && (markerBuffer.charAt(0) == '*' || markerBuffer.charAt(0) == '_')) {
+                // Asterisk/underscore already in buffer - resolve it now before accumulating `
+                checkAndTransitionState(ch);
+            } else {
+                markerBuffer.append(ch);
+                // Don't emit yet - need to see if it's ``` or just `
+            }
         } else if (ch == '#' && (isLineStart || isHeadingMarker())) {
             // Allow accumulating # markers for headings
             // Either at line start, or continuing a heading marker sequence

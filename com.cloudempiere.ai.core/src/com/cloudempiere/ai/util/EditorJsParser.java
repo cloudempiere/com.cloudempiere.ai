@@ -239,14 +239,7 @@ public class EditorJsParser {
      * @return escaped text
      */
     private static String escapeMarkdown(String text) {
-        if (text == null) return "";
-        return text
-            .replace("\\", "\\\\")
-            .replace("`", "\\`")
-            .replace("*", "\\*")
-            .replace("_", "\\_")
-            .replace("[", "\\[")
-            .replace("]", "\\]");
+        return SecuritySanitizer.escapeMarkdown(text != null ? text : "");
     }
 
     /**
