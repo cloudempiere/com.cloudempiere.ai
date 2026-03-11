@@ -116,11 +116,14 @@ public class ADTableMeta {
         }
 
         String searchLower = columnName.toLowerCase();
+        // Proportional threshold: at most 2 edits for short names, 3 for longer ones
+        // Prevents nonsensical suggestions like AD_Org_ID for C_UOM_ID
+        int threshold = Math.max(2, Math.min(3, searchLower.length() / 3));
         List<NameDistance> candidates = new ArrayList<>();
 
         for (ADColumnMeta col : columns) {
             int dist = levenshteinDistance(searchLower, col.getColumnName().toLowerCase());
-            if (dist <= 5) {
+            if (dist <= threshold) {
                 candidates.add(new NameDistance(col.getColumnName(), dist));
             }
         }

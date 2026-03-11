@@ -1,6 +1,8 @@
 package com.cloudempiere.ai.provider.langchain4j;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -60,6 +62,12 @@ public class ERPTools {
     private static final int MAX_QUERY_FAILURES = 6;
 
     /**
+     * ADR-060 Option C: Tables registered via prepareQuery() for this conversation instance.
+     * Soft-enforces that the LLM consults schema before writing SQL.
+     */
+    private final Set<String> preparedTables = new HashSet<>();
+
+    /**
      * Create ERPTools with security context (no streaming callbacks).
      *
      * @param provider AI Provider configuration (for audit logging)
@@ -89,7 +97,7 @@ public class ERPTools {
 
     @Tool("Execute a read-only SQL SELECT query against the iDempiere ERP database. " +
           "Results are filtered by user's role permissions. Returns JSON array of rows with schemaHints. " +
-          "IMPORTANT: Call getTableMetadata() for each table BEFORE writing SQL to discover exact column names. " +
+          "IMPORTANT: Call prepareQuery() for ALL tables BEFORE writing SQL to declare intent and receive exact column names. " +
           "ON conditions MUST be wrapped in parentheses: JOIN t ON (a.col = b.col). " +
           "schemaHints in the result show available columns for follow-up queries.")
     public String queryDatabase(
@@ -110,6 +118,12 @@ public class ERPTools {
             request.setSql(sql);
             request.setMaxRows(maxRows != null ? Math.min(maxRows, 500) : 50);
             request.setQueryPurpose(purpose != null ? purpose : "AI Agent Query");
+
+            // ADR-060 Option C: Soft-enforce prepareQuery() was called for all tables in this SQL
+            String unpreparedError = checkPreparedTables(sql);
+            if (unpreparedError != null) {
+                return handleQueryFailure(toolName, unpreparedError, sql);
+            }
 
             // ADR-060: Validate table names against AD schema cache
             String tableValidationError = validateTablesInSql(sql);
@@ -162,6 +176,84 @@ public class ERPTools {
 
         // Transient failure — return error + schema hints to the LLM, but don't surface to UI
         return createErrorResponseWithSchema(errorMsg, sql);
+    }
+
+    /**
+     * ADR-060 Option C: Declare tables the LLM intends to query.
+     * Registers them in preparedTables and returns their exact schema so the LLM
+     * can construct correct SQL without guessing column names.
+     */
+    @Tool("Declare the tables you intend to query. Call this BEFORE queryDatabase() for every table " +
+          "you plan to use in your SQL. Returns exact column names, types, and FK relationships " +
+          "so you can write correct SQL without guessing. " +
+          "Example: prepareQuery([\"C_Order\", \"C_BPartner\"]) before querying orders with business partner data.")
+    public String prepareQuery(
+        @P("Names of tables you plan to use in the next SQL query") String[] tableNames
+    ) {
+        String toolName = "prepareQuery";
+        String args = "{\"tableNames\": " + Arrays.toString(tableNames) + "}";
+        fireToolStart(toolName, args);
+
+        if (tableNames == null || tableNames.length == 0) {
+            fireToolError(toolName, "No table names provided");
+            return createErrorResponse("No table names provided. Pass the table names you intend to query.");
+        }
+
+        ADSchemaCache schemaCache = ADSchemaCache.get();
+        JSONObject result = new JSONObject();
+        JSONArray preparedArray = new JSONArray();
+        JSONArray notFoundArray = new JSONArray();
+        JSONObject schemas = new JSONObject();
+
+        for (String tableName : tableNames) {
+            if (tableName == null || tableName.isEmpty()) continue;
+
+            ADTableMeta meta = schemaCache.getTableMetadata(tableName);
+            if (meta == null) {
+                List<String> suggestions = schemaCache.suggestTable(tableName);
+                JSONObject notFound = new JSONObject();
+                notFound.put("table", tableName);
+                if (!suggestions.isEmpty()) {
+                    notFound.put("didYouMean", suggestions.toString());
+                }
+                notFoundArray.put(notFound);
+                continue;
+            }
+
+            // Register as prepared for this conversation
+            preparedTables.add(tableName.toUpperCase());
+            preparedArray.put(meta.getTableName());
+
+            // Build compact schema: key + FK columns (most useful for JOINs), then others
+            JSONObject schema = new JSONObject();
+            JSONArray keyAndFk = new JSONArray();
+            JSONArray other = new JSONArray();
+            for (ADColumnMeta col : meta.getColumns()) {
+                if (col.isKey() || col.getForeignTable() != null) {
+                    String entry = col.isKey()
+                        ? col.getColumnName() + " (PK)"
+                        : col.getColumnName() + " -> " + col.getForeignTable();
+                    keyAndFk.put(entry);
+                } else {
+                    other.put(col.getColumnName());
+                }
+            }
+            schema.put("keyAndFkColumns", keyAndFk);
+            schema.put("otherColumns", other);
+            schemas.put(meta.getTableName(), schema);
+        }
+
+        result.put("prepared", preparedArray);
+        if (notFoundArray.length() > 0) {
+            result.put("notFound", notFoundArray);
+        }
+        result.put("schemas", schemas);
+        result.put("hint", "Use exact column names above when writing SQL. " +
+            "ON conditions must be wrapped in parentheses: JOIN table ON (a.col = b.col).");
+
+        log.warning("[PREPARE-QUERY] Registered tables: " + preparedTables);
+        fireToolComplete(toolName, "Prepared " + preparedArray.length() + " tables: " + preparedArray);
+        return result.toString(2);
     }
 
     @Tool("Look up a specific record by ID from an iDempiere table. " +
@@ -580,6 +672,45 @@ public class ERPTools {
     private static final Pattern COLUMN_REF_PATTERN =
         Pattern.compile("([A-Za-z_][A-Za-z0-9_]*)\\.([A-Za-z_][A-Za-z0-9_]*)",
                         Pattern.CASE_INSENSITIVE);
+
+    /**
+     * Extract table names from FROM/JOIN clauses in a SQL query.
+     */
+    private Set<String> extractTableNames(String sql) {
+        Set<String> tableNames = new LinkedHashSet<String>();
+        if (sql == null) return tableNames;
+        Matcher matcher = TABLE_NAME_PATTERN.matcher(sql);
+        while (matcher.find()) {
+            tableNames.add(matcher.group(1));
+        }
+        return tableNames;
+    }
+
+    /**
+     * ADR-060 Option C: Soft-enforce that prepareQuery() was called for all tables in the SQL.
+     * If any table is unprepared, returns an error with schema hints nudging the LLM
+     * to call prepareQuery() first. Degrades gracefully if LLM bypasses this contract —
+     * validateTablesInSql() still runs as a fallback.
+     *
+     * @param sql SQL query to check
+     * @return error message if any table was not prepared, null if all prepared (or no tables found)
+     */
+    private String checkPreparedTables(String sql) {
+        Set<String> sqlTables = extractTableNames(sql);
+        if (sqlTables.isEmpty()) return null; // no FROM clause — caught by validateTablesInSql
+
+        List<String> unprepared = new ArrayList<String>();
+        for (String table : sqlTables) {
+            if (!preparedTables.contains(table.toUpperCase())) {
+                unprepared.add(table);
+            }
+        }
+        if (unprepared.isEmpty()) return null;
+
+        return "Tables not prepared: " + unprepared + ". " +
+            "Call prepareQuery(" + unprepared + ") first to receive exact column names " +
+            "before writing SQL.";
+    }
 
     /**
      * Validate all table names referenced in a SQL query against the AD schema cache.

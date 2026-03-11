@@ -180,12 +180,71 @@ The original ADR proposed:
 - `entityType` field — **not implemented**
 - Phase 3 RAG wiring — **not implemented**
 
+## Proactive Schema Consultation (Option C)
+
+### Problem
+
+The validation pipeline (above) is **reactive**: it catches bad SQL after the LLM has already generated it. Even with schema hints in error responses, the LLM may take 3–5 attempts to produce valid SQL, because it starts each conversation with no knowledge of the actual schema.
+
+### Design: Two-Step Tool Contract
+
+Introduce a `prepareQuery(String[] tableNames)` `@Tool` in `ERPTools` that forces the LLM to declare which tables it intends to query **before** writing SQL:
+
+```
+Step 1: LLM calls prepareQuery(["M_InOut", "C_BPartner"])
+        → Returns full schema for those tables (columns, types, FKs)
+        → Stores table names in Set<String> preparedTables (instance field)
+
+Step 2: LLM calls queryDatabase(sql)
+        → Checks if tables in SQL are in preparedTables
+        → If any table was NOT prepared: returns error with schema + instruction to call prepareQuery first
+        → If all tables prepared: executes query
+```
+
+This shifts the pattern from:
+```
+LLM guesses SQL → validate → fail → retry (repeat)
+```
+to:
+```
+LLM calls prepareQuery → receives real columns → writes correct SQL → executes
+```
+
+### Implementation Notes
+
+- `preparedTables` is a `Set<String>` on the `ERPTools` instance (per-conversation, not static)
+- `prepareQuery` accepts an array of table names, fetches each from `ADSchemaCache`, and returns a compact schema summary (key columns, FK columns, other columns)
+- `queryDatabase` compares tables extracted from SQL against `preparedTables`; if any are missing, returns `{"error": true, "message": "Tables not prepared: [X, Y]. Call prepareQuery first.", "schemaHints": {...}}`
+- `@Tool` description on `queryDatabase` is updated to reference `prepareQuery` as the required prerequisite
+
+### Enforcement: Soft vs Hard
+
+**Current (Soft):** LLM-guided only. The error message nudges the LLM to call `prepareQuery` first, but there is no framework-level enforcement. A non-compliant or weaker LLM can still bypass it and call `queryDatabase` directly, falling back to the existing validation pipeline.
+
+**Known limitation with weaker models:** Smaller or less instruction-following LLMs may ignore the `prepareQuery` requirement entirely — especially when the user's question is simple ("How many orders do we have?"). In those cases the soft contract degrades gracefully: the LLM calls `queryDatabase` directly, existing validation runs, and schema hints are returned in error responses as before.
+
+### Future: Hard Enforcement (LangChain4j 1.x)
+
+LangChain4j **0.35.0** (current, Java 11) does not support `toolChoice` or forced tool ordering in `AiServices`. Framework-level enforcement is not possible.
+
+When the project upgrades to **Java 17 + LangChain4j 1.x** (see [ADR-035](035-java-version-strategy.md)):
+
+```java
+// Future: force prepareQuery before any queryDatabase call
+AiServices.builder(ERPAgent.class)
+    .toolChoice(ToolChoice.required("prepareQuery"))  // not available in 0.35.0
+    ...
+```
+
+At that point, soft Option C can be hardened: `prepareQuery` can be made mandatory for any agentic SQL generation flow, eliminating the LLM compliance dependency entirely.
+
 ## Known Gaps
 
 - No `ICacheReset` integration — cache does not invalidate on AD changes, only on TTL
 - No translation support — column/table names always in base language
 - Column validation does not check subquery aliases
-- LLM may skip `getTableMetadata` on first attempt despite `@Tool` guidance (relies on model compliance)
+- LLM may skip `prepareQuery`/`getTableMetadata` on first attempt despite `@Tool` guidance (relies on model compliance)
+- Weaker LLMs may ignore soft Option C enforcement entirely — soft contract degrades to reactive validation
 - Intermediate LLM reasoning text ("Let me fix...") still leaks to UI between retries
 
 ## Related ADRs
