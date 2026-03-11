@@ -4,7 +4,7 @@
 
 ## Status
 
-Proposed
+Partially Implemented — `ERPStreamingAgent` active in streaming path; `StreamingMarkdownRenderer` and `StreamingTextBuffer` classes exist but are **not called** from the streaming pipeline; Thinking Timeline blocked (Java 17 required)
 
 ## Date
 
@@ -46,14 +46,18 @@ The current `AIChatWidget` implementation waits for complete AI responses before
 
 ### Confirmation
 
-The decision will be confirmed when:
-- [ ] `AIStreamCallback` interface extended with tool/thinking events
-- [ ] `AIChatStreamingMessage` component renders streaming tokens
-- [ ] Tool timeline shows start/complete status for each tool call
-- [ ] Thinking section (collapsible) displays extended thinking content
-- [ ] CSS animations provide smooth visual feedback
-- [ ] ZK thread safety verified with `Executions.schedule()`
-- [ ] User testing confirms improved perceived responsiveness
+- [x] `AIStreamCallback` interface implemented
+- [x] `ERPStreamingAgent` / `SimpleStreamingAgent` — **active** in streaming chat path (`AIService`)
+- [x] `BedrockStreamingChatModelWrapper` provides streaming for AWS Bedrock
+- [x] ZK thread safety via `Executions.schedule()` (ADR-051 defensive programming)
+- [x] `AIChatStreamingMessage` component — **exists and used** for streaming token display in ZK UI
+- [ ] `StreamingMarkdownRenderer` — **class implemented** (`util/StreamingMarkdownRenderer.java`) but **not called** from `AIService` or the streaming pipeline; no callers found outside tests
+- [ ] `StreamingTextBuffer` — **class implemented** but **not integrated** into streaming token handling in the live path
+- [ ] Tool timeline shows start/complete status per tool call — **not implemented**
+- [ ] Thinking section (collapsible) for extended thinking — **blocked** (requires Java 17 + LangChain4j 1.x, see ADR-035)
+- [ ] CSS animations for smooth visual feedback — **partial**
+
+> **As of 2026-03-11:** Streaming tokens work end-to-end. The tool usage timeline and extended thinking display are not yet implemented. Thinking requires Claude 3.5+ extended thinking API which is not available in LangChain4j 0.35.0.
 
 ## Pros and Cons of the Options
 

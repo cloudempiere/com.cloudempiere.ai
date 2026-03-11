@@ -1,7 +1,8 @@
 # ADR-029: Multi-Tenant AI Access for Service Providers
 
-**Status:** Proposed
+**Status:** Partially Implemented — `AIG_Provider_Access` table and `MAIProviderAccess` model exist; **role-based access check is NOT enforced** in `AIService` (provider is accepted as a parameter without checking the caller's role against `AIG_Provider_Access`); dual-identity DB security active via `SecureDatabaseQueryExecutor`
 **Date:** 2025-12-03
+**Updated:** 2026-03-11
 **Deciders:** Cloudempiere AI Team
 **Related:** ADR-007 (Database Security Model)
 
@@ -694,6 +695,18 @@ public class SecureQueryRequest {
 ```
 
 ---
+
+## Implementation Status (as of 2026-03-11)
+
+| Component | Status | Notes |
+|-----------|--------|-------|
+| `AIG_Provider_Access` table | ✅ Table exists | `MAIProviderAccess` model with `getByRole()`, `getByUser()` methods |
+| Role-based provider access enforcement | ❌ Not enforced | `MAIProviderAccess` model exists but `AIService` accepts provider as a parameter without checking access; no call to `MAIProviderAccess.getByRole()` in the chat path |
+| Dual-identity security (AI User + User's Role) | ✅ Implemented | `SecureDatabaseQueryExecutor` (ADR-007) |
+| `AIGAccessTier` reference list (T/D/S) | ⚠️ Partial | Data model defined; full tier enforcement in `SecureDatabaseQueryExecutor` pending |
+| Cross-tenant service provider mode (Tier 3) | ❌ Not Implemented | Requires explicit IsServiceProvider role flag + target client logic |
+| Application Dictionary access (Tier 2) | ⚠️ Partial | ADSchemaCache (ADR-060) reads AD_Table/AD_Column; general cross-tenant query enforcement pending |
+| Enhanced audit (cross-tenant fields) | ❌ Not Implemented | `AIG_QueryAudit` extended with AIGAccessTier + IsCrossTenant pending |
 
 ## Implementation Plan
 

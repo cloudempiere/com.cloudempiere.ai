@@ -2,9 +2,9 @@
 
 ## Status
 
-📋 **Proposed** (2025-12-30)
+📋 **Not Implemented**
 
-**Future Implementation** - Documented for migration from temporary HelpController integration
+`AIChatBubble.java`, `AIChatBubbleInjector.java`, and `WEB-INF/zk.xml` in the theme bundle **do not exist** in the codebase. The ADR documents the architecture for the planned implementation.
 
 ## Date
 

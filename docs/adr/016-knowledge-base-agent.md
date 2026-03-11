@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed
+Partially Implemented — Classes exist and are registered as OSGi services; **not reachable via the current chat path** (same blocker as ADR-009/010/011: `OrchestratorAgent` not wired into `AIService`)
 
 ## Date
 
@@ -38,11 +38,16 @@ This ADR defines Knowledge Base as a recognized domain and specifies how to alig
 
 ### Confirmation
 
-- [ ] `KnowledgeBaseTools.java` created with `@Tool` annotations
-- [ ] Integration with `OrchestratorAgent` verified
-- [ ] All DB queries use `SecureDatabaseQueryExecutor`
-- [ ] MCP tools exposed via idempiere-mcp-server
-- [ ] Unit tests pass for all KB tools
+- [x] `KbTools.java` created with `@Tool` annotations (`com.cloudempiere.ai.kb/tools/KbTools.java`) — **class exists**
+- [x] `KbAgent.java` implemented (`com.cloudempiere.ai.kb/agent/KbAgent.java`) — **registered as `IDomainAgent` OSGi service**
+- [x] `KbDomainBoundary.java` implemented (`com.cloudempiere.ai.kb/boundary/KbDomainBoundary.java`)
+- [x] `KnowledgeBaseSimilarityAnalyzer` and `KnowledgeBaseSimilarityAnalyzerDB` integrated
+- [x] Parser utilities kept: `EditorJsParser`, `EditorJsParserEnhanced`
+- [x] DTOs kept: `KnowledgeBaseEntry`, `SimilarityResult`, `PlacementRecommendation`, etc.
+- [ ] `KbAgent` reachable via chat — **NOT REACHABLE**: registered as `IDomainAgent` OSGi service but `OrchestratorAgent.processQuery()` has no callers; `AIService` builds `ERPAgent` directly
+- [ ] `KbTools` exposed to `ERPAgent` — **NOT EXPOSED**: `KbTools` is only wired to `KbAgent`, which is never invoked; main agent only has `ERPTools` + optional `RagTools`
+- [ ] MCP tools exposed via idempiere-mcp-server (blocked — Java 17, ADR-003)
+- [ ] Comprehensive unit tests for all KB tools
 
 ## Pros and Cons of the Options
 

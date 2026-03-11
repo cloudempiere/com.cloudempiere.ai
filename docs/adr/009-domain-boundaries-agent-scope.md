@@ -1,9 +1,30 @@
 # ADR-009: Domain Boundaries and Agent Scope Architecture
 
-**Status**: Accepted
+**Status**: Partially Implemented — Boundary classes exist and are internally used; **OrchestratorAgent is NOT wired into the main chat flow** (AIService uses ERPAgent directly, not the domain orchestration layer)
 **Date**: 2025-12-01
+**Updated**: 2026-03-11
 **Deciders**: Architecture Team
 **Related**: [ADR-004](004-java-agent-framework.md), [ADR-007](007-database-security-model.md)
+
+## Implementation Status
+
+The boundary class hierarchy and domain agent classes are implemented and the boundary validation is called within each domain's tools. However, the `OrchestratorAgent` is **not connected to the main chat path** — `AIService` builds `ERPAgent` directly via LangChain4j `AiServices.builder()` and does not inject or invoke `OrchestratorAgent` or any `IDomainAgent`. The domain agent layer is prepared but currently bypassed.
+
+| Component | Status | Notes |
+|-----------|--------|-------|
+| `DomainBoundary` (abstract base) | ✅ Implemented | `core/boundary/DomainBoundary.java` |
+| `IDomainAgent` interface | ✅ Implemented | `core/boundary/IDomainAgent.java` |
+| `IOrchestrator` interface | ✅ Implemented | `core/boundary/IOrchestrator.java` |
+| `SalesDomainBoundary` | ✅ Implemented | Called from `SalesTools` methods |
+| `InventoryDomainBoundary` | ✅ Implemented | Called from `InventoryTools` methods |
+| `PurchasingDomainBoundary` | ✅ Implemented | Called from `PurchasingTools` methods |
+| `SupportDomainBoundary` | ✅ Implemented | Called from `SupportTools` methods |
+| `KbDomainBoundary` | ✅ Implemented | Called from `KbTools` methods |
+| `OrchestratorAgent` | ✅ Implemented as OSGi `@Component` | Binds `IDomainAgent` services via `@Reference(MULTIPLE, DYNAMIC)` |
+| `SalesAgent` / `InventoryAgent` etc. | ✅ Registered as `IDomainAgent` OSGi services | Each is `@Component(service = {XxxAgent.class, IDomainAgent.class})` |
+| **OrchestratorAgent wired into chat flow** | ❌ **Not connected** | `AIService` uses `ERPAgent` directly; `OrchestratorAgent.processQuery()` has no callers |
+| Org/client filtering | ✅ Implemented | `SecureDatabaseQueryExecutor` (enforced at query level) |
+| Cost enforcement | ✅ Implemented | `CostGuard` + `AIG_Budget` table |
 
 ## Context
 
@@ -226,29 +247,28 @@ public boolean canModifyPeriod(String periodName, AgentContext context) {
 ## Implementation Plan
 
 ### Week 1: Framework
-- [ ] Implement `BoundaryEnforcementFilter`
-- [ ] Implement `DataAccessValidator`
-- [ ] Implement `ActionBoundaryValidator`
-- [ ] Implement `CostBoundaryMonitor`
-- [ ] Add org filtering to `SecureDatabaseQueryExecutor`
+- [x] Implement `DomainBoundary` base class (table whitelist enforcement)
+- [x] Implement `IDomainAgent` interface
+- [x] Implement `IOrchestrator` interface
+- [x] Implement `CostGuard` / budget monitoring
+- [x] Add org filtering to `SecureDatabaseQueryExecutor`
 
 ### Week 2: Agent Definitions
-- [ ] Define boundaries for InventoryAgent
-- [ ] Define boundaries for SalesAgent
-- [ ] Define boundaries for PurchasingAgent
-- [ ] Document boundary definitions in code
+- [x] Define boundaries for InventoryAgent (`InventoryDomainBoundary`)
+- [x] Define boundaries for SalesAgent (`SalesDomainBoundary`)
+- [x] Define boundaries for PurchasingAgent (`PurchasingDomainBoundary`)
+- [x] Define boundaries for SupportAgent (`SupportDomainBoundary`)
+- [x] Define boundaries for KbAgent (`KbDomainBoundary`)
 
 ### Week 3: Enforcement
-- [ ] Apply automatic filtering to all queries
-- [ ] Enable cost tracking and alerts
-- [ ] Activate audit logging
-- [ ] Test boundary enforcement
+- [x] Apply automatic filtering to all queries
+- [x] Enable cost tracking and alerts (`AIMetricsListener`, `CostGuard`)
+- [x] Activate audit logging (`AIG_QueryAudit`)
+- [ ] Comprehensive boundary enforcement integration tests
 
 ### Week 4: Governance
-- [ ] Create boundary approval process
-- [ ] Define quarterly review schedule
-- [ ] Document escalation procedures
-- [ ] Train team on boundary framework
+- [ ] Formal quarterly review process
+- [ ] Inter-agent call depth enforcement (max=3)
 
 ## Agent Boundary Template
 

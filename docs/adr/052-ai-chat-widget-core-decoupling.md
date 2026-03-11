@@ -2,17 +2,12 @@
 
 ## Status
 
-⚠️ **Partially Implemented with Temporary Solution** (2025-12-30)
+✅ **Implemented** — Superseded by [ADR-053](053-floating-chat-bubble-zero-core-changes.md) for zero-core-changes
 
-**Current State:**
-- ✅ Plugin architecture completed (AIChatGadgetFactory, self-managing context tracking)
-- ⚠️ **Temporary core code** in HelpController (marked for removal)
-- 📋 **Superseded by ADR-053** for true zero-core-changes solution
-
-**Migration Path:**
-- Current: Help panel integration with temporary HelpController code
-- Target: [ADR-053 Floating Chat Bubble](053-floating-chat-bubble-zero-core-changes.md) (Zero core changes)
-- Timeline: Q1 2026
+**Current State (2026-03-11):**
+- ✅ Plugin architecture completed (`AIChatGadgetFactory`, self-managing context tracking)
+- ✅ Temporary HelpController code replaced by ADR-053 ZK fragment injection
+- ✅ `com.cloudempiere.ai.theme` bundle handles injection with zero iDempiereCLDE core changes
 
 ## Date
 

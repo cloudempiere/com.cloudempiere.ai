@@ -48,10 +48,14 @@ The com.cloudempiere.ai plugin requires a comprehensive, automated testing strat
 
 ### Confirmation
 
-- All tests pass with `mvn test`
-- GitHub Actions workflow succeeds on PR
-- MCP Inspector CLI validates MCP tools
-- Code coverage > 70% for critical packages
+- [x] Test bundle `com.cloudempiere.ai.test` created and active
+- [x] Test categories: `@UnitTest`, `@IntegrationTest`, `@E2ETest`, `@FastTest`, `@SlowTest` annotations implemented
+- [x] 25+ test classes implemented covering: guardrails, markdown rendering, streaming, RAG, security, error handling, providers
+- [x] `RagServiceMock` and test utilities implemented
+- [x] Bash test runner scripts: `./run-unit-tests.sh` (unit), `./run-unit-tests.sh --integration` (integration)
+- [ ] GitHub Actions CI/CD workflow (not configured)
+- [ ] MCP Inspector CLI validation (blocked — MCP not yet implemented, ADR-003)
+- [ ] Code coverage > 70% (coverage not measured systematically)
 
 ## Testing Architecture
 
