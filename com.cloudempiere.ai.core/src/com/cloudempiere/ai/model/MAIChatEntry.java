@@ -18,6 +18,7 @@ import java.util.Properties;
 
 import org.compiere.model.MChat;
 import org.compiere.model.MChatEntry;
+import org.compiere.util.Env;
 
 /**
  * AI Chat Entry Model - extends standard iDempiere Chat Entry
@@ -28,17 +29,6 @@ import org.compiere.model.MChatEntry;
 public class MAIChatEntry extends MChatEntry {
 
 	private static final long serialVersionUID = 1L;
-
-	/**
-	 * Role constants for AI provider message format
-	 * These are used when sending conversation history to AI providers
-	 */
-	public static final String ROLE_USER = "user";
-	public static final String ROLE_ASSISTANT = "assistant";
-	public static final String ROLE_SYSTEM = "system";
-
-	/** System User ID for AI responses (from AIG_Provider) */
-	private static Integer AI_SYSTEM_USER_ID = null;
 
 	/**
 	 * Standard Constructor
@@ -70,7 +60,7 @@ public class MAIChatEntry extends MChatEntry {
 	public MAIChatEntry(MChat chat, String data) {
 		super(chat, data);
 		// Explicitly set AD_User_ID to current logged-in user
-		int currentUser = org.compiere.util.Env.getAD_User_ID(chat.getCtx());
+		int currentUser = Env.getAD_User_ID(chat.getCtx());
 		if (currentUser > 0) {
 			setAD_User_ID(currentUser);
 		}
@@ -78,36 +68,32 @@ public class MAIChatEntry extends MChatEntry {
 
 	/**
 	 * Create AI Response Entry (legacy - HTML only)
-	 * Sets AD_User_ID to the AI user from the provider configuration
+	 * Sets AD_User_ID to the AI user from the given provider.
 	 *
-	 * @deprecated Use {@link #createAIResponse(MChat, String, String)} with separate markdown and HTML
+	 * @deprecated Use {@link #createAIResponse(MChat, MAIProvider, String, String)} with separate markdown and HTML
 	 * @param chat parent chat
+	 * @param provider AI provider (may be null)
 	 * @param data response text (HTML or markdown)
 	 * @return AI chat entry with AD_User_ID set to AI user
 	 */
 	@Deprecated
-	public static MAIChatEntry createAIResponse(MChat chat, String data) {
-		Properties ctx = chat.getCtx();
-		String trxName = chat.get_TrxName();
-
-		MAIChatEntry entry = new MAIChatEntry(ctx, 0, trxName);
+	public static MAIChatEntry createAIResponse(MChat chat, MAIProvider provider, String data) {
+		MAIChatEntry entry = new MAIChatEntry(chat.getCtx(), 0, chat.get_TrxName());
 		entry.setCM_Chat_ID(chat.getCM_Chat_ID());
 		entry.setConfidentialType(chat.getConfidentialType());
 		entry.setCharacterData(data);
 		entry.setChatEntryType(CHATENTRYTYPE_NoteFlat);
 
-		// Set AD_User_ID to AI system user from provider
-		Integer aiUserId = getAISystemUserId(ctx);
-		if (aiUserId != null && aiUserId > 0) {
-			entry.setAD_User_ID(aiUserId);
+		if (provider != null && provider.getAD_User_ID() > 0) {
+			entry.setAD_User_ID(provider.getAD_User_ID());
 		}
 
 		return entry;
 	}
 
 	/**
-	 * Create AI Response Entry with separate markdown and HTML
-	 * Sets AD_User_ID to the AI user from the provider configuration
+	 * Create AI Response Entry with separate markdown and HTML.
+	 * Sets AD_User_ID to the AI user from the given provider.
 	 *
 	 * <p>Storage strategy:
 	 * <ul>
@@ -116,85 +102,35 @@ public class MAIChatEntry extends MChatEntry {
 	 * </ul>
 	 *
 	 * @param chat parent chat
+	 * @param provider AI provider (may be null)
 	 * @param markdown markdown text (source)
 	 * @param html rendered HTML
 	 * @return AI chat entry with AD_User_ID set to AI user
 	 */
-	public static MAIChatEntry createAIResponse(MChat chat, String markdown, String html) {
-		Properties ctx = chat.getCtx();
-		String trxName = chat.get_TrxName();
-
-		MAIChatEntry entry = new MAIChatEntry(ctx, 0, trxName);
+	public static MAIChatEntry createAIResponse(MChat chat, MAIProvider provider, String markdown, String html) {
+		MAIChatEntry entry = new MAIChatEntry(chat.getCtx(), 0, chat.get_TrxName());
 		entry.setCM_Chat_ID(chat.getCM_Chat_ID());
 		entry.setConfidentialType(chat.getConfidentialType());
-
-		// Store markdown in CharacterData (for AI API)
 		entry.setCharacterData(markdown);
-
-		// Store HTML in ContentHTML (for UI rendering)
 		entry.set_ValueOfColumn("ContentHTML", html);
-
 		entry.setChatEntryType(CHATENTRYTYPE_NoteFlat);
 
-		// Set AD_User_ID to AI system user from provider
-		Integer aiUserId = getAISystemUserId(ctx);
-		if (aiUserId != null && aiUserId > 0) {
-			entry.setAD_User_ID(aiUserId);
+		if (provider != null && provider.getAD_User_ID() > 0) {
+			entry.setAD_User_ID(provider.getAD_User_ID());
 		}
 
 		return entry;
 	}
 
 	/**
-	 * Create System Message Entry (for context, instructions)
-	 * @param chat parent chat
-	 * @param data system message text
-	 * @return system chat entry
-	 */
-	public static MAIChatEntry createSystemMessage(MChat chat, String data) {
-		MAIChatEntry entry = new MAIChatEntry(chat, data);
-		return entry;
-	}
-
-	/**
-	 * Get AI System User ID from the default provider configuration
-	 * @param ctx context
-	 * @return user ID or null
-	 */
-	private static Integer getAISystemUserId(Properties ctx) {
-		if (AI_SYSTEM_USER_ID == null) {
-			// Get AI user from the default provider
-			MAIProvider provider = MAIProvider.getDefault(ctx, null);
-			if (provider != null && provider.getAD_User_ID() > 0) {
-				AI_SYSTEM_USER_ID = provider.getAD_User_ID();
-			} else {
-				// Fallback: Use a system user marker (0 = System)
-				AI_SYSTEM_USER_ID = 0;
-			}
-		}
-		return AI_SYSTEM_USER_ID;
-	}
-
-	/**
-	 * Check if this entry is an AI response
-	 * Determined by comparing CreatedBy with the AI user from the provider
+	 * Check if this entry is an AI response.
+	 * An entry is considered an AI response if its AD_User_ID differs from the current user.
 	 *
 	 * @return true if this is an AI response, false if user message
 	 */
 	public boolean isAIResponse() {
-		Integer aiUserId = getAISystemUserId(getCtx());
-		if (aiUserId == null || aiUserId <= 0) {
-			return false;
-		}
-		return getAD_User_ID() == aiUserId;
-	}
-
-	/**
-	 * Check if this is a user message
-	 * @return true if user message (not AI)
-	 */
-	public boolean isUserMessage() {
-		return !isAIResponse();
+		int currentUser = Env.getAD_User_ID(getCtx());
+		return getAD_User_ID() != currentUser;
 	}
 
 	/**
@@ -203,13 +139,5 @@ public class MAIChatEntry extends MChatEntry {
 	 */
 	public String getContentHTML() {
 		return (String) get_Value("ContentHTML");
-	}
-
-	/**
-	 * Set the rendered HTML content
-	 * @param html HTML content
-	 */
-	public void setContentHTML(String html) {
-		set_ValueOfColumn("ContentHTML", html);
 	}
 }

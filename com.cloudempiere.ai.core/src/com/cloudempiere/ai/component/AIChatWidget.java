@@ -1378,7 +1378,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 						String html = streamingMsg.getRenderedHtml();
 						log.warning("[UI-STREAM] Saving MD (len=" + markdown.length() +
 								") and HTML (len=" + html.length() + ")");
-						MAIChatEntry aiEntry = MAIChatEntry.createAIResponse(aiChat, markdown, html);
+						MAIChatEntry aiEntry = MAIChatEntry.createAIResponse(aiChat, provider, markdown, html);
 						if (threadRootIdSnapshot > 0) {
 							aiEntry.setCM_ChatEntryParent_ID(threadRootIdSnapshot);
 						}
@@ -1529,7 +1529,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 				// Handle result based on status
 				if (result.isBlocked()) {
 					// Guardrails blocked the request - show warning
-					handleBlockedResponse(desktop, result, threadRootIdSnapshot);
+					handleBlockedResponse(desktop, result, threadRootIdSnapshot, provider);
 					return;
 				}
 
@@ -1551,7 +1551,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 				}
 
 				// Create AI chat entry with proper thread parent (HTML format)
-				MAIChatEntry aiEntry = MAIChatEntry.createAIResponse(aiChat, responseHtml);
+				MAIChatEntry aiEntry = MAIChatEntry.createAIResponse(aiChat, provider, response, responseHtml);
 
 				if (threadRootIdSnapshot > 0) {
 					aiEntry.setCM_ChatEntryParent_ID(threadRootIdSnapshot);
@@ -1586,7 +1586,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 	/**
 	 * Handle blocked response from guardrails.
 	 */
-	private void handleBlockedResponse(Desktop desktop, ChatResult result, int threadRootIdSnapshot) {
+	private void handleBlockedResponse(Desktop desktop, ChatResult result, int threadRootIdSnapshot, MAIProvider provider) {
 		Executions.schedule(desktop, ev -> {
 			hideLoading();
 
@@ -1598,7 +1598,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 			}
 			warningHtml += "</div>";
 
-			MChatEntry warningEntry = MAIChatEntry.createAIResponse(chat, warningHtml);
+			MChatEntry warningEntry = MAIChatEntry.createAIResponse(chat, provider, warningHtml);
 			if (threadRootIdSnapshot > 0) {
 				warningEntry.setCM_ChatEntryParent_ID(threadRootIdSnapshot);
 			}
@@ -1639,7 +1639,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 				" <span class=\"ai-error-ref\" title=\"" + errorResult.getDebugTooltip() +
 				"\" style=\"cursor:help; opacity:0.6;\">\u26A0\uFE0F</span></div>";
 
-			MChatEntry errorEntry = MAIChatEntry.createAIResponse(chat, errorMsg);
+			MChatEntry errorEntry = MAIChatEntry.createAIResponse(chat, provider, errorMsg);
 
 			// Set thread parent for error entry
 			if (threadRootIdSnapshot > 0) {
@@ -3139,7 +3139,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 
 			// Create AI chat entry with partial response (both markdown and HTML)
 			MAIChatEntry aiEntry = MAIChatEntry.createAIResponse(
-					aiChat, persistedMarkdown, persistedHtml);
+					aiChat, MAIProvider.getForUser(sessionCtx, null), persistedMarkdown, persistedHtml);
 
 			// Set thread parent if applicable
 			if (currentThreadRootId > 0) {
@@ -3189,7 +3189,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 				new MAIChat(sessionCtx, chat.getCM_Chat_ID(), null);
 
 			// Create AI chat entry with error response (both markdown and HTML)
-			MAIChatEntry aiEntry = MAIChatEntry.createAIResponse(aiChat, markdown, html);
+			MAIChatEntry aiEntry = MAIChatEntry.createAIResponse(aiChat, MAIProvider.getForUser(sessionCtx, null), markdown, html);
 
 			// Set thread parent if applicable
 			if (threadRootId > 0) {
