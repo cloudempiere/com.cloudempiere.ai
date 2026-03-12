@@ -241,8 +241,8 @@ The AI Hub architecture decouples AI provider versions from iDempiere runtime, e
 |-------|---------|--------|-------------|
 | **AIG_Provider** | 0.1.0 | ✅ Done | AI provider configuration |
 | **AIG_QueryAudit** | 0.3.0 | ✅ Done | Query audit trail |
-| **AIG_Chat** | 0.10.0 | ✅ Done | Chat session metadata |
-| **AIG_ChatEntry** | 0.10.0 | ✅ Done | Chat message history |
+| **CM_Chat** | 0.10.0 | ✅ Done | Chat session metadata (iDempiere core table, wrapped by `MAIChat`) |
+| **CM_ChatEntry** | 0.10.0 | ✅ Done | Chat message history (iDempiere core table, wrapped by `MAIChatEntry`) |
 | **AIG_UsageMetrics** | 0.12.0 | ✅ Done | Token usage, cost, latency tracking |
 | **AIG_Budget** | 0.12.0 | ✅ Done | Budget limits (daily, monthly, per-agent) |
 | **AIG_Agent** | - | 🔜 v0.13.0 | Agent configuration |
@@ -386,11 +386,11 @@ Based on validation reports:
 
 | Dependency | Version | Purpose | Size |
 |------------|---------|---------|------|
-| **LangChain4j Core** | 1.0.0-beta3 | Agent framework, @Tool annotations | ~1.5 MB |
-| **LangChain4j Anthropic** | 1.0.0-beta3 | Claude provider integration | ~0.5 MB |
-| **LangChain4j Bedrock** | 1.0.0-beta3 | AWS Bedrock provider | ~0.3 MB |
-| **LangChain4j Ollama** | 1.0.0-beta3 | Local LLM support | ~0.2 MB |
-| **LangChain4j OpenAI** | 1.0.0-beta3 | OpenAI/Azure integration | ~0.3 MB |
+| **LangChain4j Core** | 0.35.0 | Agent framework, @Tool annotations | ~1.5 MB |
+| **LangChain4j Anthropic** | 0.35.0 | Claude provider integration | ~0.5 MB |
+| **LangChain4j Bedrock** | 0.35.0 | AWS Bedrock provider | ~0.3 MB |
+| **LangChain4j Ollama** | 0.35.0 | Local LLM support | ~0.2 MB |
+| **LangChain4j OpenAI** | 0.35.0 | OpenAI/Azure integration | ~0.3 MB |
 | Anthropic Java SDK | 2.10.0 | Direct Claude API (fallback) | ~0.8 MB |
 | AWS SDK | 2.29.0 | Bedrock runtime | ~5.0 MB |
 | Jackson | 2.17.0 | JSON processing | ~1.5 MB |
@@ -402,9 +402,9 @@ Based on validation reports:
 
 | Dependency | Version | Purpose | Target Version |
 |------------|---------|---------|----------------|
-| **langchain4j-embeddings** | 1.0.0-beta3 | RAG support | v0.10.0 |
-| **langchain4j-agentic** | 1.0.0-beta3 | Orchestration patterns | v0.11.0 |
-| **langchain4j-mcp** | 1.0.0-beta3 | MCP server support | v0.10.0 |
+| **langchain4j-embeddings** | 0.35.0 | RAG support | v0.10.0 |
+| **langchain4j-agentic** | 0.35.0 | Orchestration patterns | v0.11.0 |
+| **langchain4j-mcp** | 1.x (Java 17+) | MCP server support | Blocked — Java 17 required (ADR-035) |
 
 ---
 

@@ -94,6 +94,17 @@ public interface I_AIG_Provider_Access
 
 	public org.compiere.model.I_AD_User getAD_User() throws RuntimeException;
 
+    /** Column name AIG_Prompt_Config_ID */
+    public static final String COLUMNNAME_AIG_Prompt_Config_ID = "AIG_Prompt_Config_ID";
+
+	/** Set Prompt Configuration	  */
+	public void setAIG_Prompt_Config_ID (int AIG_Prompt_Config_ID);
+
+	/** Get Prompt Configuration	  */
+	public int getAIG_Prompt_Config_ID();
+
+	public I_AIG_Prompt_Config getAIG_Prompt_Config() throws RuntimeException;
+
     /** Column name AIG_Provider_Access_ID */
     public static final String COLUMNNAME_AIG_Provider_Access_ID = "AIG_Provider_Access_ID";
 

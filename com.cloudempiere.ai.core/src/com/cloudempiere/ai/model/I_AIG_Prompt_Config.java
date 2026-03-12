@@ -100,6 +100,19 @@ public interface I_AIG_Prompt_Config
 	/** Get Prompt Text	  */
 	public String getAIGPromptText();
 
+    /** Column name AIGStatus */
+    public static final String COLUMNNAME_AIGStatus = "AIGStatus";
+
+	/** Set Status.
+	  * Lifecycle status of the record.
+	  */
+	public void setAIGStatus (String AIGStatus);
+
+	/** Get Status.
+	  * Lifecycle status of the record.
+	  */
+	public String getAIGStatus();
+
     /** Column name Created */
     public static final String COLUMNNAME_Created = "Created";
 
@@ -141,6 +154,19 @@ public interface I_AIG_Prompt_Config
 	  * The record is active in the system
 	  */
 	public boolean isActive();
+
+    /** Column name IsDefault */
+    public static final String COLUMNNAME_IsDefault = "IsDefault";
+
+	/** Set Default.
+	  * Default value
+	  */
+	public void setIsDefault (boolean IsDefault);
+
+	/** Get Default.
+	  * Default value
+	  */
+	public boolean isDefault();
 
     /** Column name Name */
     public static final String COLUMNNAME_Name = "Name";

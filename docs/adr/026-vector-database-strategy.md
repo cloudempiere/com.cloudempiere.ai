@@ -1,31 +1,33 @@
 # ADR-026: Vector Database Strategy for AI Infrastructure
 
-**Status:** Proposed (Blocked by ADR-012 Integration)
+**Status:** Partially Implemented — Schema exists, pgvector persistence pending
 **Date:** 2025-12-03
-**Updated:** 2025-12-09
+**Updated:** 2026-03-11
 **Deciders:** Cloudempiere AI Team
 **Relates to:** ADR-012 (RAG-Based Context Retrieval), ADR-006 (Data Model Architecture)
 
 ---
 
-## Implementation Status (as of 2025-12-09)
+## Implementation Status (as of 2026-03-11)
 
-### Current State: NOT STARTED - Blocked
+### Current State: Schema Created — pgvector Persistence Not Yet Active
 
-This ADR is **blocked** because the prerequisite ADR-012 (RAG-Based Context Retrieval) is not yet active.
+The `AIG_Embedding` and `AIG_IngestionMetadata` tables now exist with model classes. `InMemoryEmbeddingStore` is used at runtime (data not persisted across restarts).
 
 | Component | Status | Notes |
 |-----------|--------|-------|
-| **pgvector Extension** | ❌ Not Enabled | Waiting for RAG integration |
-| **AIG_Embedding Table** | ❌ Not Created | Waiting for RAG integration |
-| **PgVectorEmbeddingStore** | ❌ Not Implemented | Using InMemoryEmbeddingStore in RAGContextManager |
-| **LangChain4j pgvector Dependency** | ❌ Not Added | Requires Java 17 (langchain4j-pgvector 1.0.0+) |
+| **AIG_Embedding Table** | ✅ Created | Model: `X_AIG_Embedding`, `MAIEmbedding`; migration script applied |
+| **AIG_IngestionMetadata Table** | ✅ Created | Model: `X_AIG_IngestionMetadata`, `MAIIngestionMetadata` |
+| **EmbeddingStoreProvider** | ✅ Implemented (abstract) | `rag/EmbeddingStoreProvider.java` — pgvector impl pending |
+| **pgvector Extension** | ❌ Not Enabled | Requires PostgreSQL pgvector extension + Java 17 |
+| **PgVectorEmbeddingStore** | ❌ Not Implemented | Using `InMemoryEmbeddingStore` (no persistence) |
+| **LangChain4j pgvector Dependency** | ❌ Not Added | `langchain4j-pgvector` 1.0.0+ requires Java 17 |
 
-### Blocking Issues
+### Remaining Blockers
 
-1. **ADR-012 not active**: RAG module exists but is not integrated into conversation flow
-2. **Java 11 constraint**: LangChain4j pgvector module (1.0.0+) requires Java 17
-3. **No production usage**: Until RAG is active, vector storage is unnecessary
+1. **Java 11 constraint**: LangChain4j pgvector module requires Java 17 (see ADR-035)
+2. **pgvector not installed**: PostgreSQL extension needs enabling in target DB
+3. **No persistence**: Embeddings are lost on server restart until pgvector is wired
 
 ### Current Workaround
 
