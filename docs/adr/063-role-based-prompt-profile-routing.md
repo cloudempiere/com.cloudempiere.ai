@@ -150,8 +150,9 @@ User opens AI chat panel
 │ PromptProfileResolver.resolve()              │
 │                                              │
 │ Step 1: AIG_Provider_Access.AIG_Prompt_      │
-│         Config_ID for this (provider,role)?  │
-│         → found? return that profile         │
+│         Config_ID for (provider,role,user)?  │
+│         → found + AIGStatus='A'? use it      │
+│         → Draft/Inactive? fall through       │
 │                                              │
 │ Step 2: AIG_Prompt_Config where IsDefault='Y'│
 │         AND AIGStatus='A' for this client?   │
@@ -235,87 +236,65 @@ UPDATE AIG_Prompt_Config
 
 #### PromptProfileResolver Class Design
 
+`com.cloudempiere.ai.provider.langchain4j.PromptProfileResolver` — stateless utility, no OSGi registration needed.
+
 ```java
-package com.cloudempiere.ai.provider.langchain4j;
-
-/**
- * Resolves the active AIG_Prompt_Config profile for a given provider+role+user
- * combination. Implements the 3-step resolution chain (ADR-063 QuickWin).
- */
-public class PromptProfileResolver {
-
-    /**
-     * Resolve the prompt profile for the current session.
-     *
-     * @param ctx        iDempiere context (AD_Client_ID, AD_Org_ID)
-     * @param providerID AIG_Provider_ID of the active provider
-     * @param roleID     AD_Role_ID of the current user's role
-     * @param userID     AD_User_ID of the current user
-     * @return resolved AIG_Prompt_Config_ID, or 0 if no profile found
-     */
-    public static int resolve(Properties ctx, int providerID,
-                              int roleID, int userID) {
-        // Step 1: Explicit FK on AIG_Provider_Access for this role+provider
-        //   SELECT AIG_Prompt_Config_ID
-        //   FROM AIG_Provider_Access
-        //   WHERE AIG_Provider_ID = ? AND AD_Role_ID = ?
-        //     AND IsActive = 'Y' AND AIG_Prompt_Config_ID IS NOT NULL
-        //   ORDER BY AD_User_ID DESC  -- user-level takes precedence
-        //   LIMIT 1
-        int configID = lookupFromProviderAccess(ctx, providerID, roleID, userID);
-        if (configID > 0) return configID;
-
-        // Step 2: Client default (IsDefault='Y', AIGStatus='A')
-        //   SELECT AIG_Prompt_Config_ID
-        //   FROM AIG_Prompt_Config
-        //   WHERE AD_Client_ID = ? AND IsDefault = 'Y'
-        //     AND AIGStatus = 'A' AND IsActive = 'Y'
-        configID = lookupClientDefault(ctx);
-        if (configID > 0) return configID;
-
-        // Step 3: No profile — no addendum
-        return 0;
-    }
-}
+public static int resolve(Properties ctx, int providerID, int roleID, int userID)
 ```
 
-#### AIService Integration Point
+**Step 1 query** (`lookupFromProviderAccess`):
+- Table: `AIG_Provider_Access`
+- Filter: `IsActive='Y'`, `AD_Client_ID IN (0,?)`, `AIG_Prompt_Config_ID IS NOT NULL`
+- Role/user: `AD_User_ID=? OR AD_Role_ID=?` (whichever are > 0)
+- Provider: `AIG_Provider_ID=? OR AIG_Provider_ID IS NULL` (provider-specific preferred, agnostic also accepted)
+- Order: user-level first (`AD_User_ID IS NOT NULL`), then provider-specific (`AIG_Provider_ID IS NOT NULL`)
+- Returns the `AIG_Prompt_Config_ID` of the first matching row
 
-The change is localized to `AIService.appendOperatorAddendum()` (line 1580):
+**Step 2 query** (`lookupClientDefault`):
+- Table: `AIG_Prompt_Config`
+- Filter: `IsDefault='Y'`, `AIGStatus='A'`, `IsActive='Y'`, `AD_Client_ID IN (0,?)`
+- Order: tenant-specific before system (`AD_Client_ID DESC`)
+
+**Step 3**: returns 0 — no addendum appended.
+
+#### Draft/Inactive Config Validation
+
+`MAIPromptConfig.getPromptText(ctx, configID, trxName)` validates the loaded record before returning text:
+- `AIGStatus` must equal `'A'` (Active) — Draft (`'D'`) and Archived (`'X'`) return null
+- `IsActive` must be `'Y'`
+
+This means a Draft config assigned via `AIG_Provider_Access.AIG_Prompt_Config_ID` is silently skipped: Step 1 returns the config ID, but `getPromptText` returns null, so the resolver falls through to Step 2 (client default) or Step 3 (no addendum). No error is thrown — this is intentional, allowing drafts to be prepared and previewed without affecting live users.
+
+#### AIService Integration
+
+Two methods updated in `AIService`:
 
 ```java
-// BEFORE (ADR-059):
-public static String appendOperatorAddendum(Properties ctx, String basePrompt) {
-    String addendum = MAIPromptConfig.getPromptText(ctx, "SYSTEM_ADDENDUM", null);
-    ...
-}
+// buildSystemPromptWithLanguage — providerID added as 4th param
+private String buildSystemPromptWithLanguage(Properties ctx, int chatId,
+                                              boolean withTools, int providerID)
 
-// AFTER (ADR-063):
-public static String appendOperatorAddendum(Properties ctx, String basePrompt,
-                                            int providerID, int roleID, int userID) {
+// appendOperatorAddendum — providerID replaces hardcoded key lookup
+public static String appendOperatorAddendum(Properties ctx, String basePrompt, int providerID) {
+    int roleID = ctx != null ? Env.getAD_Role_ID(ctx) : 0;
+    int userID = ctx != null ? Env.getAD_User_ID(ctx) : 0;
     int configID = PromptProfileResolver.resolve(ctx, providerID, roleID, userID);
-    String addendum;
-    if (configID > 0) {
-        addendum = MAIPromptConfig.getPromptText(ctx, configID);
-    } else {
-        addendum = null; // no profile → no addendum
-    }
-    if (addendum == null || addendum.trim().isEmpty()) {
+    String addendum = MAIPromptConfig.getPromptText(ctx, configID, null);
+    if (addendum == null || addendum.trim().isEmpty())
         return basePrompt;
-    }
     return basePrompt + OPERATOR_SECTION_OPEN + addendum.trim() + OPERATOR_SECTION_CLOSE;
 }
 ```
 
-The caller `buildSystemPromptWithLanguage()` already has access to `ctx` (which contains `AD_Role_ID` via `Env.getAD_Role_ID(ctx)`) and `providerID`. The method signature change is backward-compatible via overload.
+`roleID` and `userID` are extracted from `ctx` inside `appendOperatorAddendum` — callers only pass `providerID`. Both call sites pass `provider.getAIG_Provider_ID()`.
 
 #### Resolution Chain (3 steps, no SeqNo)
 
-| Step | Source | Lookup | Precedence |
-|------|--------|--------|------------|
-| 1 | `AIG_Provider_Access` | FK `AIG_Prompt_Config_ID` for matching `(providerID, roleID)` | Highest — explicit role→profile binding |
-| 2 | `AIG_Prompt_Config` | `IsDefault = 'Y'` AND `AIGStatus = 'A'` for client | Fallback — current behavior preserved |
-| 3 | *(none)* | No profile found | Lowest — base prompt only, no addendum |
+| Step | Source | Lookup | Active check | Precedence |
+|------|--------|--------|--------------|------------|
+| 1 | `AIG_Provider_Access` | FK `AIG_Prompt_Config_ID` for matching `(providerID, roleID, userID)` | `getPromptText` validates `AIGStatus='A'` + `IsActive='Y'`; Draft falls through | Highest — explicit binding |
+| 2 | `AIG_Prompt_Config` | `IsDefault='Y'` AND `AIGStatus='A'` for client | Filtered in query | Fallback — current behavior preserved |
+| 3 | *(none)* | No profile found | — | Lowest — base prompt only, no addendum |
 
 ### Example Configurations
 
@@ -415,6 +394,50 @@ RESPONSE STYLE:
 - Include trend indicators (up/down/stable) with percentages
 - When data is incomplete, clearly state what is missing
 ```
+
+### Prerequisites and Behavioral Clarifications
+
+#### AIG_Provider_Access Column Changes
+
+Before Phase 1 can be implemented, `AIG_Provider_Access` requires two prerequisite changes:
+
+1. **`AIG_Provider_ID` must become non-mandatory** — A record may now carry only a prompt profile override with no provider override (or vice versa). The AD column mandatory flag must be removed.
+
+2. **`beforeSave` validation** — To prevent empty records, `MAIProviderAccess.beforeSave()` enforces that at least one of `AIG_Provider_ID` or `AIG_Prompt_Config_ID` is set. Both being null is rejected with a save error.
+
+#### Static Configuration Model
+
+Prompt profile routing follows the same static-configuration model as AI provider selection:
+
+| Concept | AI Provider | Prompt Profile |
+|---|---|---|
+| Config record | `AIG_Provider_Access.AIG_Provider_ID` | `AIG_Provider_Access.AIG_Prompt_Config_ID` |
+| Scope | role+provider pair | role+provider pair |
+| Runtime behavior | one provider, no switching | one profile, no switching |
+| Changes when | admin updates `AIG_Provider_Access` | admin updates `AIG_Provider_Access` |
+| Fallback | — | `IsDefault='Y'` profile |
+
+`PromptProfileResolver` is a deterministic lookup at prompt-assembly time — no session state, no dynamic switching, no LLM involvement in the decision.
+
+#### AIAccessLevel='All' with No AIG_Provider_Access Records
+
+When `AD_Role.AIAccessLevel = 'A'` (All) and there are no `AIG_Provider_Access` records for the role:
+
+- **Step 1 always misses** — no access records carry the `AIG_Prompt_Config_ID` FK
+- **Step 2 applies** — everyone gets the `IsDefault='Y'` client default profile
+- **Consequence**: Role-specific prompt profiles require explicit `AIG_Provider_Access` rows even when access control is handled by `AIAccessLevel='A'`. A minimal row (no `AIG_Provider_ID`, just `AIG_Prompt_Config_ID`) is sufficient.
+
+#### User-Level Override Under AIAccessLevel='All'
+
+When `AIAccessLevel='A'` but a user has an explicit `AIG_Provider_Access` record pointing to a different provider, that record **acts as an override** for that user:
+
+```
+AIAccessLevel='All' resolution order:
+  1. Explicit AIG_Provider_Access for this AD_User_ID → use it (override)
+  2. No user-level record → use global default (getDefault)
+```
+
+This is implemented in `MAIProvider.getForUser()`: before calling `getDefault()`, it checks for a user-level access record via `getAccessibleProvider(ctx, 0, userId, trxName)`. The override takes effect immediately upon creating the access record — no need to change `AIAccessLevel` from All to UserRoleAccess.
 
 ### Related ADRs
 

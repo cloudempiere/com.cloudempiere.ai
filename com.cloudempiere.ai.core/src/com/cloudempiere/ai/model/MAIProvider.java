@@ -120,7 +120,13 @@ public class MAIProvider extends X_AIG_Provider implements IAIProviderConfig {
 			return getAccessibleProvider(ctx, role.getAD_Role_ID(), userId, trxName);
 		}
 
-		// All — IsDefault=Y sorted first
+		// All — check for explicit user-level override first, then fall back to default
+		int userId = Env.getAD_User_ID(ctx);
+		if (userId > 0) {
+			MAIProvider userOverride = getAccessibleProvider(ctx, 0, userId, trxName);
+			if (userOverride != null)
+				return userOverride;
+		}
 		return getDefault(ctx, trxName);
 	}
 

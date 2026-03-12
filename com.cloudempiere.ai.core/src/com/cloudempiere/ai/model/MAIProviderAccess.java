@@ -45,6 +45,15 @@ public class MAIProviderAccess extends X_AIG_Provider_Access implements Immutabl
 	}
 
 	@Override
+	protected boolean beforeSave(boolean newRecord) {
+		if (getAIG_Provider_ID() <= 0 && getAIG_Prompt_Config_ID() <= 0) {
+			log.saveError("Error", "At least one of AI Provider or AI Prompt Config must be set");
+			return false;
+		}
+		return true;
+	}
+
+	@Override
 	public PO markImmutable() {
 		if (is_Immutable())
 			return this;
