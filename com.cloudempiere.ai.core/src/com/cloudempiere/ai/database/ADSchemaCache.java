@@ -80,6 +80,16 @@ public class ADSchemaCache {
         return INSTANCE;
     }
 
+    /** Number of tables currently in cache (0 if not yet loaded). */
+    public int getCacheSize() {
+        return cache.size();
+    }
+
+    /** Epoch millis when cache was last loaded (0 if never). */
+    public long getLastLoadedTime() {
+        return lastLoadedTime;
+    }
+
     // ========================================================================
     // Lookup methods (O(1))
     // ========================================================================
@@ -135,10 +145,12 @@ public class ADSchemaCache {
         ensureLoaded();
         String searchUpper = tableName.toUpperCase();
 
+        // Proportional threshold: at most 2 edits for short names, 4 for longer ones
+        int threshold = Math.max(2, Math.min(4, searchUpper.length() / 3));
         List<NameDistance> candidates = new ArrayList<>();
         for (ADTableMeta meta : cache.values()) {
             int dist = levenshteinDistance(searchUpper, meta.getTableName().toUpperCase());
-            if (dist <= 4) {
+            if (dist <= threshold) {
                 candidates.add(new NameDistance(meta.getTableName(), dist));
             }
         }
@@ -185,7 +197,7 @@ public class ADSchemaCache {
         cache.clear();
         lastLoadedTime = 0;
         loadSchema();
-        log.info("ADSchemaCache refreshed: " + cache.size() + " tables");
+        log.warning("ADSchemaCache refreshed: " + cache.size() + " tables");
     }
 
     /**
@@ -227,7 +239,7 @@ public class ADSchemaCache {
             totalColumns += m.getColumns().size();
         }
 
-        log.info("ADSchemaCache loaded: " + cache.size() + " tables, "
+        log.warning("ADSchemaCache loaded: " + cache.size() + " tables, "
                 + totalColumns + " columns in " + elapsed + "ms");
     }
 
@@ -305,7 +317,7 @@ public class ADSchemaCache {
         }
 
         if (log.isLoggable(Level.FINE)) {
-            log.fine("Loaded " + count + " columns for " + builders.size() + " tables");
+            log.warning("Loaded " + count + " columns for " + builders.size() + " tables");
         }
     }
 

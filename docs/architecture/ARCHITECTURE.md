@@ -1,7 +1,7 @@
 # Architecture Overview
 
-> **Last Updated:** 2025-12-22
-> **Version:** v0.31.1
+> **Last Updated:** 2026-03-11
+> **Version:** v0.32.0
 
 This document provides a visual and comprehensive overview of the com.cloudempiere.ai plugin architecture.
 

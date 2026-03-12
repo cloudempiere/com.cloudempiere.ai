@@ -1,9 +1,28 @@
 # ADR-011: Specialized Agent Scopes by Business Domain
 
-**Status**: Accepted
+**Status**: Partially Implemented — 5 domain agent classes exist and are registered as OSGi services; **not reachable via the current chat path** (OrchestratorAgent is not wired into AIService)
 **Date**: 2025-12-01
+**Updated**: 2026-03-11
 **Deciders**: Architecture Team, Business Stakeholders
 **Related**: [ADR-009](009-domain-boundaries-agent-scope.md), [ADR-010](010-agent-orchestration-architecture.md)
+
+## Implementation Status
+
+### Tier 1 Agents — Implemented as OSGi services; not yet active in chat flow
+
+| Agent | Bundle | Status |
+|-------|--------|--------|
+| `InventoryAgent` | `com.cloudempiere.ai.inventory` | ✅ Class implemented, registered as `IDomainAgent` OSGi service |
+| `SalesAgent` | `com.cloudempiere.ai.sales` | ✅ Class implemented, registered as `IDomainAgent` OSGi service |
+| `PurchasingAgent` | `com.cloudempiere.ai.purchasing` | ✅ Class implemented, registered as `IDomainAgent` OSGi service |
+| `SupportAgent` | `com.cloudempiere.ai.support` | ✅ Class implemented, registered as `IDomainAgent` OSGi service |
+| `KbAgent` | `com.cloudempiere.ai.kb` | ✅ Class implemented, registered as `IDomainAgent` OSGi service |
+
+Each agent has a corresponding `*DomainBoundary` class and `*Tools` class with `@Tool`-annotated methods. The boundary validation is called inside the tools. However, all user queries currently reach `ERPAgent` (with `ERPTools`) directly — the domain agents are not invoked. To activate them, `AIService` must be updated to inject `OrchestratorAgent` and call `processQuery()` instead of building a standalone `ERPAgent`.
+
+### Tier 2 & 3 Agents — 📋 Planned
+
+`AccountingAnalysisAgent`, `FinancialReportingAgent`, `ExecutiveDashboardAgent` are not yet implemented.
 
 ## Context
 
@@ -540,18 +559,19 @@ For each new agent:
 
 ## Rollout Plan
 
-### Phase 1: Core Agents (Weeks 1-2)
-- Week 1: InventoryAgent implementation
-- Week 2: SalesAgent implementation
+### Phase 1: Core Agents ✅ Complete
+- [x] InventoryAgent (`com.cloudempiere.ai.inventory`)
+- [x] SalesAgent (`com.cloudempiere.ai.sales`)
+- [x] PurchasingAgent (`com.cloudempiere.ai.purchasing`)
+- [x] SupportAgent (`com.cloudempiere.ai.support`)
+- [x] KbAgent (`com.cloudempiere.ai.kb`)
 
-### Phase 2: Procurement (Week 3)
-- Week 3: PurchasingAgent implementation
+### Phase 2: Financial Agents 📋 Planned
+- [ ] AccountingAnalysisAgent
+- [ ] FinancialReportingAgent
 
-### Phase 3: Financial (Week 4)
-- Week 4: AccountingAnalysisAgent + FinancialReportingAgent
-
-### Phase 4: Executive (Week 5+)
-- Week 5+: ExecutiveDashboardAgent (after core agents proven)
+### Phase 3: Executive 📋 Planned
+- [ ] ExecutiveDashboardAgent (cross-domain, aggregated view)
 
 ---
 

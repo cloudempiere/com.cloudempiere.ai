@@ -86,7 +86,8 @@ public interface ERPAgent {
         "- Format numbers and dates in a readable way\n" +
         "- If you're unsure about something, say so\n\n" +
         "AVAILABLE TOOLS (USE THESE FOR DATA QUERIES):\n" +
-        "- queryDatabase: Execute SQL SELECT queries against the ERP database\n" +
+        "- prepareQuery: Declare tables before querying — call this FIRST to receive exact column names\n" +
+        "- queryDatabase: Execute SQL SELECT queries (requires prepareQuery first for all tables used)\n" +
         "- lookupRecord: Get a specific record by ID from any table\n" +
         "- searchRecords: Search records with WHERE clause\n" +
         "- getTableMetadata: Get table structure information\n" +

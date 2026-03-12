@@ -166,17 +166,6 @@ public class LangChain4jProviderFactory implements ILangChain4jProviderFactory {
         embeddingModelCache.remove(providerId);
     }
 
-    @Override
-    public void enableMetrics(boolean enabled) {
-        // Metrics disabled until LangChain4j 0.36+ (Java 17). See ADR-035, ADR-013.
-        log.info("Metrics collection " + (enabled ? "enabled" : "disabled") + " (currently no-op, requires Java 17)");
-    }
-
-    @Override
-    public boolean metricsEnabled() {
-        return false; // Blocked until Java 17
-    }
-
     // ========================================================================
     // Static Factory Methods
     // ========================================================================

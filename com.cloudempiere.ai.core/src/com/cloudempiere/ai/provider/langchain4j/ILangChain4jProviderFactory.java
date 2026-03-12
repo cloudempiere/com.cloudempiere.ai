@@ -134,17 +134,4 @@ public interface ILangChain4jProviderFactory {
      */
     void evict(int providerId);
 
-    /**
-     * Enable or disable metrics collection.
-     *
-     * @param enabled true to enable metrics, false to disable
-     */
-    void enableMetrics(boolean enabled);
-
-    /**
-     * Check if metrics collection is enabled.
-     *
-     * @return true if metrics are enabled
-     */
-    boolean metricsEnabled();
 }

@@ -1,51 +1,51 @@
 # ADR-012: RAG-Based Context Retrieval
 
-**Status:** Accepted (Partial Implementation)
+**Status:** Accepted — Plumbing Wired; **Inactive Until pgvector Is Installed** (single blocker: ADR-026)
 **Date:** 2025-12-01
-**Updated:** 2025-12-09
+**Updated:** 2026-03-11
 **Deciders:** Cloudempiere AI Team
 **Supersedes:** ADR-005 (Intelligent Data Source Routing)
 **Planned Implementation:** v0.10.0
 
 ---
 
-## Implementation Status (as of 2025-12-09)
+## Implementation Status (as of 2026-03-11)
 
-### Current State: Partial Implementation - NOT ACTIVE
+### Current State: Plumbing Wired — Gated Behind pgvector
 
-The RAG module foundation exists but is **not yet integrated** into the main conversation flow.
+All RAG classes exist and `AIService` has the conditional wiring: it adds `RagTools` to the agent tool set when `rag != null && rag.isAvailable()`. However, `EmbeddingStoreProvider.isAvailable()` returns `pgVectorAvailable && pgVectorStore != null` — it returns `false` whenever pgvector is not installed, even though a fallback `InMemoryEmbeddingStore` exists internally. Since pgvector is not yet set up, **`RagTools` is never added to agents at runtime** and the agent always runs with `ERPTools` only.
 
-| Component | Status | Location | Notes |
-|-----------|--------|----------|-------|
-| **RAGContextManager** | ✅ 90% Complete | `src/com/cloudempiere/ai/rag/RAGContextManager.java` | 472 lines, provider-agnostic embeddings, session isolation, TTL management |
-| **RAGConversationService** | ✅ 80% Complete | `src/com/cloudempiere/ai/rag/RAGConversationService.java` | 587 lines, lazy init, window context storage |
-| **Integration into AIConversationService** | ❌ Not Started | - | Still uses legacy ADR-005 routing |
-| **ContentRetriever wiring** | ❌ Not Started | `LangChain4jAgent.java` | Missing `.contentRetriever(retriever)` call |
-| **Vector Database (pgvector)** | ❌ Deferred | See ADR-026 | Using InMemoryEmbeddingStore only |
-| **Test Coverage** | ❌ None | - | No RAG-specific tests |
-| **Legacy Code Removal** | ❌ Not Started | `src/com/cloudempiere/ai/routing/` | 1884 lines still active (10 files) |
+| Component | Status | Notes |
+|-----------|--------|-------|
+| **RagService** | ✅ Implemented (@Component) | `isAvailable()` currently returns false (pgvector not installed) |
+| **IRagService** | ✅ Implemented | Service interface |
+| **RAGContextManager** | ✅ Implemented | Provider-agnostic embeddings, TTL management |
+| **RAGConversationService** | ✅ Implemented | `.contentRetriever()` path — **not called by AIService** (noted in code comments as "not yet wired") |
+| **EmbeddingStoreProvider** | ✅ Implemented (@Component) | Tries pgvector; falls back to `InMemoryEmbeddingStore` but `isAvailable()` stays false |
+| **EmbeddingTriggerService** | ✅ Implemented (@Component) | Watches KB updates, triggers re-embedding |
+| **KnowledgeEntryIngestor** | ✅ Implemented | Ingests KB articles into store |
+| **ADMetadataIngestor** | ✅ Implemented | Ingests AD_Table/AD_Column metadata |
+| **RagTools (@Tool)** | ✅ Implemented | `searchKnowledge()`, `findADEntity()`, `lookupGlossaryTerm()`, `getKbStats()` |
+| **RagTools wired in AIService** | ✅ Conditionally wired | Added when `rag != null && rag.isAvailable()` — all 4 agent build paths |
+| **RagTools active at runtime** | ❌ Inactive | `isAvailable()=false` → agent always uses ERPTools only |
+| **RAGConversationService wired** | ❌ Not wired | No callers; AIService builds ERPAgent directly |
+| **Vector Database (pgvector)** | ❌ Deferred | ADR-026 — this is the single blocker |
+| **Legacy Code Removal** | ❌ Not Done | `routing/` package (ADR-005, ~1884 lines) still present |
+| **Test Coverage** | ⚠️ Partial | `RagToolsTest`, `SearchResultTest`, `RagServiceMock` exist |
 
-### What's Working
+### What Activates Immediately Once pgvector Is Installed
 
-- ✅ RAGContextManager supports multiple embedding providers (Anthropic→Titan, Bedrock→Titan, Ollama→nomic-embed)
-- ✅ Session-based embedding store isolation
-- ✅ TTL-based cleanup (30 min default)
-- ✅ Fallback mode when embedding service unavailable
-- ✅ RAGConversationService has lazy initialization pattern
+- `EmbeddingStoreProvider.isAvailable()` → `true`
+- `RagService.isAvailable()` → `true`
+- All 4 agent build paths in `AIService` add `RagTools` alongside `ERPTools`
+- `searchKnowledge()`, `findADEntity()`, `lookupGlossaryTerm()` become live LLM tools
+- `EmbeddingTriggerService` re-ingestion pipeline becomes fully functional
 
-### What's Blocking Activation
+### What Remains Pending Even After pgvector
 
-1. **Legacy routing still active**: `AIConversationService` uses `ConversationContextManager` and `PromptAnalyzer` (ADR-005)
-2. **Agent not using RAG**: `LangChain4jAgent.java` builds AiServices without `.contentRetriever()`
-3. **No integration point**: RAGConversationService exists but is never instantiated
-
-### Next Steps to Activate RAG
-
-1. Wire `RAGConversationService.sendMessageWithContext()` into `AIConversationService`
-2. Add `.contentRetriever(retriever)` to AiServices builder in `LangChain4jAgent`
-3. Delete legacy routing code (~630 lines in `routing/` package)
-4. Add integration tests
-5. Enable pgvector for production (ADR-026)
+1. **Legacy routing removal**: `routing/` package (ADR-005, ~1884 lines) still active
+2. **RAGConversationService wiring**: `.contentRetriever()` path not called by `AIService`
+3. **Integration tests**: RAG-specific end-to-end coverage limited
 
 ---
 
