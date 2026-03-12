@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed
+Implemented (v0.20.0+)
 
 ## Date
 

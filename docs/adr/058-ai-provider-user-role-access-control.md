@@ -78,13 +78,14 @@ CHAR(1), NOT NULL, default `'A'`. Added to `AD_Role` via migration and registere
 |---|---|---|
 | `AIG_Provider_Access_ID` | numeric PK | |
 | `AIG_Provider_Access_UU` | varchar 36 | |
-| `AIG_Provider_ID` | numeric FK, mandatory | which provider |
+| `AIG_Provider_ID` | numeric FK, **nullable** | which provider (non-mandatory since ADR-063) |
 | `AD_Role_ID` | numeric FK, nullable | role-level grant |
 | `AD_User_ID` | numeric FK, nullable | user-level grant (takes precedence over role) |
+| `AIG_Prompt_Config_ID` | numeric FK, nullable | prompt profile override — see ADR-063 |
 | `IsActive` | CHAR 1 | standard flag |
 | + standard audit columns | | |
 
-One row = "this role/user may use this provider". Absence of a row under mode `'R'` = no access.
+One row = "this role/user may use this provider and/or prompt profile". At least one of `AIG_Provider_ID` or `AIG_Prompt_Config_ID` must be set (`beforeSave` validation). Absence of a row under mode `'R'` = no access.
 
 ### MAIProviderAccess Model
 
