@@ -231,25 +231,22 @@ public class AIService implements IAIService {
 
     /** Provider types that support tool/function calling (non-streaming) in LangChain4j 0.35.0 */
     private static final Set<String> TOOL_SUPPORTED_PROVIDERS = Set.of(
+        LangChain4jProviderFactory.PROVIDER_AI_HUB,       // OpenAI-compatible, supports tools
         LangChain4jProviderFactory.PROVIDER_ANTHROPIC,
-        LangChain4jProviderFactory.PROVIDER_OPENAI,
-        LangChain4jProviderFactory.PROVIDER_BEDROCK,
-        LangChain4jProviderFactory.PROVIDER_AI_HUB  // OpenAI-compatible, supports tools
-        // NOTE: Ollama/Llama tools depend on model capability, not just provider type.
+        LangChain4jProviderFactory.PROVIDER_BEDROCK
+        // NOTE: Ollama tools depend on model capability, not just provider type.
         // Models like qwen2:0.5b don't support tools. Only certain models like
         // llama3.1, mistral, qwen2.5:7b support tool calling.
         // For simplicity, disable tools for all Ollama models in this version.
-        // LangChain4jProviderFactory.PROVIDER_OLLAMA,
-        // LangChain4jProviderFactory.PROVIDER_LLAMA
+        // LangChain4jProviderFactory.PROVIDER_OLLAMA
     );
 
     /** Provider types that support tool/function calling in STREAMING mode (LangChain4j 0.35.0) */
     private static final Set<String> STREAMING_TOOL_SUPPORTED_PROVIDERS = Set.of(
+        LangChain4jProviderFactory.PROVIDER_AI_HUB,       // OpenAI-compatible, supports streaming tools
         LangChain4jProviderFactory.PROVIDER_ANTHROPIC,
-        LangChain4jProviderFactory.PROVIDER_OPENAI,
-        LangChain4jProviderFactory.PROVIDER_BEDROCK,
-        LangChain4jProviderFactory.PROVIDER_AI_HUB  // OpenAI-compatible, supports streaming tools
-        // Ollama/Llama streaming tools NOT supported in 0.35.0
+        LangChain4jProviderFactory.PROVIDER_BEDROCK
+        // Ollama streaming tools NOT supported in 0.35.0
         // Throws: "Tools are currently not supported by this model"
         // Requires LangChain4j 0.37.0+ (Java 17)
     );
@@ -287,9 +284,8 @@ public class AIService implements IAIService {
             return false;
         }
         String providerType = provider.getAIGProviderType();
-        // Ollama/Llama streaming is broken in LangChain4j 0.35.0 - NPE in OllamaClient
-        if (LangChain4jProviderFactory.PROVIDER_OLLAMA.equals(providerType) ||
-            LangChain4jProviderFactory.PROVIDER_LLAMA.equals(providerType)) {
+        // Ollama streaming is broken in LangChain4j 0.35.0 - NPE in OllamaClient
+        if (LangChain4jProviderFactory.PROVIDER_OLLAMA.equals(providerType)) {
             return false;
         }
         return true;
