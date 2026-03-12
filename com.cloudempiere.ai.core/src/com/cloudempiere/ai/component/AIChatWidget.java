@@ -1171,18 +1171,24 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 		streamingInProgress = true;
 		showStopButton();
 
-		// Get MAIChat and provider
+		// Resolve provider before entering try — null means access is denied, not an error
+		final MAIProvider provider = MAIProvider.getForUser(sessionCtx, null);
+		if (provider == null) {
+			log.warning("AI Chat: no accessible provider for current role/user");
+			streamingInProgress = false;
+			showSendButton();
+			handleErrorResponse(desktop,
+				new Exception("No AI provider accessible. Please check your role's AI Access Level configuration."),
+				threadRootIdSnapshot, null, message);
+			return;
+		}
+
+		// Get MAIChat
 		final MAIChat aiChat;
-		final MAIProvider provider;
 		try {
 			aiChat = (chat instanceof MAIChat) ?
 				(MAIChat) chat :
 				new MAIChat(sessionCtx, chat.getCM_Chat_ID(), null);
-
-			provider = MAIProvider.getDefault(sessionCtx, null);
-			if (provider == null) {
-				throw new Exception("No AI provider configured. Please configure an AI provider in the system.");
-			}
 		} catch (Exception e) {
 			log.log(Level.SEVERE, "Failed to initialize streaming", e);
 			streamingInProgress = false;
@@ -1495,19 +1501,20 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 			int threadRootIdSnapshot, Desktop desktop) {
 
 		CompletableFuture.runAsync(() -> {
-			// Declare provider outside try block for access in catch block
-			MAIProvider provider = null;
+			// Resolve provider before entering try — null means access is denied, not an error
+			MAIProvider provider = MAIProvider.getForUser(sessionCtx, null);
+			if (provider == null) {
+				log.warning("AI Chat: no accessible provider for current role/user");
+				handleErrorResponse(desktop,
+					new Exception("No AI provider accessible. Please check your role's AI Access Level configuration."),
+					threadRootIdSnapshot, null, message);
+				return;
+			}
 			try {
 				// Get MAIChat instance
 				MAIChat aiChat = (chat instanceof MAIChat) ?
 					(MAIChat) chat :
 					new MAIChat(sessionCtx, chat.getCM_Chat_ID(), null);
-
-				// Get default provider
-				provider = MAIProvider.getDefault(sessionCtx, null);
-				if (provider == null) {
-					throw new Exception("No AI provider configured. Please configure an AI provider in the system.");
-				}
 
 				// Call LangChain4j service with context
 				// Session ID combines chat ID and thread for memory isolation
