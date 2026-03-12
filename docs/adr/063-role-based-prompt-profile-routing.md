@@ -2,7 +2,7 @@
 
 ## Status
 
-Implemented (v0.20.0+)
+Phase 1 — Implemented (v0.20.0+) | Phase 2 — Planned
 
 ## Date
 
@@ -20,9 +20,9 @@ Today all users share one global `SYSTEM_ADDENDUM` prompt configured in `AIG_Pro
 
 - **KISS**: Validate role→prompt routing with real users before investing in verticals, knowledge bases, and search sessions
 - **Zero new tables for Phase 1**: Reuse `AIG_Provider_Access` (ADR-058) and `AIG_Prompt_Config` (ADR-059) — both already exist and are deployed
-- **Deterministic routing**: The prompt profile must be resolved in Java at prompt-assembly time, not by the LLM (the LLM cannot choose its own system prompt)
 - **Backward compatibility**: Existing single-addendum installations must continue working unchanged
-- **Extensibility**: The design must accommodate future phases (verticals, window-context routing, knowledge bases) without breaking the QuickWin schema
+- **Semantic context understanding for Phase 2**: Static role-based routing cannot adapt within a session when a user crosses domains (CEO asking CRM, then sales, then inventory in one chat). The LLM is better positioned to select the right behavioral profile per message than keyword scanning or a preflight classifier
+- **Extensibility**: The design must accommodate future phases without breaking the Phase 1 schema
 
 ## Considered Options
 
@@ -82,89 +82,63 @@ Store a string key (e.g., `"WAREHOUSE_PROFILE"`) on `AIG_Provider_Access.AIGProm
 
 ## More Information
 
-### Three-Phase Roadmap
-
-The CE_LLM_Search ERD is implemented incrementally across three phases, with each phase building on the previous one. Tables are renamed from `CE_LLM_*` to `AIG_*` to stay within the AI plugin namespace.
+### Roadmap
 
 ```
-Phase 1: QuickWin (this ADR)              Phase 2: Mid                          Phase 3: Complete
-──────────────────────────                 ──────────────────                     ──────────────────────
-3 columns, 0 new tables                   +2 new tables                         +3 new tables, +1 junction
+Phase 1 (Implemented)                Phase 2 (Planned — primary)           Phase 3 (Deferred)
+─────────────────────                ───────────────────────────            ──────────────────
+Static role-based routing            LLM-driven per-message routing         Window/RAG context routing
+0 new tables                         0 new tables                           +2 new tables
 
-AIG_Provider_Access                        AIG_Vertical                          AIG_SearchConfig
-  + AIG_Prompt_Config_ID (FK)               ├ Value, Name, Description            ├ AIG_Provider_ID (FK)
-                                            └ IsActive                            ├ TopK, SimilarityThreshold
-AIG_Prompt_Config                                                                 ├ RetrievalStrategy
-  + IsDefault CHAR(1)                      AIG_Prompt_Context                     └ IsDefault
-  + AIGStatus CHAR(1)                       ├ AIG_Prompt_Config_ID (FK)
-                                            ├ AD_Window_ID (FK, nullable)       AIG_KnowledgeBase
-PromptProfileResolver (Java)                ├ AD_Table_ID (FK, nullable)          ├ AIG_Vertical_ID (FK)
-  └ 3-step resolution chain                 └ SeqNo                              ├ StorageType, ConnectionRef
-                                                                                  └ EmbeddingModel
-                                           PromptContextResolver (Java)
-                                            └ 6-step resolution chain           AIG_ContextProfile_KB (junction)
-                                              (extends QuickWin resolver)         ├ AIG_Prompt_Config_ID (FK)
-                                                                                  ├ AIG_KnowledgeBase_ID (FK)
-                                                                                  └ SeqNo, MetadataFilterJSON
-
-                                                                                 AIG_SearchSession (audit)
-                                                                                  ├ AD_User_ID, AIG_Prompt_Config_ID
-                                                                                  ├ RawQuery, RewrittenQuery
-                                                                                  └ ResultCount, AvgScore
+AIG_Provider_Access                  AIG_Provider_Access                    AIG_Prompt_Context
+  + AIG_Prompt_Config_ID (FK)          multiple rows per role/user            ├ AIG_Prompt_Config_ID (FK)
+  one profile per role                 each row = one available profile        ├ AD_Window_ID (FK, nullable)
+                                                                               └ AD_Table_ID (FK, nullable)
+AIG_Prompt_Config                    PromptConfigSchemaCache
+  + IsDefault CHAR(1)                  session-level cache of               AIG_KnowledgeBase
+  + AIGStatus CHAR(1)                  {id, name, description, key}           ├ StorageType, ConnectionRef
+                                       for this role/user                      └ EmbeddingModel
+PromptProfileResolver (Java)
+  └ 3-step resolution chain          selectPromptProfile tool (Java)        PromptContextResolver (Java)
+                                       LLM picks best profile                 └ window/table + RAG chain
+                                       per message from allowed list
 ```
 
-**Mapping from CE_LLM ERD to AIG phases:**
+### Runtime Flow — Phase 1 (Implemented)
 
-| CE_LLM ERD Table | AIG Name | Phase |
-|---|---|---|
-| CE_LLM_Provider | *(already exists as AIG_Provider)* | — |
-| CE_LLM_Vertical | AIG_Vertical | Mid |
-| CE_LLM_SearchConfig | AIG_SearchConfig | Complete |
-| CE_LLM_ContextProfile | *(absorbed into AIG_Prompt_Config + AIG_Provider_Access FK)* | QuickWin |
-| CE_LLM_KnowledgeBase | AIG_KnowledgeBase | Complete |
-| CE_LLM_ContextProfile_KB | AIG_ContextProfile_KB | Complete |
-| CE_LLM_SearchSession | AIG_SearchSession | Complete |
-
-### Runtime Flow Diagram
+One profile per role. Resolved once at prompt assembly, static for the session.
 
 ```
-User opens AI chat panel
+User message arrives
          │
          ▼
-┌─────────────────────┐
-│ AD_Role.AIAccessLevel│  ADR-058 gate
-│   A → allow all     │
-│   N → block         │
-│   R → check access  │
-└────────┬────────────┘
-         │ (allowed)
-         ▼
-┌─────────────────────┐
-│ AIG_Provider_Access  │  Which provider for this role/user?
-│ (providerID, roleID, │
-│  userID)             │
-└────────┬────────────┘
-         │
-         ▼
+┌──────────────────────┐
+│ AD_Role.AIAccessLevel │  ADR-058 gate
+│   A → allow all      │
+│   N → block          │
+│   R → check access   │
+└─────────┬────────────┘
+          │ (allowed)
+          ▼
 ┌─────────────────────────────────────────────┐
 │ PromptProfileResolver.resolve()              │
 │                                              │
-│ Step 1: AIG_Provider_Access.AIG_Prompt_      │
-│         Config_ID for (provider,role,user)?  │
-│         → found + AIGStatus='A'? use it      │
-│         → Draft/Inactive? fall through       │
+│ Step 1: AIG_Provider_Access                  │
+│         AIG_Prompt_Config_ID for             │
+│         (providerID, roleID, userID)         │
+│         found + AIGStatus='A'? → use it      │
+│         Draft/Inactive? → fall through       │
 │                                              │
-│ Step 2: AIG_Prompt_Config where IsDefault='Y'│
-│         AND AIGStatus='A' for this client?   │
-│         → found? return that profile         │
+│ Step 2: AIG_Prompt_Config                    │
+│         IsDefault='Y' AND AIGStatus='A'      │
+│         found? → use it                      │
 │                                              │
-│ Step 3: No profile → return null             │
-│         (no addendum appended)               │
-└────────┬────────────────────────────────────┘
-         │
-         ▼
+│ Step 3: null → no addendum                   │
+└─────────┬───────────────────────────────────┘
+          │ configID (or 0)
+          ▼
 ┌─────────────────────────────────────────────┐
-│ AIService.buildSystemPromptWithLanguage()    │
+│ buildSystemPromptWithLanguage()              │
 │                                              │
 │ [LANGUAGE INSTRUCTION]                       │
 │ [LOCKED BASE PROMPT]                         │
@@ -173,7 +147,110 @@ User opens AI chat panel
 │   ← resolved profile's AIGPromptText         │
 │ [/OPERATOR_INSTRUCTIONS]                     │
 └─────────────────────────────────────────────┘
+          │
+          ▼ sent to LLM — prompt frozen
 ```
+
+### Runtime Flow — Phase 2 (Planned)
+
+Multiple profiles available per role. LLM selects the best one **per message** via tool call. Zero new tables — multiple `AIG_Provider_Access` rows per role, each pointing to a different `AIG_Prompt_Config`.
+
+```
+Session start
+         │
+         ▼
+┌──────────────────────────────────────────────┐
+│ PromptConfigSchemaCache.load()                │
+│                                               │
+│ SELECT id, name, description, key             │
+│ FROM AIG_Prompt_Config                        │
+│ WHERE AIG_Prompt_Config_ID IN (               │
+│   SELECT AIG_Prompt_Config_ID                 │
+│   FROM AIG_Provider_Access                    │
+│   WHERE (AD_Role_ID=? OR AD_User_ID=?)        │
+│     AND AIG_Prompt_Config_ID IS NOT NULL      │
+│     AND AIGStatus='A' AND IsActive='Y'        │
+│ )                                             │
+│                                               │
+│ → [{id, name, description, key}, ...]         │
+│   keyed by (clientID, roleID, userID,         │
+│             providerID)                       │
+└──────────────────────────────────────────────┘
+
+         Per message:
+         │
+         ▼
+┌──────────────────────────────────────────────┐
+│ buildSystemPromptWithLanguage()               │
+│                                               │
+│ [LANGUAGE INSTRUCTION]                        │
+│ [LOCKED BASE PROMPT]                          │
+│   ...includes operator-level authority        │
+│   declaration for selectPromptProfile tool    │
+│ [DATABASE SYNTAX GUIDANCE]                    │
+│ (no static addendum — LLM selects per message)│
+└──────────────┬───────────────────────────────┘
+               │
+               ▼ LLM receives message + system prompt
+┌──────────────────────────────────────────────┐
+│ LLM reasons: what is this message about?      │
+│ Calls selectPromptProfile tool                │
+│ (first, before any ERP data query)            │
+└──────────────┬───────────────────────────────┘
+               │
+               ▼
+┌──────────────────────────────────────────────┐
+│ selectPromptProfile tool                      │
+│                                               │
+│ 1. Read PromptConfigSchemaCache (no DB hit)   │
+│    → present list to LLM: name + description  │
+│                                               │
+│ 2. LLM selected "SALES" →                    │
+│    load AIGPromptText by PK (single DB fetch) │
+│    return as tool result                      │
+│                                               │
+│ 3. Cache empty / no match →                  │
+│    fall back to Phase 1 resolver              │
+│    → IsDefault='Y' → no addendum             │
+└──────────────┬───────────────────────────────┘
+               │ profile instructions as tool result
+               ▼
+┌──────────────────────────────────────────────┐
+│ LLM follows profile instructions              │
+│ for this response, then continues             │
+│ with ERP tool calls as needed                 │
+│                                               │
+│ Selected AIG_Prompt_Config_ID logged          │
+│ on CM_ChatEntry for audit                     │
+└──────────────────────────────────────────────┘
+               │
+               ▼ next message → same cycle
+```
+
+#### Phase 2 — Configuration Example (CEO Role)
+
+Admin creates multiple `AIG_Provider_Access` rows for the CEO role — one per available profile. `AIG_Provider_ID` is not required.
+
+| Role | User | AIG_Provider_ID | AIG_Prompt_Config_ID |
+|------|------|-----------------|---------------------|
+| CEO | *(null)* | *(null)* | CRM Profile |
+| CEO | *(null)* | *(null)* | Sales Profile |
+| CEO | *(null)* | *(null)* | Finance Profile |
+| CEO | *(null)* | *(null)* | Inventory Profile |
+
+The cache loads all four as the allowed list. Per message, the LLM picks the most appropriate one based on the user's message and context. A follow-up on the same topic re-selects the same profile — the cache makes this free.
+
+#### Phase 2 — Key Design Constraints
+
+| Constraint | Detail |
+|---|---|
+| **Per-message selection** | LLM re-evaluates on every message — adapts as topics change within a session |
+| **Tool fires first** | `selectPromptProfile` executes before any ERP data query tool |
+| **Single selection** | `maxCount=1` on the tool — LLM picks exactly one profile per message |
+| **Cache content** | `{id, name, description, key}` only — lightweight. Full `AIGPromptText` fetched only for the selected profile |
+| **Trust level** | Profile arrives as tool result (user context), not system prompt. Mitigated by base prompt declaration granting operator-level authority to the tool result |
+| **Fallback** | Empty cache / no match / tool not called → Phase 1 resolver → `IsDefault='Y'` → no addendum |
+| **Audit** | Selected `AIG_Prompt_Config_ID` stored on `CM_ChatEntry` |
 
 ### AIG_Provider_Access Bridge with New FK
 
@@ -454,4 +531,4 @@ This is implemented in `MAIProvider.getForUser()`: before calling `getDefault()`
 
 ---
 
-*ADR-063 | Version 1.0 | 2026-03-12*
+*ADR-063 | Version 2.0 | 2026-03-12 — Phase 2: LLM-driven per-message profile selection added as primary approach*
