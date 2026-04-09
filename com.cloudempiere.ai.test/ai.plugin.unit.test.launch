@@ -36,7 +36,14 @@
         <setEntry value="com.cloudempiere.fonts.fragment"/>
         <setEntry value="com.cloudempiere.freshportal.base"/>
         <setEntry value="com.cloudempiere.rest.cache"/>
-        <setEntry value="com.cloudempiere.rest.oauth2"/>
+        <setEntry value="com.cloudempiere.identity.card"/>
+        <setEntry value="com.cloudempiere.identity.core"/>
+        <setEntry value="com.cloudempiere.identity.guest"/>
+        <setEntry value="com.cloudempiere.identity.mfa"/>
+        <setEntry value="com.cloudempiere.identity.pin"/>
+        <setEntry value="com.cloudempiere.identity.server"/>
+        <setEntry value="com.cloudempiere.identity.session"/>
+        <setEntry value="com.cloudempiere.identity.social"/>
         <setEntry value="com.cloudempiere.searchindex"/>
         <setEntry value="com.cloudempiere.searchindex.ui"/>
         <setEntry value="com.cloudempiere.vocabulary.base"/>
