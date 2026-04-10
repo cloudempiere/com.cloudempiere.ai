@@ -36,7 +36,6 @@
         <setEntry value="com.cloudempiere.fonts.fragment"/>
         <setEntry value="com.cloudempiere.freshportal.base"/>
         <setEntry value="com.cloudempiere.rest.cache"/>
-        <setEntry value="com.cloudempiere.rest.oauth2"/>
         <setEntry value="com.cloudempiere.searchindex"/>
         <setEntry value="com.cloudempiere.searchindex.ui"/>
         <setEntry value="com.cloudempiere.vocabulary.base"/>
