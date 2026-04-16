@@ -342,7 +342,7 @@ Next steps:
 
 ## Implementation Strategy
 
-### Phase 1: Foundation (v0.9.0 - v0.10.0) ✅ IN PROGRESS
+### Phase 1: Foundation (v0.9.0 - v0.10.0) ✅ Complete
 
 **Goal:** Solid technical foundation with LangChain4j
 
@@ -390,7 +390,7 @@ Next steps:
 - **Branch**: `iDempiereCLDE`
 - **Version**: iDempiere v10 (10.0.0-SNAPSHOT)
 - **Java**: Amazon Corretto 11
-- **Location**: `/Users/norbertbede/github/iDempiereCLDE`
+- **Location**: `../iDempiereCLDE` (relative to plugin root)
 
 **Setup iDempiere Dependencies:**
 ```bash
@@ -522,11 +522,11 @@ com.cloudempiere.ai/
 
 | Dependency | Version | Purpose |
 |------------|---------|---------|
-| **LangChain4j Core** | 1.0.0-beta3 | Agent framework, @Tool annotations |
-| **LangChain4j Anthropic** | 1.0.0-beta3 | Claude provider integration |
-| **LangChain4j Bedrock** | 1.0.0-beta3 | AWS Bedrock provider |
-| **LangChain4j Ollama** | 1.0.0-beta3 | Local LLM support |
-| **LangChain4j OpenAI** | 1.0.0-beta3 | OpenAI/Azure integration |
+| **LangChain4j Core** | 0.35.0 | Agent framework, @Tool annotations |
+| **LangChain4j Anthropic** | 0.35.0 | Claude provider integration |
+| **LangChain4j Bedrock** | 0.35.0 | AWS Bedrock provider |
+| **LangChain4j Ollama** | 0.35.0 | Local LLM support |
+| **LangChain4j OpenAI** | 0.35.0 | OpenAI/Azure integration |
 | Anthropic Java SDK | 2.10.0 | Direct Claude API client (fallback) |
 | AWS SDK | 2.29.0 | Bedrock runtime |
 | Jackson | 2.17.0 | JSON processing |
@@ -721,6 +721,6 @@ Proprietary - Cloudempiere Ltd.
 
 ---
 
-**Last Updated:** 2025-12-01
-**Current Version:** v0.9.0
+**Last Updated:** 2026-03-11
+**Current Version:** v0.32.0
 **Status:** Active Development

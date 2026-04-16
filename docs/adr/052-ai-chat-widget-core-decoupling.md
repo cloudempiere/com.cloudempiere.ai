@@ -2,17 +2,17 @@
 
 ## Status
 
-⚠️ **Partially Implemented with Temporary Solution** (2025-12-30)
+🚧 **Partially Implemented** — Superseded by [ADR-053](053-floating-chat-bubble-zero-core-changes.md) for final zero-core-changes step
 
-**Current State:**
-- ✅ Plugin architecture completed (AIChatGadgetFactory, self-managing context tracking)
-- ⚠️ **Temporary core code** in HelpController (marked for removal)
-- 📋 **Superseded by ADR-053** for true zero-core-changes solution
+**Current State (2026-03-11):**
+- ✅ `IAIChatWidgetFactory` removed from `org.adempiere.ui.zk` core — zero custom interfaces in core
+- ✅ `AIChatGadgetFactory` implements `IDashboardGadgetFactory` in plugin (standard iDempiere pattern)
+- ✅ CSS loaded via `com.cloudempiere.ai.theme` fragment bundle (NF8.2 extension point)
+- ✅ Self-managing context tracking via ZK lifecycle hooks (no core dependency)
+- ⚠️ **Temporary `HelpController` code still present** — `Extensions.getDashboardGadget("ai-chat", ...)` call at line 175 remains in `iDempiereCLDE/HelpController.java`
+- ❌ ADR-053 **not yet implemented** — `AIChatBubble.java`, `AIChatBubbleInjector.java`, and `WEB-INF/zk.xml` in theme do not exist; the theme bundle contains only CSS files
 
-**Migration Path:**
-- Current: Help panel integration with temporary HelpController code
-- Target: [ADR-053 Floating Chat Bubble](053-floating-chat-bubble-zero-core-changes.md) (Zero core changes)
-- Timeline: Q1 2026
+The single remaining core line will be eliminated when ADR-053 (floating bubble via ZK UiLifeCycle) is implemented.
 
 ## Date
 
@@ -492,4 +492,4 @@ try {
 
 ---
 
-*ADR-052 | Created: 2025-12-26 | Status: Partial (with temporary code) | Superseded by: ADR-053*
+*ADR-052 | Created: 2025-12-26 | Updated: 2026-03-11 | Status: Partial — HelpController temp code pending ADR-053 | Superseded by: ADR-053*

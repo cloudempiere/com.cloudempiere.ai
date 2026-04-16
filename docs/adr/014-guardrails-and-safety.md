@@ -4,7 +4,7 @@
 
 ## Status
 
-Accepted
+Accepted — **Partially Wired**: `InputGuard` and `OutputGuard` active in all chat paths; `ExecutionGuard` class exists but **not called** from any tool execution path
 
 ## Date
 
@@ -39,13 +39,14 @@ AI agents that can execute actions in ERP systems (create orders, process paymen
 ### Confirmation
 
 The decision will be confirmed when:
-- [x] `InputGuard` blocks prompt injection attempts in test suite *(Implemented in `guardrails/InputGuard.java` with PII/injection patterns)*
-- [x] `OutputGuard` detects and flags potential hallucinations *(Implemented in `guardrails/OutputGuard.java`)*
-- [x] `ExecutionGuard` enforces risk-based routing (LOW/MEDIUM/HIGH/CRITICAL) *(Implemented in `guardrails/ExecutionGuard.java`)*
-- [x] Guards integrated into AIService *(Implemented - AIService uses InputGuard, OutputGuard, CostGuard)*
-- [x] Unit tests created for InputGuard and ExecutionGuard *(See note below)*
-- [ ] `AIG_ApprovalRequest` table receives records for HIGH-risk actions
-- [ ] Integration test: Order >$10,000 triggers approval workflow
+- [x] `InputGuard` active in all chat paths — called in `AIService` before sending to LLM (guarded by `guardrailsEnabled=true` default)
+- [x] `OutputGuard` active in all chat paths — called in `AIService` after receiving LLM response
+- [ ] `ExecutionGuard` enforces risk-based routing — **class fully implemented** (`guardrails/ExecutionGuard.java`, risk levels LOW/MEDIUM/HIGH/CRITICAL) but **not called** from any tool execution path; no callers in `AIService` or `ERPTools`
+- [x] `InputGuard` and `OutputGuard` integrated into `AIService` — **active**
+- [ ] `ExecutionGuard` integrated into tool execution — **NOT DONE**
+- [ ] Unit tests for ExecutionGuard *(class exists but coverage partial)*
+- [ ] `AIG_ApprovalRequest` table receives records for HIGH-risk actions — **not implemented**
+- [ ] Integration test: Order >$10,000 triggers approval workflow — **not implemented**
 
 > **Note:** Unit tests are temporarily in `src-temp/test/java/com/cloudempiere/ai/guardrails/`. These need to be moved to the standard test source directory when Maven test configuration is fixed.
 

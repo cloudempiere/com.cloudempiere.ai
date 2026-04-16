@@ -231,25 +231,22 @@ public class AIService implements IAIService {
 
     /** Provider types that support tool/function calling (non-streaming) in LangChain4j 0.35.0 */
     private static final Set<String> TOOL_SUPPORTED_PROVIDERS = Set.of(
+        LangChain4jProviderFactory.PROVIDER_AI_HUB,       // OpenAI-compatible, supports tools
         LangChain4jProviderFactory.PROVIDER_ANTHROPIC,
-        LangChain4jProviderFactory.PROVIDER_OPENAI,
-        LangChain4jProviderFactory.PROVIDER_BEDROCK,
-        LangChain4jProviderFactory.PROVIDER_AI_HUB  // OpenAI-compatible, supports tools
-        // NOTE: Ollama/Llama tools depend on model capability, not just provider type.
+        LangChain4jProviderFactory.PROVIDER_BEDROCK
+        // NOTE: Ollama tools depend on model capability, not just provider type.
         // Models like qwen2:0.5b don't support tools. Only certain models like
         // llama3.1, mistral, qwen2.5:7b support tool calling.
         // For simplicity, disable tools for all Ollama models in this version.
-        // LangChain4jProviderFactory.PROVIDER_OLLAMA,
-        // LangChain4jProviderFactory.PROVIDER_LLAMA
+        // LangChain4jProviderFactory.PROVIDER_OLLAMA
     );
 
     /** Provider types that support tool/function calling in STREAMING mode (LangChain4j 0.35.0) */
     private static final Set<String> STREAMING_TOOL_SUPPORTED_PROVIDERS = Set.of(
+        LangChain4jProviderFactory.PROVIDER_AI_HUB,       // OpenAI-compatible, supports streaming tools
         LangChain4jProviderFactory.PROVIDER_ANTHROPIC,
-        LangChain4jProviderFactory.PROVIDER_OPENAI,
-        LangChain4jProviderFactory.PROVIDER_BEDROCK,
-        LangChain4jProviderFactory.PROVIDER_AI_HUB  // OpenAI-compatible, supports streaming tools
-        // Ollama/Llama streaming tools NOT supported in 0.35.0
+        LangChain4jProviderFactory.PROVIDER_BEDROCK
+        // Ollama streaming tools NOT supported in 0.35.0
         // Throws: "Tools are currently not supported by this model"
         // Requires LangChain4j 0.37.0+ (Java 17)
     );
@@ -287,9 +284,8 @@ public class AIService implements IAIService {
             return false;
         }
         String providerType = provider.getAIGProviderType();
-        // Ollama/Llama streaming is broken in LangChain4j 0.35.0 - NPE in OllamaClient
-        if (LangChain4jProviderFactory.PROVIDER_OLLAMA.equals(providerType) ||
-            LangChain4jProviderFactory.PROVIDER_LLAMA.equals(providerType)) {
+        // Ollama streaming is broken in LangChain4j 0.35.0 - NPE in OllamaClient
+        if (LangChain4jProviderFactory.PROVIDER_OLLAMA.equals(providerType)) {
             return false;
         }
         return true;
@@ -1086,7 +1082,7 @@ public class AIService implements IAIService {
                 }
 
                 // Build system prompt with language instruction (ADR-037)
-                final String systemPrompt = buildSystemPromptWithLanguage(ctx, chat.getCM_Chat_ID(), true);
+                final String systemPrompt = buildSystemPromptWithLanguage(ctx, chat.getCM_Chat_ID(), true, provider.getAIG_Provider_ID());
                 log.log(Level.FINE, "[STREAM] System prompt built, length=" + systemPrompt.length());
 
                 ERPStreamingAgent agent = AiServices.builder(ERPStreamingAgent.class)
@@ -1111,7 +1107,7 @@ public class AIService implements IAIService {
                 log.log(Level.FINE, "[STREAM] StreamingModel class: " + streamingModel.getClass().getName());
 
                 // Build system prompt with language instruction (ADR-037) - no tools
-                final String systemPrompt = buildSystemPromptWithLanguage(ctx, chat.getCM_Chat_ID(), false);
+                final String systemPrompt = buildSystemPromptWithLanguage(ctx, chat.getCM_Chat_ID(), false, provider.getAIG_Provider_ID());
                 log.log(Level.FINE, "[STREAM] System prompt built (no tools), length=" + systemPrompt.length());
 
                 // Build SimpleStreamingAgent (no tools, simplified system prompt)
@@ -1526,12 +1522,13 @@ public class AIService implements IAIService {
      * <p>The language instruction is placed FIRST in the system prompt to ensure
      * the AI prioritizes language compliance. This implements ADR-037.
      *
-     * @param ctx iDempiere context (contains AD_Language from user login)
-     * @param chatId Chat ID for session override lookup
-     * @param withTools true for ERPStreamingAgent (tool support), false for SimpleStreamingAgent
+     * @param ctx        iDempiere context (contains AD_Language from user login)
+     * @param chatId     Chat ID for session override lookup
+     * @param withTools  true for ERPStreamingAgent (tool support), false for SimpleStreamingAgent
+     * @param providerID AIG_Provider_ID of the active provider (used for prompt profile routing, ADR-063)
      * @return Complete system prompt with language instruction
      */
-    private String buildSystemPromptWithLanguage(Properties ctx, int chatId, boolean withTools) {
+    private String buildSystemPromptWithLanguage(Properties ctx, int chatId, boolean withTools, int providerID) {
         // Get language instruction based on session language (override > context > fallback)
         String languageInstruction = languageService.getLanguageInstruction(ctx, chatId);
 
@@ -1549,8 +1546,8 @@ public class AIService implements IAIService {
             ? DatabaseSyntaxHelper.appendDatabaseGuidance(ERPAgent.SYSTEM_PROMPT)
             : SimpleStreamingAgent.SIMPLE_SYSTEM_PROMPT;
 
-        // Append operator addendum if configured (ADR-059)
-        basePrompt = appendOperatorAddendum(ctx, basePrompt);
+        // Append operator addendum if configured (ADR-059, ADR-063)
+        basePrompt = appendOperatorAddendum(ctx, basePrompt, providerID);
 
         // If no language instruction, just return the base prompt
         if (languageInstruction == null || languageInstruction.isEmpty()) {
@@ -1575,14 +1572,22 @@ public class AIService implements IAIService {
     /**
      * Appends the operator-configured addendum to the base prompt (ADR-059).
      *
-     * <p>Loads the SYSTEM_ADDENDUM record from AIG_Prompt_Config and wraps it
-     * in spotlighting delimiters so the model treats it as operator-level
-     * configuration, not as instructions that can override the base prompt.
+     * <p>Resolves the active prompt profile via {@link PromptProfileResolver} (ADR-063):
+     * role/user-specific profile first, then client default ({@code IsDefault='Y'}),
+     * then no addendum. Wraps the resolved text in spotlighting delimiters so the model
+     * treats it as operator-level configuration (ADR-059).
      *
      * <p>Returns the base prompt unchanged if no active addendum is configured.
+     *
+     * @param ctx        iDempiere context
+     * @param basePrompt base system prompt to append to
+     * @param providerID AIG_Provider_ID of the active provider
      */
-    public static String appendOperatorAddendum(Properties ctx, String basePrompt) {
-        String addendum = MAIPromptConfig.getPromptText(ctx, "SYSTEM_ADDENDUM", null);
+    public static String appendOperatorAddendum(Properties ctx, String basePrompt, int providerID) {
+        int roleID = ctx != null ? Env.getAD_Role_ID(ctx) : 0;
+        int userID = ctx != null ? Env.getAD_User_ID(ctx) : 0;
+        int configID = PromptProfileResolver.resolve(ctx, providerID, roleID, userID);
+        String addendum = MAIPromptConfig.getPromptText(ctx, configID, null);
         if (addendum == null || addendum.trim().isEmpty()) {
             return basePrompt;
         }

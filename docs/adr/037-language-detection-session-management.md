@@ -2,7 +2,9 @@
 
 ## Status
 
-**Enhanced** (2025-12-18)
+**Accepted — Partially Implemented** (2026-03-11)
+
+`LanguageDetectionService.java` exists at `core/service/LanguageDetectionService.java` with full implementation, but the import in `AIService.java` is currently commented out (`// TEMPORARILY DISABLED`). A **stub class** is defined inline in `AIService.java` (lines 109–215) that mirrors the real service's interface. Language detection is functionally working via the stub; the real service is not yet wired. Two confirmation items remain open (see below).
 
 ## Date
 

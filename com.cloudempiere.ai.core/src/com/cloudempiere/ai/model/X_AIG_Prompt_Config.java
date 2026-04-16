@@ -31,7 +31,7 @@ public class X_AIG_Prompt_Config extends PO implements I_AIG_Prompt_Config, I_Pe
 	/**
 	 *
 	 */
-	private static final long serialVersionUID = 20260227L;
+	private static final long serialVersionUID = 20260312L;
 
     /** Standard Constructor */
     public X_AIG_Prompt_Config (Properties ctx, int AIG_Prompt_Config_ID, String trxName)
@@ -42,6 +42,10 @@ public class X_AIG_Prompt_Config extends PO implements I_AIG_Prompt_Config, I_Pe
 			setAIG_Prompt_Config_ID (0);
 			setAIGPromptKey (null);
 			setAIGPromptText (null);
+			setAIGStatus (null);
+// D
+			setIsDefault (false);
+// N
 			setName (null);
         } */
     }
@@ -55,6 +59,10 @@ public class X_AIG_Prompt_Config extends PO implements I_AIG_Prompt_Config, I_Pe
 			setAIG_Prompt_Config_ID (0);
 			setAIGPromptKey (null);
 			setAIGPromptText (null);
+			setAIGStatus (null);
+// D
+			setIsDefault (false);
+// N
 			setName (null);
         } */
     }
@@ -153,6 +161,31 @@ public class X_AIG_Prompt_Config extends PO implements I_AIG_Prompt_Config, I_Pe
 		return (String)get_Value(COLUMNNAME_AIGPromptText);
 	}
 
+	/** AIGStatus AD_Reference_ID=800142 */
+	public static final int AIGSTATUS_AD_Reference_ID=800142;
+	/** Active = A */
+	public static final String AIGSTATUS_Active = "A";
+	/** Draft = D */
+	public static final String AIGSTATUS_Draft = "D";
+	/** Archived = X */
+	public static final String AIGSTATUS_Archived = "X";
+	/** Set Status.
+		@param AIGStatus Lifecycle status of the record.
+	*/
+	public void setAIGStatus (String AIGStatus)
+	{
+
+		set_Value (COLUMNNAME_AIGStatus, AIGStatus);
+	}
+
+	/** Get Status.
+		@return Lifecycle status of the record.
+	  */
+	public String getAIGStatus()
+	{
+		return (String)get_Value(COLUMNNAME_AIGStatus);
+	}
+
 	/** Set Description.
 		@param Description Optional short description of the record
 	*/
@@ -167,6 +200,29 @@ public class X_AIG_Prompt_Config extends PO implements I_AIG_Prompt_Config, I_Pe
 	public String getDescription()
 	{
 		return (String)get_Value(COLUMNNAME_Description);
+	}
+
+	/** Set Default.
+		@param IsDefault Default value
+	*/
+	public void setIsDefault (boolean IsDefault)
+	{
+		set_Value (COLUMNNAME_IsDefault, Boolean.valueOf(IsDefault));
+	}
+
+	/** Get Default.
+		@return Default value
+	  */
+	public boolean isDefault()
+	{
+		Object oo = get_Value(COLUMNNAME_IsDefault);
+		if (oo != null) 
+		{
+			 if (oo instanceof Boolean) 
+				 return ((Boolean)oo).booleanValue(); 
+			return "Y".equals(oo);
+		}
+		return false;
 	}
 
 	/** Set Name.

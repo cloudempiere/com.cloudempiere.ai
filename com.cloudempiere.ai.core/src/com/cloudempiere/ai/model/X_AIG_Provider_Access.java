@@ -31,7 +31,7 @@ public class X_AIG_Provider_Access extends PO implements I_AIG_Provider_Access, 
 	/**
 	 *
 	 */
-	private static final long serialVersionUID = 20260227L;
+	private static final long serialVersionUID = 20260312L;
 
     /** Standard Constructor */
     public X_AIG_Provider_Access (Properties ctx, int AIG_Provider_Access_ID, String trxName)
@@ -40,7 +40,6 @@ public class X_AIG_Provider_Access extends PO implements I_AIG_Provider_Access, 
       /** if (AIG_Provider_Access_ID == 0)
         {
 			setAIG_Provider_Access_ID (0);
-			setAIG_Provider_ID (0);
         } */
     }
 
@@ -51,7 +50,6 @@ public class X_AIG_Provider_Access extends PO implements I_AIG_Provider_Access, 
       /** if (AIG_Provider_Access_ID == 0)
         {
 			setAIG_Provider_Access_ID (0);
-			setAIG_Provider_ID (0);
         } */
     }
 
@@ -134,6 +132,33 @@ public class X_AIG_Provider_Access extends PO implements I_AIG_Provider_Access, 
 	public int getAD_User_ID()
 	{
 		Integer ii = (Integer)get_Value(COLUMNNAME_AD_User_ID);
+		if (ii == null)
+			 return 0;
+		return ii.intValue();
+	}
+
+	public I_AIG_Prompt_Config getAIG_Prompt_Config() throws RuntimeException
+	{
+		return (I_AIG_Prompt_Config)MTable.get(getCtx(), I_AIG_Prompt_Config.Table_ID)
+			.getPO(getAIG_Prompt_Config_ID(), get_TrxName());
+	}
+
+	/** Set Prompt Configuration.
+		@param AIG_Prompt_Config_ID Prompt Configuration
+	*/
+	public void setAIG_Prompt_Config_ID (int AIG_Prompt_Config_ID)
+	{
+		if (AIG_Prompt_Config_ID < 1)
+			set_Value (COLUMNNAME_AIG_Prompt_Config_ID, null);
+		else
+			set_Value (COLUMNNAME_AIG_Prompt_Config_ID, Integer.valueOf(AIG_Prompt_Config_ID));
+	}
+
+	/** Get Prompt Configuration.
+		@return Prompt Configuration	  */
+	public int getAIG_Prompt_Config_ID()
+	{
+		Integer ii = (Integer)get_Value(COLUMNNAME_AIG_Prompt_Config_ID);
 		if (ii == null)
 			 return 0;
 		return ii.intValue();

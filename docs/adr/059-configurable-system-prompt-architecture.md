@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed
+Implemented (v0.19.0+)
 
 ## Date
 
@@ -52,7 +52,7 @@ The locked sections (base prompt + DB syntax) are Java constants and can never b
 ### Confirmation
 
 The decision is confirmed when:
-- [ ] `buildSystemPromptWithLanguage()` in `AIService` loads the addendum from `MAIPromptConfig.getPromptText(ctx, "SYSTEM_ADDENDUM", null)` and appends it after the base prompt
+- [ ] `buildSystemPromptWithLanguage()` in `AIService` resolves the addendum via `PromptProfileResolver` (ADR-063) and appends it after the base prompt; `SYSTEM_ADDENDUM` record migrated to `IsDefault='Y'` as the client-wide fallback
 - [ ] Null/empty addendum produces identical output to the current hardcoded-only behavior
 - [ ] `AIG_Prompt_Config` window in iDempiere shows a `SYSTEM_ADDENDUM` record that admins can edit
 - [ ] `AD_ChangeLog` captures every change to `AIGPromptText` (automatic via iDempiere PO layer)

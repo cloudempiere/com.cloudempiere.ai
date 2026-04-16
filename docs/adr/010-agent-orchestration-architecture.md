@@ -1,9 +1,28 @@
 # ADR-010: Agent Orchestration Architecture
 
-**Status**: Accepted
+**Status**: Partially Implemented — `ERPAgent` + `ERPTools` layer is fully active; `OrchestratorAgent` + domain agent layer is prepared but **not yet wired into the chat flow**
 **Date**: 2025-12-01
+**Updated**: 2026-03-11
 **Deciders**: Architecture Team
 **Related**: [ADR-004](004-java-agent-framework.md), [ADR-009](009-domain-boundaries-agent-scope.md)
+
+## Implementation Status
+
+The primary `ERPAgent` path is fully implemented and active. `OrchestratorAgent` exists as an OSGi `@Component` and binds domain agents dynamically, but `AIService` does not inject or call it — it builds `ERPAgent` directly via `AiServices.builder()`. The multi-domain routing layer is prepared but bypassed.
+
+| Component | Status | Notes |
+|-----------|--------|-------|
+| `IERPAgent` / `ERPAgent` | ✅ Active in production | Main agent used by `AIService` |
+| `ERPStreamingAgent` | ✅ Active in production | Streaming variant |
+| `SimpleAgent` / `SimpleStreamingAgent` | ✅ Active in production | Fallback for providers without tool support |
+| `ERPTools` (@Tool methods) | ✅ Active in production | `queryDatabase()`, `getTableMetadata()`, etc. |
+| `AIService` (main facade) | ✅ Active in production | Builds ERPAgent; does not call OrchestratorAgent |
+| `ThreadAwareChatMemory` | ✅ Active in production | Per-session chat memory |
+| `LangChain4jProviderFactory` | ✅ Active in production | Creates native ChatLanguageModel instances |
+| `OrchestratorAgent` | ✅ Implemented as OSGi `@Component` | **Not called** — no callers in codebase |
+| `IDomainAgent` routing | ❌ Not connected | `OrchestratorAgent.processQuery()` has no callers |
+
+**Note:** The custom `CloudempiereLanguageModel` adapter from the original plan was not needed — `LangChain4jProviderFactory` creates native `ChatLanguageModel` instances directly from `MAIProvider` config.
 
 ## Context
 
@@ -394,34 +413,34 @@ AIG_AgentMemory {
 ### Phase 1: Core Framework (Week 1-2)
 
 **Week 1**:
-- [ ] Implement `IAgent` interface
-- [ ] Create `CloudempiereLanguageModel` adapter
-- [ ] Implement `ToolRegistry`
-- [ ] Create `DatabaseQueryTool`
-- [ ] Setup LangChain4j integration
+- [x] Implement `IDomainAgent` interface
+- [x] Create `LangChain4jProviderFactory` (native models, no adapter needed)
+- [x] Implement `ERPTools` with @Tool annotations (replaces ToolRegistry)
+- [x] Create `DatabaseQueryTool` (via `ERPTools.queryDatabase()`)
+- [x] Setup LangChain4j AiServices integration
 
 **Week 2**:
-- [ ] Implement `MetadataQueryTool`
-- [ ] Create first concrete agent (InventoryAgent)
-- [ ] Implement conversation memory
-- [ ] Add cost tracking integration
-- [ ] Write integration tests
+- [x] Implement metadata query (via `ERPTools` + `ADSchemaCache`)
+- [x] Create first concrete agent (`InventoryAgent`)
+- [x] Implement conversation memory (`ThreadAwareChatMemory`)
+- [x] Add cost tracking integration (`AIMetricsListener`)
+- [ ] Comprehensive integration tests
 
 ### Phase 2: Additional Tools (Week 2-3)
 
-- [ ] Implement `ProcessExecutionTool`
-- [ ] Implement `ReportGenerationTool`
-- [ ] Implement `DocumentationTool`
-- [ ] Implement `ValidationTool`
-- [ ] Add tool permission system
+- [x] Domain-specific tool classes (`SalesTools`, `InventoryTools`, `PurchasingTools`, etc.)
+- [x] `KbTools` (Knowledge Base tools)
+- [ ] `ProcessExecutionTool` (run AD_Process from AI)
+- [ ] `ReportGenerationTool`
 
 ### Phase 3: Additional Agents (Week 3-4)
 
-- [ ] Implement `SalesAgent`
-- [ ] Implement `PurchasingAgent`
-- [ ] Implement workflow orchestration
-- [ ] Add inter-agent communication
-- [ ] Production hardening
+- [x] Implement `SalesAgent`
+- [x] Implement `PurchasingAgent`
+- [x] Implement `SupportAgent`
+- [x] Implement `KbAgent`
+- [x] `OrchestratorAgent` routes to domain agents
+- [ ] Production hardening + inter-agent call depth enforcement
 
 ## Example: Complete Agent Workflow
 

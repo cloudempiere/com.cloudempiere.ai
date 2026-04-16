@@ -1171,18 +1171,24 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 		streamingInProgress = true;
 		showStopButton();
 
-		// Get MAIChat and provider
+		// Resolve provider before entering try — null means access is denied, not an error
+		final MAIProvider provider = MAIProvider.getForUser(sessionCtx, null);
+		if (provider == null) {
+			log.warning("AI Chat: no accessible provider for current role/user");
+			streamingInProgress = false;
+			showSendButton();
+			handleErrorResponse(desktop,
+				new Exception("No AI provider accessible. Please check your role's AI Access Level configuration."),
+				threadRootIdSnapshot, null, message);
+			return;
+		}
+
+		// Get MAIChat
 		final MAIChat aiChat;
-		final MAIProvider provider;
 		try {
 			aiChat = (chat instanceof MAIChat) ?
 				(MAIChat) chat :
 				new MAIChat(sessionCtx, chat.getCM_Chat_ID(), null);
-
-			provider = MAIProvider.getDefault(sessionCtx, null);
-			if (provider == null) {
-				throw new Exception("No AI provider configured. Please configure an AI provider in the system.");
-			}
 		} catch (Exception e) {
 			log.log(Level.SEVERE, "Failed to initialize streaming", e);
 			streamingInProgress = false;
@@ -1372,7 +1378,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 						String html = streamingMsg.getRenderedHtml();
 						log.warning("[UI-STREAM] Saving MD (len=" + markdown.length() +
 								") and HTML (len=" + html.length() + ")");
-						MAIChatEntry aiEntry = MAIChatEntry.createAIResponse(aiChat, markdown, html);
+						MAIChatEntry aiEntry = MAIChatEntry.createAIResponse(aiChat, provider, markdown, html);
 						if (threadRootIdSnapshot > 0) {
 							aiEntry.setCM_ChatEntryParent_ID(threadRootIdSnapshot);
 						}
@@ -1495,19 +1501,20 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 			int threadRootIdSnapshot, Desktop desktop) {
 
 		CompletableFuture.runAsync(() -> {
-			// Declare provider outside try block for access in catch block
-			MAIProvider provider = null;
+			// Resolve provider before entering try — null means access is denied, not an error
+			MAIProvider provider = MAIProvider.getForUser(sessionCtx, null);
+			if (provider == null) {
+				log.warning("AI Chat: no accessible provider for current role/user");
+				handleErrorResponse(desktop,
+					new Exception("No AI provider accessible. Please check your role's AI Access Level configuration."),
+					threadRootIdSnapshot, null, message);
+				return;
+			}
 			try {
 				// Get MAIChat instance
 				MAIChat aiChat = (chat instanceof MAIChat) ?
 					(MAIChat) chat :
 					new MAIChat(sessionCtx, chat.getCM_Chat_ID(), null);
-
-				// Get default provider
-				provider = MAIProvider.getDefault(sessionCtx, null);
-				if (provider == null) {
-					throw new Exception("No AI provider configured. Please configure an AI provider in the system.");
-				}
 
 				// Call LangChain4j service with context
 				// Session ID combines chat ID and thread for memory isolation
@@ -1522,7 +1529,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 				// Handle result based on status
 				if (result.isBlocked()) {
 					// Guardrails blocked the request - show warning
-					handleBlockedResponse(desktop, result, threadRootIdSnapshot);
+					handleBlockedResponse(desktop, result, threadRootIdSnapshot, provider);
 					return;
 				}
 
@@ -1544,7 +1551,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 				}
 
 				// Create AI chat entry with proper thread parent (HTML format)
-				MAIChatEntry aiEntry = MAIChatEntry.createAIResponse(aiChat, responseHtml);
+				MAIChatEntry aiEntry = MAIChatEntry.createAIResponse(aiChat, provider, response, responseHtml);
 
 				if (threadRootIdSnapshot > 0) {
 					aiEntry.setCM_ChatEntryParent_ID(threadRootIdSnapshot);
@@ -1579,7 +1586,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 	/**
 	 * Handle blocked response from guardrails.
 	 */
-	private void handleBlockedResponse(Desktop desktop, ChatResult result, int threadRootIdSnapshot) {
+	private void handleBlockedResponse(Desktop desktop, ChatResult result, int threadRootIdSnapshot, MAIProvider provider) {
 		Executions.schedule(desktop, ev -> {
 			hideLoading();
 
@@ -1591,7 +1598,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 			}
 			warningHtml += "</div>";
 
-			MChatEntry warningEntry = MAIChatEntry.createAIResponse(chat, warningHtml);
+			MChatEntry warningEntry = MAIChatEntry.createAIResponse(chat, provider, warningHtml);
 			if (threadRootIdSnapshot > 0) {
 				warningEntry.setCM_ChatEntryParent_ID(threadRootIdSnapshot);
 			}
@@ -1632,7 +1639,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 				" <span class=\"ai-error-ref\" title=\"" + errorResult.getDebugTooltip() +
 				"\" style=\"cursor:help; opacity:0.6;\">\u26A0\uFE0F</span></div>";
 
-			MChatEntry errorEntry = MAIChatEntry.createAIResponse(chat, errorMsg);
+			MChatEntry errorEntry = MAIChatEntry.createAIResponse(chat, provider, errorMsg);
 
 			// Set thread parent for error entry
 			if (threadRootIdSnapshot > 0) {
@@ -3132,7 +3139,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 
 			// Create AI chat entry with partial response (both markdown and HTML)
 			MAIChatEntry aiEntry = MAIChatEntry.createAIResponse(
-					aiChat, persistedMarkdown, persistedHtml);
+					aiChat, MAIProvider.getForUser(sessionCtx, null), persistedMarkdown, persistedHtml);
 
 			// Set thread parent if applicable
 			if (currentThreadRootId > 0) {
@@ -3182,7 +3189,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 				new MAIChat(sessionCtx, chat.getCM_Chat_ID(), null);
 
 			// Create AI chat entry with error response (both markdown and HTML)
-			MAIChatEntry aiEntry = MAIChatEntry.createAIResponse(aiChat, markdown, html);
+			MAIChatEntry aiEntry = MAIChatEntry.createAIResponse(aiChat, MAIProvider.getForUser(sessionCtx, null), markdown, html);
 
 			// Set thread parent if applicable
 			if (threadRootId > 0) {

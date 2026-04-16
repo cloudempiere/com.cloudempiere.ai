@@ -4,7 +4,7 @@
 
 ## Status
 
-Accepted
+Accepted — **Mostly Not Wired**: `ChatRecordLinkRenderer` and `ZoomLinkProcessor` classes exist but are **not called** from the response pipeline; `ParameterChainHandler` and `ProactiveInsightEngine` not implemented
 
 ## Date
 
@@ -39,11 +39,15 @@ ERP systems contain complex, interconnected data that users traditionally access
 ### Confirmation
 
 The decision will be confirmed when:
-- [ ] `ParameterChainHandler` collects required parameters in any order
-- [ ] `ResponseFormatter` produces consistent markdown with action links
-- [ ] `ProactiveInsightEngine` surfaces warnings (e.g., credit limits, approval required)
+- [ ] `ParameterChainHandler` — **not implemented**
+- [ ] `ChatRecordLinkRenderer` — **class implemented** (`util/ChatRecordLinkRenderer.java`) but **not called** from AIService or the streaming pipeline; zoom links are not inserted into responses
+- [ ] `ZoomLinkProcessor` — **class implemented** but **not called**; referenced in `ChatRecordLinkRenderer` Javadoc only
+- [ ] `ResponseFormatter` — **not implemented** as a unified class; `MarkdownRenderer` exists for rendering, but no post-processing step that adds action links
+- [ ] `ProactiveInsightEngine` — **not implemented**
 - [ ] User testing shows >80% task completion rate in 3 or fewer messages
 - [ ] Response length stays under 3 screen-heights for mobile
+
+> **As of 2026-03-11:** The response formatting guidelines and action link pattern (ADR-039) are implemented via `ChatRecordLinkRenderer` and `ZoomLinkProcessor`. The `ParameterChainHandler` and `ProactiveInsightEngine` components are not yet implemented as standalone classes — this is planned work.
 
 ## Pros and Cons of the Options
 

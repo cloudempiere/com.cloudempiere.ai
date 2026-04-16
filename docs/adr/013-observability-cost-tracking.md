@@ -4,7 +4,7 @@
 
 ## Status
 
-Accepted
+Accepted — **Partially Wired**: `AIG_UsageMetrics` records written via direct `MAIUsageMetrics.record()` call in the **streaming path** of `AIService` only; `CostGuard` active in all paths; sync path has no metrics recording; `AIMetricsListener` listener wiring in `LangChain4jProviderFactory` is **dead code to be removed** (see Architecture Notes below)
 
 ## Date
 
@@ -38,15 +38,38 @@ AI/LLM operations introduce unique operational challenges: unpredictable token-b
 
 ### Confirmation
 
-The decision will be confirmed when:
-- [x] `AIG_UsageMetrics` table exists and receives records for every LLM call *(Implemented 2025-12-03, CLD-1628)*
-- [x] `AIMetricsListener` logs all token usage, cost, and latency metrics *(Implemented in `observability/AIMetricsListener.java`)*
-- [x] `CostGuard` blocks requests when daily/monthly budget exceeded *(Implemented in `observability/CostGuard.java`)*
-- [x] Listener wired into ChatLanguageModel builders *(Implemented in `LangChain4jProviderFactory.java`)*
-- [ ] Unit tests verify metrics recording accuracy *(Tests pending - to be added in `src-temp/test/java/com/cloudempiere/ai/observability/`)*
-- [ ] Query: `SELECT COUNT(*) FROM AIG_UsageMetrics WHERE Created > CURRENT_DATE - 1` returns expected count
+- [x] `AIG_UsageMetrics` table receives records — **streaming path only**: `MAIUsageMetrics.record()` called directly at `AIService.java:1197` after each streaming response with full token counts, cost, and latency
+- [ ] `AIG_UsageMetrics` records written for sync (non-streaming) path — **NOT DONE**: no `MAIUsageMetrics.record()` call in the sync agent path
+- [x] `CostGuard` blocks requests when daily/monthly budget exceeded — **active in 6+ locations** in `AIService` (`checkBudget()`, `checkRateLimit()`)
+- [x] `AIG_Budget` table queried by `CostGuard` (`MAIBudget.getEffective()`) — **active**
+- [x] `AIG_ModelPricing` table used for cost calculation — **active** in `AIService.calculateCostMicrodollars()`
+- [ ] `AIMetricsListener` registered as LangChain4j listener — **NOT DONE** (see Architecture Notes; factory wiring is dead code)
+- [ ] Metrics recorded for future domain agents (Sales, KB, etc.) automatically — **NOT YET**: direct call approach requires each new agent path to add recording manually
+- [ ] Unit tests for metrics recording accuracy *(partial)*
+- [ ] Enhanced listener events *(blocked: requires LangChain4j 0.36+ and Java 17 — see ADR-035)*
 
-> **Note:** Unit tests should be created in `src-temp/test/java/` temporarily until Maven test configuration is fixed.
+### Architecture Notes (2026-03-11)
+
+#### Current approach: direct call in AIService streaming path
+
+`AIService` calls `MAIUsageMetrics.record()` directly in the streaming token handler where it has full iDempiere context (`ctx`, `AD_User_ID`, `AD_Role_ID`, provider ID, session ID). This works and produces correctly attributed records.
+
+#### Dead code to remove: LangChain4jProviderFactory listener wiring
+
+`LangChain4jProviderFactory` contains commented-out `/* builder.listeners(...) */` blocks and a commented-out `createMetricsListener()` method. These are dead code and should be deleted — they are misleading and serve no purpose.
+
+**Why the factory is the wrong owner:** the factory has no iDempiere context (`ctx`, `AD_User_ID`, etc.) at model-creation time. Records written from there would have no user/role attribution.
+
+#### Recommended future approach: AIService-level listener (Java 17 migration)
+
+When upgrading to Java 17 + LangChain4j 0.36+ (ADR-035), register `AIMetricsListener` at **`AIService` level** when building each agent — not in the factory. At that point `AIService` has full context, and the listener fires automatically for every LLM call regardless of which agent or code path triggers it. This eliminates the need for manual `MAIUsageMetrics.record()` calls and ensures future domain agents (Sales, KB, Inventory) get metrics automatically without any additional code.
+
+```java
+// Future pattern (Java 17 + LangChain4j 0.36+):
+AIMetricsListener listener = new AIMetricsListener(ctx, userId, roleId, providerId, sessionId);
+ChatLanguageModel model = factory.createChatModel(provider);
+// model.addListener(listener) or pass via AiServices builder
+```
 
 ## Pros and Cons of the Options
 

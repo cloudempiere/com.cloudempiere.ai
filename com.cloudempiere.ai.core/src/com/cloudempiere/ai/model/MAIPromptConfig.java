@@ -60,4 +60,22 @@ public class MAIPromptConfig extends X_AIG_Prompt_Config {
 		return config != null ? config.getAIGPromptText() : null;
 	}
 
+	/**
+	 * Get prompt text by config ID.
+	 * @param ctx      context
+	 * @param configID AIG_Prompt_Config_ID
+	 * @param trxName  transaction
+	 * @return prompt text or null if not found
+	 */
+	public static String getPromptText(Properties ctx, int configID, String trxName) {
+		if (configID <= 0)
+			return null;
+		MAIPromptConfig config = new MAIPromptConfig(ctx, configID, trxName);
+		if (config.getAIG_Prompt_Config_ID() != configID)
+			return null;
+		if (!X_AIG_Prompt_Config.AIGSTATUS_Active.equals(config.getAIGStatus()) || !config.isActive())
+			return null;
+		return config.getAIGPromptText();
+	}
+
 }

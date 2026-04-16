@@ -1,13 +1,15 @@
 # ADR-005: Intelligent Data Source Routing
 
-**Status:** Superseded by ADR-012 (Legacy Code Still Active)
+**Status:** Superseded by ADR-012 (Legacy Code Still Active as of 2026-03-11)
 **Date:** 2025-12-01
+**Updated:** 2026-03-11
 **Deciders:** Cloudempiere AI Team
 **Implemented:** v0.10.0
 **Superseded:** 2025-12-01 (by ADR-012: RAG-Based Context Retrieval)
 
-> ⚠️ **IMPORTANT**: While this ADR is superseded, the implementation code is **still active** in production.
-> The following files (1884 lines total) have not been replaced by ADR-012's RAG approach:
+> ⚠️ **IMPORTANT**: While this ADR is superseded, the implementation code is **still active**.
+> RagService (@Component) and RAG infrastructure now coexist with this code.
+> The following files (1884 lines total) have not yet been removed:
 > - `routing/PromptAnalyzer.java` (270 lines)
 > - `routing/ConversationContextManager.java` (492 lines)
 > - `routing/EntityExtractor.java` (214 lines)

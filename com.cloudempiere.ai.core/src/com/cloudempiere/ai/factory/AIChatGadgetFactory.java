@@ -17,8 +17,6 @@ import java.util.Map;
 import java.util.logging.Level;
 
 import org.adempiere.webui.factory.IDashboardGadgetFactory;
-import org.compiere.model.MRole;
-import org.compiere.model.X_AD_Role;
 import org.compiere.util.CLogger;
 import org.compiere.util.Env;
 import org.compiere.util.Msg;
@@ -31,7 +29,6 @@ import org.zkoss.zul.Panelchildren;
 
 import com.cloudempiere.ai.component.AIChatWidget;
 import com.cloudempiere.ai.model.MAIProvider;
-import com.cloudempiere.ai.model.MAIProviderAccess;
 
 /**
  * Dashboard Gadget Factory for AI Chat Widget.
@@ -181,52 +178,12 @@ public class AIChatGadgetFactory implements IDashboardGadgetFactory {
     private boolean isAvailable() {
         try {
             java.util.Properties ctx = Env.getCtx();
-
-            log.warning("AI Chat isAvailable() check - AD_Client_ID=" + Env.getAD_Client_ID(ctx));
-
-            // 1. Active default provider must exist
-            MAIProvider provider = MAIProvider.getDefault(ctx, null);
-            if (provider == null) {
-                log.warning("AI Chat Widget not available: No default provider found");
-                return false;
-            }
-            if (!provider.isActive()) {
-                log.warning("AI Chat Widget not available: Default provider is inactive");
-                return false;
-            }
-
-            // 2. Check role's AI access level (ADR-058)
-            MRole role = MRole.getDefault(ctx, false);
-            String accessLevel = role != null ? role.getAIAccessLevel() : X_AD_Role.AIACCESSLEVEL_All;
-            if (accessLevel == null)
-                accessLevel = X_AD_Role.AIACCESSLEVEL_All;
-
-            log.warning("AI Chat Widget AIAccessLevel=" + accessLevel + " for role=" +
-                       (role != null ? role.getAD_Role_ID() : "null"));
-
-            // 3. None = hard block regardless of AIG_Provider_Access
-            if (X_AD_Role.AIACCESSLEVEL_None.equals(accessLevel)) {
-                log.warning("AI Chat Widget not available: Role AIAccessLevel is None");
-                return false;
-            }
-
-            // 4. All = open access (default behaviour)
-            if (X_AD_Role.AIACCESSLEVEL_All.equals(accessLevel)) {
-                log.warning("AI Chat Widget isAvailable result: true (All)");
-                return true;
-            }
-
-            // 5. UserRoleAccess = check AIG_Provider_Access for explicit grant
-            int roleId  = role != null ? role.getAD_Role_ID()          : 0;
-            int userId  = Env.getAD_User_ID(ctx);
-            MAIProviderAccess access = MAIProviderAccess.get(ctx, provider.getAIG_Provider_ID(), roleId, userId, null);
-            boolean granted = access != null;
-            log.warning("AI Chat Widget isAvailable result: " + granted + " (UserRoleAccess, providerID=" +
-                       provider.getAIG_Provider_ID() + ", roleID=" + roleId + ", userID=" + userId + ")");
-            return granted;
-
+            MAIProvider provider = MAIProvider.getForUser(ctx, null);
+            boolean available = provider != null;
+            log.fine("AI Chat isAvailable=" + available
+                    + (available ? " provider=" + provider.getName() + " (ID=" + provider.getAIG_Provider_ID() + ")" : " (no accessible provider)"));
+            return available;
         } catch (Exception e) {
-            // Defensive: never throw from isAvailable - just return false
             log.log(Level.WARNING, "AI Chat Widget not available - Exception: " + e.getMessage(), e);
             return false;
         }
