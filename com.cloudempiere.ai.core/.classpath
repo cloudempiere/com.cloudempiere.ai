@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<classpath>
+	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/JavaSE-11"/>
+	<classpathentry kind="con" path="org.eclipse.pde.core.requiredPlugins"/>
+	<classpathentry kind="src" path="src/"/>
+	<classpathentry exported="true" kind="lib" path="lib/bedrockruntime-2.20.162.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/bedrock-2.20.162.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/netty-nio-client-2.20.162.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/netty-codec-http-4.1.100.Final.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/netty-codec-http2-4.1.100.Final.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/netty-codec-4.1.100.Final.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/netty-transport-4.1.100.Final.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/netty-common-4.1.100.Final.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/netty-buffer-4.1.100.Final.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/netty-handler-4.1.100.Final.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/netty-resolver-4.1.100.Final.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/netty-transport-native-unix-common-4.1.100.Final.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/netty-transport-classes-epoll-4.1.100.Final.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/reactive-streams-1.0.4.jar"/>
+	<classpathentry kind="output" path="target/classes"/>
+</classpath>
