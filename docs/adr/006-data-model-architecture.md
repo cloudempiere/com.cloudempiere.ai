@@ -1,7 +1,8 @@
 # ADR-006: Data Model Architecture
 
-**Status:** Accepted
+**Status:** Accepted — Extended (originally 5 tables, now 11 as of v0.32.0)
 **Date:** 2025-12-01
+**Updated:** 2026-03-11
 **Deciders:** Cloudempiere AI Team
 **Implemented:** v0.10.0
 
@@ -38,13 +39,23 @@ Without a structured data model:
 
 ## Decision
 
-Implement **5 core database tables** following iDempiere conventions:
+Implement **5 core database tables** following iDempiere conventions. As the plugin grew, 6 additional tables were added through subsequent ADRs:
 
+**Original 5 tables (v0.10.0):**
 1. **AIG_Provider** - AI service provider registry
 2. **AIG_QueryAudit** - Comprehensive query audit trail
-3. **AIG_Chat** - Conversation session metadata
-4. **AIG_ChatEntry** - Individual messages in conversations
-5. **AIG_Prompt_Config** - Configurable system prompts
+3. **AIG_Chat** (CM_Chat extension) - Conversation session metadata
+4. **AIG_ChatEntry** (CM_ChatEntry extension) - Individual messages
+5. **AIG_Prompt_Config** - Configurable system prompts (ADR-059)
+
+**Additional tables added post v0.10.0:**
+6. **AIG_UsageMetrics** - Token usage & cost tracking (ADR-013)
+7. **AIG_ModelPricing** - Per-model token pricing (ADR-013)
+8. **AIG_Budget** - Org/user budget limits (ADR-013)
+9. **AIG_Provider_Access** - Role-based provider access control (ADR-029, ADR-058)
+10. **AIG_Embedding** - Vector embeddings for RAG (ADR-012, ADR-026)
+11. **AIG_IngestionMetadata** - Embedding ingestion tracking (ADR-040)
+12. **AIG_ChatOwnership** - Chat access control (ADR-036)
 
 ### Data Model Overview
 

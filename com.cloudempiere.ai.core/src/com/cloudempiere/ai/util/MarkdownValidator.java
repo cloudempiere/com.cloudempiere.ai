@@ -204,6 +204,19 @@ public class MarkdownValidator {
             // Check for markers at current position
             MarkerInfo marker = detectMarker(line, i);
 
+            // Inside a code span: only the closing backtick is special — everything else is literal
+            if (!openMarkers.isEmpty() && openMarkers.peek().type == ElementType.CODE) {
+                if (marker != null && marker.type == ElementType.CODE) {
+                    openMarkers.pop();
+                    result.append(marker.marker);
+                    i += marker.marker.length();
+                } else {
+                    result.append(line.charAt(i));
+                    i++;
+                }
+                continue;
+            }
+
             if (marker != null) {
                 // Check if this closes an open marker
                 boolean closes = false;

@@ -450,6 +450,7 @@ Follow [Conventional Commits](https://conventionalcommits.org/):
 - [ADR-047](docs/adr/047-streaming-chat-rendering-best-practices.md) - Streaming Chat Rendering Best Practices
 - [ADR-048](docs/adr/048-comprehensive-security-strategy.md) - Comprehensive Security Strategy
 - [ADR-059](docs/adr/059-configurable-system-prompt-architecture.md) - Configurable System Prompt Architecture (Operator Layer)
+- [ADR-063](docs/adr/063-role-based-prompt-profile-routing.md) - Role-Based Prompt Profile Routing (3-Phase Roadmap)
 
 ### Use Cases - Phase 1 (MVP)
 - [ADR-017](docs/adr/017-chart-executive-overview.md) - Chart Executive Overview

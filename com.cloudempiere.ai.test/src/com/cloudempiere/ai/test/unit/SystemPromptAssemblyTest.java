@@ -35,7 +35,7 @@ import com.cloudempiere.ai.test.categories.UnitTest;
  *
  * <p>Run with: {@code ./run-unit-tests.sh}
  *
- * @see AIService#appendOperatorAddendum(java.util.Properties, String)
+ * @see AIService#appendOperatorAddendum(java.util.Properties, String, int)
  * @see com.cloudempiere.ai.docs.adr.ADR059
  */
 @UnitTest
@@ -56,7 +56,7 @@ class SystemPromptAssemblyTest {
         @Test
         @DisplayName("null addendum returns base prompt unchanged")
         void nullAddendumReturnsBaseUnchanged() {
-            String result = AIService.appendOperatorAddendum(null, BASE);
+            String result = AIService.appendOperatorAddendum(null, BASE, 0);
             assertThat(result).isEqualTo(BASE);
         }
 

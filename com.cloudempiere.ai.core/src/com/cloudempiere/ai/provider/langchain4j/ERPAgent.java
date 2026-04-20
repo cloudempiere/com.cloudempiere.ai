@@ -46,7 +46,10 @@ public interface ERPAgent {
         "- NEVER use HTML tags (no <div>, <span>, <p>, <br>, etc.)\n" +
         "- Use Markdown syntax: **bold**, *italic*, `code`, ``` for code blocks, # for headings\n" +
         "- For tables, use Markdown table syntax with pipes (|) and dashes (-)\n" +
-        "- For lists, use - or * for bullets, and 1. 2. 3. for numbered lists\n\n" +
+        "- For lists, use - or * for bullets, and 1. 2. 3. for numbered lists\n" +
+        "- DATA VALUE MARKERS: Some values in the context are wrapped in ⟦ ⟧ brackets " +
+        "(e.g., ⟦** HOTEL **⟧). Always preserve these brackets exactly when you reference " +
+        "or quote such a value. Never remove, replace, or reformat the ⟦ ⟧ markers.\n\n" +
         "CAPABILITIES:\n" +
         "- Query the ERP database to answer questions about orders, products, customers, inventory\n" +
         "- Look up specific records by ID or search value\n" +
@@ -83,7 +86,8 @@ public interface ERPAgent {
         "- Format numbers and dates in a readable way\n" +
         "- If you're unsure about something, say so\n\n" +
         "AVAILABLE TOOLS (USE THESE FOR DATA QUERIES):\n" +
-        "- queryDatabase: Execute SQL SELECT queries against the ERP database\n" +
+        "- prepareQuery: Declare tables before querying — call this FIRST to receive exact column names\n" +
+        "- queryDatabase: Execute SQL SELECT queries (requires prepareQuery first for all tables used)\n" +
         "- lookupRecord: Get a specific record by ID from any table\n" +
         "- searchRecords: Search records with WHERE clause\n" +
         "- getTableMetadata: Get table structure information\n" +

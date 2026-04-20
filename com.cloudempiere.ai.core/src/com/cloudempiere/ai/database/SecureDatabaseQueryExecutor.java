@@ -284,6 +284,25 @@ public class SecureDatabaseQueryExecutor {
     }
 
     /**
+     * Audit a query that was rejected before execution (e.g. schema pre-validation failure).
+     * Called by ERPTools for rejections that never reach {@link #executeQuery(SecureQueryRequest)}.
+     */
+    public void auditRejectedQuery(SecureQueryRequest request, String errorMessage, long executionTimeMs) {
+        SecureQueryResult result = new SecureQueryResult();
+        result.setStatus(MAIQueryAudit.AIGQUERYSTATUS_Error);
+        result.setErrorMessage(errorMessage);
+        result.setTotalExecutionTimeMs(executionTimeMs);
+
+        int loggedInUserId = -1;
+        if (request.getCtx() != null) {
+            loggedInUserId = Env.getAD_User_ID(request.getCtx());
+        }
+
+        auditQuery(request, result, MAIQueryAudit.AIGQUERYSTATUS_Error,
+                errorMessage, executionTimeMs, loggedInUserId);
+    }
+
+    /**
      * Validate SQL is SELECT only (no INSERT, UPDATE, DELETE, DROP, etc.)
      */
     private void validateReadOnlySQL(String sql) {

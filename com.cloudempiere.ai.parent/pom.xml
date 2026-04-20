@@ -17,7 +17,9 @@
 		<download.maven.version>1.4.1</download.maven.version>
 		<lifecycle.mapping.version>1.0.0</lifecycle.mapping.version>
 		<maven-clean-plugin.version>2.5</maven-clean-plugin.version>
-		<idempiere.core.repository.url>file:///${basedir}/../../iDempiereCLDE/org.idempiere.p2/target/repository</idempiere.core.repository.url>
+		<idempiere.core.repository.url>https://cloudempiere-p2.s3.eu-west-1.amazonaws.com/plugins/iDempiereCLDE/develop/latest/</idempiere.core.repository.url>
+		<cloudempiere.core.repository.url>https://cloudempiere-p2.s3.eu-west-1.amazonaws.com/plugins/com.cloudempiere.core/develop/latest/</cloudempiere.core.repository.url>
+		<cloudempiere.aws.repository.url>https://cloudempiere-p2.s3.eu-west-1.amazonaws.com/plugins/com.cloudempiere.aws/develop/latest/</cloudempiere.aws.repository.url>
 		<junit.version>5.10.2</junit.version>
 		<mockito.version>5.11.0</mockito.version>
 	</properties>
@@ -172,12 +174,12 @@
 				</repository>
 				<repository>
 					<id>cloudempiere-core</id>
-					<url>file:///${basedir}/../../com.cloudempiere.core/com.cloudempiere.core.extensions.p2/target/repository</url>
+					<url>${cloudempiere.core.repository.url}</url>
 					<layout>p2</layout>
 				</repository>
 				<repository>
 					<id>cloudempiere-aws</id>
-					<url>file:///${basedir}/../../com.cloudempiere.aws/com.cloudempiere.aws.p2/target/repository</url>
+					<url>${cloudempiere.aws.repository.url}</url>
 					<layout>p2</layout>
 				</repository>
 				<repository>

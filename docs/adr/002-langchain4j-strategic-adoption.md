@@ -1,8 +1,8 @@
 # ADR-002: Strategic LangChain4j Adoption and Architecture Simplification
 
-**Status:** Accepted (Phase 1 Implemented in v0.9.0)
+**Status:** Accepted — Phases 1–3 Implemented (v0.9.0–v0.32.0); v1.0.0 cleanup pending
 **Date:** 2025-12-01
-**Updated:** 2025-12-01
+**Updated:** 2026-03-11
 **Deciders:** Cloudempiere AI Team
 **Context:** Plugin architecture evolution for v0.8.0+
 
@@ -102,6 +102,8 @@ The `com.cloudempiere.ai` plugin has evolved organically with two parallel imple
 
 ### Phase 1: Provider Migration (v0.9.0) ✅ IMPLEMENTED
 
+> **Actual State (v0.32.0):** All four providers active. 5 provider types supported: Anthropic, AWS Bedrock, Ollama, OpenAI, and iDempiere-CLI (OpenAI-compatible). Old `IAIProvider` deprecated but not yet deleted.
+
 #### 1.1 Replace Custom Providers with LangChain4j Native Modules
 
 | Current | Replace With | Maven Artifact | Status |
@@ -160,7 +162,7 @@ public class LangChain4jProviderFactory {
 }
 ```
 
-### Phase 2: Deprecate Custom Agent Infrastructure (v0.8.0)
+### Phase 2: Deprecate Custom Agent Infrastructure (v0.9.0+) ✅ IMPLEMENTED
 
 #### 2.1 Remove BaseAgent in Favor of AiServices
 
@@ -262,7 +264,7 @@ public class ERPTools {
 - No manual registration needed
 - Better documentation via annotations
 
-### Phase 3: Advanced LangChain4j Features (v0.9.0)
+### Phase 3: Advanced LangChain4j Features (v0.9.0–v0.32.0) ✅ IMPLEMENTED
 
 #### 3.1 Structured Outputs
 
@@ -319,7 +321,9 @@ public interface SafeAgent {
 }
 ```
 
-### Phase 4: Observability and Monitoring (v0.9.0)
+### Phase 4: Observability and Monitoring (v0.12.0) ✅ IMPLEMENTED
+
+> **Actual State:** `AIMetricsListener` implemented and wired into `LangChain4jProviderFactory`. Uses `AIG_ModelPricing` DB table for pricing lookups (not hardcoded). Note: some enhanced listener events require Java 17 (see ADR-035).
 
 #### 4.1 LangChain4j Observability
 

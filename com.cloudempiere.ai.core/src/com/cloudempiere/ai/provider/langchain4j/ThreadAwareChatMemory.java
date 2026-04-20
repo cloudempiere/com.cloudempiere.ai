@@ -25,6 +25,7 @@ import org.compiere.util.CLogger;
 import org.compiere.util.DB;
 
 import com.cloudempiere.ai.model.MAIChatEntry;
+import com.cloudempiere.ai.model.MAIProvider;
 
 import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.data.message.ChatMessage;
@@ -320,7 +321,7 @@ public class ThreadAwareChatMemory implements ChatMemory {
                 java.util.Locale userLocale = org.compiere.util.Env.getLanguage(ctx).getLocale();
                 String contentHtml = com.cloudempiere.ai.util.AIMessageRenderer.render(
                     content, ctx, null, userLocale);
-                entry = MAIChatEntry.createAIResponse(chat, contentHtml);
+                entry = MAIChatEntry.createAIResponse(chat, MAIProvider.getForUser(ctx, null), content, contentHtml);
             } else {
                 entry = new MAIChatEntry(chat, content);
             }

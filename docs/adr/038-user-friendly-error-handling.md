@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Accepted — **Partially Wired**: `AIErrorHandler` class and migration scripts exist; **not called** from `AIService` catch blocks — errors are returned as plain strings, not persisted to `AD_Issue`
 
 ## Date
 
@@ -47,10 +47,15 @@ We need a user-friendly error handling system that shows meaningful messages in 
 
 ### Confirmation
 
-- Verify AD_Message entries exist for all error categories
-- Test that errors create AD_Issue records with proper context
-- Confirm error reference codes appear in UI and link to AD_Issue
-- Test translations work when AD_Message_Trl entries exist
+- [x] `AIErrorHandler.java` implemented (`com.cloudempiere.ai.error.AIErrorHandler`) — **class exists**
+- [x] 7 error categories defined (RATE_LIMIT, TIMEOUT, CONTENT_FILTER, CONFIGURATION, CONTEXT_LENGTH, SERVICE_UNAVAILABLE, GENERIC)
+- [x] AD_Message entries created (IDs 800100–800106) via migration scripts
+- [x] Migration scripts: `migration/postgresql/202512101430_CLD-ERROR-MESSAGES.sql`
+- [ ] `AIErrorHandler` called from `AIService` catch blocks — **NOT DONE**: catch blocks return plain error strings (e.g. `"I cannot process this request: " + e.getMessage()`) without calling `AIErrorHandler`
+- [ ] AD_Issue creation on error — **NOT TRIGGERED**: `AIErrorHandler.handleError()` is never called, so no `AD_Issue` records are created
+- [ ] AIChatWidget displaying friendly messages with reference codes — **NOT WIRED** end-to-end; the widget would need to receive structured error results from `AIErrorHandler`
+- [ ] AD_Message_Trl translations (pending per-language localization)
+- [ ] "Submit to Support" button (future enhancement)
 
 ## Pros and Cons of the Options
 
