@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<classpath>
+	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/JavaSE-11"/>
+	<classpathentry kind="con" path="org.eclipse.pde.core.requiredPlugins"/>
+	<classpathentry kind="src" path="src/"/>
+	<classpathentry exported="true" kind="lib" path="lib/langchain4j-0.35.0.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/langchain4j-core-0.35.0.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/langchain4j-anthropic-0.35.0.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/langchain4j-ollama-0.35.0.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/langchain4j-open-ai-0.35.0.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/langchain4j-bedrock-0.35.0.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/langchain4j-pgvector-0.35.0.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/openai4j-0.22.0.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/anthropic-java-core-2.10.0.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/anthropic-java-client-okhttp-2.10.0.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/jackson-core-2.17.0.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/jackson-databind-2.17.0.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/jackson-annotations-2.17.0.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/jackson-module-kotlin-2.17.0.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/jackson-datatype-jdk8-2.17.0.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/jackson-datatype-jsr310-2.17.0.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/kotlin-stdlib-1.9.10.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/kotlin-reflect-1.9.10.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/okhttp-4.12.0.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/okhttp-sse-4.12.0.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/okio-3.6.0.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/okio-jvm-3.6.0.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/retrofit-2.9.0.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/converter-jackson-2.9.0.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/converter-gson-2.9.0.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/gson-2.10.1.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/jtokkit-1.0.0.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/commonmark-0.22.0.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/commonmark-ext-gfm-tables-0.22.0.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/commonmark-ext-gfm-strikethrough-0.22.0.jar"/>
+	<classpathentry kind="output" path="target/classes"/>
+</classpath>

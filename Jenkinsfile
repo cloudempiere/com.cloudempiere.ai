@@ -103,7 +103,7 @@ pipeline {
                     def base = "${WORKSPACE}/.."
 
                     // iDempiere core always uses local sibling workspace
-                    env.IDEMPIERE_CORE_REPO = "file://${base}/clde-server_${suffix}-cloudempiere/iDempiereCLDE/org.idempiere.p2/target/repository"
+                    env.IDEMPIERE_CORE_REPO = "file://${base}/clde-server_${suffix}-cloudempiere/iDempiereCLDE/core/org.idempiere.p2/target/repository"
 
                     if (env.EFFECTIVE_SOURCE == 'S3') {
                         env.CLDE_CORE_REPO = "file://${WORKSPACE}/deps/clde-core"
