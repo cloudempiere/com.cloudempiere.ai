@@ -281,6 +281,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 	/**
 	 * Initialize the widget
 	 */
+	@SuppressWarnings("deprecation")
 	private void init() {
 		setSclass("ai-chat-widget"); // CSS defined in fragment/custom.css.dsp
 		ZKUpdateUtil.setVflex(this, "1");
@@ -1598,7 +1599,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 			}
 			warningHtml += "</div>";
 
-			MChatEntry warningEntry = MAIChatEntry.createAIResponse(chat, provider, warningHtml);
+			MChatEntry warningEntry = MAIChatEntry.createAIResponse(chat, provider, "", warningHtml);
 			if (threadRootIdSnapshot > 0) {
 				warningEntry.setCM_ChatEntryParent_ID(threadRootIdSnapshot);
 			}
@@ -1639,7 +1640,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 				" <span class=\"ai-error-ref\" title=\"" + errorResult.getDebugTooltip() +
 				"\" style=\"cursor:help; opacity:0.6;\">\u26A0\uFE0F</span></div>";
 
-			MChatEntry errorEntry = MAIChatEntry.createAIResponse(chat, provider, errorMsg);
+			MChatEntry errorEntry = MAIChatEntry.createAIResponse(chat, provider, "", errorMsg);
 
 			// Set thread parent for error entry
 			if (threadRootIdSnapshot > 0) {
