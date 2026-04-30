@@ -29,7 +29,7 @@
 	<build>
 		<pluginManagement>
 			<plugins>
-				<!-- Suppress Eclipse M2E lifecycle mapping warning for maven-antrun-plugin -->
+				<!-- Tell Eclipse M2E to execute the antrun directory-creation step on configuration. -->
 				<plugin>
 					<groupId>org.eclipse.m2e</groupId>
 					<artifactId>lifecycle-mapping</artifactId>
@@ -44,7 +44,12 @@
 										<versionRange>[1.0.0,)</versionRange>
 										<goals><goal>run</goal></goals>
 									</pluginExecutionFilter>
-									<action><ignore/></action>
+									<action>
+										<execute>
+											<runOnConfiguration>true</runOnConfiguration>
+											<runOnIncremental>false</runOnIncremental>
+										</execute>
+									</action>
 								</pluginExecution>
 							</pluginExecutions>
 						</lifecycleMappingMetadata>
