@@ -119,7 +119,6 @@ public class MockAIHubChatModel implements StreamingChatLanguageModel {
     /**
      * Extract last user message from conversation.
      */
-    @SuppressWarnings("deprecation") // ChatMessage.text() is deprecated in 0.36+; required in 0.35.0
     private String extractLastUserMessage(List<ChatMessage> messages) {
         if (messages == null || messages.isEmpty()) {
             return "";
