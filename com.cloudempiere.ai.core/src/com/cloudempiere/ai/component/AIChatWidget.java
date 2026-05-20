@@ -38,6 +38,10 @@ import org.compiere.util.Msg;
 import org.compiere.util.Util;
 import org.json.JSONArray;
 import org.json.JSONObject;
+import org.osgi.framework.Bundle;
+import org.osgi.framework.BundleContext;
+import org.osgi.framework.FrameworkUtil;
+import org.osgi.framework.ServiceReference;
 import org.zkoss.zk.ui.Component;
 import org.zkoss.zk.ui.Desktop;
 import org.zkoss.zk.ui.Executions;
@@ -69,6 +73,7 @@ import com.cloudempiere.ai.model.MAIProvider;
 import com.cloudempiere.ai.provider.dto.AIStreamCallback;
 import com.cloudempiere.ai.provider.langchain4j.AIService;
 import com.cloudempiere.ai.provider.langchain4j.AIService.ChatResult;
+import com.cloudempiere.ai.provider.langchain4j.IAIService;
 
 /**
  * AI Chat Widget Component
@@ -279,6 +284,28 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 	}
 
 	/**
+	 * Look up the AIService via OSGi service registry.
+	 *
+	 * @return AIService instance, or null if no service is registered
+	 */
+	private static AIService lookupAIService() {
+		Bundle bundle = FrameworkUtil.getBundle(AIService.class);
+		if (bundle == null) {
+			return null;
+		}
+		BundleContext ctx = bundle.getBundleContext();
+		if (ctx == null) {
+			return null;
+		}
+		ServiceReference<IAIService> ref = ctx.getServiceReference(IAIService.class);
+		if (ref == null) {
+			return null;
+		}
+		IAIService service = ctx.getService(ref);
+		return (service instanceof AIService) ? (AIService) service : null;
+	}
+
+	/**
 	 * Initialize the widget
 	 */
 	private void init() {
@@ -312,7 +339,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 
 		// Initialize AI service (LangChain4j) - use defensive wrapper
 		Result<AIService> serviceResult = AIUIService.safeExecute(
-				() -> AIService.getInstance(), "chat-init");
+				AIChatWidget::lookupAIService, "chat-init");
 		if (!serviceResult.isSuccess()) {
 			showUnavailableState(serviceResult.getMessage());
 			return;
@@ -1598,7 +1625,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 			}
 			warningHtml += "</div>";
 
-			MChatEntry warningEntry = MAIChatEntry.createAIResponse(chat, provider, warningHtml);
+			MChatEntry warningEntry = MAIChatEntry.createAIResponse(chat, provider, "", warningHtml);
 			if (threadRootIdSnapshot > 0) {
 				warningEntry.setCM_ChatEntryParent_ID(threadRootIdSnapshot);
 			}
@@ -1639,7 +1666,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 				" <span class=\"ai-error-ref\" title=\"" + errorResult.getDebugTooltip() +
 				"\" style=\"cursor:help; opacity:0.6;\">\u26A0\uFE0F</span></div>";
 
-			MChatEntry errorEntry = MAIChatEntry.createAIResponse(chat, provider, errorMsg);
+			MChatEntry errorEntry = MAIChatEntry.createAIResponse(chat, provider, "", errorMsg);
 
 			// Set thread parent for error entry
 			if (threadRootIdSnapshot > 0) {

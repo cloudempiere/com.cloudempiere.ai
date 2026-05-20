@@ -67,31 +67,6 @@ public class MAIChatEntry extends MChatEntry {
 	}
 
 	/**
-	 * Create AI Response Entry (legacy - HTML only)
-	 * Sets AD_User_ID to the AI user from the given provider.
-	 *
-	 * @deprecated Use {@link #createAIResponse(MChat, MAIProvider, String, String)} with separate markdown and HTML
-	 * @param chat parent chat
-	 * @param provider AI provider (may be null)
-	 * @param data response text (HTML or markdown)
-	 * @return AI chat entry with AD_User_ID set to AI user
-	 */
-	@Deprecated
-	public static MAIChatEntry createAIResponse(MChat chat, MAIProvider provider, String data) {
-		MAIChatEntry entry = new MAIChatEntry(chat.getCtx(), 0, chat.get_TrxName());
-		entry.setCM_Chat_ID(chat.getCM_Chat_ID());
-		entry.setConfidentialType(chat.getConfidentialType());
-		entry.setCharacterData(data);
-		entry.setChatEntryType(CHATENTRYTYPE_NoteFlat);
-
-		if (provider != null && provider.getAD_User_ID() > 0) {
-			entry.setAD_User_ID(provider.getAD_User_ID());
-		}
-
-		return entry;
-	}
-
-	/**
 	 * Create AI Response Entry with separate markdown and HTML.
 	 * Sets AD_User_ID to the AI user from the given provider.
 	 *

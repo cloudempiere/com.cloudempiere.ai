@@ -1026,7 +1026,13 @@ public class AIService implements IAIService {
             // STREAMING AI CALL (ADR-033)
             // ================================================================
 
-            StreamingChatLanguageModel streamingModel = getOrCreateStreamingModel(provider);
+            // For AI Hub provider, create a per-request model with iDempiere context headers
+            // so the hub can enforce tenant isolation (AD_Client_ID filter in QueryToolLogic).
+            // Other providers are cached as usual — they don't need context headers.
+            StreamingChatLanguageModel streamingModel =
+                LangChain4jProviderFactory.PROVIDER_AI_HUB.equals(provider.getAIGProviderType())
+                    ? LangChain4jProviderFactory.createStreamingWithContext(provider, null, null, ctx)
+                    : getOrCreateStreamingModel(provider);
 
             log.log(Level.FINE, "[STREAM] Message preview: " + processedMessage.substring(0, Math.min(50, processedMessage.length())));
 

@@ -1,7 +1,11 @@
 package com.cloudempiere.ai.provider.langchain4j;
 
+import java.util.HashMap;
 import java.util.Map;
+import java.util.Properties;
 import java.util.concurrent.ConcurrentHashMap;
+
+import org.compiere.util.Env;
 
 import org.compiere.util.CLogger;
 import org.osgi.framework.BundleContext;
@@ -424,6 +428,40 @@ public class LangChain4jProviderFactory implements ILangChain4jProviderFactory {
             .temperature(0.7)
             .logRequests(true)
             .logResponses(true)
+            .build();
+    }
+
+    /**
+     * Create a per-request StreamingChatLanguageModel for AI Hub with iDempiere context headers.
+     * Not cached — creates a new instance per request so headers carry the caller's identity.
+     */
+    public static StreamingChatLanguageModel createStreamingWithContext(
+            MAIProvider config, String modelName, String baseUrl, Properties ctx) {
+        if (!PROVIDER_AI_HUB.equals(config.getAIGProviderType())) {
+            return createStreaming(config, modelName, baseUrl);
+        }
+        String resolvedUrl   = baseUrl   != null ? baseUrl   : resolveBaseUrl(config);
+        String resolvedModel = modelName != null ? modelName : resolveModelName(config);
+        String apiKey        = config.getAPIKey();
+
+        Map<String, String> headers = new HashMap<>();
+        if (ctx != null) {
+            int clientId = Env.getAD_Client_ID(ctx);
+            int orgId    = Env.getAD_Org_ID(ctx);
+            int userId   = Env.getAD_User_ID(ctx);
+            int roleId   = Env.getAD_Role_ID(ctx);
+            if (clientId > 0) headers.put("X-iDempiere-Client-ID", String.valueOf(clientId));
+            if (orgId    >= 0) headers.put("X-iDempiere-Org-ID",    String.valueOf(orgId));
+            if (userId   > 0) headers.put("X-iDempiere-User-ID",   String.valueOf(userId));
+            if (roleId   > 0) headers.put("X-iDempiere-Role-ID",   String.valueOf(roleId));
+        }
+
+        return OpenAiStreamingChatModel.builder()
+            .baseUrl(normalizeUrl(resolvedUrl))
+            .apiKey(apiKey)
+            .modelName(resolvedModel != null ? resolvedModel : DEFAULT_AI_HUB_MODEL)
+            .temperature(0.7)
+            .customHeaders(headers)
             .build();
     }
 
