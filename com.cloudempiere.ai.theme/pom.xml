@@ -44,6 +44,10 @@
 			<plugin>
 				<groupId>org.eclipse.tycho</groupId>
 				<artifactId>tycho-packaging-plugin</artifactId>
+				<version>${tycho.version}</version>
+				<configuration>
+					<format>'v'yyyyMMdd-HHmm</format>
+				</configuration>
 			</plugin>
 
 			<!-- Ensure target/classes exists so tycho-ds-plugin doesn't fail when there are no Java sources -->
