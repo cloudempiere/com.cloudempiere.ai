@@ -227,8 +227,7 @@ public class RagService implements IRagService {
      * Get metadata value as string.
      */
     private String getMetadataString(TextSegment segment, String key) {
-        Object value = segment.metadata().get(key);
-        return value != null ? value.toString() : null;
+        return segment.metadata().getString(key);
     }
 
     @Override
