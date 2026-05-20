@@ -2,6 +2,8 @@ package com.cloudempiere.ai.provider.langchain4j;
 
 import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.data.message.ChatMessage;
+import dev.langchain4j.data.message.SystemMessage;
+import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.model.StreamingResponseHandler;
 import dev.langchain4j.model.chat.StreamingChatLanguageModel;
 import dev.langchain4j.model.output.Response;
@@ -125,12 +127,20 @@ public class MockAIHubChatModel implements StreamingChatLanguageModel {
         // Find last user message
         for (int i = messages.size() - 1; i >= 0; i--) {
             ChatMessage msg = messages.get(i);
-            if (msg.type().toString().equalsIgnoreCase("USER")) {
-                return msg.text();
+            if (msg instanceof UserMessage) {
+                return ((UserMessage) msg).singleText();
             }
         }
 
-        return messages.get(messages.size() - 1).text();
+        ChatMessage last = messages.get(messages.size() - 1);
+        if (last instanceof UserMessage) {
+            return ((UserMessage) last).singleText();
+        } else if (last instanceof AiMessage) {
+            return ((AiMessage) last).text();
+        } else if (last instanceof SystemMessage) {
+            return ((SystemMessage) last).text();
+        }
+        return "";
     }
 
     /**

@@ -18,6 +18,25 @@
 
     <build>
         <plugins>
+            <!-- Ensure target/classes exists so tycho-ds-plugin doesn't fail when there are no Java sources -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-antrun-plugin</artifactId>
+                <version>3.1.0</version>
+                <executions>
+                    <execution>
+                        <id>create-output-directory</id>
+                        <phase>generate-sources</phase>
+                        <goals><goal>run</goal></goals>
+                        <configuration>
+                            <target>
+                                <mkdir dir="${project.build.outputDirectory}"/>
+                            </target>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
             <!-- Copy dependencies to lib/ directory -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
