@@ -17,9 +17,11 @@
 		<download.maven.version>1.4.1</download.maven.version>
 		<lifecycle.mapping.version>1.0.0</lifecycle.mapping.version>
 		<maven-clean-plugin.version>2.5</maven-clean-plugin.version>
-		<idempiere.core.repository.url>https://cloudempiere-p2.s3.eu-west-1.amazonaws.com/plugins/iDempiereCLDE/master/latest/</idempiere.core.repository.url>
-		<cloudempiere.core.repository.url>https://cloudempiere-p2.s3.eu-west-1.amazonaws.com/plugins/com.cloudempiere.core/master/latest/</cloudempiere.core.repository.url>
-		<cloudempiere.aws.repository.url>https://cloudempiere-p2.s3.eu-west-1.amazonaws.com/plugins/com.cloudempiere.aws/master/latest/</cloudempiere.aws.repository.url>
+		<!-- Which published P2 repo channel to consume (P2 repo, NOT a git branch). Override in CI: -Dcloudempiere.p2.channel=production -->
+		<cloudempiere.p2.channel>staging</cloudempiere.p2.channel>
+		<idempiere.core.repository.url>https://cloudempiere-p2.s3.eu-west-1.amazonaws.com/plugins/iDempiereCLDE/${cloudempiere.p2.channel}/latest/</idempiere.core.repository.url>
+		<cloudempiere.core.repository.url>https://cloudempiere-p2.s3.eu-west-1.amazonaws.com/plugins/com.cloudempiere.core/${cloudempiere.p2.channel}/latest/</cloudempiere.core.repository.url>
+		<cloudempiere.aws.repository.url>https://cloudempiere-p2.s3.eu-west-1.amazonaws.com/plugins/com.cloudempiere.aws/${cloudempiere.p2.channel}/latest/</cloudempiere.aws.repository.url>
 		<junit.version>5.10.2</junit.version>
 		<mockito.version>5.11.0</mockito.version>
 	</properties>
