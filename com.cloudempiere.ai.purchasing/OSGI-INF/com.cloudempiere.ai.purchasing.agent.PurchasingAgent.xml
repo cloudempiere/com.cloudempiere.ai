@@ -5,6 +5,6 @@
       <provide interface="com.cloudempiere.ai.purchasing.agent.PurchasingAgent"/>
       <provide interface="com.cloudempiere.ai.boundary.IDomainAgent"/>
    </service>
-   <reference cardinality="1..1" field="providerFactory" interface="com.cloudempiere.ai.provider.langchain4j.ILangChain4jProviderFactory" name="providerFactory" policy="dynamic"/>
+   <reference cardinality="0..1" field="providerFactory" interface="com.cloudempiere.ai.provider.langchain4j.ILangChain4jProviderFactory" name="providerFactory" policy="dynamic" policy-option="greedy"/>
    <reference cardinality="1..1" field="purchasingTools" interface="com.cloudempiere.ai.purchasing.tools.PurchasingTools" name="purchasingTools" policy="dynamic"/>
 </scr:component>

@@ -22,6 +22,7 @@ Bundle-ClassPath: .,
  lib/reactive-streams-1.0.4.jar
 Bundle-Activator: com.cloudempiere.ai.Activator
 Require-Bundle: org.adempiere.plugin.utils,
+ com.cloudempiere.core.base;bundle-version="0.1.0",
  com.cloudempiere.ai.deps;bundle-version="0.35.0",
  zk;bundle-version="9.6.3",
  zul;bundle-version="9.6.3",
