@@ -6,6 +6,9 @@ import java.util.logging.Logger;
 import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
+import org.osgi.service.component.annotations.ReferenceCardinality;
+import org.osgi.service.component.annotations.ReferencePolicy;
+import org.osgi.service.component.annotations.ReferencePolicyOption;
 
 import com.cloudempiere.ai.boundary.IDomainAgent;
 
@@ -52,7 +55,8 @@ public class PurchasingAgent implements IDomainAgent {
 
     private static final Logger log = Logger.getLogger(PurchasingAgent.class.getName());
 
-    @Reference
+    // CLD-1955: OPTIONAL+DYNAMIC so the agent can activate even when the LangChain4j provider bundle is absent
+    @Reference(cardinality = ReferenceCardinality.OPTIONAL, policy = ReferencePolicy.DYNAMIC, policyOption = ReferencePolicyOption.GREEDY)
     private volatile ILangChain4jProviderFactory providerFactory;
 
     @Reference
@@ -80,6 +84,9 @@ public class PurchasingAgent implements IDomainAgent {
     private synchronized void ensureInitialized() {
         if (agent != null) {
             return;
+        }
+        if (providerFactory == null) {
+            throw new IllegalStateException("AI provider factory not available — langchain4j provider bundle not installed");
         }
 
         try {
