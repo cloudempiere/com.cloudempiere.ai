@@ -21,7 +21,7 @@ import java.util.logging.Level;
 
 import org.adempiere.apps.graph.model.ChartDatasource;
 import org.compiere.model.MChart;
-import org.cloudempiere.model.core.MChartPara;
+import org.cloudempiere.model.core.I_AD_Chart_Para;
 import org.compiere.util.CLogger;
 import org.compiere.util.DB;
 import org.compiere.util.Env;
@@ -276,9 +276,9 @@ public class ChartContextProvider implements IAIContextProvider {
     ) {
         JSONArray parameters = new JSONArray();
 
-        MChartPara[] chartParas = chart.getParameters();
+        I_AD_Chart_Para[] chartParas = chart.getParameters();
         if (chartParas != null && chartParas.length > 0) {
-            for (MChartPara para : chartParas) {
+            for (I_AD_Chart_Para para : chartParas) {
                 JSONObject paramObj = new JSONObject();
                 paramObj.put("name", para.getName());
                 paramObj.put("column_name", para.getColumnName());
