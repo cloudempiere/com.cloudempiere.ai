@@ -30,7 +30,13 @@
 		<module>com.cloudempiere.ai.feature</module>
 		<module>com.cloudempiere.ai.p2</module>
 
-		<!-- Test bundle excluded - uses eclipse-test-plugin with special iDempiere parent config -->
-		<!-- Build separately: cd com.cloudempiere.ai.test && mvn verify -->
+		<!-- Test bundle. Excluded until 2026-08-12 with the note "uses eclipse-test-plugin with
+		     special iDempiere parent config" — accurate, and the reason was that its parent was
+		     org.idempiere.parent via ../../iDempiereCLDE/, a path into a sibling repo CI never
+		     checks out. It is now parented to com.cloudempiere.ai.parent, and org.idempiere.test
+		     (AbstractTestCase) comes from the maven channel iDempiereCLDE publishes rather than
+		     from P2, which never carries it.
+		     See com.cloudempiere.graphql/docs/testing/INTEGRATION-TESTS-NOT-IN-CI.md -->
+		<module>com.cloudempiere.ai.test</module>
 	</modules>
 </project>
