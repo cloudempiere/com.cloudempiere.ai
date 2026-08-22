@@ -1,0 +1,3 @@
+Placeholder so this resource-only fragment has a source folder.
+Without one JDT never completes a build, and every project requiring
+the fragment host org.adempiere.ui.zk blocks on it.
