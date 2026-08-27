@@ -3,6 +3,7 @@ package com.cloudempiere.ai.sales.agent;
 import java.util.Map;
 import java.util.logging.Logger;
 
+import org.compiere.util.Env;
 import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
@@ -11,17 +12,15 @@ import org.osgi.service.component.annotations.ReferencePolicy;
 import org.osgi.service.component.annotations.ReferencePolicyOption;
 
 import com.cloudempiere.ai.boundary.IDomainAgent;
+import com.cloudempiere.ai.model.MAIProvider;
 import com.cloudempiere.ai.provider.langchain4j.ILangChain4jProviderFactory;
 import com.cloudempiere.ai.sales.tools.SalesTools;
-import com.cloudempiere.ai.model.MAIProvider;
 
-import org.compiere.util.Env;
-
+import dev.langchain4j.memory.chat.MessageWindowChatMemory;
 import dev.langchain4j.model.chat.ChatLanguageModel;
 import dev.langchain4j.service.AiServices;
 import dev.langchain4j.service.SystemMessage;
 import dev.langchain4j.service.UserMessage;
-import dev.langchain4j.memory.chat.MessageWindowChatMemory;
 
 /**
  * Sales domain AI agent.

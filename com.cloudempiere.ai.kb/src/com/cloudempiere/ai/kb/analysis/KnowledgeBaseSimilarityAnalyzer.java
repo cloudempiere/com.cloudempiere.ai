@@ -13,6 +13,10 @@
  *****************************************************************************/
 package com.cloudempiere.ai.kb.analysis;
 
+import java.util.HashSet;
+import java.util.Set;
+import java.util.logging.Level;
+
 import org.compiere.util.CLogger;
 
 import com.cloudempiere.ai.kb.dto.KnowledgeBaseEntry;
@@ -20,10 +24,6 @@ import com.cloudempiere.ai.kb.dto.KnowledgeBaseHierarchy;
 import com.cloudempiere.ai.kb.dto.SimilarityResult;
 import com.cloudempiere.ai.kb.dto.SimilarityResult.SimilarEntry;
 import com.cloudempiere.ai.util.EditorJsParser;
-
-import java.util.HashSet;
-import java.util.Set;
-import java.util.logging.Level;
 
 /**
  * Analyzer for finding similar knowledge base entries

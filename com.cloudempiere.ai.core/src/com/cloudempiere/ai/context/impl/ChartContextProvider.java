@@ -20,8 +20,8 @@ import java.util.Properties;
 import java.util.logging.Level;
 
 import org.adempiere.apps.graph.model.ChartDatasource;
-import org.compiere.model.MChart;
 import org.cloudempiere.model.core.I_AD_Chart_Para;
+import org.compiere.model.MChart;
 import org.compiere.util.CLogger;
 import org.compiere.util.DB;
 import org.compiere.util.Env;

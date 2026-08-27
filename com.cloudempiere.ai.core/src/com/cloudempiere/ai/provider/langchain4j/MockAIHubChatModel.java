@@ -1,5 +1,9 @@
 package com.cloudempiere.ai.provider.langchain4j;
 
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.logging.Logger;
+
 import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.data.message.ChatMessage;
 import dev.langchain4j.data.message.SystemMessage;
@@ -7,10 +11,6 @@ import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.model.StreamingResponseHandler;
 import dev.langchain4j.model.chat.StreamingChatLanguageModel;
 import dev.langchain4j.model.output.Response;
-
-import java.util.List;
-import java.util.concurrent.CompletableFuture;
-import java.util.logging.Logger;
 
 /**
  * In-plugin mock AI Hub provider - no external server required.

@@ -13,6 +13,8 @@
  *****************************************************************************/
 package com.cloudempiere.ai.rag;
 
+import static dev.langchain4j.store.embedding.filter.MetadataFilterBuilder.metadataKey;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -47,7 +49,6 @@ import dev.langchain4j.store.embedding.EmbeddingSearchRequest;
 import dev.langchain4j.store.embedding.EmbeddingSearchResult;
 import dev.langchain4j.store.embedding.EmbeddingStore;
 import dev.langchain4j.store.embedding.filter.Filter;
-import static dev.langchain4j.store.embedding.filter.MetadataFilterBuilder.metadataKey;
 
 /**
  * Core RAG service for knowledge retrieval.

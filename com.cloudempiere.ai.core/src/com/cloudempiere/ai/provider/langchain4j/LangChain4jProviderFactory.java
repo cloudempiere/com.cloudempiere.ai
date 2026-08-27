@@ -5,9 +5,8 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.ConcurrentHashMap;
 
-import org.compiere.util.Env;
-
 import org.compiere.util.CLogger;
+import org.compiere.util.Env;
 import org.osgi.framework.BundleContext;
 import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;

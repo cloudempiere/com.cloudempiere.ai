@@ -13,12 +13,12 @@
  *****************************************************************************/
 package com.cloudempiere.ai.kb.analysis;
 
+import java.util.logging.Level;
+
 import org.compiere.util.CLogger;
 
 import com.cloudempiere.ai.kb.database.KnowledgeBaseQuery;
 import com.cloudempiere.ai.kb.dto.SimilarityResult;
-
-import java.util.logging.Level;
 
 /**
  * Database-optimized similarity analyzer using PostgreSQL full-text search

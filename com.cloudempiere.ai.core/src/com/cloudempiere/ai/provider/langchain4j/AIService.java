@@ -29,7 +29,6 @@ import org.osgi.service.component.annotations.ReferenceCardinality;
 import org.osgi.service.component.annotations.ReferencePolicy;
 
 import com.cloudempiere.ai.guardrails.InputGuard;
-import com.cloudempiere.ai.util.SecuritySanitizer;
 import com.cloudempiere.ai.guardrails.OutputGuard;
 import com.cloudempiere.ai.guardrails.dto.GuardResult;
 import com.cloudempiere.ai.model.MAIBudget;
@@ -42,6 +41,7 @@ import com.cloudempiere.ai.provider.langchain4j.tools.RagTools;
 import com.cloudempiere.ai.rag.IRagService;
 // TEMPORARILY DISABLED - LanguageDetectionService will be implemented in Phase 3 (ADR-037)
 // import com.cloudempiere.ai.service.LanguageDetectionService;
+import com.cloudempiere.ai.util.SecuritySanitizer;
 
 import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.data.message.ChatMessage;
