@@ -4,9 +4,9 @@ Bundle-Name: AI Theme Fragment
 Bundle-SymbolicName: com.cloudempiere.ai.theme;singleton:=true
 Bundle-Version: 10.0.2.qualifier
 Bundle-Vendor: CLOUDEMPIERE
-Fragment-Host: org.adempiere.ui.zk;bundle-version="10.0.0"
+Fragment-Host: org.adempiere.ui.zk;bundle-version="14.0.0"
 Automatic-Module-Name: com.cloudempiere.ai.theme
-Bundle-RequiredExecutionEnvironment: JavaSE-11
+Bundle-RequiredExecutionEnvironment: JavaSE-17
 Require-Capability: osgi.ee;filter:="(&(osgi.ee=JavaSE)(version>=11))"
 Jetty-WarFragmentFolderPath: /
 Bundle-ClassPath: .

@@ -4,7 +4,7 @@ Bundle-Name: Cloudempiere AI - Purchasing Domain
 Bundle-SymbolicName: com.cloudempiere.ai.purchasing;singleton:=true
 Bundle-Version: 0.32.0.qualifier
 Bundle-Vendor: Cloudempiere
-Bundle-RequiredExecutionEnvironment: JavaSE-11
+Bundle-RequiredExecutionEnvironment: JavaSE-17
 Automatic-Module-Name: com.cloudempiere.ai.purchasing
 Service-Component: OSGI-INF/*.xml
 Import-Package: com.cloudempiere.ai.boundary;version="[0.32.0,1.0.0)",

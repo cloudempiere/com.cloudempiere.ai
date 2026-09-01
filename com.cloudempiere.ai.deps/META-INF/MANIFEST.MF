@@ -4,7 +4,7 @@ Bundle-Name: Cloudempiere AI - Shared Dependencies
 Bundle-SymbolicName: com.cloudempiere.ai.deps
 Bundle-Version: 0.35.0.qualifier
 Bundle-Vendor: Cloudempiere
-Bundle-RequiredExecutionEnvironment: JavaSE-11
+Bundle-RequiredExecutionEnvironment: JavaSE-17
 Bundle-ClassPath: .,
  lib/langchain4j-0.35.0.jar,
  lib/langchain4j-core-0.35.0.jar,
