@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<scr:component xmlns:scr="http://www.osgi.org/xmlns/scr/v1.3.0" activate="activate" immediate="true" name="com.cloudempiere.ai.inventory.agent.InventoryAgent">
+<scr:component xmlns:scr="http://www.osgi.org/xmlns/scr/v1.3.0" immediate="true" name="com.cloudempiere.ai.inventory.agent.InventoryAgent">
    <implementation class="com.cloudempiere.ai.inventory.agent.InventoryAgent"/>
    <service>
       <provide interface="com.cloudempiere.ai.inventory.agent.InventoryAgent"/>
