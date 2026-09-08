@@ -22,6 +22,7 @@ import java.util.Locale;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import com.cloudempiere.ai.util.MarkdownTableRenderer;
@@ -34,6 +35,7 @@ import com.cloudempiere.ai.util.MarkdownTableRenderer;
  */
 @UnitTest
 @DisplayName("MarkdownTableRenderer Tests")
+@Tag("needs-runtime")   // ADR-020: host class needs org.compiere.util.CLogger at class-init
 class MarkdownTableRendererTest {
 
     @AfterEach

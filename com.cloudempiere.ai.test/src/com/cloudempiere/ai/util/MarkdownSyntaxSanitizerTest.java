@@ -18,6 +18,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import com.cloudempiere.ai.test.categories.UnitTest;
@@ -40,6 +41,7 @@ import com.cloudempiere.ai.test.categories.UnitTest;
  */
 @UnitTest
 @DisplayName("MarkdownSyntaxSanitizer Tests (ADR-055)")
+@Tag("needs-runtime")   // ADR-020: host class needs org.compiere.util.CLogger at class-init
 public class MarkdownSyntaxSanitizerTest {
 
     private MarkdownSyntaxSanitizer sanitizer;

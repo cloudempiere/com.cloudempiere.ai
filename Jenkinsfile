@@ -130,7 +130,7 @@ pipeline {
             }
             steps {
                 sh """
-                    mvn clean verify -U -DskipTests \
+                    mvn clean verify -U \
                         -Didempiere.core.repository.url=${IDEMPIERE_CORE_REPO} \
                         -Dcloudempiere.core.repository.url=${CLDE_CORE_REPO} \
                         -Dcloudempiere.aws.repository.url=${CLDE_AWS_REPO}

@@ -38,5 +38,9 @@
 		     from P2, which never carries it.
 		     See com.cloudempiere.graphql/docs/testing/INTEGRATION-TESTS-NOT-IN-CI.md -->
 		<module>com.cloudempiere.ai.test</module>
+		<!-- Plain-Maven (packaging=jar) unit tests — tier U per ADR-020. No OSGi framework, no
+		     p2 director, no database, so unlike the fragment these RUN in CI rather than merely
+		     compiling. Last in the reactor: it consumes com.cloudempiere.ai.core's jar. -->
+		<module>com.cloudempiere.ai.test.unit</module>
 	</modules>
 </project>

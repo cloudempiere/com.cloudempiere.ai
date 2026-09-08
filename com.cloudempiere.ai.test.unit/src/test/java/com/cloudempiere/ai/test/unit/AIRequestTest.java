@@ -7,7 +7,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import com.cloudempiere.ai.provider.dto.AIRequest;
-import com.cloudempiere.ai.test.categories.UnitTest;
 
 /**
  * Unit tests for {@link AIRequest} class.
@@ -17,7 +16,6 @@ import com.cloudempiere.ai.test.categories.UnitTest;
  *
  * @author Cloudempiere
  */
-@UnitTest
 @DisplayName("AIRequest Unit Tests")
 class AIRequestTest {
 

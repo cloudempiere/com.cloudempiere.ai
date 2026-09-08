@@ -13,7 +13,6 @@
  *****************************************************************************/
 package com.cloudempiere.ai.test.unit;
 
-import com.cloudempiere.ai.test.categories.UnitTest;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -33,7 +32,6 @@ import com.cloudempiere.ai.util.StreamingTextBuffer;
  * @author Cloudempiere
  * @since CLD-1601
  */
-@UnitTest
 @DisplayName("StreamingTextBuffer Tests")
 class StreamingTextBufferTest {
 
@@ -45,12 +43,10 @@ class StreamingTextBufferTest {
     }
 
     @Nested
-    @UnitTest
 @DisplayName("Basic Operations")
     class BasicOperations {
 
         @Test
-        @UnitTest
 @DisplayName("Should start empty")
         void shouldStartEmpty() {
             assertThat(buffer.isEmpty()).isTrue();
@@ -59,7 +55,6 @@ class StreamingTextBufferTest {
         }
 
         @Test
-        @UnitTest
 @DisplayName("Should append simple ASCII text")
         void shouldAppendSimpleText() {
             buffer.append("Hello");
@@ -71,7 +66,6 @@ class StreamingTextBufferTest {
         }
 
         @Test
-        @UnitTest
 @DisplayName("Should handle null and empty appends")
         void shouldHandleNullAndEmpty() {
             buffer.append("Test");
@@ -83,7 +77,6 @@ class StreamingTextBufferTest {
         }
 
         @Test
-        @UnitTest
 @DisplayName("Should clear buffer")
         void shouldClearBuffer() {
             buffer.append("Some content");
@@ -95,12 +88,10 @@ class StreamingTextBufferTest {
     }
 
     @Nested
-    @UnitTest
 @DisplayName("Emoji Handling - Complete Characters")
     class EmojiHandlingComplete {
 
         @Test
-        @UnitTest
 @DisplayName("Should handle emoji in single chunk")
         void shouldHandleEmojiInSingleChunk() {
             // Book emoji: U+1F4D6
@@ -110,7 +101,6 @@ class StreamingTextBufferTest {
         }
 
         @Test
-        @UnitTest
 @DisplayName("Should handle multiple emojis")
         void shouldHandleMultipleEmojis() {
             // Various emojis
@@ -122,7 +112,6 @@ class StreamingTextBufferTest {
         }
 
         @Test
-        @UnitTest
 @DisplayName("Should handle warning emoji (used in error messages)")
         void shouldHandleWarningEmoji() {
             // Warning sign + variation selector (as used in AIErrorHandler)
@@ -133,12 +122,10 @@ class StreamingTextBufferTest {
     }
 
     @Nested
-    @UnitTest
 @DisplayName("Emoji Handling - Split Surrogates")
     class EmojiHandlingSplit {
 
         @Test
-        @UnitTest
 @DisplayName("Should handle emoji split across chunks - high then low surrogate")
         void shouldHandleSplitEmoji() {
             // Book emoji: U+1F4D6 = \uD83D\uDCD6
@@ -156,7 +143,6 @@ class StreamingTextBufferTest {
         }
 
         @Test
-        @UnitTest
 @DisplayName("Should handle emoji at chunk boundary with following text")
         void shouldHandleSplitEmojiWithFollowingText() {
             buffer.append("Test\uD83D"); // Text + high surrogate
@@ -170,7 +156,6 @@ class StreamingTextBufferTest {
         }
 
         @Test
-        @UnitTest
 @DisplayName("Should handle multiple split emojis in sequence")
         void shouldHandleMultipleSplitEmojis() {
             // First emoji split
@@ -191,7 +176,6 @@ class StreamingTextBufferTest {
         }
 
         @Test
-        @UnitTest
 @DisplayName("Should handle orphaned high surrogate on flush")
         void shouldHandleOrphanedSurrogateOnFlush() {
             buffer.append("Text\uD83D"); // Text + orphaned high surrogate
@@ -205,7 +189,6 @@ class StreamingTextBufferTest {
         }
 
         @Test
-        @UnitTest
 @DisplayName("Should handle high surrogate followed by non-low-surrogate")
         void shouldHandleInvalidSurrogatePair() {
             buffer.append("\uD83D"); // High surrogate
@@ -220,12 +203,10 @@ class StreamingTextBufferTest {
     }
 
     @Nested
-    @UnitTest
 @DisplayName("CJK Character Handling")
     class CJKHandling {
 
         @Test
-        @UnitTest
 @DisplayName("Should handle Chinese characters (BMP)")
         void shouldHandleChineseCharacters() {
             // Basic Chinese characters are in BMP (no surrogates needed)
@@ -235,7 +216,6 @@ class StreamingTextBufferTest {
         }
 
         @Test
-        @UnitTest
 @DisplayName("Should handle Japanese hiragana and katakana")
         void shouldHandleJapanese() {
             buffer.append("\u3053\u3093\u306B\u3061\u306F"); // こんにちは
@@ -244,7 +224,6 @@ class StreamingTextBufferTest {
         }
 
         @Test
-        @UnitTest
 @DisplayName("Should handle Korean characters")
         void shouldHandleKorean() {
             buffer.append("\uC548\uB155\uD558\uC138\uC694"); // 안녕하세요
@@ -254,12 +233,10 @@ class StreamingTextBufferTest {
     }
 
     @Nested
-    @UnitTest
 @DisplayName("Mixed Content")
     class MixedContent {
 
         @Test
-        @UnitTest
 @DisplayName("Should handle realistic streaming scenario")
         void shouldHandleRealisticStreaming() {
             // Simulate realistic streaming chunks
@@ -276,7 +253,6 @@ class StreamingTextBufferTest {
         }
 
         @Test
-        @UnitTest
 @DisplayName("Should handle markdown with emojis")
         void shouldHandleMarkdownWithEmojis() {
             buffer.append("# Title \uD83D\uDCDA\n"); // Books emoji
@@ -291,12 +267,10 @@ class StreamingTextBufferTest {
     }
 
     @Nested
-    @UnitTest
 @DisplayName("toString() Method")
     class ToStringMethod {
 
         @Test
-        @UnitTest
 @DisplayName("toString should return displayable text")
         void toStringShouldReturnDisplayableText() {
             buffer.append("Hello World");

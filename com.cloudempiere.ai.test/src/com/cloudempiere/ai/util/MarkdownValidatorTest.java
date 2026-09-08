@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import java.util.List;
 
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import com.cloudempiere.ai.test.categories.UnitTest;
@@ -25,6 +26,7 @@ import com.cloudempiere.ai.test.categories.UnitTest;
  */
 @UnitTest
 @DisplayName("MarkdownValidator - AI markdown validation and fixing")
+@Tag("needs-runtime")   // ADR-020: host class needs org.compiere.util.CLogger at class-init
 public class MarkdownValidatorTest {
 
     @Test

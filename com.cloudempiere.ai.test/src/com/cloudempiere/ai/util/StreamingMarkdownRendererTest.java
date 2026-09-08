@@ -16,6 +16,7 @@ package com.cloudempiere.ai.util;
 import static org.junit.jupiter.api.Assertions.*;
 
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import com.cloudempiere.ai.test.categories.UnitTest;
@@ -28,6 +29,7 @@ import com.cloudempiere.ai.test.categories.UnitTest;
  * @author Cloudempiere
  */
 @UnitTest
+@Tag("needs-runtime")   // ADR-020: host class needs org.compiere.util.CLogger at class-init
 public class StreamingMarkdownRendererTest {
 
     private StreamingMarkdownRenderer renderer;

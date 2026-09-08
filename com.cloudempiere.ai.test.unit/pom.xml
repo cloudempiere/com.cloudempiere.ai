@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <!-- NO <parent>. Inheriting the cache parent would drag in Tycho, the target platform and the
+       p2 director — the whole cost this module exists to avoid. -->
+  <groupId>com.cloudempiere.ai</groupId>
+  <artifactId>com.cloudempiere.ai.test.unit</artifactId>
+  <version>0.32.0-SNAPSHOT</version>
+  <packaging>jar</packaging>
+  <name>AI Tests (plain Maven)</name>
+
+  <!--
+    packaging=jar, NOT eclipse-test-plugin — deliberately. Tier U per ADR-020: no OSGi framework,
+    no p2 director, no database, so these RUN in CI instead of merely compiling.
+
+    SCOPE: a test belongs here only once it RUNS green here. A clean import list is not enough —
+    the binding constraint is usually the HOST class's static initializer, and a single CLogger or
+    CCache field makes it unloadable without org.adempiere.base, which is on no Maven channel.
+  -->
+
+
+  <properties>
+    <maven.compiler.source>11</maven.compiler.source>
+    <maven.compiler.target>11</maven.compiler.target>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <junit.version>5.10.2</junit.version>
+    <test.tier>U</test.tier>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>com.cloudempiere.ai</groupId>
+      <artifactId>com.cloudempiere.ai.core</artifactId>
+      <version>0.32.0-SNAPSHOT</version>
+      <scope>test</scope>
+      <!-- The host's Tycho-flattened consumer pom declares its OSGi closure with
+           type=eclipse-plugin, which plain Maven cannot map to a jar. We want the host jar and
+           nothing else; anything a test here really needs is declared explicitly. -->
+      <exclusions><exclusion><groupId>*</groupId><artifactId>*</artifactId></exclusion></exclusions>
+    </dependency>
+    <dependency>
+      <groupId>org.assertj</groupId>
+      <artifactId>assertj-core</artifactId>
+      <version>3.22.0</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <version>${junit.version}</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <version>3.2.5</version>
+      </plugin>
+    </plugins>
+  </build>
+</project>

@@ -24,6 +24,7 @@ import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
 
@@ -43,6 +44,7 @@ import com.cloudempiere.ai.rag.dto.SearchResult;
  */
 @UnitTest
 @DisplayName("SearchResult Tests")
+@Tag("needs-runtime")   // ADR-020: host class needs org.compiere.util.CLogger at class-init
 class SearchResultTest {
 
     private static final TestLogger log = new TestLogger(SearchResultTest.class);

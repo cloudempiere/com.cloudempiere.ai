@@ -9,7 +9,6 @@ import org.junit.jupiter.api.Test;
 
 import com.cloudempiere.ai.provider.dto.AIFunctionCall;
 import com.cloudempiere.ai.provider.dto.AIMessage;
-import com.cloudempiere.ai.test.categories.UnitTest;
 
 /**
  * Unit tests for {@link AIMessage} class.
@@ -19,7 +18,6 @@ import com.cloudempiere.ai.test.categories.UnitTest;
  *
  * @author Cloudempiere
  */
-@UnitTest
 @DisplayName("AIMessage Unit Tests")
 class AIMessageTest {
 

@@ -7,7 +7,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import com.cloudempiere.ai.provider.dto.AITokenUsage;
-import com.cloudempiere.ai.test.categories.UnitTest;
 
 /**
  * Unit tests for {@link AITokenUsage} class.
@@ -16,7 +15,6 @@ import com.cloudempiere.ai.test.categories.UnitTest;
  *
  * @author Cloudempiere
  */
-@UnitTest
 @DisplayName("AITokenUsage Unit Tests")
 class AITokenUsageTest {
 

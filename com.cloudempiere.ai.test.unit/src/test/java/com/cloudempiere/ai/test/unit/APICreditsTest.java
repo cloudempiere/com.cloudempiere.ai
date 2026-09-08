@@ -13,7 +13,6 @@
  *****************************************************************************/
 package com.cloudempiere.ai.test.unit;
 
-import com.cloudempiere.ai.test.categories.UnitTest;
 import com.cloudempiere.ai.test.support.TestLogger;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -39,7 +38,6 @@ import com.cloudempiere.ai.provider.dto.AIRateLimitStatus;
  * @author Cloudempiere
  * @version 1.0
  */
-@UnitTest
 @DisplayName("API Credits and Billing Tests")
 class APICreditsTest {
 
@@ -77,12 +75,10 @@ class APICreditsTest {
     // ========================================================================
 
     @Nested
-    @UnitTest
 @DisplayName("Credit Error Detection")
     class CreditErrorDetectionTests {
 
         @Test
-        @UnitTest
 @DisplayName("Should detect Anthropic credit balance error")
         void shouldDetectAnthropicCreditError() {
             String errorMessage = "Error: Your credit balance is too low to access the Anthropic API. " +
@@ -99,7 +95,6 @@ class APICreditsTest {
         }
 
         @Test
-        @UnitTest
 @DisplayName("Should detect OpenAI quota error")
         void shouldDetectOpenAIQuotaError() {
             String errorMessage = "You exceeded your current quota, please check your plan and billing details.";
@@ -115,7 +110,6 @@ class APICreditsTest {
         }
 
         @Test
-        @UnitTest
 @DisplayName("Should detect generic rate limit error")
         void shouldDetectRateLimitError() {
             String errorMessage = "Rate limit exceeded. Please retry after 60 seconds.";
@@ -131,7 +125,6 @@ class APICreditsTest {
         }
 
         @Test
-        @UnitTest
 @DisplayName("Should NOT flag normal API errors as credit errors")
         void shouldNotFlagNormalErrors() {
             String[] normalErrors = {
@@ -159,12 +152,10 @@ class APICreditsTest {
     // ========================================================================
 
     @Nested
-    @UnitTest
 @DisplayName("User-Friendly Error Messages")
     class UserFriendlyMessageTests {
 
         @Test
-        @UnitTest
 @DisplayName("Should generate user-friendly credit error message")
         void shouldGenerateUserFriendlyMessage() {
             String technicalError = "credit_balance_too_low";
@@ -178,7 +169,6 @@ class APICreditsTest {
         }
 
         @Test
-        @UnitTest
 @DisplayName("Should provide different message for rate limits")
         void shouldProvideRateLimitMessage() {
             String technicalError = "Rate limit exceeded";
@@ -195,12 +185,10 @@ class APICreditsTest {
     // ========================================================================
 
     @Nested
-    @UnitTest
 @DisplayName("Rate Limit Status Parsing")
     class RateLimitStatusTests {
 
         @Test
-        @UnitTest
 @DisplayName("Should parse Anthropic rate limit headers")
         void shouldParseRateLimitHeaders() {
             log.section("Testing Rate Limit Header Parsing");
@@ -240,7 +228,6 @@ class APICreditsTest {
         }
 
         @Test
-        @UnitTest
 @DisplayName("Should detect approaching rate limit")
         void shouldDetectApproachingLimit() {
             log.section("Testing Approaching Limit Detection");
@@ -262,7 +249,6 @@ class APICreditsTest {
         }
 
         @Test
-        @UnitTest
 @DisplayName("Should detect critical rate limit")
         void shouldDetectCriticalLimit() {
             log.section("Testing Critical Limit Detection");
@@ -283,7 +269,6 @@ class APICreditsTest {
         }
 
         @Test
-        @UnitTest
 @DisplayName("Should format summary for display")
         void shouldFormatSummary() {
             log.section("Testing Summary Formatting");
@@ -312,12 +297,10 @@ class APICreditsTest {
     // ========================================================================
 
     @Nested
-    @UnitTest
 @DisplayName("Error Classification")
     class ErrorClassificationTests {
 
         @Test
-        @UnitTest
 @DisplayName("Should classify billing errors as recoverable by admin")
         void shouldClassifyBillingAsAdminRecoverable() {
             String error = "Your credit balance is too low";
@@ -329,7 +312,6 @@ class APICreditsTest {
         }
 
         @Test
-        @UnitTest
 @DisplayName("Should classify rate limits as user retryable")
         void shouldClassifyRateLimitAsRetryable() {
             String error = "Rate limit exceeded";
@@ -340,7 +322,6 @@ class APICreditsTest {
         }
 
         @Test
-        @UnitTest
 @DisplayName("Should classify connection errors as transient")
         void shouldClassifyConnectionAsTransient() {
             String error = "Connection timeout";

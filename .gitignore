@@ -15,3 +15,4 @@ com.cloudempiere.cache.test*
 
 # Eclipse - .project, .classpath, .settings MUST be committed for PDE/OSGi plugins
 *.class
+target/

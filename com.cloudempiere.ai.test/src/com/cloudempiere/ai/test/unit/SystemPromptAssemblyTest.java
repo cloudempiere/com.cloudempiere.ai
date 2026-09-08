@@ -17,6 +17,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import com.cloudempiere.ai.provider.langchain4j.AIService;
@@ -40,6 +41,7 @@ import com.cloudempiere.ai.test.categories.UnitTest;
  */
 @UnitTest
 @DisplayName("ADR-059: System Prompt Operator Addendum Assembly")
+@Tag("needs-runtime")   // ADR-020: host class needs org.compiere.util.CLogger at class-init
 class SystemPromptAssemblyTest {
 
     private static final String BASE = ERPAgent.SYSTEM_PROMPT;

@@ -13,7 +13,6 @@
  *****************************************************************************/
 package com.cloudempiere.ai.test.unit;
 
-import com.cloudempiere.ai.test.categories.UnitTest;
 import com.cloudempiere.ai.test.support.TestLogger;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -38,7 +37,6 @@ import com.cloudempiere.ai.rag.ingest.IngestResult;
  * @author Cloudempiere
  * @version 1.0
  */
-@UnitTest
 @DisplayName("IngestResult Tests")
 class IngestResultTest {
 
@@ -56,12 +54,10 @@ class IngestResultTest {
     // ========================================================================
 
     @Nested
-    @UnitTest
 @DisplayName("Initial State")
     class InitialStateTests {
 
         @Test
-        @UnitTest
 @DisplayName("New IngestResult has zero counters")
         void shouldHaveZeroCounters() {
             assertThat(result.getDocumentsAdded()).isZero();
@@ -72,7 +68,6 @@ class IngestResultTest {
         }
 
         @Test
-        @UnitTest
 @DisplayName("New IngestResult is successful by default")
         void shouldBeSuccessfulByDefault() {
             assertThat(result.isSuccess()).isTrue();
@@ -80,7 +75,6 @@ class IngestResultTest {
         }
 
         @Test
-        @UnitTest
 @DisplayName("New IngestResult has empty errors list")
         void shouldHaveEmptyErrorsList() {
             assertThat(result.getErrors()).isEmpty();
@@ -92,12 +86,10 @@ class IngestResultTest {
     // ========================================================================
 
     @Nested
-    @UnitTest
 @DisplayName("Counter Operations")
     class CounterTests {
 
         @Test
-        @UnitTest
 @DisplayName("incrementAdded increases documentsAdded")
         void shouldIncrementAdded() {
             result.incrementAdded();
@@ -108,7 +100,6 @@ class IngestResultTest {
         }
 
         @Test
-        @UnitTest
 @DisplayName("incrementUpdated increases documentsUpdated")
         void shouldIncrementUpdated() {
             result.incrementUpdated();
@@ -118,7 +109,6 @@ class IngestResultTest {
         }
 
         @Test
-        @UnitTest
 @DisplayName("incrementSkipped increases documentsSkipped")
         void shouldIncrementSkipped() {
             result.incrementSkipped();
@@ -127,7 +117,6 @@ class IngestResultTest {
         }
 
         @Test
-        @UnitTest
 @DisplayName("setDocumentsAdded sets exact value")
         void shouldSetDocumentsAdded() {
             result.setDocumentsAdded(100);
@@ -136,7 +125,6 @@ class IngestResultTest {
         }
 
         @Test
-        @UnitTest
 @DisplayName("setDocumentsUpdated sets exact value")
         void shouldSetDocumentsUpdated() {
             result.setDocumentsUpdated(50);
@@ -145,7 +133,6 @@ class IngestResultTest {
         }
 
         @Test
-        @UnitTest
 @DisplayName("setDocumentsDeleted sets exact value")
         void shouldSetDocumentsDeleted() {
             result.setDocumentsDeleted(25);
@@ -154,7 +141,6 @@ class IngestResultTest {
         }
 
         @Test
-        @UnitTest
 @DisplayName("setDocumentsSkipped sets exact value")
         void shouldSetDocumentsSkipped() {
             result.setDocumentsSkipped(10);
@@ -168,12 +154,10 @@ class IngestResultTest {
     // ========================================================================
 
     @Nested
-    @UnitTest
 @DisplayName("Total Processed Calculation")
     class TotalProcessedTests {
 
         @Test
-        @UnitTest
 @DisplayName("getTotalProcessed sums added, updated, and skipped")
         void shouldSumAllProcessed() {
             result.setDocumentsAdded(100);
@@ -188,7 +172,6 @@ class IngestResultTest {
         }
 
         @Test
-        @UnitTest
 @DisplayName("getTotalProcessed excludes deleted")
         void shouldExcludeDeleted() {
             result.setDocumentsAdded(10);
@@ -198,7 +181,6 @@ class IngestResultTest {
         }
 
         @Test
-        @UnitTest
 @DisplayName("getTotalProcessed returns zero when all counters are zero")
         void shouldReturnZeroWhenEmpty() {
             assertThat(result.getTotalProcessed()).isZero();
@@ -210,12 +192,10 @@ class IngestResultTest {
     // ========================================================================
 
     @Nested
-    @UnitTest
 @DisplayName("Duration Tracking")
     class DurationTests {
 
         @Test
-        @UnitTest
 @DisplayName("setDurationMs sets duration")
         void shouldSetDuration() {
             result.setDurationMs(1500);
@@ -224,7 +204,6 @@ class IngestResultTest {
         }
 
         @Test
-        @UnitTest
 @DisplayName("Duration can be large for long operations")
         void shouldHandleLargeDuration() {
             result.setDurationMs(300000);  // 5 minutes
@@ -238,12 +217,10 @@ class IngestResultTest {
     // ========================================================================
 
     @Nested
-    @UnitTest
 @DisplayName("Success/Failure Handling")
     class SuccessFailureTests {
 
         @Test
-        @UnitTest
 @DisplayName("setSuccess(false) marks as failed")
         void shouldMarkAsFailed() {
             result.setSuccess(false);
@@ -252,7 +229,6 @@ class IngestResultTest {
         }
 
         @Test
-        @UnitTest
 @DisplayName("setErrorMessage sets message and marks as failed")
         void shouldSetErrorMessageAndFail() {
             result.setErrorMessage("Connection timeout");
@@ -262,7 +238,6 @@ class IngestResultTest {
         }
 
         @Test
-        @UnitTest
 @DisplayName("Static failed() factory creates failed result")
         void shouldCreateFailedResult() {
             IngestResult failed = IngestResult.failed("Embedding model not available");
@@ -280,12 +255,10 @@ class IngestResultTest {
     // ========================================================================
 
     @Nested
-    @UnitTest
 @DisplayName("Error List Management")
     class ErrorListTests {
 
         @Test
-        @UnitTest
 @DisplayName("addError adds to errors list")
         void shouldAddErrors() {
             result.addError("Window: Failed to embed AD_Window 100");
@@ -298,7 +271,6 @@ class IngestResultTest {
         }
 
         @Test
-        @UnitTest
 @DisplayName("Multiple errors can be accumulated")
         void shouldAccumulateErrors() {
             for (int i = 1; i <= 10; i++) {
@@ -314,12 +286,10 @@ class IngestResultTest {
     // ========================================================================
 
     @Nested
-    @UnitTest
 @DisplayName("toString Method")
     class ToStringTests {
 
         @Test
-        @UnitTest
 @DisplayName("toString includes all counters")
         void shouldIncludeAllCounters() {
             result.setDocumentsAdded(100);
@@ -340,7 +310,6 @@ class IngestResultTest {
         }
 
         @Test
-        @UnitTest
 @DisplayName("toString shows FAILED for failed results")
         void shouldShowFailedStatus() {
             result.setErrorMessage("Test failure");
@@ -352,7 +321,6 @@ class IngestResultTest {
         }
 
         @Test
-        @UnitTest
 @DisplayName("toString does not show FAILED for successful results")
         void shouldNotShowFailedForSuccess() {
             result.setDocumentsAdded(50);
@@ -369,12 +337,10 @@ class IngestResultTest {
     // ========================================================================
 
     @Nested
-    @UnitTest
 @DisplayName("Real-World Scenarios")
     class RealWorldScenarioTests {
 
         @Test
-        @UnitTest
 @DisplayName("Successful AD metadata ingestion")
         void shouldTrackSuccessfulIngestion() {
             // Simulate ingesting 200 windows, 150 processes, 300 tables
@@ -391,7 +357,6 @@ class IngestResultTest {
         }
 
         @Test
-        @UnitTest
 @DisplayName("Partial failure with some errors")
         void shouldTrackPartialFailure() {
             result.setDocumentsAdded(500);
@@ -407,7 +372,6 @@ class IngestResultTest {
         }
 
         @Test
-        @UnitTest
 @DisplayName("Force refresh with deletions")
         void shouldTrackForceRefresh() {
             // First, delete existing
@@ -425,7 +389,6 @@ class IngestResultTest {
         }
 
         @Test
-        @UnitTest
 @DisplayName("Complete failure scenario")
         void shouldTrackCompleteFailure() {
             IngestResult failed = IngestResult.failed("Database connection lost");
@@ -437,7 +400,6 @@ class IngestResultTest {
         }
 
         @Test
-        @UnitTest
 @DisplayName("Incremental ingestion with mixed operations")
         void shouldTrackIncrementalIngestion() {
             // Simulate incremental update
