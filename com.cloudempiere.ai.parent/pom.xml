@@ -271,6 +271,10 @@
 	            <cloudempiere.workspace>${user.home}/github/idempiere-cloudempiere</cloudempiere.workspace>
 	            <idempiere.core.repository.url>file:///${cloudempiere.workspace}/iDempiereCLDE/core/org.idempiere.p2/target/repository</idempiere.core.repository.url>
 	            <cloudempiere.composite.repository.url>file:///${cloudempiere.workspace}/iDempiereCLDE/_composite/com.cloudempiere.composite.p2/target/repository</cloudempiere.composite.repository.url>
+	            <!-- Was missing: without this, cloudempiere-local still resolved com.cloudempiere.core.base
+	                 from S3 (stale v10-era build), conflicting with the local v14 core above. -->
+	            <cloudempiere.core.repository.url>file:///${cloudempiere.workspace}/com.cloudempiere.core/com.cloudempiere.core.extensions.p2/target/repository</cloudempiere.core.repository.url>
+	            <cloudempiere.aws.repository.url>file:///${cloudempiere.workspace}/com.cloudempiere.aws/com.cloudempiere.aws.p2/target/repository</cloudempiere.aws.repository.url>
 	        </properties>
 	    </profile>
 	</profiles>
