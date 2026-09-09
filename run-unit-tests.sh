@@ -1,284 +1,151 @@
 #!/bin/bash
-# Run AI plugin unit tests from CLI
-# Tests are located in com.cloudempiere.ai.test (local test bundle)
-# Requires iDempiere classes for CLogger, etc.
+# Run AI plugin tests from the CLI.
+#
+# The plugin has TWO test modules, on two different ADR-020 runtime tiers, and the
+# difference is the whole point — see
+# ../iDempiereCLDE/docs/adr/ADR-020-test-categorization-runtime-tiers.md.
+#
+#   com.cloudempiere.ai.test.unit   tier U   packaging=jar + maven-surefire
+#                                           JVM only. Runs on every CI build.
+#                                           Carries NO @Tag: in a tier-U module the
+#                                           module IS the tag.
+#
+#   com.cloudempiere.ai.test        tier D   eclipse-test-plugin, testRuntime=p2Installed
+#                                           Equinox + p2 director + a seeded database.
+#                                           skipTests defaults to true, so a green
+#                                           `mvn verify` here proves nothing ran.
+#                                           All 14 of its unit-scope tests also carry
+#                                           @Tag("needs-runtime"): each was tried in the jar
+#                                           module and failed there — 6 of 20 candidates
+#                                           survived.
+#
+# This script drives Maven. It used to hand-build a javac/JUnit-console classpath out of
+# ../iDempiereCLDE and the p2 repository; that is gone. The hand-built classpath was a
+# half-runtime — enough org.adempiere.base on it to load hosts that a real tier-U module
+# cannot load — so it disagreed with CI in both directions.
 #
 # Usage:
-#   ./run-unit-tests.sh                           # Run all unit tests
-#   ./run-unit-tests.sh AIRequestTest             # Run specific test class
-#   ./run-unit-tests.sh -v                        # Run all tests with verbose logging
-#   ./run-unit-tests.sh -v AIMessageTest          # Run specific test with verbose logging
-#   ./run-unit-tests.sh --integration             # Run integration tests (requires API keys)
-#   ./run-unit-tests.sh --all                     # Run all tests (unit + integration)
+#   ./run-unit-tests.sh                          tier U — every test in .test.unit
+#   ./run-unit-tests.sh AIRequestTest            tier U — one class
+#   ./run-unit-tests.sh 'Anthropic*'             tier U — a surefire -Dtest pattern
+#   ./run-unit-tests.sh --host                   rebuild + install the host jars, then tier U
+#   ./run-unit-tests.sh --runtime                tier D — the fragment, via Tycho (needs a DB)
+#   ./run-unit-tests.sh --runtime --group e2e    tier D — a different tag selection
+#   ./run-unit-tests.sh -v                       do not trim Maven's output
+#   ./run-unit-tests.sh --list                   list what each module holds, run nothing
 #
-# Testing Pyramid Profiles:
-#   Default: unit tests only (fast, no external deps)
-#   --integration: tests requiring external APIs (Anthropic, etc.)
-#   --all: all tests
+# Env:
+#   MAVEN_REPO_LOCAL  local repository (default $HOME/.m2/repository-idempiere-10)
+#                     Write $HOME, never ~ — zsh does not expand a tilde after '=' in
+#                     -Dmaven.repo.local=, and Maven then silently creates ./~ and reports
+#                     the host jar as missing.
+#   COMPOSITE_URL     p2 composite for --host/--runtime. Defaults to the S3 staging composite,
+#                     because the `cloudempiere-local` mirror that ~/.m2/settings.xml activates
+#                     points at iDempiereCLDE/_composite, which is not built in this workspace.
 
-set -e
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR"
 
-# Parse arguments
+UNIT_MODULE=com.cloudempiere.ai.test.unit
+FRAGMENT=com.cloudempiere.ai.test
+HOST=com.cloudempiere.ai.core
+
+REPO_LOCAL="${MAVEN_REPO_LOCAL:-$HOME/.m2/repository-idempiere-10}"
+COMPOSITE_URL="${COMPOSITE_URL:-https://cloudempiere-p2.s3.eu-west-1.amazonaws.com/plugins/com.cloudempiere.composite/staging/latest/}"
+
 VERBOSE=false
+BUILD_HOST=false
+MODE=unit
+GROUP=""
 TEST_FILTER=""
-TEST_PROFILE="unit"
 
 while [[ $# -gt 0 ]]; do
-    case $1 in
-        -v|--verbose)
-            VERBOSE=true
-            shift
-            ;;
-        --integration)
-            TEST_PROFILE="integration"
-            shift
-            ;;
-        --all)
-            TEST_PROFILE="all"
-            shift
-            ;;
-        *)
-            TEST_FILTER="$1"
-            shift
-            ;;
+    case "$1" in
+        -v|--verbose) VERBOSE=true; shift ;;
+        --host)       BUILD_HOST=true; shift ;;
+        --runtime)    MODE=runtime; shift ;;
+        --group)      GROUP="${2:?--group needs a tag}"; shift 2 ;;
+        --list)       MODE=list; shift ;;
+        -h|--help)    sed -n '2,/^set -euo/p' "$0" | sed 's/^# \{0,1\}//; $d'; exit 0 ;;
+        -*)           echo "unknown option: $1 (try --help)" >&2; exit 2 ;;
+        *)            TEST_FILTER="$1"; shift ;;
     esac
 done
 
-# Java home - try to find Java 11
-if [ -z "$JAVA_HOME" ]; then
-    # Try to find Java 11 installation
-    if [ -d "/Library/Java/JavaVirtualMachines/amazon-corretto-11.jdk/Contents/Home" ]; then
-        export JAVA_HOME="/Library/Java/JavaVirtualMachines/amazon-corretto-11.jdk/Contents/Home"
-    elif [ -d "/Library/Java/JavaVirtualMachines/adoptopenjdk-11.jdk/Contents/Home" ]; then
-        export JAVA_HOME="/Library/Java/JavaVirtualMachines/adoptopenjdk-11.jdk/Contents/Home"
-    else
-        # Try using java_home utility to find Java 11
-        JAVA_11_HOME=$(/usr/libexec/java_home -v 11 2>/dev/null)
-        if [ -n "$JAVA_11_HOME" ]; then
-            export JAVA_HOME="$JAVA_11_HOME"
-        else
-            echo "ERROR: Java 11 not found. Please install Java 11 or set JAVA_HOME environment variable."
-            exit 1
-        fi
-    fi
+MVN=(mvn -B "-Dmaven.repo.local=$REPO_LOCAL")
+$VERBOSE || MVN+=(-q)
+
+# ---------------------------------------------------------------- list
+if [ "$MODE" = list ]; then
+    echo "tier U — $UNIT_MODULE (jar, runs in CI, no tags):"
+    find "$UNIT_MODULE/src/test/java" -name '*Test.java' 2>/dev/null \
+        | sed "s|$UNIT_MODULE/src/test/java/||; s|/|.|g; s|\.java$||; s|^|  |" | sort
+    echo
+    echo "tier D — $FRAGMENT (eclipse-test-plugin, p2Installed, skipTests=true by default):"
+    for tag in unit needs-runtime integration e2e slow; do
+        printf '  @Tag("%s")%*s%s files\n' "$tag" $((16 - ${#tag})) '' \
+            "$(grep -rl "@Tag(\"$tag\")" "$FRAGMENT/src" 2>/dev/null | wc -l | tr -d ' ')"
+    done
+    exit 0
 fi
 
-echo "=== AI Plugin Unit Test Runner ==="
-echo "Java: $JAVA_HOME"
-echo "Profile: $TEST_PROFILE"
-if [ "$VERBOSE" = true ]; then
-    echo "Mode: VERBOSE (detailed logging enabled)"
-fi
-echo ""
+# ---------------------------------------------------------------- host jar
+# The tier-U module resolves the host by GAV from the local repository, not from a reactor,
+# so a stale install is invisible until javac fails on a signature that has since changed.
+#
+# Version schemes disagree inside this repo — ai.core's pom is 0.32.0-SNAPSHOT while
+# ai.parent is 10.0.2-SNAPSHOT and the MANIFEST says 0.32.0.qualifier. Read the version the
+# tier-U pom itself declares; it is the one that must resolve.
+VERSION="$(sed -n 's|.*<version>\(.*\)</version>.*|\1|p' "$UNIT_MODULE/pom.xml" | head -1)"
+INSTALLED="$REPO_LOCAL/com/cloudempiere/$HOST/$VERSION/$HOST-$VERSION.jar"
 
-# Directories
-IDEMPIERE_DIR="$SCRIPT_DIR/../iDempiereCLDE"
-TEST_BUNDLE_DIR="$SCRIPT_DIR/com.cloudempiere.ai.test"
-TEST_SRC_DIR="$TEST_BUNDLE_DIR/src"
-LIB_DIR="$SCRIPT_DIR/lib"
-BUILD_DIR="$SCRIPT_DIR/target/test-classes"
-# Multi-module project - collect all module target/classes directories
-CLASSES_DIRS=(
-    "$SCRIPT_DIR/com.cloudempiere.ai.core/target/classes"
-    "$SCRIPT_DIR/com.cloudempiere.ai.plugin/target/classes"
-    "$SCRIPT_DIR/com.cloudempiere.ai.deps/target/classes"
-    "$SCRIPT_DIR/com.cloudempiere.ai.sales/target/classes"
-    "$SCRIPT_DIR/com.cloudempiere.ai.purchasing/target/classes"
-    "$SCRIPT_DIR/com.cloudempiere.ai.support/target/classes"
-    "$SCRIPT_DIR/com.cloudempiere.ai.inventory/target/classes"
-    "$SCRIPT_DIR/com.cloudempiere.ai.kb/target/classes"
-    "$SCRIPT_DIR/com.cloudempiere.ai.theme/target/classes"
-)
-
-# Check test bundle exists
-if [ ! -d "$TEST_SRC_DIR" ]; then
-    echo "ERROR: Test source directory not found: $TEST_SRC_DIR"
-    echo "       Make sure com.cloudempiere.ai.test bundle is set up."
-    exit 1
-fi
-
-# Download test dependencies if not present
-JUNIT_VERSION="5.10.2"
-ASSERTJ_VERSION="3.25.3"
-TEST_LIB_DIR="$SCRIPT_DIR/target/test-lib"
-
-mkdir -p "$TEST_LIB_DIR"
-mkdir -p "$BUILD_DIR"
-
-# Download JUnit and AssertJ jars if needed
-download_if_missing() {
-    local file="$1"
-    local url="$2"
-    if [ ! -f "$TEST_LIB_DIR/$file" ]; then
-        echo "Downloading $file..."
-        curl -sL -o "$TEST_LIB_DIR/$file" "$url"
-    fi
+build_host() {
+    # -am does NOT follow OSGi requirements, so ai.deps has to be named explicitly:
+    # ai.core Require-Bundles it, but no pom dependency records that.
+    echo "==> building + installing $HOST $VERSION (+ ai.deps, which -am would miss)"
+    "${MVN[@]}" -f pom.xml install -DskipTests \
+        -pl com.cloudempiere.ai.parent,com.cloudempiere.ai.deps,com.cloudempiere.ai.core \
+        "-Dcloudempiere.composite.repository.url=$COMPOSITE_URL"
 }
 
-download_if_missing "junit-platform-console-standalone-1.10.2.jar" \
-    "https://repo1.maven.org/maven2/org/junit/platform/junit-platform-console-standalone/1.10.2/junit-platform-console-standalone-1.10.2.jar"
-download_if_missing "assertj-core-$ASSERTJ_VERSION.jar" \
-    "https://repo1.maven.org/maven2/org/assertj/assertj-core/$ASSERTJ_VERSION/assertj-core-$ASSERTJ_VERSION.jar"
-
-# Build classpath - main classes first from all modules
-CLASSPATH=""
-for classes_dir in "${CLASSES_DIRS[@]}"; do
-    if [ -d "$classes_dir" ]; then
-        if [ -z "$CLASSPATH" ]; then
-            CLASSPATH="$classes_dir"
-        else
-            CLASSPATH="$CLASSPATH:$classes_dir"
-        fi
-    fi
-done
-
-# Add AI plugin lib jars (from root lib/ if it exists)
-if [ -d "$LIB_DIR" ]; then
-    for jar in "$LIB_DIR"/*.jar; do
-        [ -f "$jar" ] && CLASSPATH="$CLASSPATH:$jar"
-    done
-fi
-
-# Add deps module lib jars (LangChain4j and dependencies)
-DEPS_LIB_DIR="$SCRIPT_DIR/com.cloudempiere.ai.deps/lib"
-if [ -d "$DEPS_LIB_DIR" ]; then
-    for jar in "$DEPS_LIB_DIR"/*.jar; do
-        [ -f "$jar" ] && CLASSPATH="$CLASSPATH:$jar"
-    done
-fi
-
-# Add iDempiere base classes (needed for CLogger, DB, etc.)
-IDEMPIERE_BASE_CLASSES="$IDEMPIERE_DIR/org.adempiere.base/target/classes"
-if [ -d "$IDEMPIERE_BASE_CLASSES" ]; then
-    CLASSPATH="$CLASSPATH:$IDEMPIERE_BASE_CLASSES"
-else
-    # Try using the p2 repository jar
-    IDEMPIERE_BASE_JAR=$(find "$IDEMPIERE_DIR/org.idempiere.p2/target/repository/plugins" -name "org.adempiere.base_*.jar" 2>/dev/null | head -1)
-    if [ -n "$IDEMPIERE_BASE_JAR" ]; then
-        CLASSPATH="$CLASSPATH:$IDEMPIERE_BASE_JAR"
-    else
-        echo "WARNING: iDempiere base classes not found. Some tests may fail."
-    fi
-fi
-
-# Add iDempiere base lib jars (JSON, etc.)
-IDEMPIERE_BASE_LIB="$IDEMPIERE_DIR/org.adempiere.base/lib"
-if [ -d "$IDEMPIERE_BASE_LIB" ]; then
-    for jar in "$IDEMPIERE_BASE_LIB"/*.jar; do
-        [ -f "$jar" ] && CLASSPATH="$CLASSPATH:$jar"
-    done
-fi
-
-# Add test lib jars
-for jar in "$TEST_LIB_DIR"/*.jar; do
-    [ -f "$jar" ] && CLASSPATH="$CLASSPATH:$jar"
-done
-
-# Check if main classes are compiled (at least one module should have compiled classes)
-FOUND_CLASSES=false
-for classes_dir in "${CLASSES_DIRS[@]}"; do
-    if [ -d "$classes_dir" ] && [ -n "$(ls -A $classes_dir 2>/dev/null)" ]; then
-        FOUND_CLASSES=true
-        break
-    fi
-done
-
-if [ "$FOUND_CLASSES" = false ]; then
-    echo "ERROR: Main classes not compiled. Run 'mvn compile' first or build in Eclipse."
-    echo "       Looking for classes in module target/classes directories"
+if $BUILD_HOST; then
+    build_host
+elif [ ! -f "$INSTALLED" ]; then
+    echo "ERROR: host jar not installed: $INSTALLED" >&2
+    echo "       run: $0 --host" >&2
     exit 1
-fi
-
-echo "Compiling tests..."
-
-# Find Java files based on test profile
-if [ "$TEST_PROFILE" = "unit" ]; then
-    # Unit tests only (fast, no external deps)
-    # Include: /unit/ directory, test categories, and test support utilities
-    # Exclude: /integration/, /e2e/, /component/ (component tests may need ZK framework)
-    ALL_JAVA_FILES=$(find "$TEST_SRC_DIR" -name "*.java" 2>/dev/null | \
-        grep -E "/(unit|categories|support)/" | \
-        grep -v "/component/" || true)
-elif [ "$TEST_PROFILE" = "integration" ]; then
-    # Integration tests (require API keys, database, etc.)
-    ALL_JAVA_FILES=$(find "$TEST_SRC_DIR" -name "*.java" 2>/dev/null || true)
 else
-    # All tests
-    ALL_JAVA_FILES=$(find "$TEST_SRC_DIR" -name "*.java" 2>/dev/null || true)
+    NEWER="$(find "$HOST/src" -name '*.java' -newer "$INSTALLED" -print -quit 2>/dev/null || true)"
+    if [ -n "$NEWER" ]; then
+        echo "WARNING: $HOST source is newer than the installed jar."
+        echo "         first newer file: $NEWER"
+        echo "         a compile error below is probably staleness, not a real break."
+        echo "         re-run with --host to rebuild."
+        echo
+    fi
 fi
 
-if [ -z "$ALL_JAVA_FILES" ]; then
-    echo "No Java files found in $TEST_SRC_DIR"
-    exit 1
-fi
-
-echo "Found Java files:"
-echo "$ALL_JAVA_FILES" | while read f; do echo "  - $(basename $f)"; done
-echo ""
-
-# Compile all Java files (tests + utilities)
-"$JAVA_HOME/bin/javac" -d "$BUILD_DIR" \
-    -cp "$CLASSPATH" \
-    -source 11 -target 11 \
-    $ALL_JAVA_FILES
-
-echo "Compilation successful!"
-echo ""
-
-# Run tests using JUnit Platform Console
-echo "Running tests..."
-echo "================="
-
-# Build JUnit command with optional verbose flag and tag filtering
-JAVA_OPTS=""
-DETAILS_MODE="tree"
-TAG_OPTS=""
-
-if [ "$VERBOSE" = true ]; then
-    JAVA_OPTS="-Dtest.verbose=true -Dtest.debug=true"
-    DETAILS_MODE="verbose"
-fi
-
-# Apply JUnit 5 tag filtering based on profile
-if [ "$TEST_PROFILE" = "unit" ]; then
-    TAG_OPTS="--include-tag unit --exclude-tag integration --exclude-tag e2e"
-elif [ "$TEST_PROFILE" = "integration" ]; then
-    TAG_OPTS="--include-tag integration"
-fi
-
-JUNIT_CMD="$JAVA_HOME/bin/java $JAVA_OPTS -jar $TEST_LIB_DIR/junit-platform-console-standalone-1.10.2.jar --classpath $BUILD_DIR:$CLASSPATH"
-
-if [ -n "$TEST_FILTER" ]; then
-    # Run specific test class or pattern
-    echo "Filter: $TEST_FILTER"
-    $JUNIT_CMD \
-        --select-class "com.cloudempiere.ai.test.${TEST_FILTER}" \
-        $TAG_OPTS \
-        --details $DETAILS_MODE 2>/dev/null || \
-    $JUNIT_CMD \
-        --scan-class-path "$BUILD_DIR" \
-        --include-classname ".*${TEST_FILTER}.*" \
-        $TAG_OPTS \
-        --details $DETAILS_MODE
-else
-    # Run all tests matching profile
-    $JUNIT_CMD \
-        --scan-class-path "$BUILD_DIR" \
-        --include-classname ".*Test$" \
-        $TAG_OPTS \
-        --details $DETAILS_MODE
-fi
-
-EXIT_CODE=$?
-
-echo ""
-if [ $EXIT_CODE -eq 0 ]; then
-    echo "=== All Tests Passed ==="
-else
-    echo "=== Some Tests Failed ==="
-fi
-
-exit $EXIT_CODE
+# ---------------------------------------------------------------- run
+case "$MODE" in
+  unit)
+    echo "==> tier U: $UNIT_MODULE"
+    ARGS=(-f "$UNIT_MODULE/pom.xml" test)
+    [ -n "$TEST_FILTER" ] && ARGS+=("-Dtest=$TEST_FILTER" -DfailIfNoSpecifiedTests=false)
+    "${MVN[@]}" "${ARGS[@]}"
+    echo
+    echo "surefire reports: $UNIT_MODULE/target/surefire-reports/"
+    ;;
+  runtime)
+    echo "==> tier D: $FRAGMENT (Equinox + p2 director + seeded DB)"
+    echo "    tier D needs IDEMPIERE_HOME to point at a built core with a seeded database;"
+    echo "    without it the p2 tests start and then fail on the first DB access."
+    ARGS=(-f "$FRAGMENT/pom.xml" verify -DskipTests=false
+          "-Dcloudempiere.composite.repository.url=$COMPOSITE_URL")
+    [ -n "$GROUP" ] && ARGS+=("-Dtest.groups=$GROUP" -Dtest.excludedGroups=)
+    [ -n "$TEST_FILTER" ] && ARGS+=("-Dtest=$TEST_FILTER")
+    [ -n "${IDEMPIERE_HOME:-}" ] && ARGS+=("-Dtycho.testArgLine=-DIDEMPIERE_HOME=$IDEMPIERE_HOME")
+    "${MVN[@]}" "${ARGS[@]}"
+    ;;
+esac

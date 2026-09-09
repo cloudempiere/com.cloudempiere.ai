@@ -187,12 +187,58 @@ mvn clean install
 # Build without tests
 mvn clean install -DskipTests
 
-# Run tests (requires Eclipse environment)
-mvn test
-
 # Package plugin
 mvn package
 ```
+
+`mvn test` is **not** how you run the tests here — see [Testing](#testing).
+
+### Testing
+
+Tests are split across **two modules by runtime tier**, per
+[ADR-020](../iDempiereCLDE/docs/adr/ADR-020-test-categorization-runtime-tiers.md). The tier is how
+much has to exist before the first assertion runs, and it is a property of the *module*, not of an
+annotation:
+
+| module | tier | packaging | what launches | CI |
+|---|---|---|---|---|
+| `com.cloudempiere.ai.test.unit` | **U** | `jar` + maven-surefire | JVM only | runs on every build |
+| `com.cloudempiere.ai.test` | **D** | `eclipse-test-plugin`, `testRuntime=p2Installed` | Equinox + p2 director + seeded DB | compiles always, runs on request |
+
+```bash
+# Everything in the tier-U module (the common case)
+./run-unit-tests.sh
+
+# One class, or a surefire pattern
+./run-unit-tests.sh AIRequestTest
+./run-unit-tests.sh 'Streaming*'
+
+# Rebuild and install the host jar first — needed after any change under
+# com.cloudempiere.ai.core/src, because the tier-U module resolves the host by GAV from the
+# local repository, not from a reactor. This also builds ai.deps, which `-am` would miss:
+# ai.core Require-Bundles it, and no pom dependency records that.
+./run-unit-tests.sh --host
+
+# What each module actually holds
+./run-unit-tests.sh --list
+
+# tier D — the fragment. Needs a target platform, a p2 runtime and a seeded database.
+./run-unit-tests.sh --runtime
+```
+
+Two things to know before adding a test:
+
+- **Tier-U tests carry no `@Tag`.** In a tier-U module the module *is* the tag. Do not add
+  `@Tag("unit")` or `@UnitTest` there.
+- **`skipTests` defaults to `true` in the fragment.** A green `mvn verify` on
+  `com.cloudempiere.ai.test` proves it compiled, not that anything ran. Use the script.
+
+All 14 unit-scope tests left in the fragment also carry `@Tag("needs-runtime")`. That is evidence,
+not an opinion: 20 candidates were shortlisted by import scan, 6 survived a real run in the jar
+module, and each of the other 14 carries its reason inline so nobody repeats the analysis. The
+binding constraint is almost never the test's own imports; it is the *host* class, where one static
+`CLogger` field or an `AdempiereException` in a catch clause is enough to fail class initialization
+without `org.adempiere.base`.
 
 ### Project Structure
 
