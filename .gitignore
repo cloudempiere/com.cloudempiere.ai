@@ -16,3 +16,6 @@ com.cloudempiere.cache.test*
 # Eclipse - .project, .classpath, .settings MUST be committed for PDE/OSGi plugins
 *.class
 target/
+.run-unit-tests.log
+.tycho-consumer-pom.xml
+**/.tycho-consumer-pom.xml

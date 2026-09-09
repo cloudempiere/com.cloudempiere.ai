@@ -39,9 +39,26 @@
 #                     Write $HOME, never ~ — zsh does not expand a tilde after '=' in
 #                     -Dmaven.repo.local=, and Maven then silently creates ./~ and reports
 #                     the host jar as missing.
-#   COMPOSITE_URL     p2 composite for --host/--runtime. Defaults to the S3 staging composite,
-#                     because the `cloudempiere-local` mirror that ~/.m2/settings.xml activates
-#                     points at iDempiereCLDE/_composite, which is not built in this workspace.
+#   COMPOSITE_URL     escape hatch for --host, unset by default. Prefer --p2; setting this beats
+#                     --p2 for that one repository, which is the vintage-mixing the script
+#                     otherwise avoids, so it warns when combined with --p2 local.
+#   IDEMPIERE_HOME    same as --idempiere-home below; the flag wins if both are given.
+#
+# --idempiere-home PATH   --runtime only. Becomes -Didempiere.home, which is the property the
+#   fragment's <argLine> interpolates. NOT -Dtycho.testArgLine: the fragment sets <argLine>
+#   explicitly, and an explicit argLine beats that property, so -Dtycho.testArgLine is silently
+#   ignored (and would also wipe the ${p1}..${p5} parallel-execution flags if it did apply).
+#   The path is resolved to an absolute one, because the pom default is relative to the
+#   FRAGMENT directory, not to where you are standing.
+#
+# --p2 <local|s3>   which p2 repositories to resolve against. Omit to inherit ~/.m2/settings.xml.
+#   local  activate cloudempiere-local AND pin cloudempiere.workspace to this checkout. The pom
+#          default is $HOME/github/idempiere-cloudempiere, which is not where anyone checks out,
+#          so a bare -P aims the file:// repos at a missing directory.
+#   s3     deactivate it, resolving from S3 exactly as CI does.
+#
+# Every run ends with a machine-readable RESULT line per tier; that plus the exit status is the
+# contract. Exit: 0 pass, 1 build/test failure, 2 bad usage, 3 a -Dtest filter matching nothing.
 
 set -euo pipefail
 
@@ -53,13 +70,22 @@ FRAGMENT=com.cloudempiere.ai.test
 HOST=com.cloudempiere.ai.core
 
 REPO_LOCAL="${MAVEN_REPO_LOCAL:-$HOME/.m2/repository-idempiere-10}"
-COMPOSITE_URL="${COMPOSITE_URL:-https://cloudempiere-p2.s3.eu-west-1.amazonaws.com/plugins/com.cloudempiere.composite/staging/latest/}"
+# Opt-in ONLY. This used to hardcode the S3 staging composite, so every --host silently
+# overrode whatever --p2 or settings.xml had decided: a CLI -D beats a profile property, so
+# `--p2 local` would have built against file:// repos plus one remote one.
+COMPOSITE_URL="${COMPOSITE_URL:-}"
 
 VERBOSE=false
 BUILD_HOST=false
 MODE=unit
 GROUP=""
 TEST_FILTER=""
+P2=""
+
+# The workspace root holding this repo alongside iDempiereCLDE. --p2 local must pin it: the
+# parent pom's own default is $HOME/github/idempiere-cloudempiere, so activating the profile
+# with a bare -P silently aims the file:// p2 repositories at a directory that does not exist.
+WORKSPACE="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -67,6 +93,8 @@ while [[ $# -gt 0 ]]; do
         --host)       BUILD_HOST=true; shift ;;
         --runtime)    MODE=runtime; shift ;;
         --group)      GROUP="${2:?--group needs a tag}"; shift 2 ;;
+        --p2)         P2="${2:?--p2 needs local or s3}"; shift 2 ;;
+        --idempiere-home) IDEMPIERE_HOME="${2:?--idempiere-home needs a path}"; shift 2 ;;
         --list)       MODE=list; shift ;;
         -h|--help)    sed -n '2,/^set -euo/p' "$0" | sed 's/^# \{0,1\}//; $d'; exit 0 ;;
         -*)           echo "unknown option: $1 (try --help)" >&2; exit 2 ;;
@@ -75,7 +103,50 @@ while [[ $# -gt 0 ]]; do
 done
 
 MVN=(mvn -B "-Dmaven.repo.local=$REPO_LOCAL")
+# -q keeps Maven's reactor INFO out of the way but is NOT enough on its own, and used to be the
+# whole strategy, which failed in both directions: in tier U it also hid surefire's "Tests run:"
+# line, so a green run printed nothing; in tier D it hid nothing that mattered, because
+# tycho-surefire forks an Equinox JVM whose stdout never passes through Maven's logger. The
+# RESULT line below now carries the numbers, and the forked stream goes to a file.
 $VERBOSE || MVN+=(-q)
+
+# Which p2 repositories to resolve against. Applied to every Maven invocation, not just
+# --runtime, so --host resolves from the same place the tests will.
+case "$P2" in
+    "")     ;;
+    local)  MVN+=(-P cloudempiere-local "-Dcloudempiere.workspace=$WORKSPACE") ;;
+    # -P '!id' deactivates regardless of activation source, including settings.xml.
+    s3)     MVN+=(-P '!cloudempiere-local') ;;
+    *)      echo "--p2 takes 'local' or 's3', not '$P2'" >&2; exit 2 ;;
+esac
+
+# Tier D boots iDempiere inside a forked JVM and emits ~1000 lines of legitimate startup
+# logging that no regex can safely strip -- real diagnostics are mixed in. So the full stream
+# goes to a file and only an allowlist reaches the terminal. Not under target/: --runtime runs
+# clean, which would delete it mid-write.
+LOGFILE="$SCRIPT_DIR/.run-unit-tests.log"
+: > "$LOGFILE" 2>/dev/null || true   # truncate once per run; run_mvn appends, so a mode that
+                                     # invokes Maven more than once keeps every call's output
+KEEP='Tests run:|^Results:|\[ERROR\]|\[WARNING\]|BUILD (SUCCESS|FAILURE)|^Total time|<<< (FAILURE|ERROR)|^==>'
+
+run_mvn() {
+    if $VERBOSE; then
+        "${MVN[@]}" "$@"
+        return
+    fi
+    # 2>&1 is load-bearing: java.util.logging writes to stderr, so the forked JVM's output
+    # bypasses a stdout-only pipe. pipefail is disabled here on purpose -- grep exits 1 when it
+    # matches nothing, which would read as a failed build; Maven's status comes from PIPESTATUS.
+    set +o pipefail
+    # The `|| true` is required, not cosmetic: grep exits 1 when it matches nothing, which is
+    # a perfectly normal quiet build (a small -N install emits no line the allowlist wants).
+    # Without it, set -e kills the script on the pipeline's status before PIPESTATUS is read,
+    # and the run dies silently with no output and no RESULT line.
+    "${MVN[@]}" "$@" 2>&1 | tee -a "$LOGFILE" | { grep -E "$KEEP" || true; }
+    local st=${PIPESTATUS[0]}
+    set -o pipefail
+    return $st
+}
 
 # ---------------------------------------------------------------- list
 if [ "$MODE" = list ]; then
@@ -99,53 +170,130 @@ fi
 # ai.parent is 10.0.2-SNAPSHOT and the MANIFEST says 0.32.0.qualifier. Read the version the
 # tier-U pom itself declares; it is the one that must resolve.
 VERSION="$(sed -n 's|.*<version>\(.*\)</version>.*|\1|p' "$UNIT_MODULE/pom.xml" | head -1)"
-INSTALLED="$REPO_LOCAL/com/cloudempiere/$HOST/$VERSION/$HOST-$VERSION.jar"
 
 build_host() {
     # -am does NOT follow OSGi requirements, so ai.deps has to be named explicitly:
     # ai.core Require-Bundles it, but no pom dependency records that.
     echo "==> building + installing $HOST $VERSION (+ ai.deps, which -am would miss)"
-    "${MVN[@]}" -f pom.xml install -DskipTests \
-        -pl com.cloudempiere.ai.parent,com.cloudempiere.ai.deps,com.cloudempiere.ai.core \
-        "-Dcloudempiere.composite.repository.url=$COMPOSITE_URL"
+    local args=(-f pom.xml install -DskipTests
+        -pl com.cloudempiere.ai.parent,com.cloudempiere.ai.deps,com.cloudempiere.ai.core)
+    if [ -n "$COMPOSITE_URL" ]; then
+        [ "$P2" = local ] && echo "NOTE: COMPOSITE_URL overrides the URL --p2 local sets."
+        args+=("-Dcloudempiere.composite.repository.url=$COMPOSITE_URL")
+    fi
+    run_mvn "${args[@]}"
 }
 
-if $BUILD_HOST; then
+if [ "$MODE" = runtime ]; then
+    :   # the reactor build below produces the hosts; installed jars are irrelevant here
+elif $BUILD_HOST; then
     build_host
-elif [ ! -f "$INSTALLED" ]; then
-    echo "ERROR: host jar not installed: $INSTALLED" >&2
-    echo "       run: $0 --host" >&2
-    exit 1
 else
-    NEWER="$(find "$HOST/src" -name '*.java' -newer "$INSTALLED" -print -quit 2>/dev/null || true)"
-    if [ -n "$NEWER" ]; then
-        echo "WARNING: $HOST source is newer than the installed jar."
-        echo "         first newer file: $NEWER"
-        echo "         a compile error below is probably staleness, not a real break."
-        echo "         re-run with --host to rebuild."
-        echo
-    fi
+    # Coordinates come from the tier-U pom, never from a hardcoded com/cloudempiere/<artifact>
+    # path: the groupId is not uniform across these repos (com.cloudempiere here,
+    # com.cloudempiere.ai in ai, com.cloudempiere.cache.extensions in cache), so a hardcoded
+    # path reported every jar as missing however many were actually installed.
+    while IFS=$'\t' read -r jar art; do
+        if [ ! -f "$jar" ]; then
+            echo "ERROR: host jar not installed: $jar" >&2
+            echo "       run: $0 --host" >&2
+            exit 1
+        fi
+        newer="$(find "$art/src" -name '*.java' -newer "$jar" -print -quit 2>/dev/null || true)"
+        if [ -n "$newer" ]; then
+            echo "WARNING: $art source is newer than its installed jar."
+            echo "         first newer file: $newer"
+            echo "         a compile error below is probably staleness, not a real break."
+            echo "         re-run with --host to rebuild."
+            echo
+        fi
+    done < <(python3 "$SCRIPT_DIR/.host-jars.py" "$UNIT_MODULE/pom.xml" "$REPO_LOCAL")
 fi
 
+# ---------------------------------------------------------------- reporting
+# One machine-readable line per tier, from an EXIT trap so it survives a failing build too.
+# Callers (and agents) key off this and the exit status, never off Maven's phrasing, which
+# differs between maven-surefire (tier U) and tycho-surefire in a forked Equinox (tier D):
+#   RESULT tier=U tests=180 failures=0 errors=0 skipped=0
+#
+# STAMP is created just before Maven runs; only reports newer than it count. Without that,
+# `test` (which does not clean) leaves the previous run's XML in place and a -Dtest filter that
+# matched nothing gets summarised as a full green pass.
+STAMP="$(mktemp -t run-unit-tests.XXXXXX)"
+
+FRESH_TOTAL=0
+summarize() {
+    local tier="$1" dir="$2" out
+    if [ ! -d "$dir" ]; then
+        echo "RESULT tier=$tier status=no-reports  (nothing ran; the build failed before tests)"
+        return
+    fi
+    out="$(python3 "$SCRIPT_DIR/.surefire-summary.py" "$tier" "$dir" "$STAMP")"
+    echo "$out"
+    echo "       reports: $dir/"
+    case "$out" in *" tests="*) FRESH_TOTAL=1 ;; esac
+}
+
+finish() {
+    local code=$?
+    $VERBOSE || [ ! -f "${LOGFILE:-}" ] || echo "       full log: $LOGFILE"
+    case "$MODE" in
+        unit)    echo; summarize U "$UNIT_MODULE/target/surefire-reports" ;;
+        runtime) echo
+                 summarize D "$FRAGMENT/target/surefire-reports"
+                 summarize U "$UNIT_MODULE/target/surefire-reports" ;;
+        *)       rm -f "$STAMP"; exit $code ;;
+    esac
+    # A filter matching nothing is a typo, not a pass. surefire is told not to fail on it, so
+    # the script has to catch it here or it exits 0 having run nothing.
+    if [ "$code" = 0 ] && [ -n "$TEST_FILTER" ] && [ "$FRESH_TOTAL" = 0 ]; then
+        echo "ERROR: no test matched $TEST_FILTER — nothing ran." >&2
+        code=3
+    fi
+    rm -f "$STAMP"
+    exit $code
+}
+
 # ---------------------------------------------------------------- run
+trap finish EXIT
+touch "$STAMP"
 case "$MODE" in
   unit)
     echo "==> tier U: $UNIT_MODULE"
     ARGS=(-f "$UNIT_MODULE/pom.xml" test)
-    [ -n "$TEST_FILTER" ] && ARGS+=("-Dtest=$TEST_FILTER" -DfailIfNoSpecifiedTests=false)
-    "${MVN[@]}" "${ARGS[@]}"
-    echo
-    echo "surefire reports: $UNIT_MODULE/target/surefire-reports/"
+    # surefire 3.x renamed this. The bare failIfNoSpecifiedTests is the surefire-2 spelling and
+    # is silently ignored, so a typo'd class name died with a stack trace and a [Help 1] URL.
+    [ -n "$TEST_FILTER" ] && ARGS+=("-Dtest=$TEST_FILTER" -Dsurefire.failIfNoSpecifiedTests=false)
+    run_mvn "${ARGS[@]}"
     ;;
   runtime)
-    echo "==> tier D: $FRAGMENT (Equinox + p2 director + seeded DB)"
-    echo "    tier D needs IDEMPIERE_HOME to point at a built core with a seeded database;"
-    echo "    without it the p2 tests start and then fail on the first DB access."
-    ARGS=(-f "$FRAGMENT/pom.xml" verify -DskipTests=false
-          "-Dcloudempiere.composite.repository.url=$COMPOSITE_URL")
+    # FROM THE REACTOR ROOT, not -f $FRAGMENT/pom.xml. The fragment's Fragment-Host is resolved
+    # from the target platform, and a standalone build has no reactor to supply the freshly
+    # built host -- it resolves a published one, or fails outright. In the reactor Tycho hands
+    # the just-built bundle to the p2 director instead.
+    #
+    # `clean` because the director provisions from target/work; a stale one silently re-runs the
+    # previous bundle. `install`, not `verify`: install writes the host jar into $REPO_LOCAL,
+    # which is what the bare tier-U path resolves by GAV, so --runtime is a strict superset of
+    # --host instead of leaving the fast path stale.
+    #
+    # No composite override: settings.xml's cloudempiere-local rewrites several repository URLs
+    # at once, and overriding one of them mixes a remote vintage into local ones.
+    echo "==> tier D: $FRAGMENT via the reactor (Equinox + p2 director)"
+    echo "    tier D needs a seeded database; set IDEMPIERE_HOME if the default is wrong."
+    ARGS=(-f pom.xml clean install -DskipTests=false)
     [ -n "$GROUP" ] && ARGS+=("-Dtest.groups=$GROUP" -Dtest.excludedGroups=)
-    [ -n "$TEST_FILTER" ] && ARGS+=("-Dtest=$TEST_FILTER")
-    [ -n "${IDEMPIERE_HOME:-}" ] && ARGS+=("-Dtycho.testArgLine=-DIDEMPIERE_HOME=$IDEMPIERE_HOME")
-    "${MVN[@]}" "${ARGS[@]}"
+    [ -n "$TEST_FILTER" ] && ARGS+=("-Dtest=$TEST_FILTER" -Dsurefire.failIfNoSpecifiedTests=false)
+    # The fragment hardcodes <argLine>-DIDEMPIERE_HOME=${idempiere.home} ...</argLine>, so an
+    # explicit argLine wins over tycho.testArgLine and idempiere.home is the only live knob.
+    # Made absolute: the pom's default is relative to the FRAGMENT directory, so a path a
+    # user typed relative to the repo root would silently resolve somewhere else.
+    if [ -n "${IDEMPIERE_HOME:-}" ]; then
+        IH="$(cd "$IDEMPIERE_HOME" 2>/dev/null && pwd)" || {
+            echo "--idempiere-home: no such directory: $IDEMPIERE_HOME" >&2; exit 2; }
+        [ -f "$IH/idempiere.properties" ] || echo "WARNING: no idempiere.properties in $IH"
+        ARGS+=("-Didempiere.home=$IH")
+    fi
+    run_mvn "${ARGS[@]}"
     ;;
 esac
