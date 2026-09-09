@@ -20,28 +20,25 @@ package com.cloudempiere.ai.model;
 import java.sql.ResultSet;
 import java.sql.Timestamp;
 import java.util.Properties;
-
-import org.compiere.model.I_Persistent;
-import org.compiere.model.PO;
-import org.compiere.model.POInfo;
+import org.compiere.model.*;
 
 /** Generated Model for AIG_IngestionMetadata
- *  @author iDempiere (generated) 
- *  @version Release 10 - $Id$ */
+ *  @author iDempiere (generated)
+ *  @version Release 14 - $Id$ */
 @org.adempiere.base.Model(table="AIG_IngestionMetadata")
-public class X_AIG_IngestionMetadata extends PO implements I_AIG_IngestionMetadata, I_Persistent 
+public class X_AIG_IngestionMetadata extends PO implements I_AIG_IngestionMetadata, I_Persistent
 {
 
 	/**
 	 *
 	 */
-	private static final long serialVersionUID = 20260227L;
+	private static final long serialVersionUID = 20260909L;
 
     /** Standard Constructor */
-    public X_AIG_IngestionMetadata (Properties ctx, int AIG_IngestionMetadata_ID, String trxName)
+    public X_AIG_IngestionMetadata (Properties ctx, String AIG_IngestionMetadata_UU, String trxName)
     {
-      super (ctx, AIG_IngestionMetadata_ID, trxName);
-      /** if (AIG_IngestionMetadata_ID == 0)
+      super (ctx, AIG_IngestionMetadata_UU, trxName);
+      /** if (AIG_IngestionMetadata_UU == null)
         {
 			setAIG_IngestionMetadata_UU (null);
 			setsourcetype (null);
@@ -49,10 +46,10 @@ public class X_AIG_IngestionMetadata extends PO implements I_AIG_IngestionMetada
     }
 
     /** Standard Constructor */
-    public X_AIG_IngestionMetadata (Properties ctx, int AIG_IngestionMetadata_ID, String trxName, String ... virtualColumns)
+    public X_AIG_IngestionMetadata (Properties ctx, String AIG_IngestionMetadata_UU, String trxName, String ... virtualColumns)
     {
-      super (ctx, AIG_IngestionMetadata_ID, trxName, virtualColumns);
-      /** if (AIG_IngestionMetadata_ID == 0)
+      super (ctx, AIG_IngestionMetadata_UU, trxName, virtualColumns);
+      /** if (AIG_IngestionMetadata_UU == null)
         {
 			setAIG_IngestionMetadata_UU (null);
 			setsourcetype (null);
@@ -66,7 +63,7 @@ public class X_AIG_IngestionMetadata extends PO implements I_AIG_IngestionMetada
     }
 
     /** AccessLevel
-      * @return 6 - System - Client 
+      * @return 6 - System - Client
       */
     protected int get_AccessLevel()
     {
@@ -83,9 +80,24 @@ public class X_AIG_IngestionMetadata extends PO implements I_AIG_IngestionMetada
     public String toString()
     {
       StringBuilder sb = new StringBuilder ("X_AIG_IngestionMetadata[")
-        .append(get_ID()).append("]");
+        .append(get_UUID()).append("]");
       return sb.toString();
     }
+
+	/** Set Error Message.
+		@param AIGErrorMessage Error Message
+	*/
+	public void setAIGErrorMessage (String AIGErrorMessage)
+	{
+		set_Value (COLUMNNAME_AIGErrorMessage, AIGErrorMessage);
+	}
+
+	/** Get Error Message.
+		@return Error Message	  */
+	public String getAIGErrorMessage()
+	{
+		return (String)get_Value(COLUMNNAME_AIGErrorMessage);
+	}
 
 	/** Set AIG_IngestionMetadata_UU.
 		@param AIG_IngestionMetadata_UU AIG_IngestionMetadata_UU
@@ -102,6 +114,29 @@ public class X_AIG_IngestionMetadata extends PO implements I_AIG_IngestionMetada
 		return (String)get_Value(COLUMNNAME_AIG_IngestionMetadata_UU);
 	}
 
+	/** Canceled = CA */
+	public static final String STATUS_Canceled = "CA";
+	/** Processed = PR */
+	public static final String STATUS_Processed = "PR";
+	/** Waiting = WA */
+	public static final String STATUS_Waiting = "WA";
+	/** Set Status.
+		@param Status Status of the currently running check
+	*/
+	public void setStatus (String Status)
+	{
+
+		set_ValueNoCheck (COLUMNNAME_Status, Status);
+	}
+
+	/** Get Status.
+		@return Status of the currently running check
+	  */
+	public String getStatus()
+	{
+		return (String)get_Value(COLUMNNAME_Status);
+	}
+
 	/** Set durationms.
 		@param durationms durationms
 	*/
@@ -115,21 +150,6 @@ public class X_AIG_IngestionMetadata extends PO implements I_AIG_IngestionMetada
 	public String getdurationms()
 	{
 		return (String)get_Value(COLUMNNAME_durationms);
-	}
-
-	/** Set Error Message.
-		@param ErrorMessage Error Message
-	*/
-	public void setErrorMessage (String ErrorMessage)
-	{
-		set_Value (COLUMNNAME_ErrorMessage, ErrorMessage);
-	}
-
-	/** Get Error Message.
-		@return Error Message	  */
-	public String getErrorMessage()
-	{
-		return (String)get_Value(COLUMNNAME_ErrorMessage);
 	}
 
 	/** Set lastingestion.
@@ -193,28 +213,5 @@ public class X_AIG_IngestionMetadata extends PO implements I_AIG_IngestionMetada
 	public String getsourcetype()
 	{
 		return (String)get_Value(COLUMNNAME_sourcetype);
-	}
-
-	/** Canceled = CA */
-	public static final String STATUS_Canceled = "CA";
-	/** Processed = PR */
-	public static final String STATUS_Processed = "PR";
-	/** Waiting = WA */
-	public static final String STATUS_Waiting = "WA";
-	/** Set Status.
-		@param Status Status of the currently running check
-	*/
-	public void setStatus (String Status)
-	{
-
-		set_ValueNoCheck (COLUMNNAME_Status, Status);
-	}
-
-	/** Get Status.
-		@return Status of the currently running check
-	  */
-	public String getStatus()
-	{
-		return (String)get_Value(COLUMNNAME_Status);
 	}
 }

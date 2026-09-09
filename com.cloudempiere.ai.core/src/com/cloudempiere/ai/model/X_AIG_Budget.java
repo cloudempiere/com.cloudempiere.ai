@@ -20,23 +20,19 @@ package com.cloudempiere.ai.model;
 import java.sql.ResultSet;
 import java.sql.Timestamp;
 import java.util.Properties;
-
-import org.compiere.model.I_Persistent;
-import org.compiere.model.MTable;
-import org.compiere.model.PO;
-import org.compiere.model.POInfo;
+import org.compiere.model.*;
 
 /** Generated Model for AIG_Budget
- *  @author iDempiere (generated) 
- *  @version Release 10 - $Id$ */
+ *  @author iDempiere (generated)
+ *  @version Release 14 - $Id$ */
 @org.adempiere.base.Model(table="AIG_Budget")
-public class X_AIG_Budget extends PO implements I_AIG_Budget, I_Persistent 
+public class X_AIG_Budget extends PO implements I_AIG_Budget, I_Persistent
 {
 
 	/**
 	 *
 	 */
-	private static final long serialVersionUID = 20260302L;
+	private static final long serialVersionUID = 20260909L;
 
     /** Standard Constructor */
     public X_AIG_Budget (Properties ctx, int AIG_Budget_ID, String trxName)
@@ -60,6 +56,28 @@ public class X_AIG_Budget extends PO implements I_AIG_Budget, I_Persistent
         } */
     }
 
+    /** Standard Constructor */
+    public X_AIG_Budget (Properties ctx, String AIG_Budget_UU, String trxName)
+    {
+      super (ctx, AIG_Budget_UU, trxName);
+      /** if (AIG_Budget_UU == null)
+        {
+			setAIG_Budget_ID (0);
+			setBudgetScope (null);
+        } */
+    }
+
+    /** Standard Constructor */
+    public X_AIG_Budget (Properties ctx, String AIG_Budget_UU, String trxName, String ... virtualColumns)
+    {
+      super (ctx, AIG_Budget_UU, trxName, virtualColumns);
+      /** if (AIG_Budget_UU == null)
+        {
+			setAIG_Budget_ID (0);
+			setBudgetScope (null);
+        } */
+    }
+
     /** Load Constructor */
     public X_AIG_Budget (Properties ctx, ResultSet rs, String trxName)
     {
@@ -67,7 +85,7 @@ public class X_AIG_Budget extends PO implements I_AIG_Budget, I_Persistent
     }
 
     /** AccessLevel
-      * @return 6 - System - Client 
+      * @return 6 - System - Client
       */
     protected int get_AccessLevel()
     {
@@ -88,6 +106,7 @@ public class X_AIG_Budget extends PO implements I_AIG_Budget, I_Persistent
       return sb.toString();
     }
 
+	@Deprecated(since="13") // use better methods with cache
 	public org.compiere.model.I_AD_User getAD_User() throws RuntimeException
 	{
 		return (org.compiere.model.I_AD_User)MTable.get(getCtx(), org.compiere.model.I_AD_User.Table_ID)
@@ -114,21 +133,6 @@ public class X_AIG_Budget extends PO implements I_AIG_Budget, I_Persistent
 		if (ii == null)
 			 return 0;
 		return ii.intValue();
-	}
-
-	/** Set Agent Name.
-		@param AgentName Agent Name
-	*/
-	public void setAgentName (String AgentName)
-	{
-		set_Value (COLUMNNAME_AgentName, AgentName);
-	}
-
-	/** Get Agent Name.
-		@return Agent Name	  */
-	public String getAgentName()
-	{
-		return (String)get_Value(COLUMNNAME_AgentName);
 	}
 
 	/** Set AI Budget.
@@ -165,6 +169,21 @@ public class X_AIG_Budget extends PO implements I_AIG_Budget, I_Persistent
 	public String getAIG_Budget_UU()
 	{
 		return (String)get_Value(COLUMNNAME_AIG_Budget_UU);
+	}
+
+	/** Set Agent Name.
+		@param AgentName Agent Name
+	*/
+	public void setAgentName (String AgentName)
+	{
+		set_Value (COLUMNNAME_AgentName, AgentName);
+	}
+
+	/** Get Agent Name.
+		@return Agent Name	  */
+	public String getAgentName()
+	{
+		return (String)get_Value(COLUMNNAME_AgentName);
 	}
 
 	/** BudgetScope AD_Reference_ID=800138 */

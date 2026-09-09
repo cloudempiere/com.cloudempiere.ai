@@ -18,12 +18,12 @@ package com.cloudempiere.ai.model;
 
 import java.math.BigDecimal;
 import java.sql.Timestamp;
-
+import org.compiere.model.*;
 import org.compiere.util.KeyNamePair;
 
 /** Generated Interface for AIG_IngestionMetadata
  *  @author iDempiere (generated) 
- *  @version Release 10
+ *  @version Release 14
  */
 @SuppressWarnings("all")
 public interface I_AIG_IngestionMetadata 
@@ -64,6 +64,15 @@ public interface I_AIG_IngestionMetadata
 	  */
 	public int getAD_Org_ID();
 
+    /** Column name AIGErrorMessage */
+    public static final String COLUMNNAME_AIGErrorMessage = "AIGErrorMessage";
+
+	/** Set Error Message	  */
+	public void setAIGErrorMessage (String AIGErrorMessage);
+
+	/** Get Error Message	  */
+	public String getAIGErrorMessage();
+
     /** Column name AIG_IngestionMetadata_UU */
     public static final String COLUMNNAME_AIG_IngestionMetadata_UU = "AIG_IngestionMetadata_UU";
 
@@ -89,24 +98,6 @@ public interface I_AIG_IngestionMetadata
 	  */
 	public int getCreatedBy();
 
-    /** Column name durationms */
-    public static final String COLUMNNAME_durationms = "durationms";
-
-	/** Set durationms	  */
-	public void setdurationms (String durationms);
-
-	/** Get durationms	  */
-	public String getdurationms();
-
-    /** Column name ErrorMessage */
-    public static final String COLUMNNAME_ErrorMessage = "ErrorMessage";
-
-	/** Set Error Message	  */
-	public void setErrorMessage (String ErrorMessage);
-
-	/** Get Error Message	  */
-	public String getErrorMessage();
-
     /** Column name IsActive */
     public static final String COLUMNNAME_IsActive = "IsActive";
 
@@ -119,6 +110,44 @@ public interface I_AIG_IngestionMetadata
 	  * The record is active in the system
 	  */
 	public boolean isActive();
+
+    /** Column name Status */
+    public static final String COLUMNNAME_Status = "Status";
+
+	/** Set Status.
+	  * Status of the currently running check
+	  */
+	public void setStatus (String Status);
+
+	/** Get Status.
+	  * Status of the currently running check
+	  */
+	public String getStatus();
+
+    /** Column name Updated */
+    public static final String COLUMNNAME_Updated = "Updated";
+
+	/** Get Updated.
+	  * Date this record was updated
+	  */
+	public Timestamp getUpdated();
+
+    /** Column name UpdatedBy */
+    public static final String COLUMNNAME_UpdatedBy = "UpdatedBy";
+
+	/** Get Updated By.
+	  * User who updated this records
+	  */
+	public int getUpdatedBy();
+
+    /** Column name durationms */
+    public static final String COLUMNNAME_durationms = "durationms";
+
+	/** Set durationms	  */
+	public void setdurationms (String durationms);
+
+	/** Get durationms	  */
+	public String getdurationms();
 
     /** Column name lastingestion */
     public static final String COLUMNNAME_lastingestion = "lastingestion";
@@ -155,33 +184,4 @@ public interface I_AIG_IngestionMetadata
 
 	/** Get sourcetype	  */
 	public String getsourcetype();
-
-    /** Column name Status */
-    public static final String COLUMNNAME_Status = "Status";
-
-	/** Set Status.
-	  * Status of the currently running check
-	  */
-	public void setStatus (String Status);
-
-	/** Get Status.
-	  * Status of the currently running check
-	  */
-	public String getStatus();
-
-    /** Column name Updated */
-    public static final String COLUMNNAME_Updated = "Updated";
-
-	/** Get Updated.
-	  * Date this record was updated
-	  */
-	public Timestamp getUpdated();
-
-    /** Column name UpdatedBy */
-    public static final String COLUMNNAME_UpdatedBy = "UpdatedBy";
-
-	/** Get Updated By.
-	  * User who updated this records
-	  */
-	public int getUpdatedBy();
 }

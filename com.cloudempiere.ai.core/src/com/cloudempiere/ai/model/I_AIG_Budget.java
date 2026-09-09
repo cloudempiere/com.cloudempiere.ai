@@ -18,12 +18,12 @@ package com.cloudempiere.ai.model;
 
 import java.math.BigDecimal;
 import java.sql.Timestamp;
-
+import org.compiere.model.*;
 import org.compiere.util.KeyNamePair;
 
 /** Generated Interface for AIG_Budget
  *  @author iDempiere (generated) 
- *  @version Release 10
+ *  @version Release 14
  */
 @SuppressWarnings("all")
 public interface I_AIG_Budget 
@@ -77,16 +77,8 @@ public interface I_AIG_Budget
 	  */
 	public int getAD_User_ID();
 
+	@Deprecated(since="13") // use better methods with cache
 	public org.compiere.model.I_AD_User getAD_User() throws RuntimeException;
-
-    /** Column name AgentName */
-    public static final String COLUMNNAME_AgentName = "AgentName";
-
-	/** Set Agent Name	  */
-	public void setAgentName (String AgentName);
-
-	/** Get Agent Name	  */
-	public String getAgentName();
 
     /** Column name AIG_Budget_ID */
     public static final String COLUMNNAME_AIG_Budget_ID = "AIG_Budget_ID";
@@ -105,6 +97,15 @@ public interface I_AIG_Budget
 
 	/** Get AIG_Budget_UU	  */
 	public String getAIG_Budget_UU();
+
+    /** Column name AgentName */
+    public static final String COLUMNNAME_AgentName = "AgentName";
+
+	/** Set Agent Name	  */
+	public void setAgentName (String AgentName);
+
+	/** Get Agent Name	  */
+	public String getAgentName();
 
     /** Column name BudgetScope */
     public static final String COLUMNNAME_BudgetScope = "BudgetScope";

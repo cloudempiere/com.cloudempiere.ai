@@ -18,12 +18,12 @@ package com.cloudempiere.ai.model;
 
 import java.math.BigDecimal;
 import java.sql.Timestamp;
-
+import org.compiere.model.*;
 import org.compiere.util.KeyNamePair;
 
 /** Generated Interface for AIG_UsageMetrics
  *  @author iDempiere (generated) 
- *  @version Release 10
+ *  @version Release 14
  */
 @SuppressWarnings("all")
 public interface I_AIG_UsageMetrics 
@@ -77,6 +77,7 @@ public interface I_AIG_UsageMetrics
 	  */
 	public int getAD_Role_ID();
 
+	@Deprecated(since="13") // use better methods with cache
 	public org.compiere.model.I_AD_Role getAD_Role() throws RuntimeException;
 
     /** Column name AD_User_ID */
@@ -92,25 +93,17 @@ public interface I_AIG_UsageMetrics
 	  */
 	public int getAD_User_ID();
 
+	@Deprecated(since="13") // use better methods with cache
 	public org.compiere.model.I_AD_User getAD_User() throws RuntimeException;
 
-    /** Column name AgentName */
-    public static final String COLUMNNAME_AgentName = "AgentName";
+    /** Column name AIGErrorMessage */
+    public static final String COLUMNNAME_AIGErrorMessage = "AIGErrorMessage";
 
-	/** Set Agent Name	  */
-	public void setAgentName (String AgentName);
+	/** Set Error Message	  */
+	public void setAIGErrorMessage (String AIGErrorMessage);
 
-	/** Get Agent Name	  */
-	public String getAgentName();
-
-    /** Column name AgentType */
-    public static final String COLUMNNAME_AgentType = "AgentType";
-
-	/** Set Agent Type	  */
-	public void setAgentType (String AgentType);
-
-	/** Get Agent Type	  */
-	public String getAgentType();
+	/** Get Error Message	  */
+	public String getAIGErrorMessage();
 
     /** Column name AIG_Provider_ID */
     public static final String COLUMNNAME_AIG_Provider_ID = "AIG_Provider_ID";
@@ -125,6 +118,7 @@ public interface I_AIG_UsageMetrics
 	  */
 	public int getAIG_Provider_ID();
 
+	@Deprecated(since="13") // use better methods with cache
 	public I_AIG_Provider getAIG_Provider() throws RuntimeException;
 
     /** Column name AIG_UsageMetrics_ID */
@@ -144,6 +138,24 @@ public interface I_AIG_UsageMetrics
 
 	/** Get AIG_UsageMetrics_UU	  */
 	public String getAIG_UsageMetrics_UU();
+
+    /** Column name AgentName */
+    public static final String COLUMNNAME_AgentName = "AgentName";
+
+	/** Set Agent Name	  */
+	public void setAgentName (String AgentName);
+
+	/** Get Agent Name	  */
+	public String getAgentName();
+
+    /** Column name AgentType */
+    public static final String COLUMNNAME_AgentType = "AgentType";
+
+	/** Set Agent Type	  */
+	public void setAgentType (String AgentType);
+
+	/** Get Agent Type	  */
+	public String getAgentType();
 
     /** Column name CostAmt */
     public static final String COLUMNNAME_CostAmt = "CostAmt";
@@ -173,15 +185,6 @@ public interface I_AIG_UsageMetrics
 	  * User who created this records
 	  */
 	public int getCreatedBy();
-
-    /** Column name ErrorMessage */
-    public static final String COLUMNNAME_ErrorMessage = "ErrorMessage";
-
-	/** Set Error Message	  */
-	public void setErrorMessage (String ErrorMessage);
-
-	/** Get Error Message	  */
-	public String getErrorMessage();
 
     /** Column name InputTokens */
     public static final String COLUMNNAME_InputTokens = "InputTokens";

@@ -20,23 +20,19 @@ package com.cloudempiere.ai.model;
 import java.sql.ResultSet;
 import java.sql.Timestamp;
 import java.util.Properties;
-
-import org.compiere.model.I_Persistent;
-import org.compiere.model.MTable;
-import org.compiere.model.PO;
-import org.compiere.model.POInfo;
+import org.compiere.model.*;
 
 /** Generated Model for AIG_UsageMetrics
- *  @author iDempiere (generated) 
- *  @version Release 10 - $Id$ */
+ *  @author iDempiere (generated)
+ *  @version Release 14 - $Id$ */
 @org.adempiere.base.Model(table="AIG_UsageMetrics")
-public class X_AIG_UsageMetrics extends PO implements I_AIG_UsageMetrics, I_Persistent 
+public class X_AIG_UsageMetrics extends PO implements I_AIG_UsageMetrics, I_Persistent
 {
 
 	/**
 	 *
 	 */
-	private static final long serialVersionUID = 20260227L;
+	private static final long serialVersionUID = 20260909L;
 
     /** Standard Constructor */
     public X_AIG_UsageMetrics (Properties ctx, int AIG_UsageMetrics_ID, String trxName)
@@ -60,6 +56,28 @@ public class X_AIG_UsageMetrics extends PO implements I_AIG_UsageMetrics, I_Pers
         } */
     }
 
+    /** Standard Constructor */
+    public X_AIG_UsageMetrics (Properties ctx, String AIG_UsageMetrics_UU, String trxName)
+    {
+      super (ctx, AIG_UsageMetrics_UU, trxName);
+      /** if (AIG_UsageMetrics_UU == null)
+        {
+			setAD_User_ID (0);
+			setAIG_UsageMetrics_ID (0);
+        } */
+    }
+
+    /** Standard Constructor */
+    public X_AIG_UsageMetrics (Properties ctx, String AIG_UsageMetrics_UU, String trxName, String ... virtualColumns)
+    {
+      super (ctx, AIG_UsageMetrics_UU, trxName, virtualColumns);
+      /** if (AIG_UsageMetrics_UU == null)
+        {
+			setAD_User_ID (0);
+			setAIG_UsageMetrics_ID (0);
+        } */
+    }
+
     /** Load Constructor */
     public X_AIG_UsageMetrics (Properties ctx, ResultSet rs, String trxName)
     {
@@ -67,7 +85,7 @@ public class X_AIG_UsageMetrics extends PO implements I_AIG_UsageMetrics, I_Pers
     }
 
     /** AccessLevel
-      * @return 6 - System - Client 
+      * @return 6 - System - Client
       */
     protected int get_AccessLevel()
     {
@@ -88,6 +106,7 @@ public class X_AIG_UsageMetrics extends PO implements I_AIG_UsageMetrics, I_Pers
       return sb.toString();
     }
 
+	@Deprecated(since="13") // use better methods with cache
 	public org.compiere.model.I_AD_Role getAD_Role() throws RuntimeException
 	{
 		return (org.compiere.model.I_AD_Role)MTable.get(getCtx(), org.compiere.model.I_AD_Role.Table_ID)
@@ -116,6 +135,7 @@ public class X_AIG_UsageMetrics extends PO implements I_AIG_UsageMetrics, I_Pers
 		return ii.intValue();
 	}
 
+	@Deprecated(since="13") // use better methods with cache
 	public org.compiere.model.I_AD_User getAD_User() throws RuntimeException
 	{
 		return (org.compiere.model.I_AD_User)MTable.get(getCtx(), org.compiere.model.I_AD_User.Table_ID)
@@ -144,36 +164,22 @@ public class X_AIG_UsageMetrics extends PO implements I_AIG_UsageMetrics, I_Pers
 		return ii.intValue();
 	}
 
-	/** Set Agent Name.
-		@param AgentName Agent Name
+	/** Set Error Message.
+		@param AIGErrorMessage Error Message
 	*/
-	public void setAgentName (String AgentName)
+	public void setAIGErrorMessage (String AIGErrorMessage)
 	{
-		set_Value (COLUMNNAME_AgentName, AgentName);
+		set_Value (COLUMNNAME_AIGErrorMessage, AIGErrorMessage);
 	}
 
-	/** Get Agent Name.
-		@return Agent Name	  */
-	public String getAgentName()
+	/** Get Error Message.
+		@return Error Message	  */
+	public String getAIGErrorMessage()
 	{
-		return (String)get_Value(COLUMNNAME_AgentName);
+		return (String)get_Value(COLUMNNAME_AIGErrorMessage);
 	}
 
-	/** Set Agent Type.
-		@param AgentType Agent Type
-	*/
-	public void setAgentType (String AgentType)
-	{
-		set_Value (COLUMNNAME_AgentType, AgentType);
-	}
-
-	/** Get Agent Type.
-		@return Agent Type	  */
-	public String getAgentType()
-	{
-		return (String)get_Value(COLUMNNAME_AgentType);
-	}
-
+	@Deprecated(since="13") // use better methods with cache
 	public I_AIG_Provider getAIG_Provider() throws RuntimeException
 	{
 		return (I_AIG_Provider)MTable.get(getCtx(), I_AIG_Provider.Table_ID)
@@ -238,6 +244,36 @@ public class X_AIG_UsageMetrics extends PO implements I_AIG_UsageMetrics, I_Pers
 		return (String)get_Value(COLUMNNAME_AIG_UsageMetrics_UU);
 	}
 
+	/** Set Agent Name.
+		@param AgentName Agent Name
+	*/
+	public void setAgentName (String AgentName)
+	{
+		set_Value (COLUMNNAME_AgentName, AgentName);
+	}
+
+	/** Get Agent Name.
+		@return Agent Name	  */
+	public String getAgentName()
+	{
+		return (String)get_Value(COLUMNNAME_AgentName);
+	}
+
+	/** Set Agent Type.
+		@param AgentType Agent Type
+	*/
+	public void setAgentType (String AgentType)
+	{
+		set_Value (COLUMNNAME_AgentType, AgentType);
+	}
+
+	/** Get Agent Type.
+		@return Agent Type	  */
+	public String getAgentType()
+	{
+		return (String)get_Value(COLUMNNAME_AgentType);
+	}
+
 	/** Set Cost Value.
 		@param CostAmt Value with Cost
 	*/
@@ -255,21 +291,6 @@ public class X_AIG_UsageMetrics extends PO implements I_AIG_UsageMetrics, I_Pers
 		if (ii == null)
 			 return 0;
 		return ii.intValue();
-	}
-
-	/** Set Error Message.
-		@param ErrorMessage Error Message
-	*/
-	public void setErrorMessage (String ErrorMessage)
-	{
-		set_Value (COLUMNNAME_ErrorMessage, ErrorMessage);
-	}
-
-	/** Get Error Message.
-		@return Error Message	  */
-	public String getErrorMessage()
-	{
-		return (String)get_Value(COLUMNNAME_ErrorMessage);
 	}
 
 	/** Set Input Tokens.
@@ -414,10 +435,10 @@ public class X_AIG_UsageMetrics extends PO implements I_AIG_UsageMetrics, I_Pers
 	public boolean isSuccessFlag()
 	{
 		Object oo = get_Value(COLUMNNAME_SuccessFlag);
-		if (oo != null) 
+		if (oo != null)
 		{
-			 if (oo instanceof Boolean) 
-				 return ((Boolean)oo).booleanValue(); 
+			 if (oo instanceof Boolean)
+				 return ((Boolean)oo).booleanValue();
 			return "Y".equals(oo);
 		}
 		return false;
