@@ -35,6 +35,28 @@ public class X_AIG_IngestionMetadata extends PO implements I_AIG_IngestionMetada
 	private static final long serialVersionUID = 20260909L;
 
     /** Standard Constructor */
+    public X_AIG_IngestionMetadata (Properties ctx, int AIG_IngestionMetadata_ID, String trxName)
+    {
+      super (ctx, AIG_IngestionMetadata_ID, trxName);
+      /** if (AIG_IngestionMetadata_ID == 0)
+        {
+			setAIG_IngestionMetadata_UU (null);
+			setsourcetype (null);
+        } */
+    }
+
+    /** Standard Constructor */
+    public X_AIG_IngestionMetadata (Properties ctx, int AIG_IngestionMetadata_ID, String trxName, String ... virtualColumns)
+    {
+      super (ctx, AIG_IngestionMetadata_ID, trxName, virtualColumns);
+      /** if (AIG_IngestionMetadata_ID == 0)
+        {
+			setAIG_IngestionMetadata_UU (null);
+			setsourcetype (null);
+        } */
+    }
+
+    /** Standard Constructor */
     public X_AIG_IngestionMetadata (Properties ctx, String AIG_IngestionMetadata_UU, String trxName)
     {
       super (ctx, AIG_IngestionMetadata_UU, trxName);
