@@ -2,7 +2,7 @@ Manifest-Version: 1.0
 Bundle-ManifestVersion: 2
 Bundle-Name: AI Plugin Tests
 Bundle-SymbolicName: com.cloudempiere.ai.test
-Bundle-Version: 10.0.2.qualifier
+Bundle-Version: 14.0.0.qualifier
 Bundle-Vendor: Cloudempiere
 Require-Bundle: org.adempiere.base;bundle-version="14.0.0",
  org.idempiere.test;bundle-version="14.0.0",
