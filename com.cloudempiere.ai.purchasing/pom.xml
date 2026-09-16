@@ -13,7 +13,6 @@
     </parent>
 
     <artifactId>com.cloudempiere.ai.purchasing</artifactId>
-    <version>14.0.0-SNAPSHOT</version>
     <packaging>eclipse-plugin</packaging>
 
     <name>Cloudempiere AI - purchasing Domain Plugin</name>
