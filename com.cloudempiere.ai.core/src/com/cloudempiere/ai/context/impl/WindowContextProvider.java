@@ -345,7 +345,7 @@ public class WindowContextProvider implements IAIContextProvider {
                                 JSONObject childTab = new JSONObject();
                                 childTab.put("tab_id", tab.getAD_Tab_ID());
                                 childTab.put("tab_name", tab.getName());
-                                childTab.put("table_name", tab.getAD_Table().getTableName());
+                                childTab.put("table_name", MTable.get(tab.getCtx(), tab.getAD_Table_ID()).getTableName());
                                 childTab.put("tab_level", tab.getTabLevel());
                                 childTab.put("sequence", tab.getSeqNo());
 
