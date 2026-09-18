@@ -19,13 +19,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Repository**: `../iDempiereCLDE/` (relative path from plugin root)
 - **Branch**: `iDempiereCLDE`
 - **Version**: iDempiere v10 (10.0.0-SNAPSHOT)
-- **Java Version**: Amazon Corretto 11
+- **Java Version**: Amazon Corretto 17
 - **Location**: `/Users/norbertbede/github/iDempiereCLDE`
 
 Before building or testing this plugin, ensure:
 1. iDempiereCLDE repository is cloned at `../iDempiereCLDE/`
 2. The iDempiereCLDE branch is checked out
-3. Java 11 (Corretto) is being used: `JAVA_HOME=/Library/Java/JavaVirtualMachines/amazon-corretto-11.jdk/Contents/Home`
+3. Java 17 (Corretto) is being used: `JAVA_HOME=/Library/Java/JavaVirtualMachines/amazon-corretto-17.jdk/Contents/Home`
 4. iDempiere parent and target platform are built:
    ```bash
    cd ../iDempiereCLDE/org.idempiere.parent && mvn clean install -DskipTests
@@ -40,8 +40,8 @@ The plugin references the iDempiere parent POM at `../iDempiereCLDE/org.idempier
 
 | Component | Current | Constraint | Notes |
 |-----------|---------|------------|-------|
-| **Java Runtime** | Amazon Corretto 11 | Java 11 | iDempiere v10 requirement |
-| **LangChain4j** | **0.35.0** | Must use 0.35.0 | Last Java 11 compatible version |
+| **Java Runtime** | Amazon Corretto 17 | Java 17 | post-migration requirement |
+| **LangChain4j** | **0.35.0** | Must use 0.35.0 | Not yet bumped to a Java-17-only release line |
 | **iDempiere** | v10 (10.0.0-SNAPSHOT) | Release-10 | Release-11 requires Java 17 |
 
 **WARNING:** LangChain4j versions 0.36.0 and later (including 1.x) require Java 17!
@@ -55,7 +55,7 @@ The plugin references the iDempiere parent POM at `../iDempiereCLDE/org.idempier
 | 1.0.0+ (stable) | Java 17+ |
 
 **Migration Path:**
-1. **Phase 1 (Current)**: Java 11 + LangChain4j 0.35.0 for MVP
+1. **Phase 1 (Current)**: Java 17 + LangChain4j 0.35.0 for MVP
 2. **Phase 2 (Future)**: Upgrade to iDempiere Release-11 + Java 17 + LangChain4j 1.x
 
 **Features blocked until Java 17 migration:**
