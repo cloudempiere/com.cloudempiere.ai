@@ -19,7 +19,6 @@ Import-Package: com.cloudempiere.ai.boundary;version="[0.32.0,1.0.0)",
  dev.langchain4j.model.chat;version="[0.35.0,1.0.0)",
  dev.langchain4j.service;version="[0.35.0,1.0.0)",
  org.compiere.model,
- org.compiere.util,
  org.json,
  org.osgi.framework;version="1.10.0",
  org.osgi.service.component.annotations;version="1.3.0"
@@ -31,4 +30,5 @@ Export-Package: com.cloudempiere.ai.kb.agent;version="0.32.0",
  com.cloudempiere.ai.kb.parser;version="0.32.0",
  com.cloudempiere.ai.kb.tools;version="0.32.0"
 Bundle-ActivationPolicy: lazy
-Require-Bundle: com.cloudempiere.ai.core;bundle-version="14.0.0"
+Require-Bundle: com.cloudempiere.ai.core;bundle-version="[14.0.0,15.0.0)",
+ org.adempiere.base;bundle-version="[14.0.0,15.0.0)"

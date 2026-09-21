@@ -21,15 +21,15 @@ Bundle-ClassPath: .,
  lib/netty-transport-classes-epoll-4.1.100.Final.jar,
  lib/reactive-streams-1.0.4.jar
 Bundle-Activator: com.cloudempiere.ai.Activator
-Require-Bundle: org.adempiere.plugin.utils,
- com.cloudempiere.core.base;bundle-version="14.0.0",
- com.cloudempiere.ai.deps;bundle-version="14.0.0",
+Require-Bundle: org.adempiere.plugin.utils;bundle-version="[14.0.0,15.0.0)",
+ com.cloudempiere.core.base;bundle-version="[14.0.0,15.0.0)",
+ com.cloudempiere.ai.deps;bundle-version="[14.0.0,15.0.0)",
  zk;bundle-version="9.6.3",
  zul;bundle-version="9.6.3",
  zcommon;bundle-version="9.6.3",
- org.adempiere.ui.zk,
- com.cloudempiere.aws.provider;bundle-version="14.0.0",
- org.adempiere.base;bundle-version="14.0.0"
+ org.adempiere.ui.zk;bundle-version="[14.0.0,15.0.0)",
+ com.cloudempiere.aws.provider;bundle-version="[14.0.0,15.0.0)",
+ org.adempiere.base;bundle-version="[14.0.0,15.0.0)"
 Import-Package: com.anthropic.client;version="2.10.0",
  org.json,
  com.anthropic.core;version="2.10.0",
