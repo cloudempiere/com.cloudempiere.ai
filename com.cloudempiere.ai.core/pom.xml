@@ -29,86 +29,97 @@
                         </goals>
                         <configuration>
                             <artifactItems>
-                                <!-- AWS SDK - Bedrock services (depend on aws-core from aws.provider) -->
+                                <!-- AWS SDK - Bedrock services (depend on aws-core from aws.provider).
+                                     Version pinned to MATCH com.cloudempiere.aws.provider's AWS SDK version
+                                     (2.31.11) rather than whatever langchain4j-bedrock:1.20.0's own BOM
+                                     declares (2.41.34) - AWS's own versioning policy warns against mixing
+                                     AWS SDK module versions within one runtime, and ai.core shares its
+                                     "core" AWS classes (regions/auth/http-client-spi/etc.) with aws.provider
+                                     via Require-Bundle, so a self-consistent version across ai.core +
+                                     aws.provider matters more here than matching langchain4j-bedrock's BOM.
+                                     Safe to diverge from langchain4j-bedrock's own pin because we inject our
+                                     own BedrockRuntimeClient/BedrockRuntimeAsyncClient (see BedrockClients.java)
+                                     rather than letting it build one internally - exactly the use case
+                                     langchain4j PRs #2285/#2914 added client injection for. -->
                                 <artifactItem>
                                     <groupId>software.amazon.awssdk</groupId>
                                     <artifactId>bedrockruntime</artifactId>
-                                    <version>2.20.162</version>
-                                    <destFileName>bedrockruntime-2.20.162.jar</destFileName>
+                                    <version>2.31.11</version>
+                                    <destFileName>bedrockruntime-2.31.11.jar</destFileName>
                                 </artifactItem>
                                 <artifactItem>
                                     <groupId>software.amazon.awssdk</groupId>
                                     <artifactId>bedrock</artifactId>
-                                    <version>2.20.162</version>
-                                    <destFileName>bedrock-2.20.162.jar</destFileName>
+                                    <version>2.31.11</version>
+                                    <destFileName>bedrock-2.31.11.jar</destFileName>
                                 </artifactItem>
                                 <!-- AWS SDK - Netty async HTTP client + Netty core dependencies -->
                                 <artifactItem>
                                     <groupId>software.amazon.awssdk</groupId>
                                     <artifactId>netty-nio-client</artifactId>
-                                    <version>2.20.162</version>
-                                    <destFileName>netty-nio-client-2.20.162.jar</destFileName>
+                                    <version>2.31.11</version>
+                                    <destFileName>netty-nio-client-2.31.11.jar</destFileName>
                                 </artifactItem>
-                                <!-- Netty -->
+                                <!-- Netty (version matches what AWS SDK 2.31.11's netty-nio-client compiles against) -->
                                 <artifactItem>
                                     <groupId>io.netty</groupId>
                                     <artifactId>netty-codec-http</artifactId>
-                                    <version>4.1.100.Final</version>
-                                    <destFileName>netty-codec-http-4.1.100.Final.jar</destFileName>
+                                    <version>4.1.118.Final</version>
+                                    <destFileName>netty-codec-http-4.1.118.Final.jar</destFileName>
                                 </artifactItem>
                                 <artifactItem>
                                     <groupId>io.netty</groupId>
                                     <artifactId>netty-codec-http2</artifactId>
-                                    <version>4.1.100.Final</version>
-                                    <destFileName>netty-codec-http2-4.1.100.Final.jar</destFileName>
+                                    <version>4.1.118.Final</version>
+                                    <destFileName>netty-codec-http2-4.1.118.Final.jar</destFileName>
                                 </artifactItem>
                                 <artifactItem>
                                     <groupId>io.netty</groupId>
                                     <artifactId>netty-codec</artifactId>
-                                    <version>4.1.100.Final</version>
-                                    <destFileName>netty-codec-4.1.100.Final.jar</destFileName>
+                                    <version>4.1.118.Final</version>
+                                    <destFileName>netty-codec-4.1.118.Final.jar</destFileName>
                                 </artifactItem>
                                 <artifactItem>
                                     <groupId>io.netty</groupId>
                                     <artifactId>netty-transport</artifactId>
-                                    <version>4.1.100.Final</version>
-                                    <destFileName>netty-transport-4.1.100.Final.jar</destFileName>
+                                    <version>4.1.118.Final</version>
+                                    <destFileName>netty-transport-4.1.118.Final.jar</destFileName>
                                 </artifactItem>
                                 <artifactItem>
                                     <groupId>io.netty</groupId>
                                     <artifactId>netty-common</artifactId>
-                                    <version>4.1.100.Final</version>
-                                    <destFileName>netty-common-4.1.100.Final.jar</destFileName>
+                                    <version>4.1.118.Final</version>
+                                    <destFileName>netty-common-4.1.118.Final.jar</destFileName>
                                 </artifactItem>
                                 <artifactItem>
                                     <groupId>io.netty</groupId>
                                     <artifactId>netty-buffer</artifactId>
-                                    <version>4.1.100.Final</version>
-                                    <destFileName>netty-buffer-4.1.100.Final.jar</destFileName>
+                                    <version>4.1.118.Final</version>
+                                    <destFileName>netty-buffer-4.1.118.Final.jar</destFileName>
                                 </artifactItem>
                                 <artifactItem>
                                     <groupId>io.netty</groupId>
                                     <artifactId>netty-handler</artifactId>
-                                    <version>4.1.100.Final</version>
-                                    <destFileName>netty-handler-4.1.100.Final.jar</destFileName>
+                                    <version>4.1.118.Final</version>
+                                    <destFileName>netty-handler-4.1.118.Final.jar</destFileName>
                                 </artifactItem>
                                 <artifactItem>
                                     <groupId>io.netty</groupId>
                                     <artifactId>netty-resolver</artifactId>
-                                    <version>4.1.100.Final</version>
-                                    <destFileName>netty-resolver-4.1.100.Final.jar</destFileName>
+                                    <version>4.1.118.Final</version>
+                                    <destFileName>netty-resolver-4.1.118.Final.jar</destFileName>
                                 </artifactItem>
                                 <artifactItem>
                                     <groupId>io.netty</groupId>
                                     <artifactId>netty-transport-native-unix-common</artifactId>
-                                    <version>4.1.100.Final</version>
-                                    <destFileName>netty-transport-native-unix-common-4.1.100.Final.jar</destFileName>
+                                    <version>4.1.118.Final</version>
+                                    <destFileName>netty-transport-native-unix-common-4.1.118.Final.jar</destFileName>
                                 </artifactItem>
                                 <artifactItem>
                                     <groupId>io.netty</groupId>
                                     <artifactId>netty-transport-classes-epoll</artifactId>
-                                    <version>4.1.100.Final</version>
-                                    <destFileName>netty-transport-classes-epoll-4.1.100.Final.jar</destFileName>
+                                    <version>4.1.118.Final</version>
+                                    <destFileName>netty-transport-classes-epoll-4.1.118.Final.jar</destFileName>
                                 </artifactItem>
                                 <!-- Reactive Streams (dependency of AWS SDK) -->
                                 <artifactItem>

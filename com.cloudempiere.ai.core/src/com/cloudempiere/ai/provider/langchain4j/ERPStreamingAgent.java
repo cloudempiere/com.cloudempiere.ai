@@ -15,11 +15,11 @@ import dev.langchain4j.service.UserMessage;
  *
  * <p>Usage:
  * <pre>
- * StreamingChatLanguageModel model = LangChain4jProviderFactory.createStreaming(config, null, null);
+ * StreamingChatModel model = LangChain4jProviderFactory.createStreaming(config, null, null);
  * ERPTools tools = new ERPTools(provider, ctx);
  *
  * ERPStreamingAgent agent = AiServices.builder(ERPStreamingAgent.class)
- *     .streamingChatLanguageModel(model)
+ *     .streamingChatModel(model)
  *     .tools(tools)
  *     .chatMemory(MessageWindowChatMemory.withMaxMessages(20))
  *     .build();

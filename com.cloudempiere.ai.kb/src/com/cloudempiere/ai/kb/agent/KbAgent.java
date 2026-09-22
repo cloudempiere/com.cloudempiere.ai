@@ -17,7 +17,7 @@ import com.cloudempiere.ai.model.MAIProvider;
 import com.cloudempiere.ai.provider.langchain4j.ILangChain4jProviderFactory;
 
 import dev.langchain4j.memory.chat.MessageWindowChatMemory;
-import dev.langchain4j.model.chat.ChatLanguageModel;
+import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.service.AiServices;
 import dev.langchain4j.service.SystemMessage;
 import dev.langchain4j.service.UserMessage;
@@ -96,10 +96,10 @@ public class KbAgent implements IDomainAgent {
 
             log.info("Initializing Knowledge Base Agent with provider: " + providerConfig.getName());
 
-            ChatLanguageModel model = providerFactory.createModel(providerConfig);
+            ChatModel model = providerFactory.createModel(providerConfig);
 
             agent = AiServices.builder(KbAgentInterface.class)
-                .chatLanguageModel(model)
+                .chatModel(model)
                 .tools(kbTools)
                 .chatMemory(MessageWindowChatMemory.withMaxMessages(20))
                 .build();

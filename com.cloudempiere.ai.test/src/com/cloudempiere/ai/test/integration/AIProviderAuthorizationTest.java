@@ -32,8 +32,8 @@ import com.cloudempiere.ai.model.MAIProvider;
 import com.cloudempiere.ai.model.X_AIG_Provider;
 import com.cloudempiere.ai.provider.langchain4j.LangChain4jProviderFactory;
 
-import dev.langchain4j.model.chat.ChatLanguageModel;
-import dev.langchain4j.model.chat.StreamingChatLanguageModel;
+import dev.langchain4j.model.chat.ChatModel;
+import dev.langchain4j.model.chat.StreamingChatModel;
 
 /**
  * Unit tests for AI Provider Authorization.
@@ -193,7 +193,7 @@ class AIProviderAuthorizationTest extends AbstractTestCase {
 
         @Test
         @IntegrationTest
-@DisplayName("Should create Anthropic ChatLanguageModel with valid API key")
+@DisplayName("Should create Anthropic ChatModel with valid API key")
         void shouldCreateAnthropicModel() {
             // Get provider from DB or create from env var
             MAIProvider provider = getOrCreateAnthropicProvider();
@@ -208,19 +208,19 @@ class AIProviderAuthorizationTest extends AbstractTestCase {
                 "Skipping: Anthropic provider has no API key configured");
 
             // Create model - this validates the API key format and configuration
-            ChatLanguageModel model = assertDoesNotThrow(
+            ChatModel model = assertDoesNotThrow(
                 () -> LangChain4jProviderFactory.create(provider),
-                "Should create Anthropic ChatLanguageModel without exception"
+                "Should create Anthropic ChatModel without exception"
             );
 
-            assertNotNull(model, "ChatLanguageModel should not be null");
+            assertNotNull(model, "ChatModel should not be null");
             assertTrue(model.getClass().getName().contains("Anthropic"),
                 "Model should be an Anthropic implementation");
         }
 
         @Test
         @IntegrationTest
-@DisplayName("Should create Anthropic StreamingChatLanguageModel with valid API key")
+@DisplayName("Should create Anthropic StreamingChatModel with valid API key")
         void shouldCreateAnthropicStreamingModel() {
             MAIProvider provider = getOrCreateAnthropicProvider();
 
@@ -231,12 +231,12 @@ class AIProviderAuthorizationTest extends AbstractTestCase {
             assumeTrue(apiKey != null && !apiKey.isEmpty(),
                 "Skipping: Anthropic provider has no API key configured");
 
-            StreamingChatLanguageModel model = assertDoesNotThrow(
+            StreamingChatModel model = assertDoesNotThrow(
                 () -> LangChain4jProviderFactory.createStreaming(provider),
-                "Should create Anthropic StreamingChatLanguageModel without exception"
+                "Should create Anthropic StreamingChatModel without exception"
             );
 
-            assertNotNull(model, "StreamingChatLanguageModel should not be null");
+            assertNotNull(model, "StreamingChatModel should not be null");
         }
 
         @Test
@@ -252,11 +252,11 @@ class AIProviderAuthorizationTest extends AbstractTestCase {
             assumeTrue(apiKey != null && !apiKey.isEmpty(),
                 "Skipping: Anthropic provider has no API key configured");
 
-            ChatLanguageModel model = LangChain4jProviderFactory.create(provider);
+            ChatModel model = LangChain4jProviderFactory.create(provider);
 
             // Make a minimal API call to verify authorization
             String response = assertDoesNotThrow(
-                () -> model.generate("Say 'OK' and nothing else."),
+                () -> model.chat("Say 'OK' and nothing else."),
                 "Should make successful API call to Anthropic"
             );
 
@@ -272,7 +272,7 @@ class AIProviderAuthorizationTest extends AbstractTestCase {
 
         @Test
         @IntegrationTest
-@DisplayName("Should create Bedrock ChatLanguageModel with AWS credentials")
+@DisplayName("Should create Bedrock ChatModel with AWS credentials")
         void shouldCreateBedrockModel() {
             // Get provider from DB or create from env
             MAIProvider provider = getOrCreateBedrockProvider();
@@ -282,29 +282,29 @@ class AIProviderAuthorizationTest extends AbstractTestCase {
                 "Skipping: No Bedrock provider in DB and AWS credentials not configured");
 
             // Create model - this validates AWS credentials and region
-            ChatLanguageModel model = assertDoesNotThrow(
+            ChatModel model = assertDoesNotThrow(
                 () -> LangChain4jProviderFactory.create(provider),
-                "Should create Bedrock ChatLanguageModel without exception"
+                "Should create Bedrock ChatModel without exception"
             );
 
-            assertNotNull(model, "ChatLanguageModel should not be null");
+            assertNotNull(model, "ChatModel should not be null");
         }
 
         @Test
         @IntegrationTest
-@DisplayName("Should create Bedrock StreamingChatLanguageModel with AWS credentials")
+@DisplayName("Should create Bedrock StreamingChatModel with AWS credentials")
         void shouldCreateBedrockStreamingModel() {
             MAIProvider provider = getOrCreateBedrockProvider();
 
             assumeTrue(provider != null,
                 "Skipping: No Bedrock provider in DB and AWS credentials not configured");
 
-            StreamingChatLanguageModel model = assertDoesNotThrow(
+            StreamingChatModel model = assertDoesNotThrow(
                 () -> LangChain4jProviderFactory.createStreaming(provider),
-                "Should create Bedrock StreamingChatLanguageModel without exception"
+                "Should create Bedrock StreamingChatModel without exception"
             );
 
-            assertNotNull(model, "StreamingChatLanguageModel should not be null");
+            assertNotNull(model, "StreamingChatModel should not be null");
         }
 
         @Test
@@ -316,11 +316,11 @@ class AIProviderAuthorizationTest extends AbstractTestCase {
             assumeTrue(provider != null,
                 "Skipping: No Bedrock provider in DB and AWS credentials not configured");
 
-            ChatLanguageModel model = LangChain4jProviderFactory.create(provider);
+            ChatModel model = LangChain4jProviderFactory.create(provider);
 
             // Make a minimal API call to verify authorization
             String response = assertDoesNotThrow(
-                () -> model.generate("Say 'OK' and nothing else."),
+                () -> model.chat("Say 'OK' and nothing else."),
                 "Should make successful API call to Bedrock"
             );
 
@@ -336,7 +336,7 @@ class AIProviderAuthorizationTest extends AbstractTestCase {
 
         @Test
         @IntegrationTest
-@DisplayName("Should create Ollama ChatLanguageModel")
+@DisplayName("Should create Ollama ChatModel")
         void shouldCreateOllamaModel() {
             // Get provider from DB or create if Ollama is running
             MAIProvider provider = getOrCreateOllamaProvider();
@@ -346,12 +346,12 @@ class AIProviderAuthorizationTest extends AbstractTestCase {
                 "Skipping: No Ollama provider in DB and Ollama is not running at " + OLLAMA_BASE_URL);
 
             // Create model - this validates Ollama configuration
-            ChatLanguageModel model = assertDoesNotThrow(
+            ChatModel model = assertDoesNotThrow(
                 () -> LangChain4jProviderFactory.create(provider, null, OLLAMA_BASE_URL),
-                "Should create Ollama ChatLanguageModel without exception"
+                "Should create Ollama ChatModel without exception"
             );
 
-            assertNotNull(model, "ChatLanguageModel should not be null");
+            assertNotNull(model, "ChatModel should not be null");
             assertTrue(model.getClass().getName().contains("Ollama"),
                 "Model should be an Ollama implementation");
         }
@@ -374,11 +374,11 @@ class AIProviderAuthorizationTest extends AbstractTestCase {
             assumeTrue(isModelAvailable(modelName),
                 "Skipping: Model '" + modelName + "' not available in Ollama");
 
-            ChatLanguageModel model = LangChain4jProviderFactory.create(provider, null, OLLAMA_BASE_URL);
+            ChatModel model = LangChain4jProviderFactory.create(provider, null, OLLAMA_BASE_URL);
 
             // Make a minimal API call to verify connection
             String response = assertDoesNotThrow(
-                () -> model.generate("Say 'OK' and nothing else."),
+                () -> model.chat("Say 'OK' and nothing else."),
                 "Should make successful API call to Ollama"
             );
 
@@ -440,25 +440,25 @@ class AIProviderAuthorizationTest extends AbstractTestCase {
 
             // Create model from configuration
             final MAIProvider finalProvider = provider;
-            ChatLanguageModel model;
+            ChatModel model;
 
             if (X_AIG_Provider.AIGPROVIDERTYPE_Ollama.equals(providerType)) {
                 model = assertDoesNotThrow(
                     () -> LangChain4jProviderFactory.create(finalProvider, null, OLLAMA_BASE_URL),
-                    "Should create ChatLanguageModel for provider without exception"
+                    "Should create ChatModel for provider without exception"
                 );
             } else {
                 model = assertDoesNotThrow(
                     () -> LangChain4jProviderFactory.create(finalProvider),
-                    "Should create ChatLanguageModel for provider without exception"
+                    "Should create ChatModel for provider without exception"
                 );
             }
 
-            assertNotNull(model, "ChatLanguageModel should not be null");
+            assertNotNull(model, "ChatModel should not be null");
 
             // Make a minimal API call to verify authorization
             String response = assertDoesNotThrow(
-                () -> model.generate("Say 'OK' and nothing else."),
+                () -> model.chat("Say 'OK' and nothing else."),
                 "Should make successful API call to provider"
             );
 

@@ -8,9 +8,10 @@ import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.data.message.ChatMessage;
 import dev.langchain4j.data.message.SystemMessage;
 import dev.langchain4j.data.message.UserMessage;
-import dev.langchain4j.model.StreamingResponseHandler;
-import dev.langchain4j.model.chat.StreamingChatLanguageModel;
-import dev.langchain4j.model.output.Response;
+import dev.langchain4j.model.chat.StreamingChatModel;
+import dev.langchain4j.model.chat.request.ChatRequest;
+import dev.langchain4j.model.chat.response.ChatResponse;
+import dev.langchain4j.model.chat.response.StreamingChatResponseHandler;
 
 /**
  * In-plugin mock AI Hub provider - no external server required.
@@ -44,7 +45,7 @@ import dev.langchain4j.model.output.Response;
  * @version 0.27.0
  * @since In-Plugin Mock Provider Implementation
  */
-public class MockAIHubChatModel implements StreamingChatLanguageModel {
+public class MockAIHubChatModel implements StreamingChatModel {
 
     private static final Logger log = Logger.getLogger(MockAIHubChatModel.class.getName());
 
@@ -68,7 +69,8 @@ public class MockAIHubChatModel implements StreamingChatLanguageModel {
     }
 
     @Override
-    public void generate(List<ChatMessage> messages, StreamingResponseHandler<AiMessage> handler) {
+    public void doChat(ChatRequest chatRequest, StreamingChatResponseHandler handler) {
+        List<ChatMessage> messages = chatRequest.messages();
         if (verbose) {
             log.info("[MOCK-HUB] Generating response for " + messages.size() + " messages");
         }
@@ -85,7 +87,7 @@ public class MockAIHubChatModel implements StreamingChatLanguageModel {
                 // Stream response word by word
                 String[] words = response.split(" ");
                 for (String word : words) {
-                    handler.onNext(word + " ");
+                    handler.onPartialResponse(word + " ");
 
                     // Simulate streaming delay
                     try {
@@ -98,12 +100,10 @@ public class MockAIHubChatModel implements StreamingChatLanguageModel {
                 }
 
                 // Complete
-                Response<AiMessage> aiResponse = Response.from(
-                    AiMessage.from(response),
-                    null,  // token usage
-                    null   // finish reason
-                );
-                handler.onComplete(aiResponse);
+                ChatResponse chatResponse = ChatResponse.builder()
+                    .aiMessage(AiMessage.from(response))
+                    .build();
+                handler.onCompleteResponse(chatResponse);
 
                 if (verbose) {
                     log.info("[MOCK-HUB] Response completed: " + response.length() + " chars");

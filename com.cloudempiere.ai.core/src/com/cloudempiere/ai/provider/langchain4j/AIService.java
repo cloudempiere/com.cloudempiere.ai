@@ -47,8 +47,8 @@ import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.data.message.ChatMessage;
 import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.memory.chat.MessageWindowChatMemory;
-import dev.langchain4j.model.chat.ChatLanguageModel;
-import dev.langchain4j.model.chat.StreamingChatLanguageModel;
+import dev.langchain4j.model.chat.ChatModel;
+import dev.langchain4j.model.chat.StreamingChatModel;
 import dev.langchain4j.model.output.TokenUsage;
 import dev.langchain4j.service.AiServices;
 
@@ -198,11 +198,11 @@ public class AIService implements IAIService {
     );
 
     /** Streaming model cache by provider ID (bounded LRU cache) */
-    private final Map<Integer, StreamingChatLanguageModel> streamingModelCache = java.util.Collections.synchronizedMap(
-        new java.util.LinkedHashMap<Integer, StreamingChatLanguageModel>(MAX_CACHE_SIZE, 0.75f, true) {
+    private final Map<Integer, StreamingChatModel> streamingModelCache = java.util.Collections.synchronizedMap(
+        new java.util.LinkedHashMap<Integer, StreamingChatModel>(MAX_CACHE_SIZE, 0.75f, true) {
             private static final long serialVersionUID = 1L;
             @Override
-            protected boolean removeEldestEntry(java.util.Map.Entry<Integer, StreamingChatLanguageModel> eldest) {
+            protected boolean removeEldestEntry(java.util.Map.Entry<Integer, StreamingChatModel> eldest) {
                 boolean shouldRemove = size() > MAX_CACHE_SIZE;
                 if (shouldRemove) {
                     log.log(Level.FINE, "Evicting eldest streaming model from cache: provider ID " + eldest.getKey());
@@ -620,7 +620,7 @@ public class AIService implements IAIService {
             // AI CALL
             // ================================================================
 
-            ChatLanguageModel model = LangChain4jProviderFactory.getOrCreate(provider);
+            ChatModel model = LangChain4jProviderFactory.getOrCreate(provider);
 
             // Build session ID for the agent
             String sessionId = chat.getCM_Chat_ID() + "-" + memory.getCurrentThreadRootId();
@@ -648,7 +648,7 @@ public class AIService implements IAIService {
                 // The provider returns our thread-aware memory for any session ID
                 final ThreadAwareChatMemory memoryForProvider = memory;
                 ERPAgent agent = AiServices.builder(ERPAgent.class)
-                    .chatLanguageModel(model)
+                    .chatModel(model)
                     .tools(toolsList)
                     .chatMemoryProvider(memoryId -> memoryForProvider)
                     .build();
@@ -662,7 +662,7 @@ public class AIService implements IAIService {
                 // Use SimpleAgent which has a system prompt without tool instructions
                 final ThreadAwareChatMemory memoryForProvider = memory;
                 SimpleAgent agent = AiServices.builder(SimpleAgent.class)
-                    .chatLanguageModel(model)
+                    .chatModel(model)
                     .chatMemoryProvider(memoryId -> memoryForProvider)
                     .build();
 
@@ -1029,7 +1029,7 @@ public class AIService implements IAIService {
             // For AI Hub provider, create a per-request model with iDempiere context headers
             // so the hub can enforce tenant isolation (AD_Client_ID filter in QueryToolLogic).
             // Other providers are cached as usual — they don't need context headers.
-            StreamingChatLanguageModel streamingModel =
+            StreamingChatModel streamingModel =
                 LangChain4jProviderFactory.PROVIDER_AI_HUB.equals(provider.getAIGProviderType())
                     ? LangChain4jProviderFactory.createStreamingWithContext(provider, null, null, ctx)
                     : getOrCreateStreamingModel(provider);
@@ -1092,7 +1092,7 @@ public class AIService implements IAIService {
                 log.log(Level.FINE, "[STREAM] System prompt built, length=" + systemPrompt.length());
 
                 ERPStreamingAgent agent = AiServices.builder(ERPStreamingAgent.class)
-                    .streamingChatLanguageModel(streamingModel)
+                    .streamingChatModel(streamingModel)
                     .tools(toolsList)
                     .chatMemoryProvider(memoryId -> memoryForProvider)
                     .systemMessageProvider(memoryId -> systemPrompt)
@@ -1118,7 +1118,7 @@ public class AIService implements IAIService {
 
                 // Build SimpleStreamingAgent (no tools, simplified system prompt)
                 SimpleStreamingAgent agent = AiServices.builder(SimpleStreamingAgent.class)
-                    .streamingChatLanguageModel(streamingModel)
+                    .streamingChatModel(streamingModel)
                     .chatMemoryProvider(memoryId -> memoryForProvider)
                     .systemMessageProvider(memoryId -> systemPrompt)
                     .build();
@@ -1131,10 +1131,10 @@ public class AIService implements IAIService {
                 tokenStream = agent.chat(sessionId, processedMessage);
             }
 
-            // Wire up TokenStream callbacks (LangChain4j 0.35.0 API)
+            // Wire up TokenStream callbacks
             tokenStream
-                .onNext(token -> {
-                    log.log(Level.FINE, "[STREAM] onNext: " + (token != null ? token.length() : 0) + " chars");
+                .onPartialResponse(token -> {
+                    log.log(Level.FINE, "[STREAM] onPartialResponse: " + (token != null ? token.length() : 0) + " chars");
                     responseAccumulator.get().append(token);
                     try {
                         callback.onChunk(token);
@@ -1142,7 +1142,7 @@ public class AIService implements IAIService {
                         log.severe("[STREAM] Error in onChunk callback: " + e.getMessage());
                     }
                 })
-                .onComplete(response -> {
+                .onCompleteResponse(response -> {
                     try {
                         log.log(Level.FINE, "[STREAM] onComplete: streaming finished");
                         long streamingEndTime = System.currentTimeMillis();
@@ -1153,9 +1153,9 @@ public class AIService implements IAIService {
                         if (responseAccumulator != null && responseAccumulator.get() != null) {
                             aiResponseText = responseAccumulator.get().toString();
                         }
-                        if (response != null && response.content() != null
-                            && response.content().text() != null && !response.content().text().isEmpty()) {
-                            aiResponseText = response.content().text();
+                        if (response != null && response.aiMessage() != null
+                            && response.aiMessage().text() != null && !response.aiMessage().text().isEmpty()) {
+                            aiResponseText = response.aiMessage().text();
                         }
                         // Fallback to empty string if still null
                         if (aiResponseText == null) {
@@ -1411,12 +1411,12 @@ public class AIService implements IAIService {
     }
 
     /**
-     * Get or create a cached StreamingChatLanguageModel instance.
+     * Get or create a cached StreamingChatModel instance.
      *
      * @param provider MAIProvider configuration
-     * @return StreamingChatLanguageModel instance
+     * @return StreamingChatModel instance
      */
-    private StreamingChatLanguageModel getOrCreateStreamingModel(MAIProvider provider) {
+    private StreamingChatModel getOrCreateStreamingModel(MAIProvider provider) {
         return streamingModelCache.computeIfAbsent(provider.getAIG_Provider_ID(),
             id -> LangChain4jProviderFactory.createStreaming(provider, null, null));
     }
@@ -1653,7 +1653,7 @@ public class AIService implements IAIService {
             // AI CALL
             // ================================================================
 
-            ChatLanguageModel model = LangChain4jProviderFactory.create(provider);
+            ChatModel model = LangChain4jProviderFactory.create(provider);
             String response;
 
             // Check if provider supports tools (non-streaming mode)
@@ -1673,7 +1673,7 @@ public class AIService implements IAIService {
                 }
 
                 ERPAgent agent = AiServices.builder(ERPAgent.class)
-                    .chatLanguageModel(model)
+                    .chatModel(model)
                     .tools(toolsList)
                     .build();
 
@@ -1684,7 +1684,7 @@ public class AIService implements IAIService {
                         " doesn't support tools, using SimpleAgent");
 
                 SimpleAgent agent = AiServices.builder(SimpleAgent.class)
-                    .chatLanguageModel(model)
+                    .chatModel(model)
                     .build();
 
                 response = agent.execute(processedGoal);
@@ -1723,7 +1723,7 @@ public class AIService implements IAIService {
             id -> MessageWindowChatMemory.withMaxMessages(DEFAULT_MEMORY_SIZE));
 
         // Create agent (agents are stateless, memory is per-session)
-        ChatLanguageModel model = LangChain4jProviderFactory.getOrCreate(provider);
+        ChatModel model = LangChain4jProviderFactory.getOrCreate(provider);
 
         // Check if provider supports tools (non-streaming mode)
         if (supportsTools(provider)) {
@@ -1742,7 +1742,7 @@ public class AIService implements IAIService {
             }
 
             return AiServices.builder(ERPAgent.class)
-                .chatLanguageModel(model)
+                .chatModel(model)
                 .tools(toolsList)
                 .chatMemory(memory)
                 .build();
@@ -1752,7 +1752,7 @@ public class AIService implements IAIService {
                     " doesn't support tools, creating SimpleAgent");
             // Return a wrapper that adapts SimpleAgent to ERPAgent interface
             SimpleAgent simpleAgent = AiServices.builder(SimpleAgent.class)
-                .chatLanguageModel(model)
+                .chatModel(model)
                 .chatMemory(memory)
                 .build();
             // Wrap SimpleAgent in ERPAgent adapter

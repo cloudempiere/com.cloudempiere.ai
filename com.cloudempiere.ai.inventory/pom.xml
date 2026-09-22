@@ -44,17 +44,6 @@
                 <extensions>true</extensions>
             </plugin>
 
-            <!-- Tycho Compiler Plugin -->
-            <plugin>
-                <groupId>org.eclipse.tycho</groupId>
-                <artifactId>tycho-compiler-plugin</artifactId>
-                <configuration>
-                    <source>11</source>
-                    <target>11</target>
-                    <encoding>UTF-8</encoding>
-                </configuration>
-            </plugin>
-
             <!-- Tycho Packaging Plugin -->
             <plugin>
                 <groupId>org.eclipse.tycho</groupId>

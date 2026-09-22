@@ -14,7 +14,7 @@ import dev.langchain4j.service.UserMessage;
  *
  * Usage:
  * <pre>
- * ChatLanguageModel model = LangChain4jProviderFactory.create(config);
+ * ChatModel model = LangChain4jProviderFactory.create(config);
  * ERPTools tools = new ERPTools(provider, ctx);
  *
  * ERPAgent agent = AiServices.builder(ERPAgent.class)

@@ -17,7 +17,7 @@ import com.cloudempiere.ai.provider.langchain4j.ILangChain4jProviderFactory;
 import com.cloudempiere.ai.support.tools.SupportTools;
 
 import dev.langchain4j.memory.chat.MessageWindowChatMemory;
-import dev.langchain4j.model.chat.ChatLanguageModel;
+import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.service.AiServices;
 import dev.langchain4j.service.SystemMessage;
 import dev.langchain4j.service.UserMessage;
@@ -96,10 +96,10 @@ public class SupportAgent implements IDomainAgent {
 
             log.info("Initializing Support Agent with provider: " + providerConfig.getName());
 
-            ChatLanguageModel model = providerFactory.createModel(providerConfig);
+            ChatModel model = providerFactory.createModel(providerConfig);
 
             agent = AiServices.builder(SupportAgentInterface.class)
-                .chatLanguageModel(model)
+                .chatModel(model)
                 .tools(supportTools)
                 .chatMemory(MessageWindowChatMemory.withMaxMessages(20))
                 .build();

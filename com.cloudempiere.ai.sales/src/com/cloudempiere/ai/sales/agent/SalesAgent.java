@@ -17,7 +17,7 @@ import com.cloudempiere.ai.provider.langchain4j.ILangChain4jProviderFactory;
 import com.cloudempiere.ai.sales.tools.SalesTools;
 
 import dev.langchain4j.memory.chat.MessageWindowChatMemory;
-import dev.langchain4j.model.chat.ChatLanguageModel;
+import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.service.AiServices;
 import dev.langchain4j.service.SystemMessage;
 import dev.langchain4j.service.UserMessage;
@@ -108,12 +108,12 @@ public class SalesAgent implements IDomainAgent {
             log.info("Initializing Sales Agent with provider: " + providerConfig.getName() +
                      " (Type: " + providerConfig.getAIGProviderType() + ")");
 
-            // Create LangChain4j ChatLanguageModel from provider config
-            ChatLanguageModel model = providerFactory.createModel(providerConfig);
+            // Create LangChain4j ChatModel from provider config
+            ChatModel model = providerFactory.createModel(providerConfig);
 
             // Build the AI agent with tools and chat memory
             agent = AiServices.builder(SalesAgentInterface.class)
-                .chatLanguageModel(model)
+                .chatModel(model)
                 .tools(salesTools)
                 .chatMemory(MessageWindowChatMemory.withMaxMessages(20))
                 .build();
