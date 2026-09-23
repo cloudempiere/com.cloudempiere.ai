@@ -1,6 +1,5 @@
 package com.cloudempiere.ai.kb.agent;
 
-import java.util.Map;
 import java.util.logging.Logger;
 
 import org.compiere.util.Env;
@@ -11,7 +10,9 @@ import org.osgi.service.component.annotations.ReferenceCardinality;
 import org.osgi.service.component.annotations.ReferencePolicy;
 import org.osgi.service.component.annotations.ReferencePolicyOption;
 
-import com.cloudempiere.ai.boundary.IDomainAgent;
+import com.cloudempiere.ai.boundary.AbstractDomainAgent;
+import com.cloudempiere.ai.guardrails.InputGuard;
+import com.cloudempiere.ai.guardrails.OutputGuard;
 import com.cloudempiere.ai.kb.tools.KbTools;
 import com.cloudempiere.ai.model.MAIProvider;
 import com.cloudempiere.ai.provider.langchain4j.ILangChain4jProviderFactory;
@@ -21,6 +22,8 @@ import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.service.AiServices;
 import dev.langchain4j.service.SystemMessage;
 import dev.langchain4j.service.UserMessage;
+import dev.langchain4j.service.guardrail.InputGuardrails;
+import dev.langchain4j.service.guardrail.OutputGuardrails;
 
 /**
  * Knowledge Base domain AI agent.
@@ -48,10 +51,21 @@ import dev.langchain4j.service.UserMessage;
  * @author Cloudempiere AI Team
  * @version 1.0.0
  */
-@Component(service = {KbAgent.class, IDomainAgent.class}, immediate = true)
-public class KbAgent implements IDomainAgent {
+@Component(service = {KbAgent.class, com.cloudempiere.ai.boundary.IDomainAgent.class}, immediate = true)
+public class KbAgent extends AbstractDomainAgent {
 
     private static final Logger log = Logger.getLogger(KbAgent.class.getName());
+
+    private static final String[] KEYWORDS = {
+        "documentation", "article", "guide", "how to", "tutorial",
+        "manual", "knowledge", "wiki", "faq", "help"
+    };
+
+    private static final String[] TABLE_HINTS = {"k_entry", "knowledge", "k_category"};
+
+    public KbAgent() {
+        super("kb", KEYWORDS, TABLE_HINTS);
+    }
 
     // CLD-1955: OPTIONAL+DYNAMIC so the agent can activate even when the LangChain4j provider bundle is absent
     @Reference(cardinality = ReferenceCardinality.OPTIONAL, policy = ReferencePolicy.DYNAMIC, policyOption = ReferencePolicyOption.GREEDY)
@@ -140,34 +154,10 @@ public class KbAgent implements IDomainAgent {
      * @param query natural language query
      * @return AI-generated response with insights
      */
+    @Override
     public String chat(String query) {
         ensureInitialized();
         return agent.chat(query);
-    }
-
-    @Override
-    public String getDomain() {
-        return "kb";
-    }
-
-    @Override
-    public boolean canHandle(String query, Map<String, Object> context) {
-        if (query == null) return false;
-        String lower = query.toLowerCase();
-        String[] keywords = {"documentation", "article", "guide", "how to", "tutorial", "manual", "knowledge", "wiki", "faq", "help"};
-        for (String kw : keywords) {
-            if (lower.contains(kw)) return true;
-        }
-        if (context != null && context.containsKey("tableName")) {
-            String tn = ((String) context.get("tableName")).toLowerCase();
-            if (tn.contains("k_entry") || tn.contains("knowledge") || tn.contains("k_category")) return true;
-        }
-        return false;
-    }
-
-    @Override
-    public String process(String query, Map<String, Object> context) {
-        return chat(query);
     }
 
     /**
@@ -176,6 +166,8 @@ public class KbAgent implements IDomainAgent {
      * <p>This interface defines the AI agent's capabilities using
      * LangChain4j's declarative service annotations.</p>
      */
+    @InputGuardrails(InputGuard.class)
+    @OutputGuardrails(OutputGuard.class)
     interface KbAgentInterface {
 
         /**

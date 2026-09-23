@@ -1,6 +1,6 @@
 package com.cloudempiere.ai.purchasing.agent;
 
-import java.util.Map;
+import java.util.List;
 import java.util.logging.Logger;
 
 import org.compiere.util.Env;
@@ -11,16 +11,21 @@ import org.osgi.service.component.annotations.ReferenceCardinality;
 import org.osgi.service.component.annotations.ReferencePolicy;
 import org.osgi.service.component.annotations.ReferencePolicyOption;
 
-import com.cloudempiere.ai.boundary.IDomainAgent;
+import com.cloudempiere.ai.boundary.AbstractDomainAgent;
+import com.cloudempiere.ai.guardrails.InputGuard;
+import com.cloudempiere.ai.guardrails.OutputGuard;
 import com.cloudempiere.ai.model.MAIProvider;
 import com.cloudempiere.ai.provider.langchain4j.ILangChain4jProviderFactory;
 import com.cloudempiere.ai.purchasing.tools.PurchasingTools;
 
 import dev.langchain4j.memory.chat.MessageWindowChatMemory;
 import dev.langchain4j.model.chat.ChatModel;
+import dev.langchain4j.model.output.structured.Description;
 import dev.langchain4j.service.AiServices;
 import dev.langchain4j.service.SystemMessage;
 import dev.langchain4j.service.UserMessage;
+import dev.langchain4j.service.guardrail.InputGuardrails;
+import dev.langchain4j.service.guardrail.OutputGuardrails;
 
 /**
  * Purchasing domain AI agent.
@@ -48,10 +53,21 @@ import dev.langchain4j.service.UserMessage;
  * @author Cloudempiere AI Team
  * @version 1.0.0
  */
-@Component(service = {PurchasingAgent.class, IDomainAgent.class}, immediate = true)
-public class PurchasingAgent implements IDomainAgent {
+@Component(service = {PurchasingAgent.class, com.cloudempiere.ai.boundary.IDomainAgent.class}, immediate = true)
+public class PurchasingAgent extends AbstractDomainAgent {
 
     private static final Logger log = Logger.getLogger(PurchasingAgent.class.getName());
+
+    private static final String[] KEYWORDS = {
+        "purchase", "vendor", "supplier", "procurement", "buying",
+        "purchase order", "po", "requisition", "sourcing"
+    };
+
+    private static final String[] TABLE_HINTS = {"purchase", "vendor", "requisition"};
+
+    public PurchasingAgent() {
+        super("purchasing", KEYWORDS, TABLE_HINTS);
+    }
 
     // CLD-1955: OPTIONAL+DYNAMIC so the agent can activate even when the LangChain4j provider bundle is absent
     @Reference(cardinality = ReferenceCardinality.OPTIONAL, policy = ReferencePolicy.DYNAMIC, policyOption = ReferencePolicyOption.GREEDY)
@@ -120,7 +136,7 @@ public class PurchasingAgent implements IDomainAgent {
      */
     public String analyzePurchaseOrder(int orderId) {
         ensureInitialized();
-        return agent.analyzePurchaseOrder(orderId);
+        return formatPurchaseOrderAnalysis(agent.analyzePurchaseOrder(orderId));
     }
 
     /**
@@ -131,7 +147,48 @@ public class PurchasingAgent implements IDomainAgent {
      */
     public String analyzeVendorPerformance(int partnerId) {
         ensureInitialized();
-        return agent.analyzeVendorPerformance(partnerId);
+        return formatVendorPerformanceAnalysis(agent.analyzeVendorPerformance(partnerId));
+    }
+
+    /**
+     * Render a structured {@link PurchaseOrderAnalysis} as the markdown text the chat UI expects.
+     */
+    private static String formatPurchaseOrderAnalysis(PurchaseOrderAnalysis a) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("**Order Summary**\n").append(a.orderSummary()).append("\n\n");
+        sb.append("**Line Items**\n").append(a.lineItems()).append("\n\n");
+        sb.append("**Vendor Background and Performance**\n").append(a.vendorBackground()).append("\n\n");
+        sb.append("**Delivery Timeline and Risks**\n").append(a.deliveryTimeline()).append("\n\n");
+        sb.append("**Price Comparison**\n").append(a.priceComparison()).append("\n\n");
+        appendList(sb, "Recommended Actions or Concerns", a.recommendedActions());
+        return sb.toString();
+    }
+
+    /**
+     * Render a structured {@link VendorPerformanceAnalysis} as the markdown text the chat UI expects.
+     */
+    private static String formatVendorPerformanceAnalysis(VendorPerformanceAnalysis a) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("**Vendor Profile**\n").append(a.vendorProfile()).append("\n\n");
+        sb.append("**Purchasing Volume and Trends**\n").append(a.purchasingVolumeAndTrends()).append("\n\n");
+        sb.append("**Order Frequency and Delivery Performance**\n").append(a.orderFrequencyAndDelivery()).append("\n\n");
+        sb.append("**Invoice Payment History**\n").append(a.invoicePaymentHistory()).append("\n\n");
+        sb.append("**Product Categories Supplied**\n").append(a.productCategories()).append("\n\n");
+        sb.append("**Quality and Reliability Assessment**\n").append(a.qualityAssessment()).append("\n\n");
+        appendList(sb, "Cost Optimization Opportunities", a.costOptimizationRecommendations());
+        return sb.toString();
+    }
+
+    private static void appendList(StringBuilder sb, String heading, List<String> items) {
+        sb.append("**").append(heading).append("**\n");
+        if (items == null || items.isEmpty()) {
+            sb.append("- None identified\n\n");
+            return;
+        }
+        for (String item : items) {
+            sb.append("- ").append(item).append("\n");
+        }
+        sb.append("\n");
     }
 
     /**
@@ -140,6 +197,7 @@ public class PurchasingAgent implements IDomainAgent {
      * @param query natural language query
      * @return AI-generated response with insights
      */
+    @Override
     public String chat(String query) {
         ensureInitialized();
         return agent.chat(query);
@@ -151,6 +209,8 @@ public class PurchasingAgent implements IDomainAgent {
      * <p>This interface defines the AI agent's capabilities using
      * LangChain4j's declarative service annotations.</p>
      */
+    @InputGuardrails(InputGuard.class)
+    @OutputGuardrails(OutputGuard.class)
     interface PurchasingAgentInterface {
 
         /**
@@ -197,7 +257,7 @@ public class PurchasingAgent implements IDomainAgent {
             "5. Price comparison with historical orders\n" +
             "6. Recommended actions or concerns\n\n" +
             "Be specific with numbers, dates, and actionable insights.")
-        String analyzePurchaseOrder(int orderId);
+        PurchaseOrderAnalysis analyzePurchaseOrder(int orderId);
 
         /**
          * Analyze vendor performance.
@@ -214,31 +274,34 @@ public class PurchasingAgent implements IDomainAgent {
             "6. Quality and reliability assessment\n" +
             "7. Cost optimization opportunities and recommendations\n\n" +
             "Support your analysis with specific data, trends, and benchmarks.")
-        String analyzeVendorPerformance(int partnerId);
+        VendorPerformanceAnalysis analyzeVendorPerformance(int partnerId);
     }
 
-    @Override
-    public String getDomain() {
-        return "purchasing";
+    /**
+     * Structured result for {@link PurchasingAgentInterface#analyzePurchaseOrder(int)}.
+     */
+    record PurchaseOrderAnalysis(
+        @Description("Order summary: total, status, vendor, promised date") String orderSummary,
+        @Description("Line items breakdown: products, quantities, prices") String lineItems,
+        @Description("Vendor background and historical performance") String vendorBackground,
+        @Description("Delivery timeline and risks") String deliveryTimeline,
+        @Description("Price comparison with historical orders") String priceComparison,
+        @Description("Recommended actions or concerns, one item per entry") List<String> recommendedActions
+    ) {
     }
 
-    @Override
-    public boolean canHandle(String query, Map<String, Object> context) {
-        if (query == null) return false;
-        String lower = query.toLowerCase();
-        String[] keywords = {"purchase", "vendor", "supplier", "procurement", "buying", "purchase order", "po", "requisition", "sourcing"};
-        for (String kw : keywords) {
-            if (lower.contains(kw)) return true;
-        }
-        if (context != null && context.containsKey("tableName")) {
-            String tn = ((String) context.get("tableName")).toLowerCase();
-            if (tn.contains("purchase") || tn.contains("vendor") || tn.contains("requisition")) return true;
-        }
-        return false;
+    /**
+     * Structured result for {@link PurchasingAgentInterface#analyzeVendorPerformance(int)}.
+     */
+    record VendorPerformanceAnalysis(
+        @Description("Vendor profile: payment terms, pricing agreements") String vendorProfile,
+        @Description("Historical purchasing volume and trends") String purchasingVolumeAndTrends,
+        @Description("Order frequency and delivery performance") String orderFrequencyAndDelivery,
+        @Description("Invoice payment history and outstanding amounts") String invoicePaymentHistory,
+        @Description("Product categories supplied") String productCategories,
+        @Description("Quality and reliability assessment") String qualityAssessment,
+        @Description("Cost optimization opportunities and recommendations, one item per entry") List<String> costOptimizationRecommendations
+    ) {
     }
 
-    @Override
-    public String process(String query, Map<String, Object> context) {
-        return chat(query);
-    }
 }

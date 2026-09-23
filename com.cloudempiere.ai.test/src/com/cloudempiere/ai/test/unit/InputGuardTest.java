@@ -120,7 +120,7 @@ class InputGuardTest {
         @UnitTest
 @DisplayName("Null input passes")
         void shouldPassNullInput() {
-            GuardResult result = guard.validate(null);
+            GuardResult result = guard.validate((String) null);
             assertThat(result.passedClean()).isTrue();
         }
 

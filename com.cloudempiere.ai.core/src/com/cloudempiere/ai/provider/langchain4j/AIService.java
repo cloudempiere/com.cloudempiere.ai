@@ -5,7 +5,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
-import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.logging.Level;
@@ -35,12 +34,12 @@ import com.cloudempiere.ai.model.MAIBudget;
 import com.cloudempiere.ai.model.MAIPromptConfig;
 import com.cloudempiere.ai.model.MAIProvider;
 import com.cloudempiere.ai.model.MAIUsageMetrics;
+import com.cloudempiere.ai.core.service.LanguageDetectionService;
 import com.cloudempiere.ai.observability.CostGuard;
 import com.cloudempiere.ai.provider.dto.AIStreamCallback;
+import com.cloudempiere.ai.provider.langchain4j.mcp.MCPToolProviderFactory;
 import com.cloudempiere.ai.provider.langchain4j.tools.RagTools;
 import com.cloudempiere.ai.rag.IRagService;
-// TEMPORARILY DISABLED - LanguageDetectionService will be implemented in Phase 3 (ADR-037)
-// import com.cloudempiere.ai.service.LanguageDetectionService;
 import com.cloudempiere.ai.util.SecuritySanitizer;
 
 import dev.langchain4j.data.message.AiMessage;
@@ -51,6 +50,7 @@ import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.chat.StreamingChatModel;
 import dev.langchain4j.model.output.TokenUsage;
 import dev.langchain4j.service.AiServices;
+import dev.langchain4j.service.tool.ToolProvider;
 
 /**
  * Main entry point for ERP AI capabilities using LangChain4j.
@@ -105,45 +105,6 @@ import dev.langchain4j.service.AiServices;
  * @see com.cloudempiere.ai.rag.RAGConversationService RAGConversationService (not yet wired)
  */
 
-// TEMPORARILY DISABLED - LanguageDetectionService stub until Phase 3 (ADR-037)
-class LanguageDetectionService {
-    private static final LanguageDetectionService INSTANCE = new LanguageDetectionService();
-
-    public static LanguageDetectionService getInstance() {
-        return INSTANCE;
-    }
-
-    public String getSessionLanguage(Properties ctx, int chatId) {
-        // Stub: return user's login language from context
-        return Env.getAD_Language(ctx);
-    }
-
-    public boolean hasOverrideLanguage(int chatId) {
-        // Stub: no overrides
-        return false;
-    }
-
-    public java.util.Optional<String> detectInputLanguage(String message) {
-        // Stub: no detection
-        return java.util.Optional.empty();
-    }
-
-    public void setOverrideLanguage(int chatId, String languageCode) {
-        // Stub: no-op
-    }
-
-    public String getLanguageInstruction(Properties ctx, int chatId) {
-        // Stub: return default instruction
-        Language lang = Language.getLoginLanguage();
-        return "Respond in " + lang.getName() + ".";
-    }
-
-    public java.util.Optional<String> detectLanguageChangeRequest(String message) {
-        // Stub: no detection of language change requests
-        return java.util.Optional.empty();
-    }
-}
-
 @Component(
     service = IAIService.class,
     immediate = true,
@@ -167,20 +128,14 @@ public class AIService implements IAIService {
     /** Maximum cache size to prevent OOM in long-running servers */
     private static final int MAX_CACHE_SIZE = 100;
 
-    /** Agent cache by provider ID (bounded LRU cache) */
-    private final Map<Integer, ERPAgent> agentCache = java.util.Collections.synchronizedMap(
-        new java.util.LinkedHashMap<Integer, ERPAgent>(MAX_CACHE_SIZE, 0.75f, true) {
-            private static final long serialVersionUID = 1L;
-            @Override
-            protected boolean removeEldestEntry(java.util.Map.Entry<Integer, ERPAgent> eldest) {
-                boolean shouldRemove = size() > MAX_CACHE_SIZE;
-                if (shouldRemove) {
-                    log.log(Level.FINE, "Evicting eldest agent from cache: provider ID " + eldest.getKey());
-                }
-                return shouldRemove;
-            }
-        }
-    );
+    // NOTE: no agent-level cache here (unlike modelCache/streamingModelCache below, which
+    // cache stateless HTTP-client wrappers per provider). Every ERPAgent built in this class
+    // has a .chatMemoryProvider(memoryId -> memoryForProvider) lambda that closes over ONE
+    // specific ThreadAwareChatMemory instance tied to a single conversation thread - reusing
+    // that agent for a different session/thread would silently serve the wrong conversation's
+    // memory. Caching agents safely would need chatMemoryProvider to become a real per-memoryId
+    // lookup (e.g. into memoryCache below) instead of a closure over one request's memory -
+    // that's a real redesign of the 3 agent-building call sites, not a drop-in cache wire-up.
 
     /** Memory cache by session ID (bounded LRU cache) */
     private final Map<String, MessageWindowChatMemory> memoryCache = java.util.Collections.synchronizedMap(
@@ -229,66 +184,38 @@ public class AIService implements IAIService {
     /** Default conversation memory size */
     private static final int DEFAULT_MEMORY_SIZE = 20;
 
-    /** Provider types that support tool/function calling (non-streaming) in LangChain4j 0.35.0 */
-    private static final Set<String> TOOL_SUPPORTED_PROVIDERS = Set.of(
-        LangChain4jProviderFactory.PROVIDER_AI_HUB,       // OpenAI-compatible, supports tools
-        LangChain4jProviderFactory.PROVIDER_ANTHROPIC,
-        LangChain4jProviderFactory.PROVIDER_BEDROCK
-        // NOTE: Ollama tools depend on model capability, not just provider type.
-        // Models like qwen2:0.5b don't support tools. Only certain models like
-        // llama3.1, mistral, qwen2.5:7b support tool calling.
-        // For simplicity, disable tools for all Ollama models in this version.
-        // LangChain4jProviderFactory.PROVIDER_OLLAMA
-    );
-
-    /** Provider types that support tool/function calling in STREAMING mode (LangChain4j 0.35.0) */
-    private static final Set<String> STREAMING_TOOL_SUPPORTED_PROVIDERS = Set.of(
-        LangChain4jProviderFactory.PROVIDER_AI_HUB,       // OpenAI-compatible, supports streaming tools
-        LangChain4jProviderFactory.PROVIDER_ANTHROPIC,
-        LangChain4jProviderFactory.PROVIDER_BEDROCK
-        // Ollama streaming tools NOT supported in 0.35.0
-        // Throws: "Tools are currently not supported by this model"
-        // Requires LangChain4j 0.37.0+ (Java 17)
-    );
-
     /**
      * Check if provider supports tool calling (non-streaming).
-     * LangChain4j 0.35.0 supports tools for all major providers including Ollama/Llama.
+     *
+     * <p>Delegates to {@link LangChain4jProviderFactory}'s provider registry - the single
+     * source of truth for per-provider capabilities, instead of this class maintaining its
+     * own separate copy that has to be kept in sync by hand.
      */
     private static boolean supportsTools(MAIProvider provider) {
         if (provider == null || provider.getAIGProviderType() == null) {
             return false;
         }
-        return TOOL_SUPPORTED_PROVIDERS.contains(provider.getAIGProviderType());
+        return LangChain4jProviderFactory.supportsTools(provider.getAIGProviderType());
     }
 
     /**
      * Check if provider supports tool calling in streaming mode.
-     * LangChain4j 0.35.0 does NOT support streaming tools for Ollama/Llama.
-     * Streaming tool support for Ollama was added in LangChain4j 0.37.0.
      */
     private static boolean supportsStreamingTools(MAIProvider provider) {
         if (provider == null || provider.getAIGProviderType() == null) {
             return false;
         }
-        return STREAMING_TOOL_SUPPORTED_PROVIDERS.contains(provider.getAIGProviderType());
+        return LangChain4jProviderFactory.supportsStreamingTools(provider.getAIGProviderType());
     }
 
     /**
      * Check if provider supports streaming at all.
-     * LangChain4j 0.35.0 has a bug in OllamaClient streaming that causes NPE.
-     * Disable streaming for Ollama/Llama until LangChain4j upgrade (requires Java 17).
      */
     private static boolean supportsStreaming(MAIProvider provider) {
         if (provider == null || provider.getAIGProviderType() == null) {
             return false;
         }
-        String providerType = provider.getAIGProviderType();
-        // Ollama streaming is broken in LangChain4j 0.35.0 - NPE in OllamaClient
-        if (LangChain4jProviderFactory.PROVIDER_OLLAMA.equals(providerType)) {
-            return false;
-        }
-        return true;
+        return LangChain4jProviderFactory.supportsStreaming(provider.getAIGProviderType());
     }
 
     // ========================================================================
@@ -647,11 +574,15 @@ public class AIService implements IAIService {
                 // Use chatMemoryProvider for @MemoryId support in ERPAgent
                 // The provider returns our thread-aware memory for any session ID
                 final ThreadAwareChatMemory memoryForProvider = memory;
-                ERPAgent agent = AiServices.builder(ERPAgent.class)
+                AiServices<ERPAgent> erpAgentBuilder = AiServices.builder(ERPAgent.class)
                     .chatModel(model)
                     .tools(toolsList)
-                    .chatMemoryProvider(memoryId -> memoryForProvider)
-                    .build();
+                    .chatMemoryProvider(memoryId -> memoryForProvider);
+                ToolProvider mcpToolProvider = MCPToolProviderFactory.getConfigured(clientId);
+                if (mcpToolProvider != null) {
+                    erpAgentBuilder = erpAgentBuilder.toolProvider(mcpToolProvider);
+                }
+                ERPAgent agent = erpAgentBuilder.build();
 
                 response = agent.chat(sessionId, processedMessage);
             } else {
@@ -775,7 +706,6 @@ public class AIService implements IAIService {
         log.log(Level.FINE, "[STREAM] ========================================");
 
         try {
-            String processedMessage = message;
             int clientId = Env.getAD_Client_ID(ctx);
             int userId = Env.getAD_User_ID(ctx);
 
@@ -783,32 +713,9 @@ public class AIService implements IAIService {
             // PRE-REQUEST GUARDRAILS
             // ================================================================
 
-            if (guardrailsEnabled) {
-                // 1. Cost Guard: Check budget
-                try {
-                    costGuard.checkBudget(clientId, userId, ESTIMATED_COST_PER_REQUEST);
-                    costGuard.checkRateLimit(userId);
-                } catch (CostGuard.BudgetExceededException e) {
-                    log.warning("Budget exceeded for client " + clientId + ": " + e.getMessage());
-                    callback.onError(new RuntimeException("Budget exceeded: " + e.getMessage()));
-                    return;
-                } catch (CostGuard.RateLimitExceededException e) {
-                    log.warning("Rate limit exceeded for user " + userId + ": " + e.getMessage());
-                    callback.onError(new RuntimeException("Rate limit exceeded: " + e.getMessage()));
-                    return;
-                }
-
-                // 2. Input Guard: Sanitize input
-                GuardResult inputResult = inputGuard.validate(message);
-                if (inputResult.isBlocked()) {
-                    log.warning("Input blocked: " + inputResult.getBlockReason());
-                    callback.onError(new RuntimeException("Input blocked: " + inputResult.getBlockReason()));
-                    return;
-                }
-                if (inputResult.wasModified()) {
-                    processedMessage = inputResult.getProcessedContent();
-                    log.info("Input masked: " + inputResult.getViolationType());
-                }
+            String processedMessage = applyStreamingPreRequestGuardrails(message, clientId, userId, callback);
+            if (processedMessage == null) {
+                return; // blocked; callback.onError already invoked
             }
 
             // ================================================================
@@ -817,210 +724,20 @@ public class AIService implements IAIService {
             // Sets session language based on user's input to maintain consistency.
             // ================================================================
 
-            int chatId = chat.getCM_Chat_ID();
-            // clientId and userId already declared above for guardrails
-            int roleId = Env.getAD_Role_ID(ctx);
-            int orgId = Env.getAD_Org_ID(ctx);
-
-            // Get user and role names for logging
-            String userName = Env.getContext(ctx, "#AD_User_Name");
-            String roleName = Env.getContext(ctx, "#AD_Role_Name");
-            String clientName = Env.getContext(ctx, "#AD_Client_Name");
-            String orgName = Env.getContext(ctx, "#AD_Org_Name");
-
-            log.warning("[LANGUAGE] ========================================");
-            log.warning("[LANGUAGE] LANGUAGE DETECTION for chat " + chatId);
-            log.warning("[LANGUAGE] Tenant: " + clientName + " (ID=" + clientId + ")");
-            log.warning("[LANGUAGE] User: " + userName + " (ID=" + userId + ")");
-            log.warning("[LANGUAGE] Role: " + roleName + " (ID=" + roleId + ")");
-            log.warning("[LANGUAGE] Org: " + orgName + " (ID=" + orgId + ")");
-            log.warning("[LANGUAGE] ========================================");
-
-            // Get login/system language from iDempiere context
-            String loginLanguage = Env.getAD_Language(ctx);
-            org.compiere.util.Language loginLangObj = org.compiere.util.Language.getLanguage(loginLanguage);
-            String loginLangName = loginLangObj != null ? loginLangObj.getName() : loginLanguage;
-            log.warning("[LANGUAGE] Login/System language: " + loginLangName + " (" + loginLanguage + ")");
-
-            // Get current session language state (before any changes)
-            String currentLang = languageService.getSessionLanguage(ctx, chatId);
-            org.compiere.util.Language currentLangObj = org.compiere.util.Language.getLanguage(currentLang);
-            String currentLangName = currentLangObj != null ? currentLangObj.getName() : currentLang;
-            boolean hasOverride = languageService.hasOverrideLanguage(chatId);
-            log.warning("[LANGUAGE] Current session language: " + currentLangName + " (" + currentLang + ")");
-            log.warning("[LANGUAGE] Has override: " + hasOverride);
-
-            // Check if current differs from login
-            if (!currentLang.equals(loginLanguage)) {
-                log.warning("[LANGUAGE] WARN: LANGUAGE MISMATCH: Session (" + currentLang + ") != Login (" + loginLanguage + ")");
-                if (hasOverride) {
-                    log.warning("[LANGUAGE] WARN: Reason: Session override is active");
-                } else {
-                    log.warning("[LANGUAGE] WARN: Reason: Unknown - this should not happen!");
-                }
-            }
-
-            if (!hasOverride) {
-                // No session language set yet - detect from input
-                log.warning("[LANGUAGE] No override set - attempting auto-detection from message");
-                log.warning("[LANGUAGE] Message preview: " + processedMessage.substring(0, Math.min(200, processedMessage.length())));
-
-                java.util.Optional<String> detectedLang = languageService.detectInputLanguage(processedMessage);
-                if (detectedLang.isPresent()) {
-                    String detected = detectedLang.get();
-                    org.compiere.util.Language detectedLangObj = org.compiere.util.Language.getLanguage(detected);
-                    String detectedLangName = detectedLangObj != null ? detectedLangObj.getName() : detected;
-
-                    log.warning("[LANGUAGE] Auto-detected: " + detectedLangName + " (" + detected + ")");
-
-                    // Check if detected differs from login
-                    if (!detected.equals(loginLanguage)) {
-                        log.warning("[LANGUAGE] WARN: CHANGE: Auto-detected (" + detected + ") != Login (" + loginLanguage + ")");
-                        log.warning("[LANGUAGE] WARN: This will override the user's login language!");
-                    } else {
-                        log.warning("[LANGUAGE] Auto-detected matches login language");
-                    }
-
-                    // setOverrideLanguage will log the language switch if there was a previous one
-                    languageService.setOverrideLanguage(chatId, detected);
-                    callback.onProgress("language", getLocalizedProgressMessage(ctx, "AIG_LanguageDetected") + " " + detectedLangName);
-                } else {
-                    log.warning("[LANGUAGE] Could not auto-detect language from input");
-                    log.warning("[LANGUAGE] Will use login language: " + loginLangName);
-                }
-            } else {
-                log.warning("[LANGUAGE] Override already exists - checking for explicit language change requests");
-            }
-
-            // Always check for explicit language change requests
-            java.util.Optional<String> requestedLang = languageService.detectLanguageChangeRequest(processedMessage);
-            if (requestedLang.isPresent()) {
-                String requested = requestedLang.get();
-                Language requestedLangObj = Language.getLanguage(requested);
-                String requestedLangName = requestedLangObj != null ? requestedLangObj.getName() : requested;
-
-                log.warning("[LANGUAGE] User explicitly requested: " + requestedLangName + " (" + requested + ")");
-
-                // Check if requested differs from current session language
-                String previousSessionLang = languageService.getSessionLanguage(ctx, chatId);
-                if (!requested.equals(previousSessionLang)) {
-                    log.warning("[LANGUAGE] WARN: USER INITIATED SWITCH: " + previousSessionLang + " -> " + requested);
-                } else {
-                    log.warning("[LANGUAGE] User requested matches current session language (no change)");
-                }
-
-                // Check if requested differs from login
-                if (!requested.equals(loginLanguage)) {
-                    log.warning("[LANGUAGE] WARN: Requested language (" + requested + ") != Login (" + loginLanguage + ")");
-                } else {
-                    log.warning("[LANGUAGE] User requested matches login language");
-                }
-
-                // setOverrideLanguage will log the language switch detection
-                languageService.setOverrideLanguage(chatId, requested);
-                callback.onProgress("language", getLocalizedProgressMessage(ctx, "AIG_SwitchingTo") + " " + requestedLangName);
-            }
-
-            // Final language state - show complete trace
-            String finalLang = languageService.getSessionLanguage(ctx, chatId);
-            Language finalLangObj = Language.getLanguage(finalLang);
-            String finalLangName = finalLangObj != null ? finalLangObj.getName() : finalLang;
-
-            log.warning("[LANGUAGE] ========================================");
-            log.warning("[LANGUAGE] LANGUAGE TRACE SUMMARY:");
-            log.warning("[LANGUAGE]   Login/System: " + loginLangName + " (" + loginLanguage + ")");
-            log.warning("[LANGUAGE]   Final/Active: " + finalLangName + " (" + finalLang + ")");
-
-            if (!finalLang.equals(loginLanguage)) {
-                log.warning("[LANGUAGE]   WARN: CHANGED FROM LOGIN LANGUAGE!");
-                if (requestedLang.isPresent()) {
-                    log.warning("[LANGUAGE]   Reason: User explicitly requested");
-                } else if (languageService.hasOverrideLanguage(chatId)) {
-                    log.warning("[LANGUAGE]   Reason: Auto-detected from input");
-                } else {
-                    log.warning("[LANGUAGE]   Reason: UNKNOWN - INVESTIGATE!");
-                }
-            } else {
-                log.warning("[LANGUAGE]   Using login language");
-            }
-
-            // Validate final language
-            if (finalLangObj == null) {
-                log.warning("[LANGUAGE]   ERROR: Unknown language code: " + finalLang);
-                log.warning("[LANGUAGE]   ERROR: This may cause response issues!");
-            }
-
-            log.warning("[LANGUAGE] ========================================");
+            detectAndApplyLanguage(ctx, chat, clientId, userId, processedMessage, callback);
 
             // ================================================================
             // BUILD MEMORY WITH THREAD AWARENESS
+            // (also trims trailing UserMessages left by failed retries)
             // ================================================================
 
-            Integer aiUserId = provider.getAD_User_ID() > 0 ? provider.getAD_User_ID() : null;
-
-            ThreadAwareChatMemory memory = ThreadAwareChatMemory.builder()
-                .chat(chat)
-                .threadRootId(threadRootId)
-                .maxMessages(DEFAULT_MEMORY_SIZE)
-                .persistMessages(false)  // Widget handles persistence
-                .aiUserId(aiUserId)
-                .build();
-
-            // ================================================================
-            // PREVENT CONSECUTIVE USER MESSAGES
-            // Remove ALL trailing UserMessages from memory to prevent the
-            // MessageSanitizer from removing the current message.
-            // This handles cases where multiple failed retries left consecutive
-            // UserMessages in the database.
-            // ================================================================
-            List<ChatMessage> currentMessages = new ArrayList<>(memory.messages());
-            log.log(Level.FINE, "[STREAM] Memory loaded " + currentMessages.size() + " messages from DB");
-
-            if (!currentMessages.isEmpty()) {
-                // Find where to trim - remove all trailing UserMessages
-                int trimIndex = currentMessages.size();
-                while (trimIndex > 0 && currentMessages.get(trimIndex - 1) instanceof UserMessage) {
-                    trimIndex--;
-                }
-
-                if (trimIndex < currentMessages.size()) {
-                    int removedCount = currentMessages.size() - trimIndex;
-                    log.log(Level.FINE, "[STREAM] Removing " + removedCount + " trailing UserMessage(s) from memory to prevent consecutive message sanitization");
-
-                    // Rebuild memory without trailing UserMessages
-                    memory.clear();
-                    for (int i = 0; i < trimIndex; i++) {
-                        memory.add(currentMessages.get(i));
-                    }
-                    log.log(Level.FINE, "[STREAM] Memory now has " + memory.getMessageCount() + " messages after cleanup");
-                }
-            }
-
-            // Log current memory state for debugging
-            log.log(Level.FINE, "[STREAM] Memory state before agent.chat(): " + memory.getMessageCount() + " messages");
-            if (memory.getMessageCount() > 0) {
-                ChatMessage last = memory.messages().get(memory.getMessageCount() - 1);
-                log.log(Level.FINE, "[STREAM] Last message type: " + last.type());
-            }
+            ThreadAwareChatMemory memory = buildStreamingMemory(chat, threadRootId, provider);
 
             // ================================================================
             // INJECT CONTEXT (if provided)
             // ================================================================
 
-            if (contextData != null && contextData.length() > 0) {
-                log.log(Level.FINE, "[CONTEXT-STREAM] Context data received with keys: " + contextData.keySet());
-                log.log(Level.FINE, "[CONTEXT-STREAM] Context success flag: " + contextData.optBoolean("success", false));
-
-                String contextPrompt = buildContextPrompt(contextData);
-                if (contextPrompt != null && !contextPrompt.isEmpty()) {
-                    processedMessage = contextPrompt + "\n\nUser question: " + processedMessage;
-                    log.log(Level.FINE, "[CONTEXT-STREAM] Context injected into message, total length: " + processedMessage.length());
-                } else {
-                    log.warning("[CONTEXT-STREAM] Context prompt was empty or null despite having context data");
-                }
-            } else {
-                log.log(Level.FINE, "[CONTEXT-STREAM] No context data provided to chatStreamingWithContext");
-            }
+            processedMessage = injectStreamingContext(contextData, processedMessage);
 
             // ================================================================
             // STREAMING AI CALL (ADR-033)
@@ -1057,79 +774,12 @@ public class AIService implements IAIService {
 
             // Build session ID for the agent
             String sessionId = chat.getCM_Chat_ID() + "-" + memory.getCurrentThreadRootId();
-            final ThreadAwareChatMemory memoryForProvider = memory;
 
             // Check if provider supports streaming tools
             // Note: Ollama/Llama support tools in non-streaming mode only (LangChain4j 0.35.0)
             // Streaming tools for Ollama requires LangChain4j 0.37.0+
-            dev.langchain4j.service.TokenStream tokenStream;
-
-            if (supportsStreamingTools(provider)) {
-                // ================================================================
-                // BUILD STREAMING AGENT WITH TOOLS (for Anthropic, OpenAI, Bedrock)
-                // ================================================================
-                log.log(Level.FINE, "[STREAM] Building ERPStreamingAgent with tools...");
-
-                // Create tools with optional callback support (unified ERPTools)
-                ERPTools erpTools = new ERPTools(provider, ctx, callback);
-                log.log(Level.FINE, "[STREAM] ERPTools class: " + erpTools.getClass().getName());
-                log.log(Level.FINE, "[STREAM] StreamingModel class: " + streamingModel.getClass().getName());
-
-                // Build tools list - include RAG tools if available (P1 Context Layer)
-                Object[] toolsList;
-                IRagService rag = getRagService();
-                if (rag != null && rag.isAvailable()) {
-                    RagTools ragTools = new RagTools(rag, ctx);
-                    toolsList = new Object[] { erpTools, ragTools };
-                    log.log(Level.FINE, "[STREAM] Agent created with ERPTools + RagTools");
-                } else {
-                    toolsList = new Object[] { erpTools };
-                    log.log(Level.FINE, "[STREAM] Agent created with ERPTools only (RAG not available)");
-                }
-
-                // Build system prompt with language instruction (ADR-037)
-                final String systemPrompt = buildSystemPromptWithLanguage(ctx, chat.getCM_Chat_ID(), true, provider.getAIG_Provider_ID());
-                log.log(Level.FINE, "[STREAM] System prompt built, length=" + systemPrompt.length());
-
-                ERPStreamingAgent agent = AiServices.builder(ERPStreamingAgent.class)
-                    .streamingChatModel(streamingModel)
-                    .tools(toolsList)
-                    .chatMemoryProvider(memoryId -> memoryForProvider)
-                    .systemMessageProvider(memoryId -> systemPrompt)
-                    .build();
-
-                log.log(Level.FINE, "[STREAM] Agent built successfully: " + agent.getClass().getName());
-                log.log(Level.FINE, "[STREAM] Starting TokenStream with sessionId: " + sessionId);
-                log.log(Level.FINE, "[STREAM] Memory has " + memoryForProvider.getMessageCount() + " messages before agent.chat()");
-
-                // Get TokenStream from agent
-                tokenStream = agent.chat(sessionId, processedMessage);
-            } else {
-                // ================================================================
-                // SIMPLE STREAMING WITHOUT TOOLS (for Ollama/Llama)
-                // ================================================================
-                log.log(Level.FINE, "[STREAM] Provider " + provider.getAIGProviderType() +
-                        " doesn't support tools, using simple streaming chat mode");
-                log.log(Level.FINE, "[STREAM] StreamingModel class: " + streamingModel.getClass().getName());
-
-                // Build system prompt with language instruction (ADR-037) - no tools
-                final String systemPrompt = buildSystemPromptWithLanguage(ctx, chat.getCM_Chat_ID(), false, provider.getAIG_Provider_ID());
-                log.log(Level.FINE, "[STREAM] System prompt built (no tools), length=" + systemPrompt.length());
-
-                // Build SimpleStreamingAgent (no tools, simplified system prompt)
-                SimpleStreamingAgent agent = AiServices.builder(SimpleStreamingAgent.class)
-                    .streamingChatModel(streamingModel)
-                    .chatMemoryProvider(memoryId -> memoryForProvider)
-                    .systemMessageProvider(memoryId -> systemPrompt)
-                    .build();
-
-                log.log(Level.FINE, "[STREAM] SimpleStreamingAgent built successfully: " + agent.getClass().getName());
-                log.log(Level.FINE, "[STREAM] Starting TokenStream with sessionId: " + sessionId);
-                log.log(Level.FINE, "[STREAM] Memory has " + memoryForProvider.getMessageCount() + " messages before agent.chat()");
-
-                // Get TokenStream from agent
-                tokenStream = agent.chat(sessionId, processedMessage);
-            }
+            dev.langchain4j.service.TokenStream tokenStream = createStreamingTokenStream(
+                streamingModel, provider, ctx, chat, memory, processedMessage, sessionId, clientId, callback);
 
             // Wire up TokenStream callbacks
             tokenStream
@@ -1142,124 +792,10 @@ public class AIService implements IAIService {
                         log.severe("[STREAM] Error in onChunk callback: " + e.getMessage());
                     }
                 })
-                .onCompleteResponse(response -> {
-                    try {
-                        log.log(Level.FINE, "[STREAM] onComplete: streaming finished");
-                        long streamingEndTime = System.currentTimeMillis();
-
-                        // Get AI response text (from response or accumulator)
-                        // SAFETY: Comprehensive null checks to prevent NPE
-                        String aiResponseText = null;
-                        if (responseAccumulator != null && responseAccumulator.get() != null) {
-                            aiResponseText = responseAccumulator.get().toString();
-                        }
-                        if (response != null && response.aiMessage() != null
-                            && response.aiMessage().text() != null && !response.aiMessage().text().isEmpty()) {
-                            aiResponseText = response.aiMessage().text();
-                        }
-                        // Fallback to empty string if still null
-                        if (aiResponseText == null) {
-                            aiResponseText = "";
-                            log.log(Level.FINE, "[STREAM] No response text available from streaming");
-                        }
-
-                        // Add AI response to memory for conversation continuity
-                        if (!aiResponseText.isEmpty()) {
-                            memory.add(AiMessage.from(aiResponseText));
-                        }
-
-                        // ================================================================
-                        // RECORD METRICS (ADR-013)
-                        // ================================================================
-                        try {
-                            TokenUsage tokenUsage = (response != null) ? response.tokenUsage() : null;
-                            int inputTokens = 0;
-                            int outputTokens = 0;
-
-                            if (tokenUsage != null) {
-                                Integer inputCount = tokenUsage.inputTokenCount();
-                                Integer outputCount = tokenUsage.outputTokenCount();
-                                inputTokens = (inputCount != null) ? inputCount : 0;
-                                outputTokens = (outputCount != null) ? outputCount : 0;
-                            } else {
-                                // Estimate tokens if not provided (rough: 4 chars = 1 token)
-                                inputTokens = (metricsInputMessage != null) ? metricsInputMessage.length() / 4 : 0;
-                                outputTokens = (aiResponseText != null) ? aiResponseText.length() / 4 : 0;
-                                log.log(Level.FINE, "[METRICS] Token usage not provided, estimated: in=" +
-                                    inputTokens + ", out=" + outputTokens);
-                            }
-
-                            int latencyMs = (int) (streamingEndTime - streamingStartTime);
-
-                            // Calculate cost in microdollars (1 USD = 1,000,000 microdollars)
-                            int costMicrodollars = calculateCostMicrodollars(
-                                metricsModelName, inputTokens, outputTokens);
-
-                            // Persist metrics
-                            MAIUsageMetrics.record(
-                                metricsCtx,
-                                metricsUserId,
-                                metricsRoleId,
-                                metricsProviderId,
-                                "chat-streaming-tools",  // agentName (updated to reflect tools support)
-                                "STREAMING",             // agentType
-                                metricsModelName,
-                                inputTokens,
-                                outputTokens,
-                                costMicrodollars,
-                                latencyMs,
-                                metricsSessionId,
-                                "CHAT_STREAMING",        // requestType
-                                null                     // trxName (auto-commit)
-                            );
-
-                            log.info("[METRICS] Recorded: model=" + metricsModelName +
-                                ", tokens=" + (inputTokens + outputTokens) +
-                                ", cost=$" + String.format("%.6f", costMicrodollars / 1000000.0) +
-                                ", latency=" + latencyMs + "ms");
-
-                            // Update AIG_Budget CurrentDailyAmt / CurrentMonthlyAmt
-                            // 1 cent = 10,000 microdollars
-                            int costCents = costMicrodollars / 10000;
-                            if (costCents > 0) {
-                                MAIBudget budget = MAIBudget.getEffective(metricsCtx, metricsUserId, null, null);
-                                if (budget != null && !budget.addUsage(costCents)) {
-                                    log.warning("[METRICS] Failed to update budget for user=" + metricsUserId);
-                                }
-                            }
-
-                        } catch (Exception e) {
-                            log.log(Level.WARNING, "[METRICS] Failed to record metrics: " + e.getMessage(), e);
-                        }
-
-                        // Apply output guardrails on complete response
-                        final String finalAiResponseText = aiResponseText;
-                        if (guardrailsEnabled && finalAiResponseText != null && !finalAiResponseText.isEmpty()) {
-                            GuardResult outputResult = outputGuard.validate(finalAiResponseText);
-                            if (outputResult.isBlocked()) {
-                                log.warning("Output blocked: " + outputResult.getBlockReason());
-                            }
-                            if (outputResult.wasModified()) {
-                                log.warning("Output would have been masked: " + outputResult.getViolationType());
-                            }
-                        }
-
-                        // Call completion callback
-                        try {
-                            callback.onComplete();
-                        } catch (Exception e) {
-                            log.log(Level.SEVERE, "[STREAM] Error in onComplete callback: " + e.getMessage(), e);
-                        }
-                    } catch (Exception e) {
-                        // SAFETY: Catch-all handler to prevent chat from hanging
-                        log.log(Level.SEVERE, "[STREAM] Fatal error in completion handler: " + e.getMessage(), e);
-                        try {
-                            callback.onError(e);
-                        } catch (Exception callbackError) {
-                            log.log(Level.SEVERE, "[STREAM] Error calling onError callback: " + callbackError.getMessage(), callbackError);
-                        }
-                    }
-                })
+                .onCompleteResponse(response -> handleStreamCompletion(response, responseAccumulator, memory,
+                    new StreamMetricsContext(streamingStartTime, metricsUserId, metricsRoleId, metricsProviderId,
+                        metricsModelName, metricsSessionId, metricsCtx, metricsInputMessage),
+                    callback))
                 .onError(error -> {
                     log.severe("[STREAM] onError: " + error.getClass().getName() + ": " + error.getMessage());
                     try {
@@ -1276,6 +812,501 @@ public class AIService implements IAIService {
             String errorMsg = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
             log.log(Level.SEVERE, "ChatStreamingWithContext failed: " + errorMsg, e);
             callback.onError(e);
+        }
+    }
+
+    /**
+     * Runs cost/rate-limit and input guardrails for a streaming request. On block,
+     * reports it via {@code callback.onError} itself.
+     *
+     * @return the (possibly PII-masked) message to send to the model, or {@code null} if
+     *         blocked - callers must stop processing when {@code null} comes back
+     */
+    private String applyStreamingPreRequestGuardrails(String message, int clientId, int userId, AIStreamCallback callback) {
+        if (!guardrailsEnabled) {
+            return message;
+        }
+
+        try {
+            costGuard.checkBudget(clientId, userId, ESTIMATED_COST_PER_REQUEST);
+            costGuard.checkRateLimit(userId);
+        } catch (CostGuard.BudgetExceededException e) {
+            log.warning("Budget exceeded for client " + clientId + ": " + e.getMessage());
+            callback.onError(new RuntimeException("Budget exceeded: " + e.getMessage()));
+            return null;
+        } catch (CostGuard.RateLimitExceededException e) {
+            log.warning("Rate limit exceeded for user " + userId + ": " + e.getMessage());
+            callback.onError(new RuntimeException("Rate limit exceeded: " + e.getMessage()));
+            return null;
+        }
+
+        GuardResult inputResult = inputGuard.validate(message);
+        if (inputResult.isBlocked()) {
+            log.warning("Input blocked: " + inputResult.getBlockReason());
+            callback.onError(new RuntimeException("Input blocked: " + inputResult.getBlockReason()));
+            return null;
+        }
+        if (inputResult.wasModified()) {
+            log.info("Input masked: " + inputResult.getViolationType());
+            return inputResult.getProcessedContent();
+        }
+        return message;
+    }
+
+    /**
+     * Detects the input language (ADR-037) on first message or when no session override
+     * exists, and honors explicit in-conversation language change requests. Updates
+     * {@link #languageService}'s session state and notifies the UI via {@code callback.onProgress}
+     * as a side effect; does not change {@code processedMessage} itself.
+     */
+    private void detectAndApplyLanguage(Properties ctx, MChat chat, int clientId, int userId,
+                                         String processedMessage, AIStreamCallback callback) {
+        int chatId = chat.getCM_Chat_ID();
+        int roleId = Env.getAD_Role_ID(ctx);
+        int orgId = Env.getAD_Org_ID(ctx);
+
+        // Get user and role names for logging
+        String userName = Env.getContext(ctx, "#AD_User_Name");
+        String roleName = Env.getContext(ctx, "#AD_Role_Name");
+        String clientName = Env.getContext(ctx, "#AD_Client_Name");
+        String orgName = Env.getContext(ctx, "#AD_Org_Name");
+
+        log.warning("[LANGUAGE] ========================================");
+        log.warning("[LANGUAGE] LANGUAGE DETECTION for chat " + chatId);
+        log.warning("[LANGUAGE] Tenant: " + clientName + " (ID=" + clientId + ")");
+        log.warning("[LANGUAGE] User: " + userName + " (ID=" + userId + ")");
+        log.warning("[LANGUAGE] Role: " + roleName + " (ID=" + roleId + ")");
+        log.warning("[LANGUAGE] Org: " + orgName + " (ID=" + orgId + ")");
+        log.warning("[LANGUAGE] ========================================");
+
+        // Get login/system language from iDempiere context
+        String loginLanguage = Env.getAD_Language(ctx);
+        org.compiere.util.Language loginLangObj = org.compiere.util.Language.getLanguage(loginLanguage);
+        String loginLangName = loginLangObj != null ? loginLangObj.getName() : loginLanguage;
+        log.warning("[LANGUAGE] Login/System language: " + loginLangName + " (" + loginLanguage + ")");
+
+        // Get current session language state (before any changes)
+        String currentLang = languageService.getSessionLanguage(ctx, chatId);
+        org.compiere.util.Language currentLangObj = org.compiere.util.Language.getLanguage(currentLang);
+        String currentLangName = currentLangObj != null ? currentLangObj.getName() : currentLang;
+        boolean hasOverride = languageService.hasOverrideLanguage(chatId);
+        log.warning("[LANGUAGE] Current session language: " + currentLangName + " (" + currentLang + ")");
+        log.warning("[LANGUAGE] Has override: " + hasOverride);
+
+        // Check if current differs from login
+        if (!currentLang.equals(loginLanguage)) {
+            log.warning("[LANGUAGE] WARN: LANGUAGE MISMATCH: Session (" + currentLang + ") != Login (" + loginLanguage + ")");
+            if (hasOverride) {
+                log.warning("[LANGUAGE] WARN: Reason: Session override is active");
+            } else {
+                log.warning("[LANGUAGE] WARN: Reason: Unknown - this should not happen!");
+            }
+        }
+
+        if (!hasOverride) {
+            // No session language set yet - detect from input
+            log.warning("[LANGUAGE] No override set - attempting auto-detection from message");
+            log.warning("[LANGUAGE] Message preview: " + processedMessage.substring(0, Math.min(200, processedMessage.length())));
+
+            java.util.Optional<String> detectedLang = languageService.detectInputLanguage(processedMessage);
+            if (detectedLang.isPresent()) {
+                String detected = detectedLang.get();
+                org.compiere.util.Language detectedLangObj = org.compiere.util.Language.getLanguage(detected);
+                String detectedLangName = detectedLangObj != null ? detectedLangObj.getName() : detected;
+
+                log.warning("[LANGUAGE] Auto-detected: " + detectedLangName + " (" + detected + ")");
+
+                // Check if detected differs from login
+                if (!detected.equals(loginLanguage)) {
+                    log.warning("[LANGUAGE] WARN: CHANGE: Auto-detected (" + detected + ") != Login (" + loginLanguage + ")");
+                    log.warning("[LANGUAGE] WARN: This will override the user's login language!");
+                } else {
+                    log.warning("[LANGUAGE] Auto-detected matches login language");
+                }
+
+                // setOverrideLanguage will log the language switch if there was a previous one
+                languageService.setOverrideLanguage(chatId, detected);
+                callback.onProgress("language", getLocalizedProgressMessage(ctx, "AIG_LanguageDetected") + " " + detectedLangName);
+            } else {
+                log.warning("[LANGUAGE] Could not auto-detect language from input");
+                log.warning("[LANGUAGE] Will use login language: " + loginLangName);
+            }
+        } else {
+            log.warning("[LANGUAGE] Override already exists - checking for explicit language change requests");
+        }
+
+        // Always check for explicit language change requests
+        java.util.Optional<String> requestedLang = languageService.detectLanguageChangeRequest(processedMessage);
+        if (requestedLang.isPresent()) {
+            String requested = requestedLang.get();
+            Language requestedLangObj = Language.getLanguage(requested);
+            String requestedLangName = requestedLangObj != null ? requestedLangObj.getName() : requested;
+
+            log.warning("[LANGUAGE] User explicitly requested: " + requestedLangName + " (" + requested + ")");
+
+            // Check if requested differs from current session language
+            String previousSessionLang = languageService.getSessionLanguage(ctx, chatId);
+            if (!requested.equals(previousSessionLang)) {
+                log.warning("[LANGUAGE] WARN: USER INITIATED SWITCH: " + previousSessionLang + " -> " + requested);
+            } else {
+                log.warning("[LANGUAGE] User requested matches current session language (no change)");
+            }
+
+            // Check if requested differs from login
+            if (!requested.equals(loginLanguage)) {
+                log.warning("[LANGUAGE] WARN: Requested language (" + requested + ") != Login (" + loginLanguage + ")");
+            } else {
+                log.warning("[LANGUAGE] User requested matches login language");
+            }
+
+            // setOverrideLanguage will log the language switch detection
+            languageService.setOverrideLanguage(chatId, requested);
+            callback.onProgress("language", getLocalizedProgressMessage(ctx, "AIG_SwitchingTo") + " " + requestedLangName);
+        }
+
+        // Final language state - show complete trace
+        String finalLang = languageService.getSessionLanguage(ctx, chatId);
+        Language finalLangObj = Language.getLanguage(finalLang);
+        String finalLangName = finalLangObj != null ? finalLangObj.getName() : finalLang;
+
+        log.warning("[LANGUAGE] ========================================");
+        log.warning("[LANGUAGE] LANGUAGE TRACE SUMMARY:");
+        log.warning("[LANGUAGE]   Login/System: " + loginLangName + " (" + loginLanguage + ")");
+        log.warning("[LANGUAGE]   Final/Active: " + finalLangName + " (" + finalLang + ")");
+
+        if (!finalLang.equals(loginLanguage)) {
+            log.warning("[LANGUAGE]   WARN: CHANGED FROM LOGIN LANGUAGE!");
+            if (requestedLang.isPresent()) {
+                log.warning("[LANGUAGE]   Reason: User explicitly requested");
+            } else if (languageService.hasOverrideLanguage(chatId)) {
+                log.warning("[LANGUAGE]   Reason: Auto-detected from input");
+            } else {
+                log.warning("[LANGUAGE]   Reason: UNKNOWN - INVESTIGATE!");
+            }
+        } else {
+            log.warning("[LANGUAGE]   Using login language");
+        }
+
+        // Validate final language
+        if (finalLangObj == null) {
+            log.warning("[LANGUAGE]   ERROR: Unknown language code: " + finalLang);
+            log.warning("[LANGUAGE]   ERROR: This may cause response issues!");
+        }
+
+        log.warning("[LANGUAGE] ========================================");
+    }
+
+    /**
+     * Builds thread-aware chat memory for a streaming request and trims any trailing
+     * {@link UserMessage}s left behind by earlier failed retries, so the
+     * {@code MessageSanitizer} doesn't strip the current message as a duplicate.
+     */
+    private ThreadAwareChatMemory buildStreamingMemory(MChat chat, int threadRootId, MAIProvider provider) {
+        Integer aiUserId = provider.getAD_User_ID() > 0 ? provider.getAD_User_ID() : null;
+
+        ThreadAwareChatMemory memory = ThreadAwareChatMemory.builder()
+            .chat(chat)
+            .threadRootId(threadRootId)
+            .maxMessages(DEFAULT_MEMORY_SIZE)
+            .persistMessages(false)  // Widget handles persistence
+            .aiUserId(aiUserId)
+            .build();
+
+        List<ChatMessage> currentMessages = new ArrayList<>(memory.messages());
+        log.log(Level.FINE, "[STREAM] Memory loaded " + currentMessages.size() + " messages from DB");
+
+        if (!currentMessages.isEmpty()) {
+            int trimIndex = currentMessages.size();
+            while (trimIndex > 0 && currentMessages.get(trimIndex - 1) instanceof UserMessage) {
+                trimIndex--;
+            }
+
+            if (trimIndex < currentMessages.size()) {
+                int removedCount = currentMessages.size() - trimIndex;
+                log.log(Level.FINE, "[STREAM] Removing " + removedCount + " trailing UserMessage(s) from memory to prevent consecutive message sanitization");
+
+                memory.clear();
+                for (int i = 0; i < trimIndex; i++) {
+                    memory.add(currentMessages.get(i));
+                }
+                log.log(Level.FINE, "[STREAM] Memory now has " + memory.getMessageCount() + " messages after cleanup");
+            }
+        }
+
+        log.log(Level.FINE, "[STREAM] Memory state before agent.chat(): " + memory.getMessageCount() + " messages");
+        if (memory.getMessageCount() > 0) {
+            ChatMessage last = memory.messages().get(memory.getMessageCount() - 1);
+            log.log(Level.FINE, "[STREAM] Last message type: " + last.type());
+        }
+
+        return memory;
+    }
+
+    /**
+     * Prefixes {@code processedMessage} with window/tab context, if any was provided.
+     */
+    private String injectStreamingContext(JSONObject contextData, String processedMessage) {
+        if (contextData != null && contextData.length() > 0) {
+            log.log(Level.FINE, "[CONTEXT-STREAM] Context data received with keys: " + contextData.keySet());
+            log.log(Level.FINE, "[CONTEXT-STREAM] Context success flag: " + contextData.optBoolean("success", false));
+
+            String contextPrompt = buildContextPrompt(contextData);
+            if (contextPrompt != null && !contextPrompt.isEmpty()) {
+                String withContext = contextPrompt + "\n\nUser question: " + processedMessage;
+                log.log(Level.FINE, "[CONTEXT-STREAM] Context injected into message, total length: " + withContext.length());
+                return withContext;
+            } else {
+                log.warning("[CONTEXT-STREAM] Context prompt was empty or null despite having context data");
+            }
+        } else {
+            log.log(Level.FINE, "[CONTEXT-STREAM] No context data provided to chatStreamingWithContext");
+        }
+        return processedMessage;
+    }
+
+    /**
+     * Builds the tools-enabled or simple streaming agent (depending on provider capability)
+     * and starts a {@link dev.langchain4j.service.TokenStream} from it.
+     */
+    private dev.langchain4j.service.TokenStream createStreamingTokenStream(
+            StreamingChatModel streamingModel, MAIProvider provider, Properties ctx, MChat chat,
+            ThreadAwareChatMemory memory, String processedMessage, String sessionId, int clientId,
+            AIStreamCallback callback) {
+        final ThreadAwareChatMemory memoryForProvider = memory;
+
+        if (supportsStreamingTools(provider)) {
+            // ================================================================
+            // BUILD STREAMING AGENT WITH TOOLS (for Anthropic, OpenAI, Bedrock)
+            // ================================================================
+            log.log(Level.FINE, "[STREAM] Building ERPStreamingAgent with tools...");
+
+            // Create tools with optional callback support (unified ERPTools)
+            ERPTools erpTools = new ERPTools(provider, ctx, callback);
+            log.log(Level.FINE, "[STREAM] ERPTools class: " + erpTools.getClass().getName());
+            log.log(Level.FINE, "[STREAM] StreamingModel class: " + streamingModel.getClass().getName());
+
+            // Build tools list - include RAG tools if available (P1 Context Layer)
+            Object[] toolsList;
+            IRagService rag = getRagService();
+            if (rag != null && rag.isAvailable()) {
+                RagTools ragTools = new RagTools(rag, ctx);
+                toolsList = new Object[] { erpTools, ragTools };
+                log.log(Level.FINE, "[STREAM] Agent created with ERPTools + RagTools");
+            } else {
+                toolsList = new Object[] { erpTools };
+                log.log(Level.FINE, "[STREAM] Agent created with ERPTools only (RAG not available)");
+            }
+
+            // Build system prompt with language instruction (ADR-037)
+            final String systemPrompt = buildSystemPromptWithLanguage(ctx, chat.getCM_Chat_ID(), true, provider.getAIG_Provider_ID());
+            log.log(Level.FINE, "[STREAM] System prompt built, length=" + systemPrompt.length());
+
+            AiServices<ERPStreamingAgent> erpStreamingAgentBuilder = AiServices.builder(ERPStreamingAgent.class)
+                .streamingChatModel(streamingModel)
+                .tools(toolsList)
+                .chatMemoryProvider(memoryId -> memoryForProvider)
+                .systemMessageProvider(memoryId -> systemPrompt);
+            ToolProvider mcpToolProviderStreaming = MCPToolProviderFactory.getConfigured(clientId);
+            if (mcpToolProviderStreaming != null) {
+                erpStreamingAgentBuilder = erpStreamingAgentBuilder.toolProvider(mcpToolProviderStreaming);
+            }
+            ERPStreamingAgent agent = erpStreamingAgentBuilder.build();
+
+            log.log(Level.FINE, "[STREAM] Agent built successfully: " + agent.getClass().getName());
+            log.log(Level.FINE, "[STREAM] Starting TokenStream with sessionId: " + sessionId);
+            log.log(Level.FINE, "[STREAM] Memory has " + memoryForProvider.getMessageCount() + " messages before agent.chat()");
+
+            return agent.chat(sessionId, processedMessage);
+        } else {
+            // ================================================================
+            // SIMPLE STREAMING WITHOUT TOOLS (for Ollama/Llama)
+            // ================================================================
+            log.log(Level.FINE, "[STREAM] Provider " + provider.getAIGProviderType() +
+                    " doesn't support tools, using simple streaming chat mode");
+            log.log(Level.FINE, "[STREAM] StreamingModel class: " + streamingModel.getClass().getName());
+
+            // Build system prompt with language instruction (ADR-037) - no tools
+            final String systemPrompt = buildSystemPromptWithLanguage(ctx, chat.getCM_Chat_ID(), false, provider.getAIG_Provider_ID());
+            log.log(Level.FINE, "[STREAM] System prompt built (no tools), length=" + systemPrompt.length());
+
+            // Build SimpleStreamingAgent (no tools, simplified system prompt)
+            SimpleStreamingAgent agent = AiServices.builder(SimpleStreamingAgent.class)
+                .streamingChatModel(streamingModel)
+                .chatMemoryProvider(memoryId -> memoryForProvider)
+                .systemMessageProvider(memoryId -> systemPrompt)
+                .build();
+
+            log.log(Level.FINE, "[STREAM] SimpleStreamingAgent built successfully: " + agent.getClass().getName());
+            log.log(Level.FINE, "[STREAM] Starting TokenStream with sessionId: " + sessionId);
+            log.log(Level.FINE, "[STREAM] Memory has " + memoryForProvider.getMessageCount() + " messages before agent.chat()");
+
+            return agent.chat(sessionId, processedMessage);
+        }
+    }
+
+    /**
+     * Immutable snapshot of context needed to record usage metrics once a streamed
+     * response completes, captured before the async token stream starts.
+     */
+    private static final class StreamMetricsContext {
+        final long startTime;
+        final int userId;
+        final int roleId;
+        final int providerId;
+        final String modelName;
+        final String sessionId;
+        final Properties ctx;
+        final String inputMessage;
+
+        StreamMetricsContext(long startTime, int userId, int roleId, int providerId, String modelName,
+                              String sessionId, Properties ctx, String inputMessage) {
+            this.startTime = startTime;
+            this.userId = userId;
+            this.roleId = roleId;
+            this.providerId = providerId;
+            this.modelName = modelName;
+            this.sessionId = sessionId;
+            this.ctx = ctx;
+            this.inputMessage = inputMessage;
+        }
+    }
+
+    /**
+     * Handles the end of a streamed response: records usage metrics, applies output
+     * guardrails to the fully-assembled text, persists the safe/masked version (only) to
+     * memory, and signals completion or a guardrail block to {@code callback}.
+     *
+     * <p>Tokens were already streamed live to the UI via {@code onPartialResponse} by the
+     * time this runs, so a BLOCK/MASK verdict here cannot un-send what the user already
+     * saw - it only decides what (if anything) gets persisted for conversation continuity.
+     */
+    private void handleStreamCompletion(dev.langchain4j.model.chat.response.ChatResponse response,
+                                         AtomicReference<StringBuilder> responseAccumulator,
+                                         ThreadAwareChatMemory memory, StreamMetricsContext metrics,
+                                         AIStreamCallback callback) {
+        try {
+            log.log(Level.FINE, "[STREAM] onComplete: streaming finished");
+            long streamingEndTime = System.currentTimeMillis();
+
+            // Get AI response text (from response or accumulator)
+            // SAFETY: Comprehensive null checks to prevent NPE
+            String aiResponseText = null;
+            if (responseAccumulator != null && responseAccumulator.get() != null) {
+                aiResponseText = responseAccumulator.get().toString();
+            }
+            if (response != null && response.aiMessage() != null
+                && response.aiMessage().text() != null && !response.aiMessage().text().isEmpty()) {
+                aiResponseText = response.aiMessage().text();
+            }
+            // Fallback to empty string if still null
+            if (aiResponseText == null) {
+                aiResponseText = "";
+                log.log(Level.FINE, "[STREAM] No response text available from streaming");
+            }
+
+            // ================================================================
+            // RECORD METRICS (ADR-013)
+            // ================================================================
+            try {
+                TokenUsage tokenUsage = (response != null) ? response.tokenUsage() : null;
+                int inputTokens = 0;
+                int outputTokens = 0;
+
+                if (tokenUsage != null) {
+                    Integer inputCount = tokenUsage.inputTokenCount();
+                    Integer outputCount = tokenUsage.outputTokenCount();
+                    inputTokens = (inputCount != null) ? inputCount : 0;
+                    outputTokens = (outputCount != null) ? outputCount : 0;
+                } else {
+                    // Estimate tokens if not provided (rough: 4 chars = 1 token)
+                    inputTokens = (metrics.inputMessage != null) ? metrics.inputMessage.length() / 4 : 0;
+                    outputTokens = (aiResponseText != null) ? aiResponseText.length() / 4 : 0;
+                    log.log(Level.FINE, "[METRICS] Token usage not provided, estimated: in=" +
+                        inputTokens + ", out=" + outputTokens);
+                }
+
+                int latencyMs = (int) (streamingEndTime - metrics.startTime);
+
+                // Calculate cost in microdollars (1 USD = 1,000,000 microdollars)
+                int costMicrodollars = calculateCostMicrodollars(metrics.modelName, inputTokens, outputTokens);
+
+                // Persist metrics
+                MAIUsageMetrics.record(
+                    metrics.ctx,
+                    metrics.userId,
+                    metrics.roleId,
+                    metrics.providerId,
+                    "chat-streaming-tools",  // agentName (updated to reflect tools support)
+                    "STREAMING",             // agentType
+                    metrics.modelName,
+                    inputTokens,
+                    outputTokens,
+                    costMicrodollars,
+                    latencyMs,
+                    metrics.sessionId,
+                    "CHAT_STREAMING",        // requestType
+                    null                     // trxName (auto-commit)
+                );
+
+                log.info("[METRICS] Recorded: model=" + metrics.modelName +
+                    ", tokens=" + (inputTokens + outputTokens) +
+                    ", cost=$" + String.format("%.6f", costMicrodollars / 1000000.0) +
+                    ", latency=" + latencyMs + "ms");
+
+                // Update AIG_Budget CurrentDailyAmt / CurrentMonthlyAmt
+                // 1 cent = 10,000 microdollars
+                int costCents = costMicrodollars / 10000;
+                if (costCents > 0) {
+                    MAIBudget budget = MAIBudget.getEffective(metrics.ctx, metrics.userId, null, null);
+                    if (budget != null && !budget.addUsage(costCents)) {
+                        log.warning("[METRICS] Failed to update budget for user=" + metrics.userId);
+                    }
+                }
+
+            } catch (Exception e) {
+                log.log(Level.WARNING, "[METRICS] Failed to record metrics: " + e.getMessage(), e);
+            }
+
+            // Apply output guardrails on complete response, then decide what
+            // (if anything) to persist to memory for conversation continuity.
+            final String finalAiResponseText = aiResponseText;
+            String blockedViolationType = null;
+            String textToPersist = finalAiResponseText;
+            if (guardrailsEnabled && finalAiResponseText != null && !finalAiResponseText.isEmpty()) {
+                GuardResult outputResult = outputGuard.validate(finalAiResponseText);
+                if (outputResult.isBlocked()) {
+                    blockedViolationType = outputResult.getViolationType();
+                    textToPersist = null;
+                    log.warning("Output blocked (already streamed to user): " + outputResult.getBlockReason());
+                } else if (outputResult.wasModified()) {
+                    textToPersist = outputResult.getProcessedContent();
+                    log.warning("Output masked before persisting to memory: " + outputResult.getViolationType());
+                }
+            }
+            if (textToPersist != null && !textToPersist.isEmpty()) {
+                memory.add(AiMessage.from(textToPersist));
+            }
+
+            // Call completion callback
+            try {
+                if (blockedViolationType != null) {
+                    callback.onError(new OutputGuardrailBlockedException(
+                        "Response violated output guardrails and was not saved to conversation history",
+                        blockedViolationType));
+                } else {
+                    callback.onComplete();
+                }
+            } catch (Exception e) {
+                log.log(Level.SEVERE, "[STREAM] Error in completion callback: " + e.getMessage(), e);
+            }
+        } catch (Exception e) {
+            // SAFETY: Catch-all handler to prevent chat from hanging
+            log.log(Level.SEVERE, "[STREAM] Fatal error in completion handler: " + e.getMessage(), e);
+            try {
+                callback.onError(e);
+            } catch (Exception callbackError) {
+                log.log(Level.SEVERE, "[STREAM] Error calling onError callback: " + callbackError.getMessage(), callbackError);
+            }
         }
     }
 
@@ -1393,7 +1424,13 @@ public class AIService implements IAIService {
                 future.complete(ChatResult.success(response, threadRootId, warningMessage));
             })
             .onError(error -> {
-                future.completeExceptionally(error);
+                if (error instanceof OutputGuardrailBlockedException blocked) {
+                    future.complete(ChatResult.blocked(
+                        "I apologize, but I cannot provide that response.",
+                        threadRootId, blocked.getViolationType()));
+                } else {
+                    future.completeExceptionally(error);
+                }
             })
             .build();
 
@@ -1672,10 +1709,14 @@ public class AIService implements IAIService {
                     log.log(Level.FINE, "Execute: Agent created with ERPTools only (RAG not available)");
                 }
 
-                ERPAgent agent = AiServices.builder(ERPAgent.class)
+                AiServices<ERPAgent> executeAgentBuilder = AiServices.builder(ERPAgent.class)
                     .chatModel(model)
-                    .tools(toolsList)
-                    .build();
+                    .tools(toolsList);
+                ToolProvider mcpToolProviderExecute = MCPToolProviderFactory.getConfigured(clientId);
+                if (mcpToolProviderExecute != null) {
+                    executeAgentBuilder = executeAgentBuilder.toolProvider(mcpToolProviderExecute);
+                }
+                ERPAgent agent = executeAgentBuilder.build();
 
                 response = agent.execute(processedGoal);
             } else {
@@ -1783,7 +1824,6 @@ public class AIService implements IAIService {
      */
     @Override
     public void clearAllCaches() {
-        agentCache.clear();
         memoryCache.clear();
         streamingModelCache.clear();
         LangChain4jProviderFactory.clearCache();
@@ -2025,6 +2065,25 @@ public class AIService implements IAIService {
     // ========================================================================
     // ChatResult - Result object for chatWithContext
     // ========================================================================
+
+    /**
+     * Signals that a fully-streamed response was rejected by output guardrails after
+     * generation completed. Carries the violation type so callers can distinguish a
+     * guardrail block from a genuine failure (see {@link #chatBlocking}).
+     */
+    public static class OutputGuardrailBlockedException extends Exception {
+
+        private final String violationType;
+
+        public OutputGuardrailBlockedException(String message, String violationType) {
+            super(message);
+            this.violationType = violationType;
+        }
+
+        public String getViolationType() {
+            return violationType;
+        }
+    }
 
     /**
      * Result object for chat operations.

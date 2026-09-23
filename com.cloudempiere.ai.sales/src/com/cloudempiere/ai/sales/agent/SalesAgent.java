@@ -1,6 +1,6 @@
 package com.cloudempiere.ai.sales.agent;
 
-import java.util.Map;
+import java.util.List;
 import java.util.logging.Logger;
 
 import org.compiere.util.Env;
@@ -11,16 +11,21 @@ import org.osgi.service.component.annotations.ReferenceCardinality;
 import org.osgi.service.component.annotations.ReferencePolicy;
 import org.osgi.service.component.annotations.ReferencePolicyOption;
 
-import com.cloudempiere.ai.boundary.IDomainAgent;
+import com.cloudempiere.ai.boundary.AbstractDomainAgent;
+import com.cloudempiere.ai.guardrails.InputGuard;
+import com.cloudempiere.ai.guardrails.OutputGuard;
 import com.cloudempiere.ai.model.MAIProvider;
 import com.cloudempiere.ai.provider.langchain4j.ILangChain4jProviderFactory;
 import com.cloudempiere.ai.sales.tools.SalesTools;
 
 import dev.langchain4j.memory.chat.MessageWindowChatMemory;
 import dev.langchain4j.model.chat.ChatModel;
+import dev.langchain4j.model.output.structured.Description;
 import dev.langchain4j.service.AiServices;
 import dev.langchain4j.service.SystemMessage;
 import dev.langchain4j.service.UserMessage;
+import dev.langchain4j.service.guardrail.InputGuardrails;
+import dev.langchain4j.service.guardrail.OutputGuardrails;
 
 /**
  * Sales domain AI agent.
@@ -48,10 +53,21 @@ import dev.langchain4j.service.UserMessage;
  * @author Cloudempiere AI Team
  * @version 1.0.0
  */
-@Component(service = {SalesAgent.class, IDomainAgent.class}, immediate = true)
-public class SalesAgent implements IDomainAgent {
+@Component(service = {SalesAgent.class, com.cloudempiere.ai.boundary.IDomainAgent.class}, immediate = true)
+public class SalesAgent extends AbstractDomainAgent {
 
     private static final Logger log = Logger.getLogger(SalesAgent.class.getName());
+
+    private static final String[] KEYWORDS = {
+        "sales", "opportunity", "quote", "order", "customer", "revenue",
+        "deal", "pipeline", "forecast", "crm", "lead", "prospect"
+    };
+
+    private static final String[] TABLE_HINTS = {"order", "opportunity", "salesrep", "quote"};
+
+    public SalesAgent() {
+        super("sales", KEYWORDS, TABLE_HINTS);
+    }
 
     // CLD-1955: OPTIONAL+DYNAMIC so the agent can activate even when the LangChain4j provider bundle is absent
     @Reference(cardinality = ReferenceCardinality.OPTIONAL, policy = ReferencePolicy.DYNAMIC, policyOption = ReferencePolicyOption.GREEDY)
@@ -134,7 +150,7 @@ public class SalesAgent implements IDomainAgent {
      */
     public String analyzeOpportunity(int opportunityId) {
         ensureInitialized();
-        return agent.analyzeOpportunity(opportunityId);
+        return formatOpportunityAnalysis(agent.analyzeOpportunity(opportunityId));
     }
 
     /**
@@ -145,7 +161,48 @@ public class SalesAgent implements IDomainAgent {
      */
     public String analyzePartnerSales(int partnerId) {
         ensureInitialized();
-        return agent.analyzePartnerSales(partnerId);
+        return formatPartnerSalesAnalysis(agent.analyzePartnerSales(partnerId));
+    }
+
+    /**
+     * Render a structured {@link OpportunityAnalysis} as the markdown text the chat UI expects.
+     */
+    private static String formatOpportunityAnalysis(OpportunityAnalysis a) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("**Opportunity Summary**\n").append(a.summary()).append("\n\n");
+        sb.append("**Business Partner Background**\n").append(a.partnerBackground()).append("\n\n");
+        sb.append("**Products/Services**\n").append(a.products()).append("\n\n");
+        appendList(sb, "Risk Factors", a.riskFactors());
+        appendList(sb, "Recommended Next Actions", a.recommendedActions());
+        sb.append("**Likelihood Assessment**\n").append(a.likelihoodAssessment());
+        return sb.toString();
+    }
+
+    /**
+     * Render a structured {@link PartnerSalesAnalysis} as the markdown text the chat UI expects.
+     */
+    private static String formatPartnerSalesAnalysis(PartnerSalesAnalysis a) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("**Customer Profile**\n").append(a.customerProfile()).append("\n\n");
+        sb.append("**Sales Volume and Trends**\n").append(a.salesVolumeAndTrends()).append("\n\n");
+        sb.append("**Order Frequency and Patterns**\n").append(a.orderFrequencyAndPatterns()).append("\n\n");
+        sb.append("**Product Preferences**\n").append(a.productPreferences()).append("\n\n");
+        appendList(sb, "Pipeline Opportunities", a.pipelineOpportunities());
+        appendList(sb, "Risk Factors", a.riskFactors());
+        appendList(sb, "Growth Opportunities and Recommendations", a.growthRecommendations());
+        return sb.toString();
+    }
+
+    private static void appendList(StringBuilder sb, String heading, List<String> items) {
+        sb.append("**").append(heading).append("**\n");
+        if (items == null || items.isEmpty()) {
+            sb.append("- None identified\n\n");
+            return;
+        }
+        for (String item : items) {
+            sb.append("- ").append(item).append("\n");
+        }
+        sb.append("\n");
     }
 
     /**
@@ -154,81 +211,11 @@ public class SalesAgent implements IDomainAgent {
      * @param query natural language query
      * @return AI-generated response with insights
      */
+    @Override
     public String chat(String query) {
         ensureInitialized();
         return agent.chat(query);
     }
-
-    // ========== IDomainAgent Implementation ==========
-
-    /**
-     * Get the domain identifier for this agent.
-     *
-     * @return "sales"
-     */
-    @Override
-    public String getDomain() {
-        return "sales";
-    }
-
-    /**
-     * Determine if this agent can handle the given query.
-     *
-     * <p>Checks for sales-related keywords: sales, opportunity, quote, order,
-     * customer, revenue, deal, pipeline, forecast, crm, lead, prospect.</p>
-     *
-     * @param query user query text
-     * @param context optional window/record context (may be null)
-     * @return true if query contains sales keywords
-     */
-    @Override
-    public boolean canHandle(String query, Map<String, Object> context) {
-        if (query == null) {
-            return false;
-        }
-
-        String lowerQuery = query.toLowerCase();
-
-        // Sales keywords
-        String[] keywords = {
-            "sales", "opportunity", "quote", "order", "customer", "revenue",
-            "deal", "pipeline", "forecast", "crm", "lead", "prospect"
-        };
-
-        for (String keyword : keywords) {
-            if (lowerQuery.contains(keyword)) {
-                return true;
-            }
-        }
-
-        // Check context for sales-related tables
-        if (context != null && context.containsKey("tableName")) {
-            String tableName = (String) context.get("tableName");
-            if (tableName != null) {
-                tableName = tableName.toLowerCase();
-                if (tableName.contains("order") || tableName.contains("opportunity") ||
-                    tableName.contains("salesrep") || tableName.contains("quote")) {
-                    return true;
-                }
-            }
-        }
-
-        return false;
-    }
-
-    /**
-     * Process the query and return a response.
-     *
-     * @param query user query text
-     * @param context optional window/record context (may be null)
-     * @return AI response text
-     */
-    @Override
-    public String process(String query, Map<String, Object> context) {
-        return chat(query);
-    }
-
-    // ========== End IDomainAgent Implementation ==========
 
     /**
      * Sales agent interface for LangChain4j.
@@ -236,6 +223,8 @@ public class SalesAgent implements IDomainAgent {
      * <p>This interface defines the AI agent's capabilities using
      * LangChain4j's declarative service annotations.</p>
      */
+    @InputGuardrails(InputGuard.class)
+    @OutputGuardrails(OutputGuard.class)
     interface SalesAgentInterface {
 
         /**
@@ -282,7 +271,7 @@ public class SalesAgent implements IDomainAgent {
             "5. Recommended next actions\n" +
             "6. Likelihood assessment based on historical data\n\n" +
             "Be specific with numbers, dates, and actionable insights.")
-        String analyzeOpportunity(int opportunityId);
+        OpportunityAnalysis analyzeOpportunity(int opportunityId);
 
         /**
          * Analyze business partner sales performance.
@@ -299,6 +288,33 @@ public class SalesAgent implements IDomainAgent {
             "6. Risk factors (credit issues, payment delays)\n" +
             "7. Growth opportunities and recommendations\n\n" +
             "Support your analysis with specific data and trends.")
-        String analyzePartnerSales(int partnerId);
+        PartnerSalesAnalysis analyzePartnerSales(int partnerId);
+    }
+
+    /**
+     * Structured result for {@link SalesAgentInterface#analyzeOpportunity(int)}.
+     */
+    record OpportunityAnalysis(
+        @Description("Opportunity summary: amount, probability, stage, and close date") String summary,
+        @Description("Business partner background and history") String partnerBackground,
+        @Description("Products or services included in the opportunity") String products,
+        @Description("Risk factors and concerns, one item per entry") List<String> riskFactors,
+        @Description("Recommended next actions, one item per entry") List<String> recommendedActions,
+        @Description("Likelihood assessment based on historical data") String likelihoodAssessment
+    ) {
+    }
+
+    /**
+     * Structured result for {@link SalesAgentInterface#analyzePartnerSales(int)}.
+     */
+    record PartnerSalesAnalysis(
+        @Description("Customer profile: credit limit, payment terms, outstanding balance") String customerProfile,
+        @Description("Historical sales volume and trends") String salesVolumeAndTrends,
+        @Description("Order frequency and patterns") String orderFrequencyAndPatterns,
+        @Description("Product preferences") String productPreferences,
+        @Description("Opportunities currently in the pipeline, one item per entry") List<String> pipelineOpportunities,
+        @Description("Risk factors such as credit issues or payment delays, one item per entry") List<String> riskFactors,
+        @Description("Growth opportunities and recommendations, one item per entry") List<String> growthRecommendations
+    ) {
     }
 }

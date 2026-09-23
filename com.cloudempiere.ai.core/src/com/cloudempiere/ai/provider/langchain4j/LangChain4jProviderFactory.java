@@ -96,6 +96,103 @@ public class LangChain4jProviderFactory implements ILangChain4jProviderFactory {
     private static final Map<Integer, StreamingChatModel> streamingModelCache = new ConcurrentHashMap<>();
     private static final Map<Integer, EmbeddingModel> embeddingModelCache = new ConcurrentHashMap<>();
 
+    /**
+     * Resolved (apiKey, modelName, baseUrl) passed to a provider's factory functions -
+     * the same 3 inputs every {@code createXxxModel} method below already took, just
+     * bundled so the registry can call any of them uniformly.
+     */
+    private record ResolvedConfig(String apiKey, String modelName, String baseUrl) {
+    }
+
+    /**
+     * Everything the factory needs to know about one provider type: how to build each
+     * of its 3 model kinds, whether it has native embeddings (vs. falling back to a
+     * different provider's - see Anthropic below), and its tool/streaming capabilities.
+     *
+     * <p>Single source of truth for provider dispatch - previously this was 3 separate
+     * switch statements (create/createStreaming/createEmbeddingModel) plus a hand-maintained
+     * hasNativeEmbeddings() OR-chain in this class, plus 2 more hardcoded capability sets
+     * in AIService.java, all needing to be updated in lockstep (with no compiler check)
+     * whenever a provider was added. AIService.supportsTools()/supportsStreamingTools()/
+     * supportsStreaming() now read from this same registry via the static accessors below.
+     */
+    private record ProviderDefinition(
+        java.util.function.Function<ResolvedConfig, ChatModel> chatModel,
+        java.util.function.Function<ResolvedConfig, StreamingChatModel> streamingChatModel,
+        java.util.function.Function<ResolvedConfig, EmbeddingModel> embeddingModel,
+        boolean nativeEmbeddings,
+        boolean supportsTools,
+        boolean supportsStreamingTools,
+        boolean supportsStreaming
+    ) {
+    }
+
+    // NOTE on the Ollama exclusions below: these predate this session's langchain4j
+    // 0.35.0 -> 1.20.0 upgrade (see ADR-035) and were never re-verified against a live
+    // Ollama instance afterward - relocated here verbatim, not re-evaluated. Worth
+    // revisiting now that the plugin is off the 0.35.0-era bugs these worked around,
+    // but that needs live testing this pass didn't do.
+    private static final Map<String, ProviderDefinition> PROVIDER_REGISTRY = Map.of(
+        PROVIDER_AI_HUB, new ProviderDefinition(
+            rc -> createAIHubModel(rc.baseUrl(), rc.modelName(), rc.apiKey()),
+            rc -> createAIHubStreamingModel(rc.baseUrl(), rc.modelName(), rc.apiKey()),
+            rc -> createAIHubEmbeddingModel(rc.baseUrl(), rc.modelName(), rc.apiKey()),
+            true, true, true, true
+        ),
+        PROVIDER_ANTHROPIC, new ProviderDefinition(
+            rc -> createAnthropicModel(rc.apiKey(), rc.modelName()),
+            rc -> createAnthropicStreamingModel(rc.apiKey(), rc.modelName()),
+            // Anthropic has no embedding models of its own - falls back to AWS Bedrock
+            // Titan. nativeEmbeddings=false reflects that fallback, not unavailability.
+            rc -> createBedrockEmbeddingModel(rc.modelName(), rc.apiKey()),
+            false, true, true, true
+        ),
+        PROVIDER_BEDROCK, new ProviderDefinition(
+            rc -> createBedrockModel(rc.modelName(), rc.apiKey()),
+            rc -> createBedrockStreamingModel(rc.modelName(), rc.apiKey()),
+            rc -> createBedrockEmbeddingModel(rc.modelName(), rc.apiKey()),
+            true, true, true, true
+        ),
+        PROVIDER_OLLAMA, new ProviderDefinition(
+            rc -> createOllamaModel(rc.baseUrl(), rc.modelName()),
+            rc -> createOllamaStreamingModel(rc.baseUrl(), rc.modelName()),
+            rc -> createOllamaEmbeddingModel(rc.baseUrl(), rc.modelName()),
+            true, false, false, false
+        ),
+        PROVIDER_MOCK_OPENAI, new ProviderDefinition(
+            rc -> createMockOpenAiModel(rc.baseUrl(), rc.modelName(), rc.apiKey()),
+            rc -> createMockOpenAiStreamingModel(rc.baseUrl(), rc.modelName(), rc.apiKey()),
+            rc -> createMockOpenAiEmbeddingModel(rc.baseUrl(), rc.modelName(), rc.apiKey()),
+            true, true, true, true
+        )
+    );
+
+    private static ProviderDefinition requireDefinition(String providerType, String purpose) {
+        ProviderDefinition def = PROVIDER_REGISTRY.get(providerType);
+        if (def == null) {
+            throw new IllegalArgumentException(purpose + " not supported for provider: " + providerType);
+        }
+        return def;
+    }
+
+    /** Whether the provider supports tool/function calling (non-streaming). */
+    public static boolean supportsTools(String providerType) {
+        ProviderDefinition def = PROVIDER_REGISTRY.get(providerType);
+        return def != null && def.supportsTools();
+    }
+
+    /** Whether the provider supports tool/function calling in streaming mode. */
+    public static boolean supportsStreamingTools(String providerType) {
+        ProviderDefinition def = PROVIDER_REGISTRY.get(providerType);
+        return def != null && def.supportsStreamingTools();
+    }
+
+    /** Whether the provider supports streaming at all. */
+    public static boolean supportsStreaming(String providerType) {
+        ProviderDefinition def = PROVIDER_REGISTRY.get(providerType);
+        return def != null && def.supportsStreaming();
+    }
+
     // ========================================================================
     // OSGi Lifecycle
     // ========================================================================
@@ -214,20 +311,8 @@ public class LangChain4jProviderFactory implements ILangChain4jProviderFactory {
         log.info("Creating LangChain4j model for provider: " + providerType +
                 (modelName != null ? ", model: " + modelName : " (using default model)"));
 
-        switch (providerType) {
-            case PROVIDER_AI_HUB:
-                return createAIHubModel(baseUrl, modelName, apiKey);
-            case PROVIDER_ANTHROPIC:
-                return createAnthropicModel(apiKey, modelName);
-            case PROVIDER_BEDROCK:
-                return createBedrockModel(modelName, apiKey);
-            case PROVIDER_OLLAMA:
-                return createOllamaModel(baseUrl, modelName);
-            case PROVIDER_MOCK_OPENAI:
-                return createMockOpenAiModel(baseUrl, modelName, apiKey);
-            default:
-                throw new IllegalArgumentException("Unknown provider type: " + providerType);
-        }
+        return requireDefinition(providerType, "Chat model")
+            .chatModel().apply(new ResolvedConfig(apiKey, modelName, baseUrl));
     }
 
     /**
@@ -257,20 +342,8 @@ public class LangChain4jProviderFactory implements ILangChain4jProviderFactory {
         log.info("Creating LangChain4j streaming model for provider: " + providerType +
                 (modelName != null ? ", model: " + modelName : " (using default model)"));
 
-        switch (providerType) {
-            case PROVIDER_AI_HUB:
-                return createAIHubStreamingModel(baseUrl, modelName, apiKey);
-            case PROVIDER_ANTHROPIC:
-                return createAnthropicStreamingModel(apiKey, modelName);
-            case PROVIDER_BEDROCK:
-                return createBedrockStreamingModel(modelName, apiKey);
-            case PROVIDER_OLLAMA:
-                return createOllamaStreamingModel(baseUrl, modelName);
-            case PROVIDER_MOCK_OPENAI:
-                return createMockOpenAiStreamingModel(baseUrl, modelName, apiKey);
-            default:
-                throw new IllegalArgumentException("Streaming not supported for provider: " + providerType);
-        }
+        return requireDefinition(providerType, "Streaming")
+            .streamingChatModel().apply(new ResolvedConfig(apiKey, modelName, baseUrl));
     }
 
     /**
@@ -335,27 +408,8 @@ public class LangChain4jProviderFactory implements ILangChain4jProviderFactory {
 
         log.info("Creating LangChain4j embedding model for provider: " + providerType);
 
-        switch (providerType) {
-            case PROVIDER_AI_HUB:
-                return createAIHubEmbeddingModel(baseUrl, modelName, apiKey);
-
-            case PROVIDER_ANTHROPIC:
-                // Anthropic doesn't have embedding models - use AWS Bedrock Titan
-                log.info("Anthropic provider: using AWS Bedrock Titan Embeddings");
-                return createBedrockEmbeddingModel(modelName, apiKey);
-
-            case PROVIDER_BEDROCK:
-                return createBedrockEmbeddingModel(modelName, apiKey);
-
-            case PROVIDER_OLLAMA:
-                return createOllamaEmbeddingModel(baseUrl, modelName);
-
-            case PROVIDER_MOCK_OPENAI:
-                return createMockOpenAiEmbeddingModel(baseUrl, modelName, apiKey);
-
-            default:
-                throw new IllegalArgumentException("Unknown provider type for embeddings: " + providerType);
-        }
+        return requireDefinition(providerType, "Embeddings")
+            .embeddingModel().apply(new ResolvedConfig(apiKey, modelName, baseUrl));
     }
 
     /**
@@ -370,10 +424,8 @@ public class LangChain4jProviderFactory implements ILangChain4jProviderFactory {
      * Check if the provider supports embeddings natively.
      */
     public static boolean hasNativeEmbeddings(String providerType) {
-        return PROVIDER_AI_HUB.equals(providerType) ||
-               PROVIDER_BEDROCK.equals(providerType) ||
-               PROVIDER_OLLAMA.equals(providerType) ||
-               PROVIDER_MOCK_OPENAI.equals(providerType);
+        ProviderDefinition def = PROVIDER_REGISTRY.get(providerType);
+        return def != null && def.nativeEmbeddings();
     }
 
     // ========================================================================
@@ -536,6 +588,15 @@ public class LangChain4jProviderFactory implements ILangChain4jProviderFactory {
             .temperature(0.7)
             .logRequests(true)
             .logResponses(true)
+            // Prompt caching (ADR-013): pure cost optimization, no behavior change -
+            // safe to enable unconditionally. System prompt + tool definitions are
+            // identical across requests within a session, so this is a guaranteed win.
+            .cacheSystemMessages(true)
+            .cacheTools(true)
+            // Extended thinking (ADR-033) is NOT enabled here - it changes response
+            // latency/shape and needs a UI surface (thinking budget, timeline display)
+            // that doesn't exist yet. Wire up via .thinkingType("enabled")
+            // .thinkingBudgetTokens(...).returnThinking(true) once that UI lands.
             .build();
     }
 
@@ -548,6 +609,9 @@ public class LangChain4jProviderFactory implements ILangChain4jProviderFactory {
             .modelName(modelName != null ? modelName : DEFAULT_ANTHROPIC_MODEL)
             .maxTokens(4096)
             .temperature(0.7)
+            // Prompt caching (ADR-013) - see createAnthropicModel() for rationale.
+            .cacheSystemMessages(true)
+            .cacheTools(true)
             .build();
     }
 

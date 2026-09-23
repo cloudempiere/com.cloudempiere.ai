@@ -16,7 +16,6 @@ package com.cloudempiere.ai.provider.langchain4j;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Properties;
 
@@ -131,7 +130,7 @@ public class ThreadAwareChatMemory implements ChatMemory {
      * @param message Chat message to add
      */
     @Override
-    public void add(ChatMessage message) {
+    public synchronized void add(ChatMessage message) {
         messages.add(message);
         trimToMaxSize();
 
@@ -146,11 +145,14 @@ public class ThreadAwareChatMemory implements ChatMemory {
     /**
      * Get all messages in the current thread.
      *
-     * @return List of chat messages (unmodifiable)
+     * <p>Returns a defensive copy taken under lock, not a live view - safe to iterate
+     * even while another thread concurrently calls {@link #add} or {@link #switchThread}.
+     *
+     * @return List of chat messages (independent snapshot)
      */
     @Override
-    public List<ChatMessage> messages() {
-        return Collections.unmodifiableList(messages);
+    public synchronized List<ChatMessage> messages() {
+        return List.copyOf(messages);
     }
 
     /**
@@ -159,7 +161,7 @@ public class ThreadAwareChatMemory implements ChatMemory {
      * <p>Note: This only clears the in-memory cache, not the database.
      */
     @Override
-    public void clear() {
+    public synchronized void clear() {
         messages.clear();
         log.info("Cleared memory for thread " + currentThreadRootId);
     }
@@ -169,7 +171,7 @@ public class ThreadAwareChatMemory implements ChatMemory {
      *
      * @param newThreadRootId New thread root ID
      */
-    public void switchThread(int newThreadRootId) {
+    public synchronized void switchThread(int newThreadRootId) {
         if (this.currentThreadRootId != newThreadRootId) {
             this.currentThreadRootId = newThreadRootId;
             this.messages = new ArrayList<>();
@@ -184,7 +186,7 @@ public class ThreadAwareChatMemory implements ChatMemory {
      *
      * <p>The new thread root ID will be set when the first message is persisted.
      */
-    public void createNewThread() {
+    public synchronized void createNewThread() {
         this.currentThreadRootId = 0;
         this.messages = new ArrayList<>();
         log.info("Created new thread");
@@ -213,14 +215,18 @@ public class ThreadAwareChatMemory implements ChatMemory {
      *
      * @return Number of messages in current thread
      */
-    public int getMessageCount() {
+    public synchronized int getMessageCount() {
         return messages.size();
     }
 
     /**
      * Load messages from CM_ChatEntry for current thread.
+     *
+     * <p>Callers already hold the monitor (constructor, {@link #switchThread}); Java's
+     * synchronized is reentrant so marking this synchronized too is just defense-in-depth
+     * against a future caller that doesn't.
      */
-    private void loadMessages() {
+    private synchronized void loadMessages() {
         messages.clear();
 
         StringBuilder sql = new StringBuilder();

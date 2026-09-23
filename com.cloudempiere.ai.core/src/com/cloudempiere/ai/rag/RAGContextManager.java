@@ -30,6 +30,7 @@ import dev.langchain4j.data.embedding.Embedding;
 import dev.langchain4j.data.segment.TextSegment;
 import dev.langchain4j.model.embedding.EmbeddingModel;
 import dev.langchain4j.rag.content.Content;
+import dev.langchain4j.rag.content.ContentMetadata;
 import dev.langchain4j.rag.content.retriever.ContentRetriever;
 import dev.langchain4j.rag.content.retriever.EmbeddingStoreContentRetriever;
 import dev.langchain4j.rag.query.Query;
@@ -325,13 +326,47 @@ public class RAGContextManager {
     /**
      * Create ContentRetriever that includes global context
      *
+     * <p>Queries the session-specific store and the shared global store separately
+     * (they're different embedding stores, so a single {@link EmbeddingStoreContentRetriever}
+     * can't span both), then merges by {@link ContentMetadata#SCORE} and caps at maxResults.
+     *
      * @param sessionId Session identifier
      * @return Retriever searching both session and global stores
      */
     public ContentRetriever getCompositeRetriever(String sessionId) {
-        // For now, return session retriever
-        // TODO: Implement composite retriever that searches both stores
-        return getRetriever(sessionId);
+        if (!serviceAvailable || embeddingModel == null) {
+            return getRetriever(sessionId);
+        }
+
+        ContentRetriever sessionRetriever = EmbeddingStoreContentRetriever.builder()
+            .embeddingStore(getSessionStore(sessionId))
+            .embeddingModel(embeddingModel)
+            .maxResults(maxResults)
+            .minScore(minScore)
+            .build();
+
+        ContentRetriever globalRetriever = EmbeddingStoreContentRetriever.builder()
+            .embeddingStore(globalStore)
+            .embeddingModel(embeddingModel)
+            .maxResults(maxResults)
+            .minScore(minScore)
+            .build();
+
+        int cappedMaxResults = maxResults;
+        return query -> {
+            List<Content> combined = new java.util.ArrayList<>();
+            combined.addAll(sessionRetriever.retrieve(query));
+            combined.addAll(globalRetriever.retrieve(query));
+            combined.sort((a, b) -> Double.compare(scoreOf(b), scoreOf(a)));
+            return combined.size() > cappedMaxResults
+                ? combined.subList(0, cappedMaxResults)
+                : combined;
+        };
+    }
+
+    private static double scoreOf(Content content) {
+        Object score = content.metadata().get(ContentMetadata.SCORE);
+        return score instanceof Double ? (Double) score : 0.0;
     }
 
     /**

@@ -1,7 +1,12 @@
 package com.cloudempiere.ai.provider.langchain4j;
 
+import com.cloudempiere.ai.guardrails.InputGuard;
+import com.cloudempiere.ai.guardrails.OutputGuard;
+
 import dev.langchain4j.service.MemoryId;
 import dev.langchain4j.service.UserMessage;
+import dev.langchain4j.service.guardrail.InputGuardrails;
+import dev.langchain4j.service.guardrail.OutputGuardrails;
 
 /**
  * ERP AI Agent interface for LangChain4j AiServices.
@@ -30,6 +35,8 @@ import dev.langchain4j.service.UserMessage;
  * @version 0.13.0
  * @since ADR-002 LangChain4j Strategic Adoption
  */
+@InputGuardrails(InputGuard.class)
+@OutputGuardrails(OutputGuard.class)
 public interface ERPAgent {
 
     /**

@@ -1,8 +1,13 @@
 package com.cloudempiere.ai.provider.langchain4j;
 
+import com.cloudempiere.ai.guardrails.InputGuard;
+import com.cloudempiere.ai.guardrails.OutputGuard;
+
 import dev.langchain4j.service.MemoryId;
 import dev.langchain4j.service.TokenStream;
 import dev.langchain4j.service.UserMessage;
+import dev.langchain4j.service.guardrail.InputGuardrails;
+import dev.langchain4j.service.guardrail.OutputGuardrails;
 
 /**
  * Streaming ERP AI Agent interface for LangChain4j AiServices.
@@ -35,6 +40,8 @@ import dev.langchain4j.service.UserMessage;
  * @version 1.0
  * @since ADR-033
  */
+@InputGuardrails(InputGuard.class)
+@OutputGuardrails(OutputGuard.class)
 public interface ERPStreamingAgent {
 
     /**

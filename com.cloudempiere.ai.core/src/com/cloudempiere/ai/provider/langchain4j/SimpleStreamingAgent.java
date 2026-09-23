@@ -1,8 +1,13 @@
 package com.cloudempiere.ai.provider.langchain4j;
 
+import com.cloudempiere.ai.guardrails.InputGuard;
+import com.cloudempiere.ai.guardrails.OutputGuard;
+
 import dev.langchain4j.service.MemoryId;
 import dev.langchain4j.service.TokenStream;
 import dev.langchain4j.service.UserMessage;
+import dev.langchain4j.service.guardrail.InputGuardrails;
+import dev.langchain4j.service.guardrail.OutputGuardrails;
 
 /**
  * Simple streaming AI Agent interface for providers without tool support.
@@ -15,6 +20,8 @@ import dev.langchain4j.service.UserMessage;
  * @version 1.0
  * @since 0.17.0
  */
+@InputGuardrails(InputGuard.class)
+@OutputGuardrails(OutputGuard.class)
 public interface SimpleStreamingAgent {
 
     /**

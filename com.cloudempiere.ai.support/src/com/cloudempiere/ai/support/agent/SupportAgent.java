@@ -1,6 +1,6 @@
 package com.cloudempiere.ai.support.agent;
 
-import java.util.Map;
+import java.util.List;
 import java.util.logging.Logger;
 
 import org.compiere.util.Env;
@@ -11,16 +11,21 @@ import org.osgi.service.component.annotations.ReferenceCardinality;
 import org.osgi.service.component.annotations.ReferencePolicy;
 import org.osgi.service.component.annotations.ReferencePolicyOption;
 
-import com.cloudempiere.ai.boundary.IDomainAgent;
+import com.cloudempiere.ai.boundary.AbstractDomainAgent;
+import com.cloudempiere.ai.guardrails.InputGuard;
+import com.cloudempiere.ai.guardrails.OutputGuard;
 import com.cloudempiere.ai.model.MAIProvider;
 import com.cloudempiere.ai.provider.langchain4j.ILangChain4jProviderFactory;
 import com.cloudempiere.ai.support.tools.SupportTools;
 
 import dev.langchain4j.memory.chat.MessageWindowChatMemory;
 import dev.langchain4j.model.chat.ChatModel;
+import dev.langchain4j.model.output.structured.Description;
 import dev.langchain4j.service.AiServices;
 import dev.langchain4j.service.SystemMessage;
 import dev.langchain4j.service.UserMessage;
+import dev.langchain4j.service.guardrail.InputGuardrails;
+import dev.langchain4j.service.guardrail.OutputGuardrails;
 
 /**
  * Support domain AI agent.
@@ -48,10 +53,21 @@ import dev.langchain4j.service.UserMessage;
  * @author Cloudempiere AI Team
  * @version 1.0.0
  */
-@Component(service = {SupportAgent.class, IDomainAgent.class}, immediate = true)
-public class SupportAgent implements IDomainAgent {
+@Component(service = {SupportAgent.class, com.cloudempiere.ai.boundary.IDomainAgent.class}, immediate = true)
+public class SupportAgent extends AbstractDomainAgent {
 
     private static final Logger log = Logger.getLogger(SupportAgent.class.getName());
+
+    private static final String[] KEYWORDS = {
+        "support", "ticket", "request", "issue", "problem", "bug",
+        "help", "escalation", "complaint", "service"
+    };
+
+    private static final String[] TABLE_HINTS = {"r_request", "support", "ticket"};
+
+    public SupportAgent() {
+        super("support", KEYWORDS, TABLE_HINTS);
+    }
 
     // CLD-1955: OPTIONAL+DYNAMIC so the agent can activate even when the LangChain4j provider bundle is absent
     @Reference(cardinality = ReferenceCardinality.OPTIONAL, policy = ReferencePolicy.DYNAMIC, policyOption = ReferencePolicyOption.GREEDY)
@@ -120,7 +136,7 @@ public class SupportAgent implements IDomainAgent {
      */
     public String classifyTicket(int requestId) {
         ensureInitialized();
-        return agent.classifyTicket(requestId);
+        return formatTicketClassification(agent.classifyTicket(requestId));
     }
 
     /**
@@ -131,7 +147,49 @@ public class SupportAgent implements IDomainAgent {
      */
     public String analyzeCustomerSupport(int partnerId) {
         ensureInitialized();
-        return agent.analyzeCustomerSupport(partnerId);
+        return formatCustomerSupportAnalysis(agent.analyzeCustomerSupport(partnerId));
+    }
+
+    /**
+     * Render a structured {@link TicketClassification} as the markdown text the chat UI expects.
+     */
+    private static String formatTicketClassification(TicketClassification c) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("**Ticket Summary**\n").append(c.ticketSummary()).append("\n\n");
+        sb.append("**Category**\n").append(c.category()).append("\n\n");
+        sb.append("**Priority Assessment**\n").append(c.priorityAssessment()).append("\n\n");
+        sb.append("**Routing Recommendation**\n").append(c.routingRecommendation()).append("\n\n");
+        sb.append("**Customer Context**\n").append(c.customerContext()).append("\n\n");
+        sb.append("**Escalation Recommendation**\n").append(c.escalationRecommendation()).append("\n\n");
+        sb.append("**Suggested Response / Next Actions**\n").append(c.suggestedResponse());
+        return sb.toString();
+    }
+
+    /**
+     * Render a structured {@link CustomerSupportAnalysis} as the markdown text the chat UI expects.
+     */
+    private static String formatCustomerSupportAnalysis(CustomerSupportAnalysis a) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("**Customer Profile**\n").append(a.customerProfile()).append("\n\n");
+        sb.append("**Ticket Volume and Resolution Rate**\n").append(a.ticketVolumeAndResolutionRate()).append("\n\n");
+        sb.append("**Common Issue Categories and Patterns**\n").append(a.issuePatterns()).append("\n\n");
+        appendList(sb, "Escalated Tickets and Critical Issues", a.escalatedIssues());
+        sb.append("**Response Time and Satisfaction Trends**\n").append(a.responseTrends()).append("\n\n");
+        appendList(sb, "Current Open Tickets Requiring Attention", a.openTickets());
+        appendList(sb, "Recommendations", a.recommendations());
+        return sb.toString();
+    }
+
+    private static void appendList(StringBuilder sb, String heading, List<String> items) {
+        sb.append("**").append(heading).append("**\n");
+        if (items == null || items.isEmpty()) {
+            sb.append("- None identified\n\n");
+            return;
+        }
+        for (String item : items) {
+            sb.append("- ").append(item).append("\n");
+        }
+        sb.append("\n");
     }
 
     /**
@@ -140,34 +198,10 @@ public class SupportAgent implements IDomainAgent {
      * @param query natural language query
      * @return AI-generated response with insights
      */
+    @Override
     public String chat(String query) {
         ensureInitialized();
         return agent.chat(query);
-    }
-
-    @Override
-    public String getDomain() {
-        return "support";
-    }
-
-    @Override
-    public boolean canHandle(String query, Map<String, Object> context) {
-        if (query == null) return false;
-        String lower = query.toLowerCase();
-        String[] keywords = {"support", "ticket", "request", "issue", "problem", "bug", "help", "escalation", "complaint", "service"};
-        for (String kw : keywords) {
-            if (lower.contains(kw)) return true;
-        }
-        if (context != null && context.containsKey("tableName")) {
-            String tn = ((String) context.get("tableName")).toLowerCase();
-            if (tn.contains("r_request") || tn.contains("support") || tn.contains("ticket")) return true;
-        }
-        return false;
-    }
-
-    @Override
-    public String process(String query, Map<String, Object> context) {
-        return chat(query);
     }
 
     /**
@@ -176,6 +210,8 @@ public class SupportAgent implements IDomainAgent {
      * <p>This interface defines the AI agent's capabilities using
      * LangChain4j's declarative service annotations.</p>
      */
+    @InputGuardrails(InputGuard.class)
+    @OutputGuardrails(OutputGuard.class)
     interface SupportAgentInterface {
 
         /**
@@ -232,7 +268,7 @@ public class SupportAgent implements IDomainAgent {
             "6. Escalation recommendation (should it be escalated? why?)\n" +
             "7. Suggested response or next actions\n\n" +
             "Be specific with your classification and provide clear reasoning.")
-        String classifyTicket(int requestId);
+        TicketClassification classifyTicket(int requestId);
 
         /**
          * Analyze customer support history.
@@ -249,6 +285,34 @@ public class SupportAgent implements IDomainAgent {
             "6. Current open tickets requiring attention\n" +
             "7. Recommendations for proactive support or account management\n\n" +
             "Support your analysis with specific data and identify actionable insights.")
-        String analyzeCustomerSupport(int partnerId);
+        CustomerSupportAnalysis analyzeCustomerSupport(int partnerId);
+    }
+
+    /**
+     * Structured result for {@link SupportAgentInterface#classifyTicket(int)}.
+     */
+    record TicketClassification(
+        @Description("Ticket summary: description, priority, status, created date") String ticketSummary,
+        @Description("Category classification, e.g. Technical, Billing, Product") String category,
+        @Description("Priority assessment, justified by impact and urgency") String priorityAssessment,
+        @Description("Which team should handle this ticket") String routingRecommendation,
+        @Description("Customer context: history, previous tickets, patterns") String customerContext,
+        @Description("Whether this ticket should be escalated, and why") String escalationRecommendation,
+        @Description("Suggested response or next actions") String suggestedResponse
+    ) {
+    }
+
+    /**
+     * Structured result for {@link SupportAgentInterface#analyzeCustomerSupport(int)}.
+     */
+    record CustomerSupportAnalysis(
+        @Description("Customer profile summary") String customerProfile,
+        @Description("Total tickets and resolution rate") String ticketVolumeAndResolutionRate,
+        @Description("Common issue categories and patterns") String issuePatterns,
+        @Description("Escalated tickets and critical issues, one item per entry") List<String> escalatedIssues,
+        @Description("Response time and satisfaction trends") String responseTrends,
+        @Description("Current open tickets requiring attention, one item per entry") List<String> openTickets,
+        @Description("Recommendations for proactive support or account management, one item per entry") List<String> recommendations
+    ) {
     }
 }
