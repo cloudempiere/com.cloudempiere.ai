@@ -28,6 +28,7 @@ import org.compiere.model.MRole;
 import org.compiere.util.CLogger;
 import org.compiere.util.DB;
 import org.compiere.util.Env;
+import org.compiere.util.Trx;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -699,6 +700,10 @@ public class SecureDatabaseQueryExecutor {
 
     /**
      * Execute query with timeout
+     * <p>
+     * Runs on a dedicated connection forced into JDBC read-only mode, so the
+     * database itself rejects any write regardless of what {@link #validateReadOnlySQL(String)}
+     * missed. The transaction is always rolled back/closed, never committed.
      */
     private void executeWithTimeout(
         Properties ctx,
@@ -706,11 +711,16 @@ public class SecureDatabaseQueryExecutor {
         int timeoutMs,
         SecureQueryResult result
     ) {
+        Trx trx = null;
         PreparedStatement pstmt = null;
         ResultSet rs = null;
 
         try {
-            pstmt = DB.prepareStatement(sql, null);
+            String trxName = Trx.createTrxName("AIReadOnlyQuery");
+            trx = Trx.get(trxName, false);
+            trx.getConnection().setReadOnly(true);
+
+            pstmt = DB.prepareStatement(sql, trxName);
             pstmt.setQueryTimeout(timeoutMs / 1000); // Convert to seconds
 
             long queryStartTime = System.currentTimeMillis();
@@ -753,11 +763,16 @@ public class SecureDatabaseQueryExecutor {
             result.setRowCount(rowCount);
 
         } catch (java.sql.SQLTimeoutException e) {
+            if (trx != null) trx.rollback();
             throw new RuntimeException("Query timeout exceeded", e);
         } catch (Exception e) {
+            if (trx != null) trx.rollback();
             throw new RuntimeException("Query execution failed: " + e.getMessage(), e);
         } finally {
             DB.close(rs, pstmt);
+            if (trx != null) {
+                trx.close();
+            }
         }
     }
 
