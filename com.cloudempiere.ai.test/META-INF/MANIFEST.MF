@@ -12,6 +12,8 @@ Bundle-RequiredExecutionEnvironment: JavaSE-17
 Automatic-Module-Name: com.cloudempiere.ai.test
 Import-Package: dev.langchain4j.model.chat;version="[1.20.0,2.0.0)",
  org.assertj.core.api;version="3.22.0",
+ org.assertj.core.api.iterable;version="3.22.0",
+ org.assertj.core.data;version="3.22.0",
  org.junit.jupiter.api;version="5.6.0",
  org.junit.jupiter.api.extension;version="5.6.0",
  org.junit.jupiter.api.function;version="5.6.0",
