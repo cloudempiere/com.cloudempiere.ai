@@ -7,7 +7,6 @@ import java.util.Properties;
 
 import org.compiere.model.MRole;
 import org.compiere.model.Query;
-import org.compiere.model.X_AD_Role;
 import org.compiere.util.CCache;
 import org.compiere.util.Env;
 
@@ -20,6 +19,15 @@ import com.cloudempiere.ai.provider.langchain4j.IAIProviderConfig;
  * Supports caching for performance.
  */
 public class MAIProvider extends X_AIG_Provider implements IAIProviderConfig {
+
+	/** AD_Role column added by CloudEmpiere (not in upstream iDempiere); read by name so this plugin runs on any core */
+	public static final String COLUMNNAME_AIAccessLevel = "AIAccessLevel";
+	/** AIAccessLevel = All */
+	public static final String AIACCESSLEVEL_All = "A";
+	/** AIAccessLevel = None */
+	public static final String AIACCESSLEVEL_None = "N";
+	/** AIAccessLevel = User/Role access */
+	public static final String AIACCESSLEVEL_UserRoleAccess = "R";
 
 	private static final long serialVersionUID = -8293759018862021378L;
 
@@ -108,14 +116,15 @@ public class MAIProvider extends X_AIG_Provider implements IAIProviderConfig {
 	 */
 	public static MAIProvider getForUser(Properties ctx, String trxName) {
 		MRole role = MRole.getDefault(ctx, false);
-		String accessLevel = role != null ? role.getAIAccessLevel() : null;
+		String accessLevel = role != null && role.get_ColumnIndex(COLUMNNAME_AIAccessLevel) >= 0
+				? (String) role.get_Value(COLUMNNAME_AIAccessLevel) : null;
 		if (accessLevel == null)
-			accessLevel = X_AD_Role.AIACCESSLEVEL_None;
+			accessLevel = AIACCESSLEVEL_None;
 
-		if (X_AD_Role.AIACCESSLEVEL_None.equals(accessLevel))
+		if (AIACCESSLEVEL_None.equals(accessLevel))
 			return null;
 
-		if (X_AD_Role.AIACCESSLEVEL_UserRoleAccess.equals(accessLevel)) {
+		if (AIACCESSLEVEL_UserRoleAccess.equals(accessLevel)) {
 			// role is non-null here: null role → null accessLevel → defaulted to None above
 			int userId = Env.getAD_User_ID(ctx);
 			return getAccessibleProvider(ctx, role.getAD_Role_ID(), userId, trxName);
