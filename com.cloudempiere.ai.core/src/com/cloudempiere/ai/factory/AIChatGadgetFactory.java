@@ -76,7 +76,37 @@ public class AIChatGadgetFactory implements IDashboardGadgetFactory {
     private static final CLogger log = CLogger.getCLogger(AIChatGadgetFactory.class);
 
     /**
-     * Get gadget component for the given URI.
+     * Get gadget component for the given URI (upstream iDempiere signature).
+     *
+     * <p>Both {@code getGadget} variants are declared without {@code @Override}: this one is the
+     * abstract method of upstream's {@link IDashboardGadgetFactory}; the variant with a {@code Map}
+     * argument is the abstract method of the iDempiereCLDE fork's modified interface. Implementing
+     * both lets this plugin build and run against either core, so it does not have to be released
+     * together with the core change that restores upstream's signature.
+     *
+     * @param uri Gadget URI (e.g., "ai-chat")
+     * @param parent Parent component (used to find sibling panels for collapse behavior)
+     * @return Fully configured Panel with AIChatWidget, or null if not available
+     */
+    public org.zkoss.zk.ui.Component getGadget(String uri, org.zkoss.zk.ui.Component parent) {
+        return createGadget(uri, parent);
+    }
+
+    /**
+     * Get gadget component for the given URI (iDempiereCLDE fork signature, {@code arg} unused).
+     * Remove once every supported core has upstream's {@link IDashboardGadgetFactory} again.
+     *
+     * @param uri Gadget URI (e.g., "ai-chat")
+     * @param parent Parent component
+     * @param arg Additional arguments (unused)
+     * @return Fully configured Panel with AIChatWidget, or null if not available
+     */
+    public org.zkoss.zk.ui.Component getGadget(String uri, org.zkoss.zk.ui.Component parent, Map<?, ?> arg) {
+        return createGadget(uri, parent);
+    }
+
+    /**
+     * Build the AI chat gadget.
      *
      * <p>Returns a fully configured {@link Panel} containing the {@link AIChatWidget}.
      * The panel includes all styling, event handlers, and configuration that was
@@ -84,11 +114,9 @@ public class AIChatGadgetFactory implements IDashboardGadgetFactory {
      *
      * @param uri Gadget URI (e.g., "ai-chat")
      * @param parent Parent component (used to find sibling panels for collapse behavior)
-     * @param arg Additional arguments (unused)
      * @return Fully configured Panel with AIChatWidget, or null if not available
      */
-    @Override
-    public org.zkoss.zk.ui.Component getGadget(String uri, org.zkoss.zk.ui.Component parent, Map<?, ?> arg) {
+    private org.zkoss.zk.ui.Component createGadget(String uri, org.zkoss.zk.ui.Component parent) {
         if (!AI_CHAT_URI.equals(uri)) {
             return null;
         }

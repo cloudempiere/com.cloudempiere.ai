@@ -16,12 +16,15 @@ package com.cloudempiere.ai.context.impl;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
+import java.util.List;
 import java.util.Properties;
 import java.util.logging.Level;
 
-import org.adempiere.apps.graph.model.ChartDatasource;
-import org.cloudempiere.model.core.I_AD_Chart_Para;
 import org.compiere.model.MChart;
+import org.compiere.model.MChartDatasource;
+import org.compiere.model.MTable;
+import org.compiere.model.PO;
+import org.compiere.model.Query;
 import org.compiere.util.CLogger;
 import org.compiere.util.DB;
 import org.compiere.util.Env;
@@ -58,6 +61,9 @@ import com.cloudempiere.ai.context.IAIContextProvider;
  */
 public class ChartContextProvider implements IAIContextProvider {
 
+    /** CloudEmpiere chart parameter table (not part of upstream iDempiere) */
+    private static final String TABLE_CHART_PARA = "AD_Chart_Para";
+
     private static final CLogger log = CLogger.getCLogger(ChartContextProvider.class);
 
     /** Maximum rows to include in context */
@@ -86,8 +92,8 @@ public class ChartContextProvider implements IAIContextProvider {
                 throw new IllegalArgumentException("chartId parameter is required");
             }
 
-            MChart chart = MChart.get(ctx, chartId);
-            if (chart == null) {
+            MChart chart = new MChart(ctx, chartId, null);
+            if (chart.getAD_Chart_ID() != chartId) {
                 throw new IllegalArgumentException("Chart not found: " + chartId);
             }
 
@@ -276,16 +282,23 @@ public class ChartContextProvider implements IAIContextProvider {
     ) {
         JSONArray parameters = new JSONArray();
 
-        I_AD_Chart_Para[] chartParas = chart.getParameters();
-        if (chartParas != null && chartParas.length > 0) {
-            for (I_AD_Chart_Para para : chartParas) {
+        // AD_Chart_Para is a CloudEmpiere table: read it generically so this plugin
+        // also runs on a core without the chart-parameter API (MChart.getParameters).
+        if (MTable.get(ctx, TABLE_CHART_PARA) != null) {
+            List<PO> chartParas = new Query(ctx, TABLE_CHART_PARA, "AD_Chart_ID=?", chart.get_TrxName())
+                .setParameters(chart.getAD_Chart_ID())
+                .setOnlyActiveRecords(true)
+                .setOrderBy("SeqNo")
+                .list();
+            for (PO para : chartParas) {
+                String columnName = para.get_ValueAsString("ColumnName");
                 JSONObject paramObj = new JSONObject();
-                paramObj.put("name", para.getName());
-                paramObj.put("column_name", para.getColumnName());
-                paramObj.put("reference_id", para.getAD_Reference_ID());
+                paramObj.put("name", para.get_ValueAsString("Name"));
+                paramObj.put("column_name", columnName);
+                paramObj.put("reference_id", para.get_ValueAsInt("AD_Reference_ID"));
 
                 // Get actual value from context
-                String value = Env.getContext(ctx, windowNo, para.getColumnName());
+                String value = Env.getContext(ctx, windowNo, columnName);
                 paramObj.put("value", value);
 
                 parameters.put(paramObj);
@@ -304,9 +317,17 @@ public class ChartContextProvider implements IAIContextProvider {
     ) {
         JSONArray datasources = new JSONArray();
 
-        ChartDatasource[] chartDatasources = chart.getDatasources();
-        if (chartDatasources != null && chartDatasources.length > 0) {
-            for (ChartDatasource ds : chartDatasources) {
+        // Query the datasources directly: MChart.getDatasources() returns List<MChartDatasource>
+        // upstream and ChartDatasource[] in the iDempiereCLDE fork. Real datasources only; a
+        // comparison chart's virtual periods stay visible through its CompareChartDatasource parameter.
+        Query query = new Query(chart.getCtx(), MChartDatasource.Table_Name, "AD_Chart_ID=?", chart.get_TrxName())
+            .setParameters(chart.getAD_Chart_ID())
+            .setOnlyActiveRecords(true);
+        if (MTable.get(chart.getCtx(), MChartDatasource.Table_Name).getColumn("SeqNo") != null)
+            query.setOrderBy("SeqNo");
+        List<MChartDatasource> chartDatasources = query.list();
+        if (!chartDatasources.isEmpty()) {
+            for (MChartDatasource ds : chartDatasources) {
                 JSONObject dsObj = new JSONObject();
                 dsObj.put("id", ds.getAD_ChartDatasource_ID());
                 dsObj.put("name", ds.get_Translation("Name"));
