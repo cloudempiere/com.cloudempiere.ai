@@ -92,8 +92,8 @@ public class ChartContextProvider implements IAIContextProvider {
                 throw new IllegalArgumentException("chartId parameter is required");
             }
 
-            MChart chart = MChart.get(ctx, chartId);
-            if (chart == null) {
+            MChart chart = new MChart(ctx, chartId, null);
+            if (chart.getAD_Chart_ID() != chartId) {
                 throw new IllegalArgumentException("Chart not found: " + chartId);
             }
 
