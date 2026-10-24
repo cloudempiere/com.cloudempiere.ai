@@ -306,48 +306,11 @@ public class SecureDatabaseQueryExecutor {
     }
 
     /**
-     * Validate SQL is SELECT only (no INSERT, UPDATE, DELETE, DROP, etc.)
+     * Validate SQL is a single read-only SELECT. This is the second layer; the first is the read-only transaction
+     * in {@link #executeWithTimeout}. The rules live in {@link ReadOnlySqlValidator} so they can be tested on their own.
      */
     private void validateReadOnlySQL(String sql) {
-        if (sql == null || sql.trim().isEmpty()) {
-            throw new IllegalArgumentException("SQL query is required");
-        }
-
-        String upperSQL = sql.trim().toUpperCase();
-
-        // Must start with SELECT
-        if (!upperSQL.startsWith("SELECT")) {
-            throw new SecurityException("Only SELECT queries are allowed");
-        }
-
-        // Forbidden keywords
-        String[] forbidden = {
-            "INSERT", "UPDATE", "DELETE", "DROP", "CREATE", "ALTER",
-            "TRUNCATE", "MERGE", "GRANT", "REVOKE", "EXECUTE",
-            "CALL", "EXEC"
-        };
-
-        for (String keyword : forbidden) {
-            if (upperSQL.contains(" " + keyword + " ") ||
-                upperSQL.contains(" " + keyword + "(") ||
-                upperSQL.endsWith(" " + keyword)) {
-                throw new SecurityException("Forbidden SQL keyword: " + keyword);
-            }
-        }
-
-        // No multiple statements (check if there's anything after semicolon besides whitespace)
-        int semicolonIndex = sql.indexOf(";");
-        if (semicolonIndex >= 0) {
-            String afterSemicolon = sql.substring(semicolonIndex + 1).trim();
-            if (!afterSemicolon.isEmpty()) {
-                throw new SecurityException("Multiple SQL statements not allowed");
-            }
-        }
-
-        // No comments that could hide malicious code
-        if (sql.contains("--") || sql.contains("/*")) {
-            throw new SecurityException("SQL comments not allowed");
-        }
+        ReadOnlySqlValidator.validate(sql);
     }
 
     /**
@@ -702,10 +665,6 @@ public class SecureDatabaseQueryExecutor {
 
     /**
      * Execute query with timeout
-     * <p>
-     * Runs on a dedicated connection forced into JDBC read-only mode, so the
-     * database itself rejects any write regardless of what {@link #validateReadOnlySQL(String)}
-     * missed. The transaction is always rolled back/closed, never committed.
      */
     private void executeWithTimeout(
         Properties ctx,
@@ -713,16 +672,25 @@ public class SecureDatabaseQueryExecutor {
         int timeoutMs,
         SecureQueryResult result
     ) {
-        Trx trx = null;
         PreparedStatement pstmt = null;
         ResultSet rs = null;
+        Trx trx = null;
 
         try {
-            String trxName = Trx.createTrxName("AIReadOnlyQuery");
-            trx = Trx.get(trxName, false);
-            trx.getConnection().setReadOnly(true);
+            // CLD-2355: run the query in a read-only transaction, so the DATABASE refuses any change (hengsin). This is
+            // the primary protection; validateReadOnlySQL is only a second layer. Fail closed: if the transaction
+            // cannot be made read-only, the query is not run at all (never fall back to the shared autocommit connection).
+            trx = Trx.get(Trx.createTrxName("AIQuery"), true);
+            java.sql.Connection conn = trx.getConnection();
+            if (conn == null) {
+                throw new IllegalStateException("No database connection for a read-only transaction");
+            }
+            conn.setReadOnly(true); // must come before the first statement of the transaction
+            if (!conn.isReadOnly()) {
+                throw new IllegalStateException("The database connection did not accept read-only mode");
+            }
 
-            pstmt = DB.prepareStatement(sql, trxName);
+            pstmt = DB.prepareStatement(sql, trx.getTrxName());
             pstmt.setQueryTimeout(timeoutMs / 1000); // Convert to seconds
 
             long queryStartTime = System.currentTimeMillis();
@@ -765,14 +733,14 @@ public class SecureDatabaseQueryExecutor {
             result.setRowCount(rowCount);
 
         } catch (java.sql.SQLTimeoutException e) {
-            if (trx != null) trx.rollback();
             throw new RuntimeException("Query timeout exceeded", e);
         } catch (Exception e) {
-            if (trx != null) trx.rollback();
             throw new RuntimeException("Query execution failed: " + e.getMessage(), e);
         } finally {
             DB.close(rs, pstmt);
             if (trx != null) {
+                // nothing to keep: end the read-only transaction; Trx.close() puts the connection back with readOnly=false
+                trx.rollback();
                 trx.close();
             }
         }
