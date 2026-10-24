@@ -23,6 +23,7 @@ import java.util.logging.Level;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.osgi.service.component.annotations.Component;
 import org.compiere.model.AccessSqlParser;
 import org.compiere.model.MRole;
 import org.compiere.util.CLogger;
@@ -71,6 +72,7 @@ import com.cloudempiere.ai.model.MAIQueryAudit;
  * @author Cloudempiere
  * @version 3.0
  */
+@Component(service = SecureDatabaseQueryExecutor.class)
 public class SecureDatabaseQueryExecutor {
 
     private static final CLogger log = CLogger.getCLogger(SecureDatabaseQueryExecutor.class);
