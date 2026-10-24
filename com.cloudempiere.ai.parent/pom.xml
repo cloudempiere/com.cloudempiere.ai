@@ -20,7 +20,8 @@
 		<!-- Which published P2 repo channel to consume (P2 repo, NOT a git branch). Override in CI: -Dcloudempiere.p2.channel=production -->
 		<cloudempiere.p2.channel>staging</cloudempiere.p2.channel>
 		<idempiere.core.repository.url>https://cloudempiere-p2.s3.eu-west-1.amazonaws.com/plugins/iDempiereCLDE/${cloudempiere.p2.channel}/latest/</idempiere.core.repository.url>
-		<cloudempiere.core.repository.url>https://cloudempiere-p2.s3.eu-west-1.amazonaws.com/plugins/com.cloudempiere.core/${cloudempiere.p2.channel}/latest/</cloudempiere.core.repository.url>
+		<!-- com.cloudempiere.core is built in iDempiereCLDE and ships in its composite (CLD-2379) -->
+		<cloudempiere.composite.repository.url>https://cloudempiere-p2.s3.eu-west-1.amazonaws.com/plugins/com.cloudempiere.composite/${cloudempiere.p2.channel}/latest/</cloudempiere.composite.repository.url>
 		<cloudempiere.aws.repository.url>https://cloudempiere-p2.s3.eu-west-1.amazonaws.com/plugins/com.cloudempiere.aws/${cloudempiere.p2.channel}/latest/</cloudempiere.aws.repository.url>
 		<junit.version>5.10.2</junit.version>
 		<mockito.version>5.11.0</mockito.version>
@@ -184,8 +185,8 @@
 					<layout>p2</layout>
 				</repository>
 				<repository>
-					<id>cloudempiere-core</id>
-					<url>${cloudempiere.core.repository.url}</url>
+					<id>cloudempiere-composite</id>
+					<url>${cloudempiere.composite.repository.url}</url>
 					<layout>p2</layout>
 				</repository>
 				<repository>
@@ -271,9 +272,6 @@
 	            <cloudempiere.workspace>${user.home}/github/idempiere-cloudempiere</cloudempiere.workspace>
 	            <idempiere.core.repository.url>file:///${cloudempiere.workspace}/iDempiereCLDE/core/org.idempiere.p2/target/repository</idempiere.core.repository.url>
 	            <cloudempiere.composite.repository.url>file:///${cloudempiere.workspace}/iDempiereCLDE/_composite/com.cloudempiere.composite.p2/target/repository</cloudempiere.composite.repository.url>
-	            <!-- Was missing: without this, cloudempiere-local still resolved com.cloudempiere.core.base
-	                 from S3 (stale v10-era build), conflicting with the local v14 core above. -->
-	            <cloudempiere.core.repository.url>file:///${cloudempiere.workspace}/com.cloudempiere.core/com.cloudempiere.core.extensions.p2/target/repository</cloudempiere.core.repository.url>
 	            <cloudempiere.aws.repository.url>file:///${cloudempiere.workspace}/com.cloudempiere.aws/com.cloudempiere.aws.p2/target/repository</cloudempiere.aws.repository.url>
 	        </properties>
 	    </profile>
