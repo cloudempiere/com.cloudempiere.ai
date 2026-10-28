@@ -554,7 +554,7 @@ public class AIService implements IAIService {
             String response;
 
             // Check if provider supports tools (non-streaming mode)
-            // All major providers including Ollama/Llama support tools in LangChain4j 0.35.0
+            // per-provider flag in LangChain4jProviderFactory
             if (supportsTools(provider)) {
                 // Use full agent with tools
                 ERPTools erpTools = new ERPTools(provider, ctx);
@@ -687,10 +687,10 @@ public class AIService implements IAIService {
         }
         log.log(Level.FINE, "[STREAM] Callback: OK");
 
-        // Check if provider supports streaming (Ollama/Llama has bug in LangChain4j 0.35.0)
+        // Check if provider supports streaming (off for Ollama/Llama, see LangChain4jProviderFactory)
         if (!supportsStreaming(provider)) {
             log.log(Level.FINE, "[STREAM] Provider " + provider.getAIGProviderType() +
-                    " doesn't support streaming in LangChain4j 0.35.0, falling back to batch mode");
+                    " is registered without streaming, falling back to batch mode");
             // Fall back to non-streaming batch mode
             chatBatchWithStreamingCallback(provider, chat, message, contextData, threadRootId, callback);
             return;
@@ -776,8 +776,6 @@ public class AIService implements IAIService {
             String sessionId = chat.getCM_Chat_ID() + "-" + memory.getCurrentThreadRootId();
 
             // Check if provider supports streaming tools
-            // Note: Ollama/Llama support tools in non-streaming mode only (LangChain4j 0.35.0)
-            // Streaming tools for Ollama requires LangChain4j 0.37.0+
             dev.langchain4j.service.TokenStream tokenStream = createStreamingTokenStream(
                 streamingModel, provider, ctx, chat, memory, processedMessage, sessionId, clientId, callback);
 
@@ -1313,8 +1311,8 @@ public class AIService implements IAIService {
     /**
      * Fallback batch chat method that emulates streaming callbacks.
      *
-     * <p>Used when the provider doesn't support streaming (e.g., Ollama in LangChain4j 0.35.0
-     * has a bug that causes NPE during streaming). This method uses the batch API but
+     * <p>Used when the provider is registered without streaming (Ollama: LangChain4j 0.35.0 threw an
+     * NPE while streaming; not re-tested on 1.20.0). This method uses the batch API but
      * calls the streaming callbacks to maintain UI compatibility.
      *
      * @param provider AI Provider configuration

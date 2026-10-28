@@ -40,7 +40,7 @@ import com.cloudempiere.ai.database.dto.ADTableMeta;
  * AI tool call.
  *
  * <p>Adapted from idempiere-hub's SchemaCache (Java 17/Quarkus) for
- * iDempiere's Java 11 / OSGi runtime. Uses a simple ConcurrentHashMap
+ * iDempiere's OSGi runtime. Uses a simple ConcurrentHashMap
  * instead of Quarkus CDI. Lazy-loaded on first access.
  *
  * <h3>Reference</h3>

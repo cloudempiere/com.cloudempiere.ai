@@ -7,6 +7,6 @@ Bundle-Vendor: CLOUDEMPIERE
 Fragment-Host: org.adempiere.ui.zk;bundle-version="[14.0.0,15.0.0)"
 Automatic-Module-Name: com.cloudempiere.ai.theme
 Bundle-RequiredExecutionEnvironment: JavaSE-17
-Require-Capability: osgi.ee;filter:="(&(osgi.ee=JavaSE)(version>=11))"
+Require-Capability: osgi.ee;filter:="(&(osgi.ee=JavaSE)(version>=17))"
 Jetty-WarFragmentFolderPath: /
 Bundle-ClassPath: .

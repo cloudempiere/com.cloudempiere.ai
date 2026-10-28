@@ -6,9 +6,9 @@ name: CI
 
 on:
   push:
-    branches: [master, develop, langchain]
+    branches: [master, develop, langchain, feat/idempiere-master-migration-2026]
   pull_request:
-    branches: [master, develop]
+    branches: [master, develop, feat/idempiere-master-migration-2026]
   workflow_dispatch:
     inputs:
       run_integration_tests:
@@ -21,7 +21,7 @@ on:
     - cron: '0 2 * * *'
 
 env:
-  JAVA_VERSION: '11'
+  JAVA_VERSION: '17'
   JAVA_DISTRIBUTION: 'corretto'
 
 jobs:
