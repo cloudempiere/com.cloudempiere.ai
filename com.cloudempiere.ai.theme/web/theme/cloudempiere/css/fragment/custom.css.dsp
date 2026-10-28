@@ -725,6 +725,12 @@
     min-width: 0 !important;
 }
 
+/* The panel fills the help column (vflex, AIChatGadgetFactory); open it stays usable on small screens, collapsed it
+   shrinks to its title bar */
+.ai-chat-panel:not(.z-panel-collapsed) {
+    min-height: 400px;
+}
+
 /* Compact tables; also overrides the inline padding in answers saved before (MarkdownTableRenderer) */
 .ai-markdown-content th,
 .ai-markdown-content td {
