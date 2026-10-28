@@ -1631,6 +1631,17 @@ public class AIService implements IAIService {
         int userID = ctx != null ? Env.getAD_User_ID(ctx) : 0;
         int configID = PromptProfileResolver.resolve(ctx, providerID, roleID, userID);
         String addendum = MAIPromptConfig.getPromptText(ctx, configID, null);
+        return appendAddendum(basePrompt, addendum);
+    }
+
+    /**
+     * Wraps the addendum in spotlighting delimiters and appends it to the base prompt (ADR-059).
+     *
+     * @param basePrompt base system prompt to append to
+     * @param addendum   resolved operator addendum, may be null
+     * @return the base prompt unchanged if the addendum is null or blank
+     */
+    public static String appendAddendum(String basePrompt, String addendum) {
         if (addendum == null || addendum.trim().isEmpty()) {
             return basePrompt;
         }
