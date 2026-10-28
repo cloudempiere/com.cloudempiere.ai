@@ -36,6 +36,7 @@ import org.json.JSONObject;
 import com.cloudempiere.ai.database.dto.SecureQueryRequest;
 import com.cloudempiere.ai.database.dto.SecureQueryResult;
 import com.cloudempiere.ai.model.MAIProvider;
+import com.cloudempiere.ai.util.AuthorisedUserContext;
 import com.cloudempiere.ai.model.MAIQueryAudit;
 
 /**
@@ -129,6 +130,12 @@ public class SecureDatabaseQueryExecutor {
         int aiUserId = -1;
 
         try {
+            // CLD-2432: ADR-007 guards the query with the requesting user's tenant and role; without a login in ctx
+            // they would read as 0, i.e. the System tenant and the System Administrator role
+            if (!AuthorisedUserContext.hasLogin(ctx)) {
+                throw new SecurityException("AI query without an authorised user: the context has no tenant, role or user");
+            }
+
             // 1. Load AI Provider and get designated AI User
             MAIProvider provider = new MAIProvider(ctx, request.getProviderId(), null);
             if (provider.get_ID() == 0) {

@@ -17,6 +17,7 @@ and this project adheres to [Conventional Commits](https://conventionalcommits.o
 
 **Fixed:**
 - AI chat memory trim no longer splits a tool call from its results; Bedrock rejected the request with "unexpected tool_use_id found in tool_result blocks" (CLD-2425)
+- AI chat: the AI's database access is guarded by the asking user's tenant and role again; on a background thread it could run as System or with another user's context. Without a logged-in user the panel denies the request (CLD-2432)
 - Language change requests by name ("respond in Slovak", "auf Deutsch", "en français") work again; the AD_Language rework had dropped the built-in names, only "English" still resolved (CLD-2426)
 - Japanese input is no longer detected as Chinese; Czech-only words win over words shared with Slovak (CLD-2426)
 - `run-unit-tests.sh` runs on v14: Java 17, iDempiereCLDE `core/` layout, bundle jars from `Bundle-ClassPath`, OSGi descriptors and Caffeine/SLF4J on the classpath, clean test-classes (CLD-2426)
