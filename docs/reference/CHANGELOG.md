@@ -16,7 +16,9 @@ and this project adheres to [Conventional Commits](https://conventionalcommits.o
 - None
 
 **Fixed:**
-- None
+- Language change requests by name ("respond in Slovak", "auf Deutsch", "en français") work again; the AD_Language rework had dropped the built-in names, only "English" still resolved
+- Japanese input is no longer detected as Chinese; Czech-only words win over words shared with Slovak
+- `run-unit-tests.sh` runs on v14: Java 17, iDempiereCLDE `core/` layout, bundle jars from `Bundle-ClassPath`, OSGi descriptors and Caffeine/SLF4J on the classpath, clean test-classes
 
 **Removed:**
 - None

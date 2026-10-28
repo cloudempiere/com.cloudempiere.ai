@@ -568,7 +568,11 @@ class LanguageDetectionServiceTest {
             "comment allez-vous aujourd'hui?, fr_FR",
             "come stai oggi?, it_IT",
             "prosím pomôžte mi, sk_SK",
-            "prosím pomozte mi, cs_CZ",
+            "prosím jak to funguje, cs_CZ",
+            // only words shared by Slovak and Czech: stays Slovak
+            "prosím o zoznam faktúr, sk_SK",
+            // a Czech-only word beats the shared ones
+            "kde je faktura jsem tady, cs_CZ",
             "proszę pomóż mi, pl_PL",
             "kérem segítsen nekem, hu_HU"
         })
@@ -587,6 +591,8 @@ class LanguageDetectionServiceTest {
         @CsvSource({
             "Привет как дела?, ru_RU",
             "こんにちは、お元気ですか？, ja_JP",
+            "注文を確認してください, ja_JP",
+            "请帮我查一下订单, zh_CN",
             "안녕하세요 잘 지내세요?, ko_KR",
             "Γεια σας πώς είστε?, el_GR"
         })
@@ -693,12 +699,19 @@ class LanguageDetectionServiceTest {
         @UnitTest
         @DisplayName("Language.getLanguage() fallback works for ISO codes")
         void shouldHandleISOCodes() {
-            // Test with ISO language codes
-            Optional<String> detected = service.detectLanguageChangeRequest("respond in de");
+            // bare ISO codes resolve for installed languages (AD_Language.LanguageISO); English always is
+            Optional<String> detected = service.detectLanguageChangeRequest("respond in en");
 
-            // Language.getLanguage() should handle this
             assertThat(detected).isPresent();
-            assertThat(detected.get()).isEqualTo("de_DE");
+            assertThat(detected.get()).isEqualTo("en_US");
+        }
+
+        @Test
+        @UnitTest
+        @DisplayName("Common words that are ISO codes do not switch the language")
+        void shouldNotTreatWordsAsISOCodes() {
+            // "it" is Italian's ISO code; built-in ISO aliases would make this a language switch
+            assertThat(service.detectLanguageChangeRequest("can you use it")).isEmpty();
         }
 
         @Test
