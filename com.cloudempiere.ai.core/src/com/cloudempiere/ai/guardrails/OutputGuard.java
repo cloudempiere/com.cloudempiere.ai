@@ -53,6 +53,9 @@ public class OutputGuard implements OutputGuardrail {
 
     private static final CLogger log = CLogger.getCLogger(OutputGuard.class);
 
+    private static final String DISCLAIMER = "[Note: This response may contain estimates or unverified information. " +
+        "Please verify critical data against source systems.]";
+
     /** Whether to flag hallucination indicators */
     private boolean flagHallucinations = true;
 
@@ -92,40 +95,13 @@ public class OutputGuard implements OutputGuardrail {
         if (output == null || output.isEmpty()) {
             return GuardResult.pass(output);
         }
-
-        List<String> violations = new ArrayList<>();
-        String processedOutput = output;
-
-        if (blockCredentialLeakage) {
-            List<String> leakTypes = CredentialLeakDetector.detect(output);
-            if (!leakTypes.isEmpty()) {
-                violations.addAll(leakTypes);
-                log.warning("Blocked output with credential leakage: " + leakTypes);
-                return GuardResult.block(
-                    "Output contains sensitive credentials that cannot be displayed",
-                    violations, "CREDENTIAL_LEAK"
-                );
-            }
+        GuardResult fragment = validateFragment(output);
+        if (fragment.getAction() == GuardResult.Action.BLOCK) {
+            return fragment;
         }
 
-        List<String> harmfulTypes = HarmfulContentDetector.detect(output);
-        if (!harmfulTypes.isEmpty()) {
-            violations.addAll(harmfulTypes);
-            log.warning("Blocked harmful output: " + harmfulTypes);
-            return GuardResult.block(
-                "Output contains potentially harmful content",
-                violations, "HARMFUL_CONTENT"
-            );
-        }
-
-        if (maskInternalIds) {
-            InternalIdMasker.Result masking = InternalIdMasker.mask(processedOutput);
-            if (masking.wasMasked) {
-                processedOutput = masking.maskedOutput;
-                violations.add("Internal ID");
-            }
-        }
-
+        List<String> violations = new ArrayList<>(fragment.getViolations());
+        String processedOutput = fragment.getProcessedContent();
         if (flagHallucinations) {
             List<String> indicators = HallucinationDetector.detect(processedOutput);
             if (!indicators.isEmpty()) {
@@ -138,8 +114,65 @@ public class OutputGuard implements OutputGuardrail {
             log.fine("Output modified: " + violations);
             return GuardResult.mask(processedOutput, violations);
         }
-
         return GuardResult.pass(processedOutput);
+    }
+
+    /**
+     * Checks a piece of output on its own: blocks credential leaks and harmful content, masks internal IDs. No
+     * hallucination disclaimer, which needs the whole answer ({@link #disclaimerFor(String)}). Used on each line of a
+     * streamed answer (CLD-2436), so the detectors must match within a line.
+     *
+     * @param fragment part of the LLM output, e.g. one line
+     * @return BLOCK, MASK with the masked text, or PASS
+     */
+    public GuardResult validateFragment(String fragment) {
+        if (fragment == null || fragment.isEmpty()) {
+            return GuardResult.pass(fragment);
+        }
+
+        if (blockCredentialLeakage) {
+            List<String> leakTypes = CredentialLeakDetector.detect(fragment);
+            if (!leakTypes.isEmpty()) {
+                log.warning("Blocked output with credential leakage: " + leakTypes);
+                return GuardResult.block(
+                    "Output contains sensitive credentials that cannot be displayed",
+                    new ArrayList<>(leakTypes), "CREDENTIAL_LEAK"
+                );
+            }
+        }
+
+        List<String> harmfulTypes = HarmfulContentDetector.detect(fragment);
+        if (!harmfulTypes.isEmpty()) {
+            log.warning("Blocked harmful output: " + harmfulTypes);
+            return GuardResult.block(
+                "Output contains potentially harmful content",
+                new ArrayList<>(harmfulTypes), "HARMFUL_CONTENT"
+            );
+        }
+
+        if (maskInternalIds) {
+            InternalIdMasker.Result masking = InternalIdMasker.mask(fragment);
+            if (masking.wasMasked) {
+                List<String> violations = new ArrayList<>();
+                violations.add("Internal ID");
+                return GuardResult.mask(masking.maskedOutput, violations);
+            }
+        }
+        return GuardResult.pass(fragment);
+    }
+
+    /**
+     * The note to show with a complete answer that contains estimates or unverified claims.
+     *
+     * @param output the complete answer
+     * @return the note, or null when the answer needs none (or flagging is off)
+     */
+    public String disclaimerFor(String output) {
+        if (!flagHallucinations || output == null || output.isEmpty()
+                || HallucinationDetector.detect(output).isEmpty()) {
+            return null;
+        }
+        return DISCLAIMER;
     }
 
     /**
@@ -149,8 +182,7 @@ public class OutputGuard implements OutputGuardrail {
         if (output.startsWith("[Note:")) {
             return output;
         }
-        return "[Note: This response may contain estimates or unverified information. " +
-               "Please verify critical data against source systems.]\n\n" + output;
+        return DISCLAIMER + "\n\n" + output;
     }
 
     public void setFlagHallucinations(boolean flagHallucinations) {

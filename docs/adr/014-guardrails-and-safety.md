@@ -40,7 +40,7 @@ AI agents that can execute actions in ERP systems (create orders, process paymen
 
 The decision will be confirmed when:
 - [x] `InputGuard` active in all chat paths — called in `AIService` before sending to LLM (guarded by `guardrailsEnabled=true` default)
-- [x] `OutputGuard` active in all chat paths — called in `AIService` after receiving LLM response
+- [x] `OutputGuard` active in all chat paths — non-streaming agents via `@OutputGuardrails`; the streaming chat line by line via `GuardedStreamCallback` (see below)
 - [ ] `ExecutionGuard` enforces risk-based routing — **class fully implemented** (`guardrails/ExecutionGuard.java`, risk levels LOW/MEDIUM/HIGH/CRITICAL) but **not called** from any tool execution path; no callers in `AIService` or `ERPTools`
 - [x] `InputGuard` and `OutputGuard` integrated into `AIService` — **active**
 - [ ] `ExecutionGuard` integrated into tool execution — **NOT DONE**
@@ -49,6 +49,26 @@ The decision will be confirmed when:
 - [ ] Integration test: Order >$10,000 triggers approval workflow — **not implemented**
 
 > **Note:** Unit tests are temporarily in `src-temp/test/java/com/cloudempiere/ai/guardrails/`. These need to be moved to the standard test source directory when Maven test configuration is fixed.
+
+### Output guard on streamed answers (2026-10-28, CLD-2436)
+
+LangChain4j 1.x `@OutputGuardrails` on a streaming AI service (`TokenStream`) holds back every token in
+`AiServiceStreamingResponseHandler.responseBuffer` until the complete answer has been validated, then releases the
+**original** tokens. With it on `ERPStreamingAgent`/`SimpleStreamingAgent` (since 14a537f, 2026-09-23) the chat
+showed nothing while the model wrote and the whole answer at once at the end; the guard's masking and hallucination
+note never reached the screen (only BLOCK worked).
+
+The streaming agents no longer carry `@OutputGuardrails`. `AIService` wraps the UI callback in
+`GuardedStreamCallback`, which holds back only the current unfinished line:
+
+- each completed line goes through `OutputGuard.validateFragment` (credential leak and harmful content → BLOCK,
+  internal IDs → masked) and is shown at once; text pending before a tool step is released first;
+- a blocked line is never shown: the answer ends with the content-filter error, the lines before it passed the same
+  check;
+- the hallucination note (`OutputGuard.disclaimerFor`) follows the complete answer instead of preceding it.
+
+The detectors match within a line, so the line-by-line check finds what the whole-answer check found. The
+non-streaming agents keep `@OutputGuardrails` (`OutputGuard.validate`, unchanged).
 
 ## Pros and Cons of the Options
 

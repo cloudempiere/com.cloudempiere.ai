@@ -27,6 +27,7 @@ import org.osgi.service.component.annotations.Reference;
 import org.osgi.service.component.annotations.ReferenceCardinality;
 import org.osgi.service.component.annotations.ReferencePolicy;
 
+import com.cloudempiere.ai.guardrails.GuardedStreamCallback;
 import com.cloudempiere.ai.guardrails.InputGuard;
 import com.cloudempiere.ai.guardrails.OutputGuard;
 import com.cloudempiere.ai.guardrails.dto.GuardResult;
@@ -776,9 +777,13 @@ public class AIService implements IAIService {
             // Build session ID for the agent
             String sessionId = chat.getCM_Chat_ID() + "-" + memory.getCurrentThreadRootId();
 
+            // Output guard per line, not LangChain4j's @OutputGuardrails: that holds back every token until the answer
+            // is complete and then shows the unmasked tokens (CLD-2436)
+            final AIStreamCallback streamCallback = new GuardedStreamCallback(callback, new OutputGuard());
+
             // Check if provider supports streaming tools
             dev.langchain4j.service.TokenStream tokenStream = createStreamingTokenStream(
-                streamingModel, provider, ctx, chat, memory, processedMessage, sessionId, clientId, callback);
+                streamingModel, provider, ctx, chat, memory, processedMessage, sessionId, clientId, streamCallback);
 
             // Wire up TokenStream callbacks
             tokenStream
@@ -786,7 +791,7 @@ public class AIService implements IAIService {
                     log.log(Level.FINE, "[STREAM] onPartialResponse: " + (token != null ? token.length() : 0) + " chars");
                     responseAccumulator.get().append(token);
                     try {
-                        callback.onChunk(token);
+                        streamCallback.onChunk(token);
                     } catch (Exception e) {
                         log.severe("[STREAM] Error in onChunk callback: " + e.getMessage());
                     }
@@ -794,11 +799,11 @@ public class AIService implements IAIService {
                 .onCompleteResponse(response -> handleStreamCompletion(response, responseAccumulator, memory,
                     new StreamMetricsContext(streamingStartTime, metricsUserId, metricsRoleId, metricsProviderId,
                         metricsModelName, metricsSessionId, metricsCtx, metricsInputMessage),
-                    callback))
+                    streamCallback))
                 .onError(error -> {
                     log.severe("[STREAM] onError: " + error.getClass().getName() + ": " + error.getMessage());
                     try {
-                        callback.onError(new Exception(error.getMessage(), error));
+                        streamCallback.onError(new Exception(error.getMessage(), error));
                     } catch (Exception e) {
                         log.severe("[STREAM] Error in onError callback: " + e.getMessage());
                     }
