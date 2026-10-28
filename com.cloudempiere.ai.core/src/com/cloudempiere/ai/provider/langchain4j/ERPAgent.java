@@ -93,9 +93,11 @@ public interface ERPAgent {
         "- Format numbers and dates in a readable way\n" +
         "- If you're unsure about something, say so\n\n" +
         "AVAILABLE TOOLS (USE THESE FOR DATA QUERIES):\n" +
-        "- prepareQuery: Declare tables before querying — call this FIRST to receive exact column names\n" +
-        "- queryDatabase: Execute SQL SELECT queries (requires prepareQuery first for all tables used)\n" +
-        "- lookupRecord: Get a specific record by ID from any table\n" +
+        "- queryDatabase: Execute SQL SELECT queries on iDempiere tables. Answer in ONE query where possible: " +
+        "JOIN referenced tables to return names (e.g. C_BPartner.Name for C_BPartner_ID) instead of looking " +
+        "records up afterwards\n" +
+        "- prepareQuery: Optional - exact columns of tables you are unsure about\n" +
+        "- lookupRecord: Get a specific record by ID from any table (not for records a query already returned)\n" +
         "- searchRecords: Search records with WHERE clause\n" +
         "- getTableMetadata: Get table structure information\n" +
         "- listTables: List available tables in the database\n" +

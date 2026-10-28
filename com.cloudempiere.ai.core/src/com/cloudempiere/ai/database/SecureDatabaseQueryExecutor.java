@@ -168,8 +168,19 @@ public class SecureDatabaseQueryExecutor {
             // 4. Validate SQL is read-only (no DML/DDL)
             validateReadOnlySQL(request.getSql());
 
-            // 5. Extract table info (names and aliases) from query
-            List<TableInfoHolder> tableInfoList = extractTableInfo(request.getSql());
+            // 5. Strip trailing clauses (ORDER BY, GROUP BY, HAVING, LIMIT) first: AccessSqlParser reads everything
+            // after FROM as the table list when there is no WHERE, so "FROM C_Order ORDER BY ..." gave table C_Order
+            // with alias "ORDER" and the access filter "ORDER.AD_Client_ID" (CLD-2433). addAccessSQL() also needs
+            // the SQL without them (step 8).
+            String sqlWithoutTrailingClauses = request.getSql();
+            TrailingClauses extractedClauses = extractAndStripTrailingClauses(sqlWithoutTrailingClauses);
+            if (extractedClauses != null) {
+                sqlWithoutTrailingClauses = extractedClauses.sqlWithoutTrailingClauses;
+                log.fine("Stripped trailing clauses from SQL: " + extractedClauses.getAllClauses());
+            }
+
+            // Extract table info (names and aliases) from the query without trailing clauses
+            List<TableInfoHolder> tableInfoList = extractTableInfo(sqlWithoutTrailingClauses);
 
             // Build table names list for audit logging
             List<String> tableNames = new ArrayList<>();
@@ -196,15 +207,6 @@ public class SecureDatabaseQueryExecutor {
                               System.currentTimeMillis() - startTime, loggedInUserId);
                     throw new SecurityException(error);
                 }
-            }
-
-            // 7. Extract trailing clauses (ORDER BY, GROUP BY, HAVING, LIMIT) from AI-generated SQL
-            // This prevents malformed SQL when addAccessSQL() appends WHERE conditions
-            String sqlWithoutTrailingClauses = request.getSql();
-            TrailingClauses extractedClauses = extractAndStripTrailingClauses(sqlWithoutTrailingClauses);
-            if (extractedClauses != null) {
-                sqlWithoutTrailingClauses = extractedClauses.sqlWithoutTrailingClauses;
-                log.fine("Stripped trailing clauses from SQL: " + extractedClauses.getAllClauses());
             }
 
             // 8. Apply logged-in user's role-based security SQL injection
