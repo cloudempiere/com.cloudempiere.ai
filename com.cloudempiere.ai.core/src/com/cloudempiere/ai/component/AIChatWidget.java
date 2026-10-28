@@ -31,6 +31,7 @@ import org.compiere.model.MChatEntry;
 import org.compiere.model.MQuery;
 import org.compiere.model.MTable;
 import org.compiere.model.MUser;
+import org.compiere.Adempiere;
 import org.compiere.util.CLogger;
 import org.compiere.util.DisplayType;
 import org.compiere.util.Env;
@@ -74,6 +75,7 @@ import com.cloudempiere.ai.provider.dto.AIStreamCallback;
 import com.cloudempiere.ai.provider.langchain4j.AIService;
 import com.cloudempiere.ai.provider.langchain4j.AIService.ChatResult;
 import com.cloudempiere.ai.provider.langchain4j.IAIService;
+import com.cloudempiere.ai.util.AuthorisedUserContext;
 
 /**
  * AI Chat Widget Component
@@ -259,6 +261,10 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 
 	/** Session context (captured at initialization to preserve user's session info) */
 	private Properties sessionCtx;
+
+	/** CLD-2432: shown when the request has no authorised user to guard the AI's data access with (ADR-007) */
+	private static final String ACCESS_DENIED_NO_USER =
+		"AI access denied: no logged-in user in this session. Please log in again.";
 
 	/** Current user's access level to the chat (ADR-036) */
 	private ChatAccess currentAccess = ChatAccess.OWNER;
@@ -1198,8 +1204,20 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 		streamingInProgress = true;
 		showStopButton();
 
+		// CLD-2432: the AI runs on other threads, where sessionCtx (a thread-bound wrapper) is not this user's
+		// context; ADR-007 guards its database scope with this user's tenant and role, so it gets a copy
+		final Properties requestCtx = AuthorisedUserContext.capture();
+		if (!AuthorisedUserContext.hasLogin(requestCtx)) {
+			// no authorised user to guard the AI's scope with: deny instead of running as System
+			log.warning("AI Chat: no authorised user in the session context, request denied");
+			streamingInProgress = false;
+			showSendButton();
+			handleErrorResponse(desktop, new SecurityException(ACCESS_DENIED_NO_USER), threadRootIdSnapshot, null, message);
+			return;
+		}
+
 		// Resolve provider before entering try — null means access is denied, not an error
-		final MAIProvider provider = MAIProvider.getForUser(sessionCtx, null);
+		final MAIProvider provider = MAIProvider.getForUser(requestCtx, null);
 		if (provider == null) {
 			log.warning("AI Chat: no accessible provider for current role/user");
 			streamingInProgress = false;
@@ -1213,9 +1231,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 		// Get MAIChat
 		final MAIChat aiChat;
 		try {
-			aiChat = (chat instanceof MAIChat) ?
-				(MAIChat) chat :
-				new MAIChat(sessionCtx, chat.getCM_Chat_ID(), null);
+			aiChat = new MAIChat(requestCtx, chat.getCM_Chat_ID(), null);
 		} catch (Exception e) {
 			log.log(Level.SEVERE, "Failed to initialize streaming", e);
 			streamingInProgress = false;
@@ -1491,7 +1507,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 		log.warning("[UI-STREAM] provider: " + (provider != null ? provider.getName() : "NULL!"));
 		log.warning("[UI-STREAM] aiChat: " + (aiChat != null ? aiChat.getCM_Chat_ID() : "NULL!"));
 
-		currentRequest = CompletableFuture.runAsync(() -> {
+		currentRequest = CompletableFuture.runAsync(AuthorisedUserContext.runAs(requestCtx, () -> {
 			log.warning("[UI-STREAM] Async task started, calling chatStreamingWithContext...");
 			try {
 				if (langchainService == null) {
@@ -1517,7 +1533,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 				t.printStackTrace();
 				callback.onError(new Exception("Unexpected error: " + t.getMessage(), t));
 			}
-		});
+		}), Adempiere.getThreadPoolExecutor());
 	}
 
 	/**
@@ -1527,9 +1543,17 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 	private void sendMessageLangChain4jBatch(String message, JSONObject contextSnapshot,
 			int threadRootIdSnapshot, Desktop desktop) {
 
-		CompletableFuture.runAsync(() -> {
+		// CLD-2432: taken here, on the UI thread; see sendMessageLangChain4jStreaming
+		final Properties requestCtx = AuthorisedUserContext.capture();
+		if (!AuthorisedUserContext.hasLogin(requestCtx)) {
+			log.warning("AI Chat: no authorised user in the session context, request denied");
+			handleErrorResponse(desktop, new SecurityException(ACCESS_DENIED_NO_USER), threadRootIdSnapshot, null, message);
+			return;
+		}
+
+		CompletableFuture.runAsync(AuthorisedUserContext.runAs(requestCtx, () -> {
 			// Resolve provider before entering try — null means access is denied, not an error
-			MAIProvider provider = MAIProvider.getForUser(sessionCtx, null);
+			MAIProvider provider = MAIProvider.getForUser(requestCtx, null);
 			if (provider == null) {
 				log.warning("AI Chat: no accessible provider for current role/user");
 				handleErrorResponse(desktop,
@@ -1539,9 +1563,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 			}
 			try {
 				// Get MAIChat instance
-				MAIChat aiChat = (chat instanceof MAIChat) ?
-					(MAIChat) chat :
-					new MAIChat(sessionCtx, chat.getCM_Chat_ID(), null);
+				MAIChat aiChat = new MAIChat(requestCtx, chat.getCM_Chat_ID(), null);
 
 				// Call LangChain4j service with context
 				// Session ID combines chat ID and thread for memory isolation
@@ -1607,7 +1629,7 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 				log.log(Level.SEVERE, "LangChain4j AI response failed", e);
 				handleErrorResponse(desktop, e, threadRootIdSnapshot, provider, message);
 			}
-		});
+		}), Adempiere.getThreadPoolExecutor());
 	}
 
 	/**
