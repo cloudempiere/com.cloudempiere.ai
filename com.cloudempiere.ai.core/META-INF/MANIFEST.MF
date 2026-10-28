@@ -24,9 +24,9 @@ Bundle-Activator: com.cloudempiere.ai.Activator
 Require-Bundle: org.adempiere.plugin.utils;bundle-version="[14.0.0,15.0.0)",
  com.cloudempiere.core.base;bundle-version="[14.0.0,15.0.0)",
  com.cloudempiere.ai.deps;bundle-version="[14.0.0,15.0.0)",
- zk;bundle-version="9.6.3",
- zul;bundle-version="9.6.3",
- zcommon;bundle-version="9.6.3",
+ zk;bundle-version="10.0.1",
+ zul;bundle-version="10.0.1",
+ zcommon;bundle-version="10.0.1",
  org.adempiere.ui.zk;bundle-version="[14.0.0,15.0.0)",
  com.cloudempiere.aws.provider;bundle-version="[14.0.0,15.0.0)",
  org.adempiere.base;bundle-version="[14.0.0,15.0.0)"

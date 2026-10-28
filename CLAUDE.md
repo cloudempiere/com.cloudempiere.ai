@@ -6,5 +6,6 @@
 - put tests into com.cloudempiere.ai.test bundle (local test bundle)
 - use @UnitTest, @IntegrationTest, @E2ETest annotations from com.cloudempiere.ai.test.categories
 - use bash script for testing: ./run-unit-tests.sh (unit), ./run-unit-tests.sh --integration (integration)
-- do not run mvn compile automatically to check for compilation errors, the developer will do that by refreshing the eclipse project
-- debug log level must be at least warning so the developer can see it in the eclipse console
+- iDempiere v14, Java 17: build with `JAVA_HOME` set to Corretto 17 (the default may still be Java 11)
+- the developer does not use Eclipse: run `mvn compile` before `./run-unit-tests.sh` when main code changed, since the runner uses `target/classes`
+- debug log level must be at least warning so the developer can see it in the server console

@@ -47,23 +47,23 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Java home - try to find Java 11
-if [ -z "$JAVA_HOME" ]; then
-    # Try to find Java 11 installation
-    if [ -d "/Library/Java/JavaVirtualMachines/amazon-corretto-11.jdk/Contents/Home" ]; then
-        export JAVA_HOME="/Library/Java/JavaVirtualMachines/amazon-corretto-11.jdk/Contents/Home"
-    elif [ -d "/Library/Java/JavaVirtualMachines/adoptopenjdk-11.jdk/Contents/Home" ]; then
-        export JAVA_HOME="/Library/Java/JavaVirtualMachines/adoptopenjdk-11.jdk/Contents/Home"
-    else
-        # Try using java_home utility to find Java 11
-        JAVA_11_HOME=$(/usr/libexec/java_home -v 11 2>/dev/null)
-        if [ -n "$JAVA_11_HOME" ]; then
-            export JAVA_HOME="$JAVA_11_HOME"
-        else
-            echo "ERROR: Java 11 not found. Please install Java 11 or set JAVA_HOME environment variable."
-            exit 1
-        fi
+# Java 17 (iDempiere v14). JAVA_HOME may point at the Java 11 used for v10 work: then look for a Java 17.
+java_major() {
+    "$1/bin/java" -version 2>&1 | awk -F'"' '/version/ { split($2, v, "."); print (v[1] == "1" ? v[2] : v[1]) }'
+}
+JAVA_MAJOR=""
+[ -n "$JAVA_HOME" ] && JAVA_MAJOR=$(java_major "$JAVA_HOME")
+if [ "${JAVA_MAJOR:-0}" -lt 17 ]; then
+    JAVA_17_HOME=$(/usr/libexec/java_home -v 17 2>/dev/null || true)
+    if [ -z "$JAVA_17_HOME" ] && [ -d "/Library/Java/JavaVirtualMachines/amazon-corretto-17.jdk/Contents/Home" ]; then
+        JAVA_17_HOME="/Library/Java/JavaVirtualMachines/amazon-corretto-17.jdk/Contents/Home"
     fi
+    if [ -z "$JAVA_17_HOME" ]; then
+        echo "ERROR: Java 17 not found. Please install Java 17 (Corretto) or set JAVA_HOME to it."
+        exit 1
+    fi
+    [ -n "$JAVA_HOME" ] && echo "JAVA_HOME is Java ${JAVA_MAJOR:-unknown}, using Java 17 instead"
+    export JAVA_HOME="$JAVA_17_HOME"
 fi
 
 echo "=== AI Plugin Unit Test Runner ==="
@@ -75,7 +75,9 @@ fi
 echo ""
 
 # Directories
-IDEMPIERE_DIR="$SCRIPT_DIR/../iDempiereCLDE"
+# iDempiereCLDE keeps upstream iDempiere under core/ since the Phase 2.R restructure
+IDEMPIERE_DIR="$SCRIPT_DIR/../iDempiereCLDE/core"
+[ -d "$IDEMPIERE_DIR" ] || IDEMPIERE_DIR="$SCRIPT_DIR/../iDempiereCLDE"
 TEST_BUNDLE_DIR="$SCRIPT_DIR/com.cloudempiere.ai.test"
 TEST_SRC_DIR="$TEST_BUNDLE_DIR/src"
 LIB_DIR="$SCRIPT_DIR/lib"
@@ -106,6 +108,8 @@ ASSERTJ_VERSION="3.25.3"
 TEST_LIB_DIR="$SCRIPT_DIR/target/test-lib"
 
 mkdir -p "$TEST_LIB_DIR"
+# start clean: classes of tests deleted or only present on another branch would still be scanned and run
+rm -rf "$BUILD_DIR"
 mkdir -p "$BUILD_DIR"
 
 # Download JUnit and AssertJ jars if needed
@@ -122,6 +126,30 @@ download_if_missing "junit-platform-console-standalone-1.10.2.jar" \
     "https://repo1.maven.org/maven2/org/junit/platform/junit-platform-console-standalone/1.10.2/junit-platform-console-standalone-1.10.2.jar"
 download_if_missing "assertj-core-$ASSERTJ_VERSION.jar" \
     "https://repo1.maven.org/maven2/org/assertj/assertj-core/$ASSERTJ_VERSION/assertj-core-$ASSERTJ_VERSION.jar"
+# Imported from the target platform, not embedded: Caffeine by org.adempiere.base (CacheMgt; PO and Query need it),
+# the SLF4J API by LangChain4j
+CAFFEINE_VERSION="3.1.8"
+download_if_missing "caffeine-$CAFFEINE_VERSION.jar" \
+    "https://repo1.maven.org/maven2/com/github/ben-manes/caffeine/caffeine/$CAFFEINE_VERSION/caffeine-$CAFFEINE_VERSION.jar"
+SLF4J_VERSION="1.7.36"
+download_if_missing "slf4j-api-$SLF4J_VERSION.jar" \
+    "https://repo1.maven.org/maven2/org/slf4j/slf4j-api/$SLF4J_VERSION/slf4j-api-$SLF4J_VERSION.jar"
+
+# Jars a bundle declares in its MANIFEST Bundle-ClassPath. Its lib/ can also hold stale versions of the same
+# libraries (e.g. LangChain4j 0.35.0 next to 1.20.0), so the directory is not globbed.
+bundle_classpath_jars() {
+    local bundle="$1"
+    local manifest="$bundle/META-INF/MANIFEST.MF"
+    [ -f "$manifest" ] || return 0
+    # join the manifest's continuation lines (they start with one space) before reading the header
+    tr -d '\r' < "$manifest" \
+        | awk '/^ / { h = h substr($0, 2); next } { if (h ~ /^Bundle-ClassPath:/) print h; h = $0 } END { if (h ~ /^Bundle-ClassPath:/) print h }' \
+        | sed 's/^Bundle-ClassPath://' | tr -d ' ' | tr ',' '\n' | grep '\.jar$' \
+        | while read -r jar; do
+            [ -f "$bundle/$jar" ] && echo "$bundle/$jar"
+        done
+    return 0
+}
 
 # Build classpath - main classes first from all modules
 CLASSPATH=""
@@ -142,13 +170,12 @@ if [ -d "$LIB_DIR" ]; then
     done
 fi
 
-# Add deps module lib jars (LangChain4j and dependencies)
-DEPS_LIB_DIR="$SCRIPT_DIR/com.cloudempiere.ai.deps/lib"
-if [ -d "$DEPS_LIB_DIR" ]; then
-    for jar in "$DEPS_LIB_DIR"/*.jar; do
-        [ -f "$jar" ] && CLASSPATH="$CLASSPATH:$jar"
+# Add the embedded jars of each module bundle (LangChain4j in deps, AWS SDK in core, ...)
+for classes_dir in "${CLASSES_DIRS[@]}"; do
+    for jar in $(bundle_classpath_jars "${classes_dir%/target/classes}"); do
+        CLASSPATH="$CLASSPATH:$jar"
     done
-fi
+done
 
 # Add iDempiere base classes (needed for CLogger, DB, etc.)
 IDEMPIERE_BASE_CLASSES="$IDEMPIERE_DIR/org.adempiere.base/target/classes"
@@ -222,8 +249,17 @@ echo ""
 # Compile all Java files (tests + utilities)
 "$JAVA_HOME/bin/javac" -d "$BUILD_DIR" \
     -cp "$CLASSPATH" \
-    -source 11 -target 11 \
+    --release 17 \
     $ALL_JAVA_FILES
+
+# OSGi component descriptors sit at the bundle root, not in target/classes; tests read them as resources
+for classes_dir in "${CLASSES_DIRS[@]}"; do
+    osgi_inf="${classes_dir%/target/classes}/OSGI-INF"
+    if [ -d "$osgi_inf" ]; then
+        mkdir -p "$BUILD_DIR/OSGI-INF"
+        find "$osgi_inf" -maxdepth 1 -name '*.xml' -exec cp {} "$BUILD_DIR/OSGI-INF/" \;
+    fi
+done
 
 echo "Compilation successful!"
 echo ""

@@ -205,7 +205,7 @@
 				<!-- Default (maven2) layout, deliberately — idempiere-core, cloudempiere-core and
 				     cloudempiere-aws above are layout=p2; this one must not be.
 				     Snapshots on with updatePolicy=always: org.idempiere.test is a floating
-				     10.0.0-SNAPSHOT tracking core, and CI caches the local Maven repo, so the
+				     14.0.0-SNAPSHOT tracking core, and CI caches the local Maven repo, so the
 				     default daily policy would serve a stale jar for up to 24h after a core
 				     publish. -->
 				<repository>

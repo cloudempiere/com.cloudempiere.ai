@@ -12,8 +12,9 @@ import dev.langchain4j.service.guardrail.OutputGuardrails;
 /**
  * Simple streaming AI Agent interface for providers without tool support.
  *
- * <p>This interface is used for Ollama/Llama providers in LangChain4j 0.35.0
- * which don't support function/tool calling. It provides a simplified system
+ * <p>This interface is used for providers registered without tool support in
+ * {@link LangChain4jProviderFactory} (Ollama/Llama: the exclusion dates from LangChain4j
+ * 0.35.0 and has not been re-tested on 1.20.0). It provides a simplified system
  * prompt without tool-related instructions.
  *
  * @author Cloudempiere
