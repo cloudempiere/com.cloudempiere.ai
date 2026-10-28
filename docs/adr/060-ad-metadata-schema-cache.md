@@ -249,6 +249,25 @@ AiServices.builder(ERPAgent.class)
 
 At that point, soft Option C can be hardened: `prepareQuery` can be made mandatory for any agentic SQL generation flow, eliminating the LLM compliance dependency entirely.
 
+### Revised 2026-10-28 (CLD-2435): `prepareQuery` is optional
+
+Measured on v14 with Bedrock Sonnet 4.5, every model round trip costs 2–6 s, so the enforced two-step contract made
+the simplest question slow: "Retrieve the last order created in the system" took ~5 round trips and 16–19 s
+(`prepareQuery`, a rejected or narrow query, then one lookup per referenced record). Hard enforcement (above) would
+make every question pay the extra round trip, so it is dropped.
+
+- `queryDatabase` no longer checks `preparedTables` (removed); `validateTablesInSql` and the error enrichment still
+  check tables and columns against the dictionary, and a failed query returns the exact columns.
+- `prepareQuery` stays as an optional tool for tables the model is unsure about.
+- The schema shows every reference with its target table and that table's name columns
+  (`C_BPartner_ID -> C_BPartner (name: Value, Name)`). References follow `AD_Ref_Table` for Table/Search columns,
+  else the `<Table>_ID` name rule for TableDirect/Table/Search (as clde-hub `ADContextService`); name columns are
+  `AD_Column.IsIdentifier`. Before, only TableDirect columns counted as references.
+- The `queryDatabase` description asks for one query that JOINs referenced tables for names, and gives an example
+  (document type via `C_DocTypeTarget_ID`, DocStatus codes).
+
+Result: the same question in one query and 2 round trips, ~11 s.
+
 ## Known Gaps
 
 - No `ICacheReset` integration — cache does not invalidate on AD changes, only on TTL

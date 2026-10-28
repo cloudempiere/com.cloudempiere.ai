@@ -13,7 +13,7 @@ and this project adheres to [Conventional Commits](https://conventionalcommits.o
 - None
 
 **Changed:**
-- None
+- AI SQL answers in one query: the schema the AI sees names the table and name columns of every reference (also Search and Table columns), and it no longer has to call prepareQuery before queryDatabase. "Last order" now takes 2 model round trips instead of ~5 (CLD-2435)
 
 **Fixed:**
 - AI chat memory trim no longer splits a tool call from its results; Bedrock rejected the request with "unexpected tool_use_id found in tool_result blocks" (CLD-2425)

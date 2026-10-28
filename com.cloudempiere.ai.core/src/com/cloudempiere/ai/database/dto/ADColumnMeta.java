@@ -32,10 +32,23 @@ public class ADColumnMeta {
     private final boolean mandatory;
     private final boolean key;
     private final int fieldLength;
+    /** Table this column points to, from AD_Ref_Table for Table/Search references; null when not resolved */
+    private final String referencedTable;
+    /** AD_Column.IsIdentifier: part of the record's display name */
+    private final boolean identifier;
 
     public ADColumnMeta(String columnName, String name, String description,
                         int adReferenceId, String referenceType,
                         boolean mandatory, boolean key, int fieldLength) {
+        this(columnName, name, description, adReferenceId, referenceType, mandatory, key, fieldLength, null, false);
+    }
+
+    public ADColumnMeta(String columnName, String name, String description,
+                        int adReferenceId, String referenceType,
+                        boolean mandatory, boolean key, int fieldLength,
+                        String referencedTable, boolean identifier) {
+        this.referencedTable = referencedTable;
+        this.identifier = identifier;
         this.columnName = columnName;
         this.name = name;
         this.description = description;
@@ -63,11 +76,26 @@ public class ADColumnMeta {
      * @return foreign table name or null if not a FK column
      */
     public String getForeignTable() {
-        // AD_Reference_ID 19 = TableDirect
-        if (adReferenceId == 19 && columnName.endsWith("_ID") && !key) {
+        if (key) {
+            return null;
+        }
+        // Table (18) / Search (30) with a reference value: the table AD_Ref_Table names (e.g. SalesRep_ID -> AD_User)
+        if (referencedTable != null) {
+            return referencedTable;
+        }
+        // TableDirect (19), and Table/Search without a reference value: the table named like the column
+        // (e.g. C_BPartner_ID -> C_BPartner, a Search column in C_Order)
+        if ((adReferenceId == 19 || adReferenceId == 18 || adReferenceId == 30) && columnName.endsWith("_ID")) {
             return columnName.substring(0, columnName.length() - 3);
         }
         return null;
+    }
+
+    /**
+     * @return true when the column is part of the record's display name (AD_Column.IsIdentifier)
+     */
+    public boolean isIdentifier() {
+        return identifier;
     }
 
     @Override

@@ -2,7 +2,6 @@ package com.cloudempiere.ai.provider.langchain4j;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -95,12 +94,6 @@ public class ERPTools {
     };
 
     /**
-     * ADR-060 Option C: Tables registered via prepareQuery() for this conversation instance.
-     * Soft-enforces that the LLM consults schema before writing SQL.
-     */
-    private final Set<String> preparedTables = new HashSet<>();
-
-    /**
      * Create ERPTools with security context (no streaming callbacks).
      *
      * @param provider AI Provider configuration (for audit logging)
@@ -130,9 +123,16 @@ public class ERPTools {
 
     @Tool("Execute a read-only SQL SELECT query against the iDempiere ERP database. " +
           "Results are filtered by user's role permissions. Returns JSON array of rows with schemaHints. " +
-          "IMPORTANT: Call prepareQuery() for ALL tables BEFORE writing SQL to declare intent and receive exact column names. " +
+          "Query standard iDempiere tables directly; tables and columns are checked against the dictionary and an " +
+          "error lists the exact columns. Call prepareQuery() only when unsure about a table. " +
+          "Answer in ONE query: JOIN referenced tables to return names (schemaHints show e.g. " +
+          "'C_BPartner_ID -> C_BPartner (name: Name)') instead of looking records up afterwards. " +
           "ON conditions MUST be wrapped in parentheses: JOIN t ON (a.col = b.col). " +
-          "schemaHints in the result show available columns for follow-up queries.")
+          "The document type of an order or invoice is C_DocTypeTarget_ID (C_DocType_ID is 0 until it is " +
+          "processed). DocStatus: DR draft, IP in progress, CO completed, CL closed, VO voided, RE reversed. " +
+          "Example: SELECT o.DocumentNo, o.DateOrdered, bp.Name AS BPartner, dt.Name AS DocType, o.GrandTotal, " +
+          "o.DocStatus FROM C_Order o JOIN C_BPartner bp ON (bp.C_BPartner_ID = o.C_BPartner_ID) " +
+          "JOIN C_DocType dt ON (dt.C_DocType_ID = o.C_DocTypeTarget_ID) ORDER BY o.Created DESC LIMIT 1")
     public String queryDatabase(
         @P("SQL SELECT query to execute") String sql,
         @P("Maximum number of rows to return (default 50, max 500)") Integer maxRows,
@@ -152,11 +152,8 @@ public class ERPTools {
             request.setMaxRows(maxRows != null ? Math.min(maxRows, 500) : 50);
             request.setQueryPurpose(purpose != null ? purpose : "AI Agent Query");
 
-            // ADR-060 Option C: Soft-enforce prepareQuery() was called for all tables in this SQL
-            String unpreparedError = checkPreparedTables(sql);
-            if (unpreparedError != null) {
-                return handleQueryFailure(toolName, unpreparedError, sql);
-            }
+            // No forced prepareQuery() round trip (CLD-2435): validateTablesInSql() below checks tables and
+            // columns against the dictionary before execution, and errors return the exact columns
 
             // ADR-060: Validate table names against AD schema cache
             String tableValidationError = validateTablesInSql(sql);
@@ -216,14 +213,12 @@ public class ERPTools {
     }
 
     /**
-     * ADR-060 Option C: Declare tables the LLM intends to query.
-     * Registers them in preparedTables and returns their exact schema so the LLM
-     * can construct correct SQL without guessing column names.
+     * ADR-060 Option C: the exact schema of the tables the LLM intends to query, so it can construct correct SQL
+     * without guessing column names. Optional since CLD-2435: queryDatabase() no longer requires it.
      */
-    @Tool("Declare the tables you intend to query. Call this BEFORE queryDatabase() for every table " +
-          "you plan to use in your SQL. Returns exact column names, types, and FK relationships " +
-          "so you can write correct SQL without guessing. " +
-          "Example: prepareQuery([\"C_Order\", \"C_BPartner\"]) before querying orders with business partner data.")
+    @Tool("Optional: get the exact columns of tables you are unsure about, with the table and name column each " +
+          "reference points to (e.g. 'C_BPartner_ID -> C_BPartner (name: Name)'). Not needed for standard " +
+          "iDempiere tables: queryDatabase() validates columns and returns them with any error.")
     public String prepareQuery(
         @P("Names of tables you plan to use in the next SQL query") String[] tableNames
     ) {
@@ -257,8 +252,6 @@ public class ERPTools {
                 continue;
             }
 
-            // Register as prepared for this conversation
-            preparedTables.add(tableName.toUpperCase());
             preparedArray.put(meta.getTableName());
 
             // Build compact schema: key + FK columns (most useful for JOINs), then others
@@ -269,7 +262,7 @@ public class ERPTools {
                 if (col.isKey() || col.getForeignTable() != null) {
                     String entry = col.isKey()
                         ? col.getColumnName() + " (PK)"
-                        : col.getColumnName() + " -> " + col.getForeignTable();
+                        : foreignKeyLabel(col, schemaCache::getTableMetadata);
                     keyAndFk.put(entry);
                 } else {
                     other.put(col.getColumnName());
@@ -288,13 +281,14 @@ public class ERPTools {
         result.put("hint", "Use exact column names above when writing SQL. " +
             "ON conditions must be wrapped in parentheses: JOIN table ON (a.col = b.col).");
 
-        log.warning("[PREPARE-QUERY] Registered tables: " + preparedTables);
+        log.warning("[PREPARE-QUERY] Tables: " + preparedArray);
         fireToolComplete(toolName, "Prepared " + preparedArray.length() + " tables: " + preparedArray);
         return result.toString(2);
     }
 
     @Tool("Look up a specific record by ID from an iDempiere table. " +
-          "Returns all accessible columns for the record as JSON.")
+          "Returns all accessible columns for the record as JSON. " +
+          "Not for names of records a query already returned: JOIN them in that query instead.")
     public String lookupRecord(
         @P("Table name (e.g., C_Order, C_BPartner, M_Product)") String tableName,
         @P("Record ID to look up") int recordId
@@ -727,32 +721,6 @@ public class ERPTools {
     }
 
     /**
-     * ADR-060 Option C: Soft-enforce that prepareQuery() was called for all tables in the SQL.
-     * If any table is unprepared, returns an error with schema hints nudging the LLM
-     * to call prepareQuery() first. Degrades gracefully if LLM bypasses this contract —
-     * validateTablesInSql() still runs as a fallback.
-     *
-     * @param sql SQL query to check
-     * @return error message if any table was not prepared, null if all prepared (or no tables found)
-     */
-    private String checkPreparedTables(String sql) {
-        Set<String> sqlTables = extractTableNames(sql);
-        if (sqlTables.isEmpty()) return null; // no FROM clause — caught by validateTablesInSql
-
-        List<String> unprepared = new ArrayList<String>();
-        for (String table : sqlTables) {
-            if (!preparedTables.contains(table.toUpperCase())) {
-                unprepared.add(table);
-            }
-        }
-        if (unprepared.isEmpty()) return null;
-
-        return "Tables not prepared: " + unprepared + ". " +
-            "Call prepareQuery(" + unprepared + ") first to receive exact column names " +
-            "before writing SQL.";
-    }
-
-    /**
      * Validate all table names referenced in a SQL query against the AD schema cache.
      * Extracts table names from FROM and JOIN clauses and checks each one.
      *
@@ -839,7 +807,7 @@ public class ERPTools {
                 }
                 // Include available columns so the LLM can self-correct without an extra getTableMetadata call
                 msg.append(". Available columns in ").append(resolvedTable).append(": ")
-                   .append(getColumnSummary(tableMeta));
+                   .append(getColumnSummary(tableMeta, schemaCache::getTableMetadata));
                 log.warning("[SCHEMA-VALIDATE] REJECTED unknown column: " + msg);
                 return msg.toString();
             }
@@ -876,7 +844,8 @@ public class ERPTools {
             JSONArray other = new JSONArray();
             for (ADColumnMeta col : meta.getColumns()) {
                 if (col.isKey() || col.getForeignTable() != null) {
-                    keyAndFk.put(col.getColumnName());
+                    keyAndFk.put(col.isKey() ? col.getColumnName()
+                        : foreignKeyLabel(col, schemaCache::getTableMetadata));
                 } else {
                     other.put(col.getColumnName());
                 }
@@ -915,6 +884,25 @@ public class ERPTools {
             }
         }
         return aliasToTable;
+    }
+
+    /**
+     * A foreign key with the table it points to and that table's name columns, so the model can JOIN for names
+     * instead of looking records up one by one (CLD-2435), e.g. "C_BPartner_ID -> C_BPartner (name: Name)".
+     *
+     * @param col foreign key column
+     * @param tableLookup table name to AD metadata
+     * @return the label; just "column -> table" when the table or its name columns are unknown
+     */
+    public static String foreignKeyLabel(ADColumnMeta col, Function<String, ADTableMeta> tableLookup) {
+        String target = col.getForeignTable();
+        if (target == null) {
+            return col.getColumnName();
+        }
+        ADTableMeta targetMeta = tableLookup.apply(target);
+        String targetName = targetMeta != null ? targetMeta.getTableName() : target;
+        List<String> names = targetMeta != null ? targetMeta.getIdentifierColumns() : java.util.Collections.emptyList();
+        return col.getColumnName() + " -> " + targetName + (names.isEmpty() ? "" : " (name: " + String.join(", ", names) + ")");
     }
 
     /** PostgreSQL "column pp.validfrom does not exist" or "column "validfrom" does not exist" */
@@ -967,16 +955,16 @@ public class ERPTools {
             enriched.append(". Did you mean: ").append(suggestions);
         }
         enriched.append(". Available columns in ").append(table.getTableName()).append(": ")
-                .append(getColumnSummary(table));
+                .append(getColumnSummary(table, tableLookup));
         return enriched.toString();
     }
 
-    private static String getColumnSummary(ADTableMeta tableMeta) {
+    private static String getColumnSummary(ADTableMeta tableMeta, Function<String, ADTableMeta> tableLookup) {
         List<String> keyAndFk = new ArrayList<String>();
         List<String> other = new ArrayList<String>();
         for (ADColumnMeta col : tableMeta.getColumns()) {
             if (col.isKey() || col.getForeignTable() != null) {
-                keyAndFk.add(col.getColumnName());
+                keyAndFk.add(col.isKey() ? col.getColumnName() : foreignKeyLabel(col, tableLookup));
             } else {
                 other.add(col.getColumnName());
             }

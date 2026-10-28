@@ -93,6 +93,21 @@ public class ADTableMeta {
     /**
      * Get FK columns that reference other tables.
      */
+    /**
+     * Columns that make up the record's display name (AD_Column.IsIdentifier), e.g. C_BPartner: Name.
+     *
+     * @return identifier column names in sequence order
+     */
+    public List<String> getIdentifierColumns() {
+        List<String> identifiers = new ArrayList<>();
+        for (ADColumnMeta col : columns) {
+            if (col.isIdentifier()) {
+                identifiers.add(col.getColumnName());
+            }
+        }
+        return identifiers;
+    }
+
     public List<ADColumnMeta> getForeignKeyColumns() {
         List<ADColumnMeta> fks = new ArrayList<>();
         for (ADColumnMeta col : columns) {
