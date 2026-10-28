@@ -384,6 +384,8 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 		threadSelector = new Combobox();
 		threadSelector.setPlaceholder("Select conversation...");
 		threadSelector.setSclass("ai-thread-selector");
+		ZKUpdateUtil.setHflex(threadSelector, "1");
+		threadSelector.setPopupWidth("100%"); // the list stays inside the panel; long titles end in "..."
 		threadSelector.addEventListener(Events.ON_SELECT, this);
 
 		// New Thread button
