@@ -19,6 +19,7 @@ and this project adheres to [Conventional Commits](https://conventionalcommits.o
 - AI chat memory trim no longer splits a tool call from its results; Bedrock rejected the request with "unexpected tool_use_id found in tool_result blocks" (CLD-2425)
 - AI chat with AWS Bedrock works on v14: LangChain4j's Bedrock module could not see the AWS SDK (NoClassDefFoundError) and needs SDK 2.41.34; ai.core now embeds both privately and no longer requires com.cloudempiere.aws.provider (CLD-2431)
 - AI chat: the AI's database access is guarded by the asking user's tenant and role again; on a background thread it could run as System or with another user's context. Without a logged-in user the panel denies the request (CLD-2432)
+- AI SQL: a query without a table alias followed by ORDER BY, GROUP BY or LIMIT no longer fails once ("ORDER" was read as the alias); a failed attempt the AI retries no longer keeps spinning in the chat (CLD-2433)
 - AI chat: a user can use the global AI chat in more than one tenant on v14; it is now anchored on the user's preference record of each tenant instead of the user record, whose UUID collided in CM_Chat.Record_UU. Migration CLD-2429 moves existing chats (CLD-2429)
 - Language change requests by name ("respond in Slovak", "auf Deutsch", "en français") work again; the AD_Language rework had dropped the built-in names, only "English" still resolved (CLD-2426)
 - Japanese input is no longer detected as Chinese; Czech-only words win over words shared with Slovak (CLD-2426)

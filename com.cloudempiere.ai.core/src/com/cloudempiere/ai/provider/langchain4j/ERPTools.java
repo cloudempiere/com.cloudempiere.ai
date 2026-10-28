@@ -209,7 +209,9 @@ public class ERPTools {
             throw new QueryAttemptsExhaustedException(terminalMsg); // stops the agent (TOOL_ERROR_HANDLER)
         }
 
-        // Transient failure — return error + schema hints to the LLM, but don't surface to UI
+        // Transient failure — return error + schema hints to the LLM, but don't surface to UI. Still end the
+        // step this attempt started, or the timeline keeps spinning while the retry runs (CLD-2433).
+        fireToolComplete(toolName, "corrected, retrying");
         return createErrorResponseWithSchema(errorMsg, sql);
     }
 
