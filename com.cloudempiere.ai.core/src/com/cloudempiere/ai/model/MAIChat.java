@@ -17,7 +17,9 @@ import java.sql.ResultSet;
 import java.util.Properties;
 
 import org.compiere.model.I_AD_User;
+import org.compiere.model.I_AD_UserPreference;
 import org.compiere.model.MChat;
+import org.compiere.model.MUserPreference;
 import org.compiere.util.Env;
 
 // TEMPORARILY DISABLED - ChatAccessService will be implemented in future phase (ADR-036)
@@ -35,10 +37,20 @@ public class MAIChat extends MChat {
 	private static final long serialVersionUID = 1L;
 
 	/**
-	 * AD_Table_ID for global AI chats (linked to AD_User table)
-	 * Global AI chats are stored with AD_Table_ID = AD_User and Record_ID = user's AD_User_ID
+	 * AD_Table_ID for global AI chats: the user's AD_UserPreference of the tenant (one per user and tenant).
+	 * <p>
+	 * CLD-2429: since iDempiere 11 (IDEMPIERE-5567) CM_Chat.Record_UU is unique and MChat.beforeSave fills it from
+	 * the referenced record. Anchored on AD_User, every tenant's global chat of a user got the same Record_UU, so a
+	 * second tenant could not create one (cm_chat_record_uu). AD_UserPreference exists once per user and tenant
+	 * (unique AD_User_ID, AD_Client_ID) in that tenant, so its UUID is a valid, per-tenant Record_UU (ADR-036).
 	 */
-	public static final int AI_GLOBAL_TABLE_ID = I_AD_User.Table_ID;
+	public static final int AI_GLOBAL_TABLE_ID = I_AD_UserPreference.Table_ID;
+
+	/**
+	 * Former anchor of global AI chats (AD_Table_ID = AD_User, Record_ID = user). Still recognised until the
+	 * CLD-2429 migration has moved such chats to {@link #AI_GLOBAL_TABLE_ID}.
+	 */
+	public static final int LEGACY_GLOBAL_TABLE_ID = I_AD_User.Table_ID;
 
 	/**
 	 * Standard Constructor
@@ -67,7 +79,22 @@ public class MAIChat extends MChat {
 	 * @param trxName transaction
 	 */
 	public MAIChat(Properties ctx, String description, String trxName) {
-		this(ctx, AI_GLOBAL_TABLE_ID, Env.getAD_User_ID(ctx), description, trxName);
+		this(ctx, AI_GLOBAL_TABLE_ID,
+			getGlobalChatAnchor(Env.getAD_User_ID(ctx), Env.getAD_Client_ID(ctx), trxName).get_ID(),
+			description, trxName);
+	}
+
+	/**
+	 * The record a user's global AI chat in a tenant is anchored on: the user's AD_UserPreference of that tenant,
+	 * created when missing (CLD-2429).
+	 *
+	 * @param userId AD_User_ID
+	 * @param clientId tenant
+	 * @param trxName transaction
+	 * @return the user preference record
+	 */
+	public static MUserPreference getGlobalChatAnchor(int userId, int clientId, String trxName) {
+		return MUserPreference.getUserPreference(userId, clientId, trxName);
 	}
 
 	/**
@@ -123,10 +150,15 @@ public class MAIChat extends MChat {
 		int userId = Env.getAD_User_ID(ctx);
 		int clientId = Env.getAD_Client_ID(ctx);
 
-		// Query by table+record+client (constraint ensures uniqueness per tenant)
-		String whereClause = "AD_Table_ID=? AND Record_ID=? AND AD_Client_ID=?";
+		// CLD-2429: anchored on the user's AD_UserPreference of this tenant; chats still on the former AD_User
+		// anchor (before the CLD-2429 migration) are found as well
+		String whereClause = "AD_Client_ID=? AND ("
+			+ "(AD_Table_ID=? AND Record_ID IN (SELECT AD_UserPreference_ID FROM AD_UserPreference"
+			+ " WHERE AD_User_ID=? AND AD_Client_ID=?))"
+			+ " OR (AD_Table_ID=? AND Record_ID=?))";
 		MChat chat = new org.compiere.model.Query(ctx, MChat.Table_Name, whereClause, null)
-			.setParameters(AI_GLOBAL_TABLE_ID, userId, clientId)
+			.setParameters(clientId, AI_GLOBAL_TABLE_ID, userId, clientId, LEGACY_GLOBAL_TABLE_ID, userId)
+			.setOrderBy("CASE WHEN AD_Table_ID=" + AI_GLOBAL_TABLE_ID + " THEN 0 ELSE 1 END") // the new anchor wins
 			.first();
 
 		if (chat != null) {
@@ -138,11 +170,12 @@ public class MAIChat extends MChat {
 			return null;
 		}
 
-		// Create new global AI chat for this user in current tenant
-		// Record_ID = userId makes it user-specific
-		// AD_Client_ID makes it tenant-specific (enforced by constraint)
-		MAIChat newChat = new MAIChat(ctx, AI_GLOBAL_TABLE_ID, userId,
+		// Create new global AI chat for this user in current tenant, anchored on the user's AD_UserPreference of
+		// the tenant: Record_UU is that record's UUID, unique per user and tenant (CLD-2429)
+		MUserPreference anchor = getGlobalChatAnchor(userId, clientId, trxName);
+		MAIChat newChat = new MAIChat(ctx, AI_GLOBAL_TABLE_ID, anchor.get_ID(),
 			"AI Assistant - " + Env.getContext(ctx, "#AD_User_Name"), trxName);
+		newChat.setRecord_UU(anchor.getAD_UserPreference_UU());
 		newChat.setAD_Client_ID(clientId);
 		newChat.setConfidentialType(CONFIDENTIALTYPE_PrivateInformation); // Private by default (ADR-036)
 		newChat.saveEx();
@@ -191,7 +224,17 @@ public class MAIChat extends MChat {
 	 * @return true if global chat
 	 */
 	public boolean isGlobalChat() {
-		return getAD_Table_ID() == AI_GLOBAL_TABLE_ID;
+		return isGlobalChatTable(getAD_Table_ID());
+	}
+
+	/**
+	 * Whether a CM_Chat with this AD_Table_ID is a global AI chat (current or former anchor).
+	 *
+	 * @param adTableId CM_Chat.AD_Table_ID
+	 * @return true for the global chat anchors
+	 */
+	public static boolean isGlobalChatTable(int adTableId) {
+		return adTableId == AI_GLOBAL_TABLE_ID || adTableId == LEGACY_GLOBAL_TABLE_ID;
 	}
 
 	/**

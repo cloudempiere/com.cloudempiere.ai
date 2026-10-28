@@ -1958,9 +1958,10 @@ public class AIChatWidget extends Div implements EventListener<Event> {
 		if (globalChat != null) {
 			allChats.add(globalChat);
 		}
-		String whereClause = "AD_Table_ID != ? AND CreatedBy = ? AND ConfidentialType = 'P' AND AD_Client_ID = ? AND IsActive = 'Y'";
+		// context chats only: not the global chat, on either anchor (CLD-2429)
+		String whereClause = "AD_Table_ID NOT IN (?, ?) AND CreatedBy = ? AND ConfidentialType = 'P' AND AD_Client_ID = ? AND IsActive = 'Y'";
 		List<MChat> rawContextChats = new org.compiere.model.Query(sessionCtx, MChat.Table_Name, whereClause, null)
-			.setParameters(MAIChat.AI_GLOBAL_TABLE_ID, userId, clientId)
+			.setParameters(MAIChat.AI_GLOBAL_TABLE_ID, MAIChat.LEGACY_GLOBAL_TABLE_ID, userId, clientId)
 			.setOrderBy("Updated DESC")
 			.list();
 		for (MChat mc : rawContextChats) {
