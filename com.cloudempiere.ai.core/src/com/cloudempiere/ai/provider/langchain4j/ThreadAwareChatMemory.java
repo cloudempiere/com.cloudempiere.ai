@@ -29,6 +29,7 @@ import com.cloudempiere.ai.model.MAIProvider;
 import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.data.message.ChatMessage;
 import dev.langchain4j.data.message.SystemMessage;
+import dev.langchain4j.data.message.ToolExecutionResultMessage;
 import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.memory.ChatMemory;
 
@@ -41,6 +42,7 @@ import dev.langchain4j.memory.ChatMemory;
  *   <li>Persists new messages to CM_ChatEntry</li>
  *   <li>Filters messages by thread (CM_ChatEntryParent_ID)</li>
  *   <li>Supports thread switching for multi-thread conversations</li>
+ *   <li>Trims to the most recent messages without splitting tool calls ({@link #trimWindow(List, int)})</li>
  * </ul>
  *
  * <p>Usage:
@@ -370,14 +372,72 @@ public class ThreadAwareChatMemory implements ChatMemory {
     }
 
     /**
-     * Trim messages to max size (keep most recent).
+     * Trim messages to max size (keep most recent), see {@link #trimWindow(List, int)}.
      */
     private void trimToMaxSize() {
-        if (messages.size() > maxMessages) {
-            int excess = messages.size() - maxMessages;
-            messages = new ArrayList<>(messages.subList(excess, messages.size()));
-            log.fine("Trimmed " + excess + " old messages");
+        List<ChatMessage> trimmed = trimWindow(messages, maxMessages);
+        if (trimmed.size() < messages.size()) {
+            log.fine("Trimmed " + (messages.size() - trimmed.size()) + " old messages");
+            messages = trimmed;
         }
+    }
+
+    /**
+     * Keep the most recent messages without splitting a tool call from its results (CLD-2425).
+     *
+     * <p>Bedrock rejects a {@code tool_result} whose {@code tool_use} is not in the message right before it
+     * ("unexpected tool_use_id found in tool_result blocks"), and a conversation that starts with an assistant
+     * message. A plain cut at {@code size - maxMessages} can do both. So:
+     * <ul>
+     *   <li>system messages are always kept and do not count towards {@code maxMessages}</li>
+     *   <li>the window starts at a {@link UserMessage}; every turn starts with one, so an {@link AiMessage} with
+     *       tool requests and its {@link ToolExecutionResultMessage}s stay together</li>
+     *   <li>the cut never passes the latest {@link UserMessage}: a single turn with more tool rounds than
+     *       {@code maxMessages} is kept whole, otherwise the current question would be lost</li>
+     * </ul>
+     *
+     * @param messages messages in conversation order
+     * @param maxMessages maximum number of non-system messages to keep
+     * @return a new mutable list; equal to {@code messages} when nothing has to be trimmed
+     */
+    public static List<ChatMessage> trimWindow(List<ChatMessage> messages, int maxMessages) {
+        List<ChatMessage> system = new ArrayList<>();
+        List<ChatMessage> conversation = new ArrayList<>();
+        for (ChatMessage message : messages) {
+            if (message instanceof SystemMessage) {
+                system.add(message);
+            } else {
+                conversation.add(message);
+            }
+        }
+        if (conversation.size() <= maxMessages) {
+            return new ArrayList<>(messages);
+        }
+
+        int lastUser = -1;
+        for (int i = conversation.size() - 1; i >= 0; i--) {
+            if (conversation.get(i) instanceof UserMessage) {
+                lastUser = i;
+                break;
+            }
+        }
+
+        int start = conversation.size() - maxMessages;
+        if (lastUser >= 0) {
+            start = Math.min(start, lastUser);
+            while (!(conversation.get(start) instanceof UserMessage)) {
+                start++;
+            }
+        } else {
+            // no user message to anchor on: at least drop results whose tool request was cut off
+            while (start < conversation.size() && conversation.get(start) instanceof ToolExecutionResultMessage) {
+                start++;
+            }
+        }
+
+        List<ChatMessage> trimmed = new ArrayList<>(system);
+        trimmed.addAll(conversation.subList(start, conversation.size()));
+        return trimmed;
     }
 
     // ========================================================================

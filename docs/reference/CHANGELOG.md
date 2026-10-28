@@ -16,7 +16,7 @@ and this project adheres to [Conventional Commits](https://conventionalcommits.o
 - None
 
 **Fixed:**
-- None
+- AI chat memory trim no longer splits a tool call from its results; Bedrock rejected the request with "unexpected tool_use_id found in tool_result blocks" (CLD-2425)
 
 **Removed:**
 - None
