@@ -218,7 +218,7 @@
 .ai-chat-widget {
     display: flex;
     flex-direction: column;
-    padding: 12px;
+    padding: 8px;
     background: #FDFDFD;
     border-radius: 12px;
     height: 100%;
@@ -249,7 +249,8 @@
 .ai-newthread-btn {
     flex-shrink: 0 !important;
     background: #FFFFFF !important;
-    border: none;
+    border: 1px solid #E0E0E0;
+    height: 32px;
     border-radius: 6px !important;
     padding: 6px 12px !important;
     font-size: 13px !important;
@@ -277,7 +278,7 @@
     overflow-y: auto !important;
     overflow-x: hidden !important;
     margin-bottom: 12px !important;
-    padding: 6px !important;
+    padding: 0 !important;
     gap: 8px !important;
     flex: 1 1 auto !important;
     min-height: 0 !important;
@@ -295,7 +296,9 @@
 .ai-input-box {
     border: 1px solid rgba(122, 128, 140, 0.32) !important;
     border-radius: 32px !important;
-    padding: 12px 18px !important;
+    padding: 12px 50px 12px 18px !important;
+    width: 100% !important;
+    box-sizing: border-box;
     font-size: 12px !important;
     line-height: 18px !important;
     color: #717680 !important;
@@ -305,8 +308,8 @@
 /* Button container */
 .ai-button-container {
     position: relative;
-    width: 42px;
-    height: 42px;
+    width: 36px;
+    height: 36px;
 }
 
 /* Send button */
@@ -314,8 +317,8 @@
     position: absolute !important;
     top: 0 !important;
     left: 0 !important;
-    width: 42px !important;
-    height: 42px !important;
+    width: 36px !important;
+    height: 36px !important;
     background: #181D27 !important;
     border-radius: 100px !important;
     display: flex !important;
@@ -340,8 +343,8 @@
     position: absolute !important;
     top: 0 !important;
     left: 0 !important;
-    width: 42px !important;
-    height: 42px !important;
+    width: 36px !important;
+    height: 36px !important;
     background: #D32F2F !important;
     border-radius: 100px !important;
     /* display controlled by ai-hidden/ai-visible classes */
@@ -450,7 +453,7 @@
     flex-direction: column !important;
     gap: 12px !important;
     max-width: 100% !important;
-    padding: 12px 18px !important;
+    padding: 10px 8px !important;
     background: transparent !important;
     border-radius: 0 !important;
     width: 100% !important;
@@ -474,7 +477,7 @@
     gap: 12px !important;
     max-width: 100% !important;
     width: 100% !important;
-    padding: 12px 18px !important;
+    padding: 10px 8px !important;
     background: transparent !important;
 }
 
@@ -548,7 +551,7 @@
 
 /* Message body text */
 .ai-message-body {
-    font-family: Helvetica Neue;
+    font-family: inherit;
     font-weight: 400;
     font-size: 12px;
     line-height: 18px;
@@ -644,4 +647,96 @@
 @keyframes tool-spin {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
+}
+
+/* ============================================================================
+ * Layout in a dashboard gadget (CLD-2437)
+ * The theme's gadget.css gives every hlayout child inside a gadget flex: 1 1 0, which split the AI rows into equal
+ * parts: half the input row went to the send button, the conversation selector stayed at its natural width. In the
+ * AI rows the first child fills the row and the others keep their size. The question field is 100% wide; the
+ * send/stop button sits inside it on the right.
+ * ========================================================================= */
+.desktop-left-column .dashboard-layout .ai-chat-widget .z-hlayout > .z-hlayout-inner,
+.desktop-right-column .dashboard-layout .ai-chat-widget .z-hlayout > .z-hlayout-inner,
+.ai-chat-widget .z-hlayout > .z-hlayout-inner {
+    flex: 0 0 auto;
+}
+
+.desktop-left-column .dashboard-layout .ai-chat-widget .z-hlayout > .z-hlayout-inner:first-child,
+.desktop-right-column .dashboard-layout .ai-chat-widget .z-hlayout > .z-hlayout-inner:first-child,
+.ai-chat-widget .z-hlayout > .z-hlayout-inner:first-child {
+    flex: 1 1 0;
+    min-width: 0;
+}
+
+/* .z-combobox only: ZK puts the sclass on the popup list too, which must keep the width setPopupWidth gives it */
+.z-combobox.ai-thread-selector {
+    display: flex !important;
+    width: 100% !important;
+}
+
+.ai-thread-selector .z-combobox-input {
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 32px;
+    border: none !important;
+}
+
+/* The dropdown button as tall as the field, inside the selector's single frame */
+.ai-thread-selector .z-combobox-button {
+    height: 32px !important;
+    width: 32px;
+    line-height: 32px !important;
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    border: none !important;
+    border-left: 1px solid #E0E0E0 !important;
+    background: transparent !important;
+}
+
+.ai-input-area {
+    position: relative;
+}
+
+.ai-input-area > .z-hlayout-inner:first-child {
+    padding-right: 0 !important;
+}
+
+.ai-input-area > .z-hlayout-inner:last-child {
+    position: absolute;
+    right: 4px;
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+/* The conversation list is as wide as the selector (setPopupWidth("100%")); long titles end in "..." */
+.z-combobox-popup.ai-thread-selector .z-comboitem {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* The send/stop button keeps the same 4px inset on every side inside the field */
+.ai-send-btn,
+.ai-stop-btn {
+    box-sizing: border-box !important;
+    padding: 0 !important;
+    min-width: 0 !important;
+}
+
+/* The panel fills the help column (vflex, AIChatGadgetFactory); open it stays usable on small screens, collapsed it
+   shrinks to its title bar */
+.ai-chat-panel:not(.z-panel-collapsed) {
+    min-height: 400px;
+}
+
+/* Compact tables; also overrides the inline padding in answers saved before (MarkdownTableRenderer) */
+.ai-markdown-content th,
+.ai-markdown-content td {
+    padding: 4px 8px !important;
+}
+
+.ai-markdown-content table {
+    margin: 4px 0 !important;
 }

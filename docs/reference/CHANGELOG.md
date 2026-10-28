@@ -16,6 +16,7 @@ and this project adheres to [Conventional Commits](https://conventionalcommits.o
 - AI SQL answers in one query: the schema the AI sees names the table and name columns of every reference (also Search and Table columns), and it no longer has to call prepareQuery before queryDatabase. "Last order" now takes 2 model round trips instead of ~5 (CLD-2435)
 
 **Fixed:**
+- AI panel on the dashboard: the panel fills the height of the help column instead of a fixed 700 px; the question field is full width with the send button inside it, the conversation selector fills its row and its list stays inside the panel, less padding, compact tables, theme font; the CloudEmpiere theme's gadget rule had split each row into equal parts (CLD-2437)
 - AI chat answers stream again: the output guard held back every token until the answer was complete (LangChain4j @OutputGuardrails on the streaming agents); it now checks each line as it is written, and its masking and hallucination note finally reach the screen (CLD-2436)
 - AI chat memory trim no longer splits a tool call from its results; Bedrock rejected the request with "unexpected tool_use_id found in tool_result blocks" (CLD-2425)
 - AI chat with AWS Bedrock works on v14: LangChain4j's Bedrock module could not see the AWS SDK (NoClassDefFoundError) and needs SDK 2.41.34; ai.core now embeds both privately and no longer requires com.cloudempiere.aws.provider (CLD-2431)

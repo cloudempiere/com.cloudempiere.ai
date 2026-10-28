@@ -17,6 +17,7 @@ import java.util.Map;
 import java.util.logging.Level;
 
 import org.adempiere.webui.factory.IDashboardGadgetFactory;
+import org.adempiere.webui.util.ZKUpdateUtil;
 import org.compiere.util.CLogger;
 import org.compiere.util.Env;
 import org.compiere.util.Msg;
@@ -26,6 +27,7 @@ import org.zkoss.zk.ui.event.EventListener;
 import org.zkoss.zk.ui.event.Events;
 import org.zkoss.zul.Panel;
 import org.zkoss.zul.Panelchildren;
+import org.zkoss.zul.Vlayout;
 
 import com.cloudempiere.ai.component.AIChatWidget;
 import com.cloudempiere.ai.model.MAIProvider;
@@ -137,7 +139,13 @@ public class AIChatGadgetFactory implements IDashboardGadgetFactory {
         pnlAIChat.setCollapsible(true);
         pnlAIChat.setOpen(true);
         pnlAIChat.setBorder("normal");
-        pnlAIChat.setHeight("700px"); // Fixed height for chat
+        // Fills the rest of the help column below the other panels instead of a fixed 700px (CLD-2437). The column
+        // layout HelpController passes as parent is only as tall as its content, so it gets vflex too.
+        // Minimum height of the open panel: theme CSS (.ai-chat-panel), so a collapsed panel shrinks to its title bar.
+        ZKUpdateUtil.setVflex(pnlAIChat, "1");
+        if (parent instanceof Vlayout) {
+            ZKUpdateUtil.setVflex((Vlayout) parent, "1");
+        }
 
         // Create panel content container (previously in HelpController lines 175-183)
         Panelchildren content = new Panelchildren();
