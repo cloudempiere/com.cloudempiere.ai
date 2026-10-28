@@ -31,7 +31,9 @@ public final class SqlInjectionDetector {
         "'\\s*OR\\s+'?\\d*'?\\s*=\\s*'?\\d*" +
         "|'\\s*OR\\s+'[^']*'\\s*=\\s*'[^']*'" +
         "|;\\s*(DROP|DELETE|TRUNCATE|UPDATE|INSERT|ALTER)\\s+" +
-        "|--\\s*$" +
+        // SQL comment ending the text (admin'--); not a Markdown rule (---), which streamed answers are checked
+        // line by line with (CLD-2436)
+        "|(?<!-)--\\s*$" +
         "|/\\*.*\\*/" +
         "|UNION\\s+(ALL\\s+)?SELECT" +
         "|\\bEXEC(UTE)?\\s*\\(" +
