@@ -109,12 +109,6 @@
                                     <destFileName>langchain4j-open-ai-1.20.0.jar</destFileName>
                                 </artifactItem>
                                 <artifactItem>
-                                    <groupId>dev.langchain4j</groupId>
-                                    <artifactId>langchain4j-bedrock</artifactId>
-                                    <version>1.20.0</version>
-                                    <destFileName>langchain4j-bedrock-1.20.0.jar</destFileName>
-                                </artifactItem>
-                                <artifactItem>
                                     <!-- Only ever published as beta at every version, including the 1.20.0 line -->
                                     <groupId>dev.langchain4j</groupId>
                                     <artifactId>langchain4j-pgvector</artifactId>

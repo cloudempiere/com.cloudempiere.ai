@@ -17,6 +17,7 @@ and this project adheres to [Conventional Commits](https://conventionalcommits.o
 
 **Fixed:**
 - AI chat memory trim no longer splits a tool call from its results; Bedrock rejected the request with "unexpected tool_use_id found in tool_result blocks" (CLD-2425)
+- AI chat with AWS Bedrock works on v14: LangChain4j's Bedrock module could not see the AWS SDK (NoClassDefFoundError) and needs SDK 2.41.34; ai.core now embeds both privately and no longer requires com.cloudempiere.aws.provider (CLD-2431)
 - Language change requests by name ("respond in Slovak", "auf Deutsch", "en français") work again; the AD_Language rework had dropped the built-in names, only "English" still resolved (CLD-2426)
 - Japanese input is no longer detected as Chinese; Czech-only words win over words shared with Slovak (CLD-2426)
 - `run-unit-tests.sh` runs on v14: Java 17, iDempiereCLDE `core/` layout, bundle jars from `Bundle-ClassPath`, OSGi descriptors and Caffeine/SLF4J on the classpath, clean test-classes (CLD-2426)
