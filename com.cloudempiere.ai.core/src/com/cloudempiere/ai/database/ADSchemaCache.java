@@ -43,6 +43,9 @@ import com.cloudempiere.ai.database.dto.ADTableMeta;
  * iDempiere's OSGi runtime. Uses a simple ConcurrentHashMap
  * instead of Quarkus CDI. Lazy-loaded on first access.
  *
+ * <p>Holds physical columns only: a virtual column (non-empty {@code ColumnSQL}) has no database column, so SQL
+ * that names it fails (CLD-2427, e.g. {@code M_ProductPrice.ValidFrom}).
+ *
  * <h3>Reference</h3>
  * <ul>
  *   <li>ADR-060: AD Metadata Schema Cache</li>
@@ -285,6 +288,8 @@ public class ADSchemaCache {
                      "LEFT JOIN AD_Element e ON c.AD_Element_ID = e.AD_Element_ID " +
                      "LEFT JOIN AD_Reference r ON c.AD_Reference_ID = r.AD_Reference_ID " +
                      "WHERE c.IsActive = 'Y' " +
+                     // physical columns only, same rule as MColumn.isVirtualColumn()
+                     "AND (c.ColumnSQL IS NULL OR c.ColumnSQL = '') " +
                      "ORDER BY c.AD_Table_ID, c.SeqNo";
 
         PreparedStatement pstmt = null;

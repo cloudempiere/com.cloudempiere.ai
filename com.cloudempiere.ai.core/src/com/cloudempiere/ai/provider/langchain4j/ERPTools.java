@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.logging.Level;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -27,6 +28,8 @@ import com.cloudempiere.ai.provider.dto.AIStreamCallback;
 
 import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
+import dev.langchain4j.service.tool.ToolErrorHandlerResult;
+import dev.langchain4j.service.tool.ToolExecutionErrorHandler;
 
 /**
  * ERP Tools for LangChain4j agents using @Tool annotations.
@@ -60,6 +63,36 @@ public class ERPTools {
 
     /** After this many consecutive failures, terminate the agent with a user-facing message */
     private static final int MAX_QUERY_FAILURES = 6;
+
+    /**
+     * Thrown when the query attempts are used up. {@link #TOOL_ERROR_HANDLER} lets it end the agent run; any other
+     * tool exception goes back to the model as text.
+     */
+    public static class QueryAttemptsExhaustedException extends RuntimeException {
+        private static final long serialVersionUID = 1L;
+
+        public QueryAttemptsExhaustedException(String message) {
+            super(message);
+        }
+    }
+
+    /**
+     * Tool error handler for agents using ERPTools (CLD-2427). Without one, LangChain4j returns every tool exception
+     * to the model as text, so the stop after {@link #MAX_QUERY_FAILURES} failures did not stop anything. Other
+     * errors keep LangChain4j's default: the message goes back to the model.
+     */
+    public static final ToolExecutionErrorHandler TOOL_ERROR_HANDLER = (error, context) -> {
+        for (Throwable t = error; t != null; t = t.getCause()) {
+            if (t instanceof QueryAttemptsExhaustedException) {
+                throw (QueryAttemptsExhaustedException) t;
+            }
+            if (t.getCause() == t) {
+                break;
+            }
+        }
+        String message = error.getMessage();
+        return ToolErrorHandlerResult.text(message != null ? message : error.getClass().getName());
+    };
 
     /**
      * ADR-060 Option C: Tables registered via prepareQuery() for this conversation instance.
@@ -148,7 +181,9 @@ public class ERPTools {
                 fireToolComplete(toolName, truncate(resultStr, 200) + " (" + elapsed + "ms)");
                 return resultStr;
             } else {
-                return handleQueryFailure(toolName, result.getErrorMessage(), sql);
+                // CLD-2427: the database's own message (e.g. "column pp.x does not exist") plus that table's columns
+                String error = enrichDatabaseError(result.getErrorMessage(), sql, ADSchemaCache.get()::getTableMetadata);
+                return handleQueryFailure(toolName, error, sql);
             }
         } catch (RuntimeException e) {
             throw e; // terminal failure — let it propagate to stop the agent
@@ -171,7 +206,7 @@ public class ERPTools {
             String terminalMsg = "Unable to retrieve data after " + MAX_QUERY_FAILURES +
                 " attempts. Please rephrase your question or contact support.";
             fireToolError(toolName, terminalMsg); // single visible error to the user
-            throw new RuntimeException(terminalMsg); // stops the agent
+            throw new QueryAttemptsExhaustedException(terminalMsg); // stops the agent (TOOL_ERROR_HANDLER)
         }
 
         // Transient failure — return error + schema hints to the LLM, but don't surface to UI
@@ -638,9 +673,12 @@ public class ERPTools {
     // ADR-060: Schema Cache Validation Helpers
     // ========================================================================
 
-    /** Pattern to extract table names from FROM and JOIN clauses */
+    /**
+     * Pattern to extract table names from FROM and JOIN clauses. The word boundary keeps a column like ValidFrom in
+     * "SELECT ValidFrom FROM t" from being read as "FROM FROM" (CLD-2427).
+     */
     private static final Pattern TABLE_NAME_PATTERN =
-        Pattern.compile("(?:FROM|JOIN)\\s+([A-Za-z_][A-Za-z0-9_]*)", Pattern.CASE_INSENSITIVE);
+        Pattern.compile("\\b(?:FROM|JOIN)\\s+([A-Za-z_][A-Za-z0-9_]*)", Pattern.CASE_INSENSITIVE);
 
     /**
      * Detects comma-separated table joins combined with ON clauses, e.g.
@@ -665,7 +703,7 @@ public class ERPTools {
      * Handles: FROM Table, FROM Table alias, FROM Table AS alias, JOIN Table alias
      */
     private static final Pattern TABLE_ALIAS_PATTERN =
-        Pattern.compile("(?:FROM|JOIN)\\s+([A-Za-z_][A-Za-z0-9_]*)(?:\\s+(?:AS\\s+)?([A-Za-z_][A-Za-z0-9_]*))?",
+        Pattern.compile("\\b(?:FROM|JOIN)\\s+([A-Za-z_][A-Za-z0-9_]*)(?:\\s+(?:AS\\s+)?([A-Za-z_][A-Za-z0-9_]*))?",
                         Pattern.CASE_INSENSITIVE);
 
     /** Matches qualified column references like alias.column or table.column */
@@ -776,18 +814,7 @@ public class ERPTools {
         }
         log.warning("[SCHEMA-VALIDATE] All tables OK: " + tableNames);
 
-        // Build alias -> table map for column validation
-        Map<String, String> aliasToTable = new java.util.HashMap<String, String>();
-        Matcher aliasMatcher = TABLE_ALIAS_PATTERN.matcher(sql);
-        while (aliasMatcher.find()) {
-            String tblName = aliasMatcher.group(1);
-            String alias = aliasMatcher.group(2);
-            // Map both the table name itself and any alias to the table
-            aliasToTable.put(tblName.toUpperCase(), tblName);
-            if (alias != null && !alias.isEmpty()) {
-                aliasToTable.put(alias.toUpperCase(), tblName);
-            }
-        }
+        Map<String, String> aliasToTable = aliasToTable(sql);
 
         // Validate qualified column references (alias.column or table.column)
         Matcher colMatcher = COLUMN_REF_PATTERN.matcher(sql);
@@ -870,7 +897,79 @@ public class ERPTools {
      * key, FKs, and other — enough for the LLM to rewrite a query without
      * a separate getTableMetadata call.
      */
-    private String getColumnSummary(ADTableMeta tableMeta) {
+    /**
+     * Maps each table name and alias of the FROM/JOIN clauses (upper case) to its table name.
+     */
+    private static Map<String, String> aliasToTable(String sql) {
+        Map<String, String> aliasToTable = new java.util.HashMap<String, String>();
+        Matcher aliasMatcher = TABLE_ALIAS_PATTERN.matcher(sql);
+        while (aliasMatcher.find()) {
+            String tblName = aliasMatcher.group(1);
+            String alias = aliasMatcher.group(2);
+            // Map both the table name itself and any alias to the table
+            aliasToTable.put(tblName.toUpperCase(), tblName);
+            if (alias != null && !alias.isEmpty()) {
+                aliasToTable.put(alias.toUpperCase(), tblName);
+            }
+        }
+        return aliasToTable;
+    }
+
+    /** PostgreSQL "column pp.validfrom does not exist" or "column "validfrom" does not exist" */
+    private static final Pattern MISSING_COLUMN_PATTERN = Pattern.compile(
+        "column\\s+(?:\"?([A-Za-z_][A-Za-z0-9_]*)\"?\\.)?\"?([A-Za-z_][A-Za-z0-9_]*)\"?\\s+does not exist",
+        Pattern.CASE_INSENSITIVE);
+
+    /**
+     * Adds the table's columns and close matches to a "column ... does not exist" error from the database, so the
+     * model can correct the query (CLD-2427; port of clde-hub QueryToolLogic.enhanceErrorMessage). The table is
+     * the one the alias names, or the only table of the query when the column is unqualified. Other errors are
+     * returned unchanged.
+     *
+     * @param errorMessage database error message
+     * @param sql the model's SQL
+     * @param tableLookup table name to AD metadata, null when unknown
+     * @return the message, with the table's columns appended when the table is known
+     */
+    public static String enrichDatabaseError(String errorMessage, String sql, Function<String, ADTableMeta> tableLookup) {
+        if (errorMessage == null || sql == null) {
+            return errorMessage;
+        }
+        Matcher matcher = MISSING_COLUMN_PATTERN.matcher(errorMessage);
+        if (!matcher.find()) {
+            return errorMessage;
+        }
+        String alias = matcher.group(1);
+        String column = matcher.group(2);
+
+        Map<String, String> aliasToTable = aliasToTable(sql);
+        String tableName = null;
+        if (alias != null) {
+            tableName = aliasToTable.get(alias.toUpperCase());
+        } else {
+            Set<String> tables = new LinkedHashSet<String>(aliasToTable.values());
+            if (tables.size() == 1) {
+                tableName = tables.iterator().next();
+            }
+        }
+        ADTableMeta table = tableName != null ? tableLookup.apply(tableName) : null;
+        if (table == null) {
+            return errorMessage;
+        }
+
+        StringBuilder enriched = new StringBuilder(errorMessage);
+        enriched.append(". Column '").append(column).append("' does not exist in table '")
+                .append(table.getTableName()).append("'");
+        List<String> suggestions = table.findSimilarColumns(column);
+        if (!suggestions.isEmpty()) {
+            enriched.append(". Did you mean: ").append(suggestions);
+        }
+        enriched.append(". Available columns in ").append(table.getTableName()).append(": ")
+                .append(getColumnSummary(table));
+        return enriched.toString();
+    }
+
+    private static String getColumnSummary(ADTableMeta tableMeta) {
         List<String> keyAndFk = new ArrayList<String>();
         List<String> other = new ArrayList<String>();
         for (ADColumnMeta col : tableMeta.getColumns()) {
