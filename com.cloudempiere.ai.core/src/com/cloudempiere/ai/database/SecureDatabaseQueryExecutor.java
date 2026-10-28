@@ -273,6 +273,16 @@ public class SecureDatabaseQueryExecutor {
                     result.getTotalExecutionTimeMs(), loggedInUserId);
             throw e;
 
+        } catch (RejectedQueryException e) {
+            // CLD-2427: the model's SQL is wrong, not the system: hand the database's message back as a failed
+            // result so the model can correct the query
+            result.setStatus(MAIQueryAudit.AIGQUERYSTATUS_Error);
+            result.setErrorMessage(e.getMessage());
+            result.setTotalExecutionTimeMs(System.currentTimeMillis() - startTime);
+            log.warning("AI query rejected by the database: " + e.getMessage());
+            auditQuery(request, result, MAIQueryAudit.AIGQUERYSTATUS_Error, e.getMessage(),
+                      result.getTotalExecutionTimeMs(), loggedInUserId);
+
         } catch (Exception e) {
             result.setStatus(MAIQueryAudit.AIGQUERYSTATUS_Error);
             result.setErrorMessage(e.getMessage());
@@ -284,6 +294,44 @@ public class SecureDatabaseQueryExecutor {
         }
 
         return result;
+    }
+
+    /**
+     * The database refused the AI-written SQL itself; {@link #executeQuery} turns it into a failed result.
+     */
+    private static final class RejectedQueryException extends RuntimeException {
+        private static final long serialVersionUID = 1L;
+
+        RejectedQueryException(String message, Throwable cause) {
+            super(message, cause);
+        }
+    }
+
+    /**
+     * Returns the database's message when it refused the SQL itself, so the model can fix the query: SQLState
+     * class 42 (syntax error, unknown column or table), 22 (data exception) or 21 (cardinality violation).
+     * Connection failures, timeouts, 42501 (insufficient privilege) and other errors return null and stay
+     * system errors.
+     *
+     * @param error exception thrown while executing the query
+     * @return first line of the database message (without the "Position" of the rewritten SQL), or null
+     */
+    public static String databaseRejection(Throwable error) {
+        for (Throwable t = error; t != null; t = t.getCause()) {
+            if (t instanceof java.sql.SQLException) {
+                String state = ((java.sql.SQLException) t).getSQLState();
+                if (state != null && !"42501".equals(state)
+                        && (state.startsWith("42") || state.startsWith("22") || state.startsWith("21"))) {
+                    String message = t.getMessage() != null ? t.getMessage().trim() : state;
+                    int eol = message.indexOf('\n');
+                    return eol > 0 ? message.substring(0, eol).trim() : message;
+                }
+            }
+            if (t.getCause() == t) {
+                break;
+            }
+        }
+        return null;
     }
 
     /**
@@ -735,6 +783,10 @@ public class SecureDatabaseQueryExecutor {
         } catch (java.sql.SQLTimeoutException e) {
             throw new RuntimeException("Query timeout exceeded", e);
         } catch (Exception e) {
+            String rejection = databaseRejection(e);
+            if (rejection != null) {
+                throw new RejectedQueryException(rejection, e);
+            }
             throw new RuntimeException("Query execution failed: " + e.getMessage(), e);
         } finally {
             DB.close(rs, pstmt);
