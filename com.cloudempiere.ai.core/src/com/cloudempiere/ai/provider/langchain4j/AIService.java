@@ -577,6 +577,7 @@ public class AIService implements IAIService {
                 AiServices<ERPAgent> erpAgentBuilder = AiServices.builder(ERPAgent.class)
                     .chatModel(model)
                     .tools(toolsList)
+                    .toolExecutionErrorHandler(ERPTools.TOOL_ERROR_HANDLER)
                     .chatMemoryProvider(memoryId -> memoryForProvider);
                 ToolProvider mcpToolProvider = MCPToolProviderFactory.getConfigured(clientId);
                 if (mcpToolProvider != null) {
@@ -1102,6 +1103,7 @@ public class AIService implements IAIService {
             AiServices<ERPStreamingAgent> erpStreamingAgentBuilder = AiServices.builder(ERPStreamingAgent.class)
                 .streamingChatModel(streamingModel)
                 .tools(toolsList)
+                .toolExecutionErrorHandler(ERPTools.TOOL_ERROR_HANDLER)
                 .chatMemoryProvider(memoryId -> memoryForProvider)
                 .systemMessageProvider(memoryId -> systemPrompt);
             ToolProvider mcpToolProviderStreaming = MCPToolProviderFactory.getConfigured(clientId);
@@ -1720,7 +1722,8 @@ public class AIService implements IAIService {
 
                 AiServices<ERPAgent> executeAgentBuilder = AiServices.builder(ERPAgent.class)
                     .chatModel(model)
-                    .tools(toolsList);
+                    .tools(toolsList)
+                    .toolExecutionErrorHandler(ERPTools.TOOL_ERROR_HANDLER);
                 ToolProvider mcpToolProviderExecute = MCPToolProviderFactory.getConfigured(clientId);
                 if (mcpToolProviderExecute != null) {
                     executeAgentBuilder = executeAgentBuilder.toolProvider(mcpToolProviderExecute);
@@ -1794,6 +1797,7 @@ public class AIService implements IAIService {
             return AiServices.builder(ERPAgent.class)
                 .chatModel(model)
                 .tools(toolsList)
+                .toolExecutionErrorHandler(ERPTools.TOOL_ERROR_HANDLER)
                 .chatMemory(memory)
                 .build();
         } else {
