@@ -17,7 +17,10 @@ import java.util.Map;
 import java.util.logging.Level;
 
 import org.adempiere.webui.factory.IDashboardGadgetFactory;
+import org.adempiere.webui.panel.ADForm;
 import org.adempiere.webui.util.ZKUpdateUtil;
+import org.compiere.model.MForm;
+import org.compiere.model.Query;
 import org.compiere.util.CLogger;
 import org.compiere.util.Env;
 import org.compiere.util.Msg;
@@ -30,6 +33,7 @@ import org.zkoss.zul.Panelchildren;
 import org.zkoss.zul.Vlayout;
 
 import com.cloudempiere.ai.component.AIChatWidget;
+import com.cloudempiere.ai.form.AIChatForm;
 import com.cloudempiere.ai.model.MAIProvider;
 
 /**
@@ -77,6 +81,9 @@ public class AIChatGadgetFactory implements IDashboardGadgetFactory {
 
     private static final CLogger log = CLogger.getCLogger(AIChatGadgetFactory.class);
 
+    /** Posted to the panel to add the chat once the application desktop exists */
+    private static final String ON_ADD_CHAT = "onAddAIChat";
+
     /**
      * Get gadget component for the given URI (upstream iDempiere signature).
      *
@@ -105,6 +112,41 @@ public class AIChatGadgetFactory implements IDashboardGadgetFactory {
      */
     public org.zkoss.zk.ui.Component getGadget(String uri, org.zkoss.zk.ui.Component parent, Map<?, ?> arg) {
         return createGadget(uri, parent);
+    }
+
+    /**
+     * The chat of the help panel: the AI Assistant form (CLD-2438), the same component the menu opens as a tab. The
+     * help panel keeps the AI provider access ({@link #isAvailable()}) as its gate, not the role's form access: most
+     * roles are manual and would lose the panel until an administrator grants the form. The bare widget until
+     * migration 202610290100_CLD-2438 has created the form, or when the form cannot be opened.
+     *
+     * <p>Called once the application desktop exists: {@code ADForm} registers itself with it, and HelpController
+     * builds the help panel before the desktop is stored in the session.
+     *
+     * @return the form, or the widget
+     */
+    private org.zkoss.zk.ui.Component createChat() {
+        // By class name: UUIDs are minted per database at import (clde-hub convention), the class is the same everywhere
+        int formId = new Query(Env.getCtx(), MForm.Table_Name, MForm.COLUMNNAME_Classname + "=?", null)
+            .setParameters(AIChatForm.class.getName())
+            .setOnlyActiveRecords(true)
+            .firstId();
+        if (formId <= 0) {
+            log.warning("AI Assistant form (" + AIChatForm.class.getName() + ") not in the dictionary: "
+                + "showing the chat without it, apply migration 202610290100_CLD-2438");
+            return new AIChatWidget(true);
+        }
+        try {
+            ADForm form = ADForm.openForm(formId);
+            form.setTitle(null);
+            form.setBorder("none");
+            ZKUpdateUtil.setVflex(form, "1");
+            ZKUpdateUtil.setHflex(form, "1");
+            return form;
+        } catch (Exception e) {
+            log.log(Level.WARNING, "AI Assistant form " + formId + " could not be opened, showing the chat without it", e);
+            return new AIChatWidget(true);
+        }
     }
 
     /**
@@ -152,9 +194,10 @@ public class AIChatGadgetFactory implements IDashboardGadgetFactory {
         content.setStyle("height: 100%; padding: 0;");
         pnlAIChat.appendChild(content);
 
-        // Create and add the AI Chat Widget
-        AIChatWidget aiChatWidget = new AIChatWidget(true);
-        content.appendChild(aiChatWidget);
+        // Added once the request that builds the desktop has finished: the form needs the application desktop, which
+        // AdempiereWebUI stores only after HelpController has rendered the help panel (CLD-2438)
+        pnlAIChat.addEventListener(ON_ADD_CHAT, event -> content.appendChild(createChat()));
+        Events.postEvent(ON_ADD_CHAT, pnlAIChat, null);
 
         // Add collapse event listener (previously in HelpController lines 186-198)
         // This collapses tooltip and context help panels when AI chat opens
