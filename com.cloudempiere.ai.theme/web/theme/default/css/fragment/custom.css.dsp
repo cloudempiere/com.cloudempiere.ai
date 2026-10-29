@@ -697,6 +697,11 @@
     min-height: 400px;
 }
 
+/* The AI Assistant form embedded in the help panel (CLD-2438): no extra padding around the chat */
+.ai-chat-panel .adform-content {
+    padding: 0 !important;
+}
+
 /* Compact tables; also overrides the inline padding in answers saved before (MarkdownTableRenderer) */
 .ai-markdown-content th,
 .ai-markdown-content td {
