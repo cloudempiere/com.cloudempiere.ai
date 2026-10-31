@@ -81,6 +81,19 @@ class GuardedStreamCallbackTest {
     }
 
     @Test
+    @DisplayName("a Markdown rule (---) between sections is not taken for an SQL comment")
+    void markdownRuleIsNotSql() {
+        stream.onChunk("| Field | Value |\n|---|---|\n| Name | System |\n");
+        stream.onChunk("---\n");
+        stream.onChunk("----\nMore details.");
+        stream.onComplete();
+
+        assertThat(events).last().isEqualTo("complete");
+        assertThat(shown.toString()).endsWith("---\n----\nMore details.");
+        assertThat(new OutputGuard().validateFragment("admin'--").getAction()).isEqualTo(GuardResult.Action.BLOCK);
+    }
+
+    @Test
     @DisplayName("internal IDs are masked on screen")
     void masksInternalIds() {
         stream.onChunk("The tenant is AD_Client_ID=10");
