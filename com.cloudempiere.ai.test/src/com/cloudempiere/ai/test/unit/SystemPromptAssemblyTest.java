@@ -35,7 +35,7 @@ import com.cloudempiere.ai.test.categories.UnitTest;
  *
  * <p>Run with: {@code ./run-unit-tests.sh}
  *
- * @see AIService#appendOperatorAddendum(java.util.Properties, String, int)
+ * @see AIService#appendAddendum(String, String)
  * @see com.cloudempiere.ai.docs.adr.ADR059
  */
 @UnitTest
@@ -56,24 +56,21 @@ class SystemPromptAssemblyTest {
         @Test
         @DisplayName("null addendum returns base prompt unchanged")
         void nullAddendumReturnsBaseUnchanged() {
-            String result = AIService.appendOperatorAddendum(null, BASE, 0);
+            String result = AIService.appendAddendum(BASE, null);
             assertThat(result).isEqualTo(BASE);
         }
 
         @Test
         @DisplayName("empty addendum returns base prompt unchanged")
         void emptyAddendumReturnsBaseUnchanged() {
-            // appendOperatorAddendum with null ctx is safe when addendum would be empty;
-            // simulate by calling the static helper directly with an empty string
-            // (same code path as MAIPromptConfig returning empty string)
-            String result = appendWithAddendum(BASE, "");
+            String result = AIService.appendAddendum(BASE, "");
             assertThat(result).isEqualTo(BASE);
         }
 
         @Test
         @DisplayName("whitespace-only addendum returns base prompt unchanged")
         void whitespaceOnlyAddendumReturnsBaseUnchanged() {
-            String result = appendWithAddendum(BASE, "   \n  ");
+            String result = AIService.appendAddendum(BASE, "   \n  ");
             assertThat(result).isEqualTo(BASE);
         }
     }
@@ -91,7 +88,7 @@ class SystemPromptAssemblyTest {
         @Test
         @DisplayName("addendum is appended after base prompt")
         void addendumAppendedAfterBase() {
-            String result = appendWithAddendum(BASE, ADDENDUM);
+            String result = AIService.appendAddendum(BASE, ADDENDUM);
             int baseEnd = result.indexOf(BASE) + BASE.length();
             int addendumStart = result.indexOf(ADDENDUM);
             assertThat(addendumStart).isGreaterThan(baseEnd);
@@ -100,7 +97,7 @@ class SystemPromptAssemblyTest {
         @Test
         @DisplayName("addendum is wrapped in OPERATOR_INSTRUCTIONS delimiters")
         void addendumWrappedInDelimiters() {
-            String result = appendWithAddendum(BASE, ADDENDUM);
+            String result = AIService.appendAddendum(BASE, ADDENDUM);
             assertThat(result).contains(AIService.OPERATOR_SECTION_OPEN);
             assertThat(result).contains(AIService.OPERATOR_SECTION_CLOSE);
             // addendum text appears between the delimiters
@@ -114,14 +111,14 @@ class SystemPromptAssemblyTest {
         @Test
         @DisplayName("base prompt content is fully preserved before operator section")
         void basePromptFullyPreserved() {
-            String result = appendWithAddendum(BASE, ADDENDUM);
+            String result = AIService.appendAddendum(BASE, ADDENDUM);
             assertThat(result).startsWith(BASE);
         }
 
         @Test
         @DisplayName("security rules from base prompt remain intact")
         void securityRulesIntact() {
-            String result = appendWithAddendum(BASE, ADDENDUM);
+            String result = AIService.appendAddendum(BASE, ADDENDUM);
             assertThat(result).contains("SECURITY RULES");
             assertThat(result).contains("role permissions");
         }
@@ -129,7 +126,7 @@ class SystemPromptAssemblyTest {
         @Test
         @DisplayName("formatting rules from base prompt remain intact")
         void formattingRulesIntact() {
-            String result = appendWithAddendum(BASE, ADDENDUM);
+            String result = AIService.appendAddendum(BASE, ADDENDUM);
             assertThat(result).contains("FORMATTING RULES");
             assertThat(result).contains("NEVER use HTML tags");
         }
@@ -137,7 +134,7 @@ class SystemPromptAssemblyTest {
         @Test
         @DisplayName("tool-use rules from base prompt remain intact")
         void toolUseRulesIntact() {
-            String result = appendWithAddendum(BASE, ADDENDUM);
+            String result = AIService.appendAddendum(BASE, ADDENDUM);
             assertThat(result).contains("CRITICAL RULE - ALWAYS USE TOOLS FOR DATA");
             assertThat(result).contains("NEVER make up or hallucinate data");
         }
@@ -145,7 +142,7 @@ class SystemPromptAssemblyTest {
         @Test
         @DisplayName("addendum text is trimmed before appending")
         void addendumTrimmed() {
-            String result = appendWithAddendum(BASE, "  " + ADDENDUM + "  ");
+            String result = AIService.appendAddendum(BASE, "  " + ADDENDUM + "  ");
             assertThat(result).contains(ADDENDUM);
             // leading/trailing whitespace in addendum should not survive
             assertThat(result).doesNotContain("  " + ADDENDUM);
@@ -162,28 +159,10 @@ class SystemPromptAssemblyTest {
         @Test
         @DisplayName("works the same for simple base prompt")
         void worksForSimpleBase() {
-            String result = appendWithAddendum(SIMPLE_BASE, ADDENDUM);
+            String result = AIService.appendAddendum(SIMPLE_BASE, ADDENDUM);
             assertThat(result).startsWith(SIMPLE_BASE);
             assertThat(result).contains(AIService.OPERATOR_SECTION_OPEN);
             assertThat(result).contains(ADDENDUM);
         }
-    }
-
-    // -------------------------------------------------------------------------
-    // Helper — mirrors appendOperatorAddendum logic without iDempiere context
-    // -------------------------------------------------------------------------
-
-    /**
-     * Directly exercises the appending logic, bypassing the DB lookup.
-     * Mirrors {@link AIService#appendOperatorAddendum} for addendum non-null path.
-     */
-    private static String appendWithAddendum(String basePrompt, String addendum) {
-        if (addendum == null || addendum.trim().isEmpty()) {
-            return basePrompt;
-        }
-        return basePrompt
-                + AIService.OPERATOR_SECTION_OPEN
-                + addendum.trim()
-                + AIService.OPERATOR_SECTION_CLOSE;
     }
 }

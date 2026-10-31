@@ -13,19 +13,19 @@
  *****************************************************************************/
 package com.cloudempiere.ai.kb.parser;
 
-import org.json.JSONArray;
-import org.json.JSONException;
-import org.json.JSONObject;
-import org.compiere.util.CLogger;
-
-import com.cloudempiere.ai.kb.dto.EditorJsSyntaxInfo;
-import com.cloudempiere.ai.kb.dto.EditorJsSyntaxInfo.BlockTypeInfo;
-
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.logging.Level;
+
+import org.compiere.util.CLogger;
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import com.cloudempiere.ai.kb.dto.EditorJsSyntaxInfo;
+import com.cloudempiere.ai.kb.dto.EditorJsSyntaxInfo.BlockTypeInfo;
 
 /**
  * Enhanced parser for editor.js JSON format with plugin-aware support

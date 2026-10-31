@@ -12,94 +12,44 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Dependencies
 
+### Versions
+
+| Component | Version | Notes |
+|-----------|---------|-------|
+| **iDempiere** | v14 (`14.0.0-SNAPSHOT`) | iDempiereCLDE fork, upstream under `../iDempiereCLDE/core/` |
+| **Java** | 17 (Amazon Corretto) | `Bundle-RequiredExecutionEnvironment: JavaSE-17` |
+| **LangChain4j** | 1.20.0 | embedded in `com.cloudempiere.ai.deps` (`Bundle-ClassPath`) |
+| **Tycho** | 4.0.8 | `com.cloudempiere.ai.parent/pom.xml` |
+
+The default `JAVA_HOME` on the developer machine may still be Java 11 (v10 work): set
+`JAVA_HOME=/Library/Java/JavaVirtualMachines/amazon-corretto-17.jdk/Contents/Home` for Maven.
+The Java 17 / LangChain4j 1.x migration planned in [ADR-035](docs/adr/035-java-version-strategy.md) is done on this line.
+`lib/` folders can still hold stale 0.35.0 jars from older builds; only the jars listed in `Bundle-ClassPath` count.
+
 ### iDempiere Core Dependency
 
-**IMPORTANT:** This plugin depends on the **iDempiereCLDE branch** of the iDempiere project:
-
-- **Repository**: `../iDempiereCLDE/` (relative path from plugin root)
-- **Branch**: `iDempiereCLDE`
-- **Version**: iDempiere v10 (10.0.0-SNAPSHOT)
-- **Java Version**: Amazon Corretto 11
-- **Location**: `/Users/norbertbede/github/iDempiereCLDE`
-
-Before building or testing this plugin, ensure:
-1. iDempiereCLDE repository is cloned at `../iDempiereCLDE/`
-2. The iDempiereCLDE branch is checked out
-3. Java 11 (Corretto) is being used: `JAVA_HOME=/Library/Java/JavaVirtualMachines/amazon-corretto-11.jdk/Contents/Home`
-4. iDempiere parent and target platform are built:
-   ```bash
-   cd ../iDempiereCLDE/org.idempiere.parent && mvn clean install -DskipTests
-   cd ../iDempiereCLDE/org.idempiere.p2.targetplatform && mvn clean install -DskipTests
-   ```
-
-The plugin references the iDempiere parent POM at `../iDempiereCLDE/org.idempiere.parent/pom.xml` (see pom.xml line 10).
-
-### CRITICAL: Java and LangChain4j Version Constraints
-
-**See [ADR-035](docs/adr/035-java-version-strategy.md) for full details.**
-
-| Component | Current | Constraint | Notes |
-|-----------|---------|------------|-------|
-| **Java Runtime** | Amazon Corretto 11 | Java 11 | iDempiere v10 requirement |
-| **LangChain4j** | **0.35.0** | Must use 0.35.0 | Last Java 11 compatible version |
-| **iDempiere** | v10 (10.0.0-SNAPSHOT) | Release-10 | Release-11 requires Java 17 |
-
-**WARNING:** LangChain4j versions 0.36.0 and later (including 1.x) require Java 17!
-
-**Version Compatibility:**
-| LangChain4j Version | Java Requirement |
-|---------------------|------------------|
-| 0.35.0 and earlier | Java 8+ |
-| 0.36.0+ | Java 17+ |
-| 1.0.0-beta1+ | Java 17+ |
-| 1.0.0+ (stable) | Java 17+ |
-
-**Migration Path:**
-1. **Phase 1 (Current)**: Java 11 + LangChain4j 0.35.0 for MVP
-2. **Phase 2 (Future)**: Upgrade to iDempiere Release-11 + Java 17 + LangChain4j 1.x
-
-**Features blocked until Java 17 migration:**
-- MCP (Model Context Protocol) support - ADR-003
-- Extended thinking/reasoning timeline - ADR-033
-- System/tool message caching (cost optimization)
-- Enhanced observability listeners
-- Google Gemini streaming - ADR-034
+The plugin does not reference iDempiere sources. Tycho resolves iDempiere core, the CloudEmpiere composite and
+`org.idempiere.test` from the S3 P2 repositories set in `com.cloudempiere.ai.parent/pom.xml`. To build against
+sibling local builds instead, activate the `cloudempiere-local` profile, see
+[iDempiereCLDE/LOCAL_BUILD.md](../iDempiereCLDE/LOCAL_BUILD.md).
 
 ## Build and Development Commands
 
-### Maven Build Commands
+The developer does not use Eclipse: Maven builds `target/classes`, which `./run-unit-tests.sh` runs against.
 
 ```bash
-# Clean build
-mvn clean install
+export JAVA_HOME=/Library/Java/JavaVirtualMachines/amazon-corretto-17.jdk/Contents/Home
 
-# Build without tests
-mvn clean install -DskipTests
+# Compile all bundles (needed before ./run-unit-tests.sh after changing main code)
+mvn compile
 
-# Skip dependency copy (faster for iterative dev)
-mvn clean compile -DskipTests
+# Full build with the Tycho tests
+mvn clean verify
 
-# Run tests only
-mvn test
-
-# Run a specific test class
-mvn test -Dtest=AnthropicProviderTest
-
-# Package as OSGi plugin
-mvn package
+# Unit tests (fast, no database); picks Java 17 itself
+./run-unit-tests.sh
+./run-unit-tests.sh LanguageDetectionServiceTest   # one class
 ```
-
-### Key Maven Phases
-
-- **validate**: Copies dependencies (Anthropic SDK, AWS Bedrock, Jackson, Kotlin, Netty, OkHttp)
-- **compile**: Compiles source to `target/classes/`
-- **package**: Creates OSGi plugin JAR with embedded libraries
-
-### IDE Setup
-
-- **Eclipse**: Import as "Existing Maven Projects" - pom.xml has Maven and PDE integration
-- **Build Spec**: Includes Eclipse JDT, PDE ManifestBuilder, SchemaBuilder, and Maven2Builder
-- **Output Directory**: `target/classes/`
 
 ## Project Architecture
 

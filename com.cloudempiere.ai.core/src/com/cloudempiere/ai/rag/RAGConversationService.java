@@ -32,7 +32,7 @@ import com.cloudempiere.ai.provider.langchain4j.ERPTools;
 import com.cloudempiere.ai.provider.langchain4j.LangChain4jProviderFactory;
 
 import dev.langchain4j.memory.chat.MessageWindowChatMemory;
-import dev.langchain4j.model.chat.ChatLanguageModel;
+import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.rag.content.retriever.ContentRetriever;
 import dev.langchain4j.service.AiServices;
 
@@ -296,7 +296,7 @@ public class RAGConversationService {
         }
 
         // Get chat model from provider factory
-        ChatLanguageModel chatModel = LangChain4jProviderFactory.getOrCreate(provider);
+        ChatModel chatModel = LangChain4jProviderFactory.getOrCreate(provider);
         if (chatModel == null) {
             throw new IllegalStateException("Failed to create chat language model");
         }
@@ -312,7 +312,7 @@ public class RAGConversationService {
 
         // Create agent with RAG integration
         return AiServices.builder(ERPAgent.class)
-            .chatLanguageModel(chatModel)
+            .chatModel(chatModel)
             .tools(erpTools)
             .contentRetriever(retriever)  // <-- RAG integration (replaces PromptAnalyzer)
             .chatMemory(MessageWindowChatMemory.withMaxMessages(DEFAULT_MAX_HISTORY))

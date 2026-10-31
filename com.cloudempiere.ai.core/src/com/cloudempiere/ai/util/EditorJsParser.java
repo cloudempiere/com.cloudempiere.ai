@@ -13,12 +13,12 @@
  *****************************************************************************/
 package com.cloudempiere.ai.util;
 
+import java.util.logging.Level;
+
+import org.compiere.util.CLogger;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.compiere.util.CLogger;
-
-import java.util.logging.Level;
 
 /**
  * Parser for editor.js JSON format to markdown

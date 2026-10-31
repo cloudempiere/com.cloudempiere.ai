@@ -8,5 +8,5 @@
 ceP2Publish(
     plugin_name:   'com.cloudempiere.ai',
     p2_module_dir: 'com.cloudempiere.ai.p2',
-    p2_zip_name:   'com.cloudempiere.ai.p2-10.0.2-SNAPSHOT.zip'
+    p2_zip_name:   'com.cloudempiere.ai.p2-14.0.0-SNAPSHOT.zip'
 )

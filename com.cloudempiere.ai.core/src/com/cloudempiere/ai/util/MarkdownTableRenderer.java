@@ -114,14 +114,14 @@ public class MarkdownTableRenderer {
 
     /** CSS styles for rendered tables */
     private static final String TABLE_STYLE =
-        "border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 12px;";
+        "border-collapse: collapse; width: 100%; margin: 4px 0; font-size: 12px;";
 
     private static final String TH_STYLE =
-        "border: 1px solid #ddd; padding: 8px 12px; background: #f5f5f5; " +
+        "border: 1px solid #ddd; padding: 4px 8px; background: #f5f5f5; " +
         "font-weight: 600; text-align: left;";
 
     private static final String TD_STYLE =
-        "border: 1px solid #ddd; padding: 8px 12px; text-align: left;";
+        "border: 1px solid #ddd; padding: 4px 8px; text-align: left;";
 
     /**
      * Set the locale to use for number formatting in the current thread.

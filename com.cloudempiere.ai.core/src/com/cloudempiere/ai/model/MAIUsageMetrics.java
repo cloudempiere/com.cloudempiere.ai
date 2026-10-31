@@ -227,7 +227,7 @@ public class MAIUsageMetrics extends X_AIG_UsageMetrics {
         metrics.setLatencyMs(latencyMs);
         metrics.setRequestTimestamp(new Timestamp(System.currentTimeMillis()));
         metrics.setSuccessFlag(false);
-        metrics.setErrorMessage(truncate(errorMessage, 2000));
+        metrics.setAIGErrorMessage(truncate(errorMessage, 2000));
 
         if (!metrics.save()) {
             log.warning("Failed to save error metrics for user=" + userId + ", agent=" + agentName);

@@ -31,11 +31,11 @@ import org.compiere.util.CLogger;
 import org.compiere.util.DB;
 import org.compiere.util.Env;
 import org.compiere.util.Ini;
-
-import com.cloudempiere.ai.model.MAIProvider;
 import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Deactivate;
+
+import com.cloudempiere.ai.model.MAIProvider;
 
 import dev.langchain4j.data.segment.TextSegment;
 import dev.langchain4j.store.embedding.EmbeddingStore;
@@ -456,7 +456,9 @@ public class EmbeddingStoreProvider implements IEmbeddingStoreProvider {
             description.append("After fixing, restart the server or call EmbeddingStoreProvider.reinitialize()");
 
             issue.setStackTrace(description.toString());
-            issue.setLogLevel(initMode == InitMode.STRICT ? "SEVERE" : "WARNING");
+            // AD_Issue.LogLevel is a CloudEmpiere column (not in upstream iDempiere): set it by name when present
+            if (issue.get_ColumnIndex("LogLevel") >= 0)
+                issue.set_ValueOfColumn("LogLevel", initMode == InitMode.STRICT ? "SEVERE" : "WARNING");
             issue.saveEx();
 
             log.info("Created AD_Issue #" + issue.getAD_Issue_ID() + " for vector database initialization failure");

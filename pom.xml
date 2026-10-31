@@ -5,7 +5,7 @@
 
 	<groupId>com.cloudempiere.ai</groupId>
 	<artifactId>com.cloudempiere.ai.main</artifactId>
-	<version>10.0.2-SNAPSHOT</version>
+	<version>14.0.0-SNAPSHOT</version>
 	<packaging>pom</packaging>
 	<name>Cloudempiere AI - Main Build</name>
 

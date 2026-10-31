@@ -5,9 +5,8 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.ConcurrentHashMap;
 
-import org.compiere.util.Env;
-
 import org.compiere.util.CLogger;
+import org.compiere.util.Env;
 import org.osgi.framework.BundleContext;
 import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
@@ -18,8 +17,12 @@ import com.cloudempiere.ai.model.X_AIG_Provider;
 
 import dev.langchain4j.model.anthropic.AnthropicChatModel;
 import dev.langchain4j.model.anthropic.AnthropicStreamingChatModel;
-import dev.langchain4j.model.chat.ChatLanguageModel;
-import dev.langchain4j.model.chat.StreamingChatLanguageModel;
+import dev.langchain4j.model.bedrock.BedrockChatModel;
+import dev.langchain4j.model.bedrock.BedrockStreamingChatModel;
+import dev.langchain4j.model.bedrock.BedrockTitanEmbeddingModel;
+import dev.langchain4j.model.chat.ChatModel;
+import dev.langchain4j.model.chat.StreamingChatModel;
+import dev.langchain4j.model.chat.request.ChatRequestParameters;
 import dev.langchain4j.model.embedding.EmbeddingModel;
 import dev.langchain4j.model.ollama.OllamaChatModel;
 import dev.langchain4j.model.ollama.OllamaEmbeddingModel;
@@ -27,6 +30,10 @@ import dev.langchain4j.model.ollama.OllamaStreamingChatModel;
 import dev.langchain4j.model.openai.OpenAiChatModel;
 import dev.langchain4j.model.openai.OpenAiEmbeddingModel;
 import dev.langchain4j.model.openai.OpenAiStreamingChatModel;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
 
 /**
@@ -85,9 +92,106 @@ public class LangChain4jProviderFactory implements ILangChain4jProviderFactory {
     private static final String DEFAULT_OLLAMA_EMBEDDING_MODEL = "nomic-embed-text";
 
     /** Model caches by provider ID */
-    private static final Map<Integer, ChatLanguageModel> modelCache = new ConcurrentHashMap<>();
-    private static final Map<Integer, StreamingChatLanguageModel> streamingModelCache = new ConcurrentHashMap<>();
+    private static final Map<Integer, ChatModel> modelCache = new ConcurrentHashMap<>();
+    private static final Map<Integer, StreamingChatModel> streamingModelCache = new ConcurrentHashMap<>();
     private static final Map<Integer, EmbeddingModel> embeddingModelCache = new ConcurrentHashMap<>();
+
+    /**
+     * Resolved (apiKey, modelName, baseUrl) passed to a provider's factory functions -
+     * the same 3 inputs every {@code createXxxModel} method below already took, just
+     * bundled so the registry can call any of them uniformly.
+     */
+    private record ResolvedConfig(String apiKey, String modelName, String baseUrl) {
+    }
+
+    /**
+     * Everything the factory needs to know about one provider type: how to build each
+     * of its 3 model kinds, whether it has native embeddings (vs. falling back to a
+     * different provider's - see Anthropic below), and its tool/streaming capabilities.
+     *
+     * <p>Single source of truth for provider dispatch - previously this was 3 separate
+     * switch statements (create/createStreaming/createEmbeddingModel) plus a hand-maintained
+     * hasNativeEmbeddings() OR-chain in this class, plus 2 more hardcoded capability sets
+     * in AIService.java, all needing to be updated in lockstep (with no compiler check)
+     * whenever a provider was added. AIService.supportsTools()/supportsStreamingTools()/
+     * supportsStreaming() now read from this same registry via the static accessors below.
+     */
+    private record ProviderDefinition(
+        java.util.function.Function<ResolvedConfig, ChatModel> chatModel,
+        java.util.function.Function<ResolvedConfig, StreamingChatModel> streamingChatModel,
+        java.util.function.Function<ResolvedConfig, EmbeddingModel> embeddingModel,
+        boolean nativeEmbeddings,
+        boolean supportsTools,
+        boolean supportsStreamingTools,
+        boolean supportsStreaming
+    ) {
+    }
+
+    // NOTE on the Ollama exclusions below: these predate this session's langchain4j
+    // 0.35.0 -> 1.20.0 upgrade (see ADR-035) and were never re-verified against a live
+    // Ollama instance afterward - relocated here verbatim, not re-evaluated. Worth
+    // revisiting now that the plugin is off the 0.35.0-era bugs these worked around,
+    // but that needs live testing this pass didn't do.
+    private static final Map<String, ProviderDefinition> PROVIDER_REGISTRY = Map.of(
+        PROVIDER_AI_HUB, new ProviderDefinition(
+            rc -> createAIHubModel(rc.baseUrl(), rc.modelName(), rc.apiKey()),
+            rc -> createAIHubStreamingModel(rc.baseUrl(), rc.modelName(), rc.apiKey()),
+            rc -> createAIHubEmbeddingModel(rc.baseUrl(), rc.modelName(), rc.apiKey()),
+            true, true, true, true
+        ),
+        PROVIDER_ANTHROPIC, new ProviderDefinition(
+            rc -> createAnthropicModel(rc.apiKey(), rc.modelName()),
+            rc -> createAnthropicStreamingModel(rc.apiKey(), rc.modelName()),
+            // Anthropic has no embedding models of its own - falls back to AWS Bedrock
+            // Titan. nativeEmbeddings=false reflects that fallback, not unavailability.
+            rc -> createBedrockEmbeddingModel(rc.modelName(), rc.apiKey()),
+            false, true, true, true
+        ),
+        PROVIDER_BEDROCK, new ProviderDefinition(
+            rc -> createBedrockModel(rc.modelName(), rc.apiKey()),
+            rc -> createBedrockStreamingModel(rc.modelName(), rc.apiKey()),
+            rc -> createBedrockEmbeddingModel(rc.modelName(), rc.apiKey()),
+            true, true, true, true
+        ),
+        PROVIDER_OLLAMA, new ProviderDefinition(
+            rc -> createOllamaModel(rc.baseUrl(), rc.modelName()),
+            rc -> createOllamaStreamingModel(rc.baseUrl(), rc.modelName()),
+            rc -> createOllamaEmbeddingModel(rc.baseUrl(), rc.modelName()),
+            true, false, false, false
+        ),
+        PROVIDER_MOCK_OPENAI, new ProviderDefinition(
+            rc -> createMockOpenAiModel(rc.baseUrl(), rc.modelName(), rc.apiKey()),
+            rc -> createMockOpenAiStreamingModel(rc.baseUrl(), rc.modelName(), rc.apiKey()),
+            rc -> createMockOpenAiEmbeddingModel(rc.baseUrl(), rc.modelName(), rc.apiKey()),
+            true, true, true, true
+        )
+    );
+
+    private static ProviderDefinition requireDefinition(String providerType, String purpose) {
+        ProviderDefinition def = PROVIDER_REGISTRY.get(providerType);
+        if (def == null) {
+            throw new IllegalArgumentException(purpose + " not supported for provider: " + providerType);
+        }
+        return def;
+    }
+
+    /** Whether the provider supports tool/function calling (non-streaming). */
+    public static boolean supportsTools(String providerType) {
+        ProviderDefinition def = PROVIDER_REGISTRY.get(providerType);
+        return def != null && def.supportsTools();
+    }
+
+    /** Whether the provider supports tool/function calling in streaming mode. */
+    public static boolean supportsStreamingTools(String providerType) {
+        ProviderDefinition def = PROVIDER_REGISTRY.get(providerType);
+        return def != null && def.supportsStreamingTools();
+    }
+
+    /** Whether the provider supports streaming at all. */
+    public static boolean supportsStreaming(String providerType) {
+        ProviderDefinition def = PROVIDER_REGISTRY.get(providerType);
+        return def != null && def.supportsStreaming();
+    }
 
     // ========================================================================
     // OSGi Lifecycle
@@ -109,27 +213,27 @@ public class LangChain4jProviderFactory implements ILangChain4jProviderFactory {
     // ========================================================================
 
     @Override
-    public ChatLanguageModel createModel(MAIProvider config) {
+    public ChatModel createModel(MAIProvider config) {
         return create(config);
     }
 
     @Override
-    public ChatLanguageModel createModel(MAIProvider config, String modelName, String baseUrl) {
+    public ChatModel createModel(MAIProvider config, String modelName, String baseUrl) {
         return create(config, modelName, baseUrl);
     }
 
     @Override
-    public StreamingChatLanguageModel createStreamingModel(MAIProvider config) {
+    public StreamingChatModel createStreamingModel(MAIProvider config) {
         return createStreaming(config);
     }
 
     @Override
-    public StreamingChatLanguageModel createStreamingModel(MAIProvider config, String modelName, String baseUrl) {
+    public StreamingChatModel createStreamingModel(MAIProvider config, String modelName, String baseUrl) {
         return createStreaming(config, modelName, baseUrl);
     }
 
     @Override
-    public ChatLanguageModel getOrCreateModel(MAIProvider config) {
+    public ChatModel getOrCreateModel(MAIProvider config) {
         return modelCache.computeIfAbsent(config.getAIG_Provider_ID(),
             id -> createModel(config));
     }
@@ -175,25 +279,25 @@ public class LangChain4jProviderFactory implements ILangChain4jProviderFactory {
     // ========================================================================
 
     /**
-     * Create a ChatLanguageModel from MAIProvider configuration.
+     * Create a ChatModel from MAIProvider configuration.
      *
      * @param config MAIProvider database configuration
-     * @return ChatLanguageModel instance
+     * @return ChatModel instance
      * @throws IllegalArgumentException if provider type is unknown
      */
-    public static ChatLanguageModel create(MAIProvider config) {
+    public static ChatModel create(MAIProvider config) {
         return create(config, resolveModelName(config), null);
     }
 
     /**
-     * Create a ChatLanguageModel with optional model name and base URL override.
+     * Create a ChatModel with optional model name and base URL override.
      *
      * @param config MAIProvider database configuration
      * @param modelName Optional model name (uses config or default if null)
      * @param baseUrl Optional base URL override (uses config.getURL() or default if null)
-     * @return ChatLanguageModel instance
+     * @return ChatModel instance
      */
-    public static ChatLanguageModel create(MAIProvider config, String modelName, String baseUrl) {
+    public static ChatModel create(MAIProvider config, String modelName, String baseUrl) {
         String providerType = config.getAIGProviderType();
         String apiKey = config.getAPIKey();
 
@@ -207,36 +311,24 @@ public class LangChain4jProviderFactory implements ILangChain4jProviderFactory {
         log.info("Creating LangChain4j model for provider: " + providerType +
                 (modelName != null ? ", model: " + modelName : " (using default model)"));
 
-        switch (providerType) {
-            case PROVIDER_AI_HUB:
-                return createAIHubModel(baseUrl, modelName, apiKey);
-            case PROVIDER_ANTHROPIC:
-                return createAnthropicModel(apiKey, modelName);
-            case PROVIDER_BEDROCK:
-                return createBedrockModel(modelName, apiKey);
-            case PROVIDER_OLLAMA:
-                return createOllamaModel(baseUrl, modelName);
-            case PROVIDER_MOCK_OPENAI:
-                return createMockOpenAiModel(baseUrl, modelName, apiKey);
-            default:
-                throw new IllegalArgumentException("Unknown provider type: " + providerType);
-        }
+        return requireDefinition(providerType, "Chat model")
+            .chatModel().apply(new ResolvedConfig(apiKey, modelName, baseUrl));
     }
 
     /**
-     * Create a StreamingChatLanguageModel from MAIProvider configuration.
+     * Create a StreamingChatModel from MAIProvider configuration.
      *
      * @param config MAIProvider database configuration
-     * @return StreamingChatLanguageModel instance
+     * @return StreamingChatModel instance
      */
-    public static StreamingChatLanguageModel createStreaming(MAIProvider config) {
+    public static StreamingChatModel createStreaming(MAIProvider config) {
         return createStreaming(config, resolveModelName(config), null);
     }
 
     /**
-     * Create a StreamingChatLanguageModel with optional overrides.
+     * Create a StreamingChatModel with optional overrides.
      */
-    public static StreamingChatLanguageModel createStreaming(MAIProvider config, String modelName, String baseUrl) {
+    public static StreamingChatModel createStreaming(MAIProvider config, String modelName, String baseUrl) {
         String providerType = config.getAIGProviderType();
         String apiKey = config.getAPIKey();
 
@@ -250,26 +342,14 @@ public class LangChain4jProviderFactory implements ILangChain4jProviderFactory {
         log.info("Creating LangChain4j streaming model for provider: " + providerType +
                 (modelName != null ? ", model: " + modelName : " (using default model)"));
 
-        switch (providerType) {
-            case PROVIDER_AI_HUB:
-                return createAIHubStreamingModel(baseUrl, modelName, apiKey);
-            case PROVIDER_ANTHROPIC:
-                return createAnthropicStreamingModel(apiKey, modelName);
-            case PROVIDER_BEDROCK:
-                return createBedrockStreamingModel(modelName, apiKey);
-            case PROVIDER_OLLAMA:
-                return createOllamaStreamingModel(baseUrl, modelName);
-            case PROVIDER_MOCK_OPENAI:
-                return createMockOpenAiStreamingModel(baseUrl, modelName, apiKey);
-            default:
-                throw new IllegalArgumentException("Streaming not supported for provider: " + providerType);
-        }
+        return requireDefinition(providerType, "Streaming")
+            .streamingChatModel().apply(new ResolvedConfig(apiKey, modelName, baseUrl));
     }
 
     /**
-     * Get or create a cached ChatLanguageModel instance.
+     * Get or create a cached ChatModel instance.
      */
-    public static ChatLanguageModel getOrCreate(MAIProvider config) {
+    public static ChatModel getOrCreate(MAIProvider config) {
         return modelCache.computeIfAbsent(config.getAIG_Provider_ID(),
             id -> create(config));
     }
@@ -328,27 +408,8 @@ public class LangChain4jProviderFactory implements ILangChain4jProviderFactory {
 
         log.info("Creating LangChain4j embedding model for provider: " + providerType);
 
-        switch (providerType) {
-            case PROVIDER_AI_HUB:
-                return createAIHubEmbeddingModel(baseUrl, modelName, apiKey);
-
-            case PROVIDER_ANTHROPIC:
-                // Anthropic doesn't have embedding models - use AWS Bedrock Titan
-                log.info("Anthropic provider: using AWS Bedrock Titan Embeddings");
-                return createBedrockEmbeddingModel(modelName, apiKey);
-
-            case PROVIDER_BEDROCK:
-                return createBedrockEmbeddingModel(modelName, apiKey);
-
-            case PROVIDER_OLLAMA:
-                return createOllamaEmbeddingModel(baseUrl, modelName);
-
-            case PROVIDER_MOCK_OPENAI:
-                return createMockOpenAiEmbeddingModel(baseUrl, modelName, apiKey);
-
-            default:
-                throw new IllegalArgumentException("Unknown provider type for embeddings: " + providerType);
-        }
+        return requireDefinition(providerType, "Embeddings")
+            .embeddingModel().apply(new ResolvedConfig(apiKey, modelName, baseUrl));
     }
 
     /**
@@ -363,10 +424,8 @@ public class LangChain4jProviderFactory implements ILangChain4jProviderFactory {
      * Check if the provider supports embeddings natively.
      */
     public static boolean hasNativeEmbeddings(String providerType) {
-        return PROVIDER_AI_HUB.equals(providerType) ||
-               PROVIDER_BEDROCK.equals(providerType) ||
-               PROVIDER_OLLAMA.equals(providerType) ||
-               PROVIDER_MOCK_OPENAI.equals(providerType);
+        ProviderDefinition def = PROVIDER_REGISTRY.get(providerType);
+        return def != null && def.nativeEmbeddings();
     }
 
     // ========================================================================
@@ -400,7 +459,7 @@ public class LangChain4jProviderFactory implements ILangChain4jProviderFactory {
     // ========================================================================
 
     /**
-     * Create a ChatLanguageModel that routes through iDempiere AI Hub Service.
+     * Create a ChatModel that routes through iDempiere AI Hub Service.
      *
      * <p>The AI Hub exposes an OpenAI-compatible API, so we use OpenAiChatModel
      * pointed at the hub's URL. The hub handles provider routing, LangChain4j 1.x
@@ -409,9 +468,9 @@ public class LangChain4jProviderFactory implements ILangChain4jProviderFactory {
      * @param baseUrl AI Hub service URL (from AIG_Provider.URL)
      * @param modelName Target model name (hub routes to upstream provider)
      * @param apiKey Bearer token for AI Hub authentication
-     * @return ChatLanguageModel proxying through AI Hub
+     * @return ChatModel proxying through AI Hub
      */
-    private static ChatLanguageModel createAIHubModel(String baseUrl, String modelName, String apiKey) {
+    private static ChatModel createAIHubModel(String baseUrl, String modelName, String apiKey) {
         if (baseUrl == null || baseUrl.isEmpty()) {
             throw new IllegalArgumentException(
                 "AI Hub URL not configured. Set URL in AIG_Provider (e.g., http://ai-hub:8080/v1).");
@@ -432,10 +491,10 @@ public class LangChain4jProviderFactory implements ILangChain4jProviderFactory {
     }
 
     /**
-     * Create a per-request StreamingChatLanguageModel for AI Hub with iDempiere context headers.
+     * Create a per-request StreamingChatModel for AI Hub with iDempiere context headers.
      * Not cached — creates a new instance per request so headers carry the caller's identity.
      */
-    public static StreamingChatLanguageModel createStreamingWithContext(
+    public static StreamingChatModel createStreamingWithContext(
             MAIProvider config, String modelName, String baseUrl, Properties ctx) {
         if (!PROVIDER_AI_HUB.equals(config.getAIGProviderType())) {
             return createStreaming(config, modelName, baseUrl);
@@ -465,7 +524,7 @@ public class LangChain4jProviderFactory implements ILangChain4jProviderFactory {
             .build();
     }
 
-    private static StreamingChatLanguageModel createAIHubStreamingModel(String baseUrl, String modelName, String apiKey) {
+    private static StreamingChatModel createAIHubStreamingModel(String baseUrl, String modelName, String apiKey) {
         if (baseUrl == null || baseUrl.isEmpty()) {
             throw new IllegalArgumentException(
                 "AI Hub URL not configured. Set URL in AIG_Provider (e.g., http://ai-hub:8080/v1).");
@@ -518,7 +577,7 @@ public class LangChain4jProviderFactory implements ILangChain4jProviderFactory {
     // Anthropic (ANT) - Direct API
     // ========================================================================
 
-    private static ChatLanguageModel createAnthropicModel(String apiKey, String modelName) {
+    private static ChatModel createAnthropicModel(String apiKey, String modelName) {
         if (apiKey == null || apiKey.isEmpty()) {
             throw new IllegalArgumentException("Anthropic API key is not configured. Please set the API Key in the AI Provider configuration.");
         }
@@ -529,10 +588,19 @@ public class LangChain4jProviderFactory implements ILangChain4jProviderFactory {
             .temperature(0.7)
             .logRequests(true)
             .logResponses(true)
+            // Prompt caching (ADR-013): pure cost optimization, no behavior change -
+            // safe to enable unconditionally. System prompt + tool definitions are
+            // identical across requests within a session, so this is a guaranteed win.
+            .cacheSystemMessages(true)
+            .cacheTools(true)
+            // Extended thinking (ADR-033) is NOT enabled here - it changes response
+            // latency/shape and needs a UI surface (thinking budget, timeline display)
+            // that doesn't exist yet. Wire up via .thinkingType("enabled")
+            // .thinkingBudgetTokens(...).returnThinking(true) once that UI lands.
             .build();
     }
 
-    private static StreamingChatLanguageModel createAnthropicStreamingModel(String apiKey, String modelName) {
+    private static StreamingChatModel createAnthropicStreamingModel(String apiKey, String modelName) {
         if (apiKey == null || apiKey.isEmpty()) {
             throw new IllegalArgumentException("Anthropic API key is not configured. Please set the API Key in the AI Provider configuration.");
         }
@@ -541,6 +609,9 @@ public class LangChain4jProviderFactory implements ILangChain4jProviderFactory {
             .modelName(modelName != null ? modelName : DEFAULT_ANTHROPIC_MODEL)
             .maxTokens(4096)
             .temperature(0.7)
+            // Prompt caching (ADR-013) - see createAnthropicModel() for rationale.
+            .cacheSystemMessages(true)
+            .cacheTools(true)
             .build();
     }
 
@@ -548,7 +619,7 @@ public class LangChain4jProviderFactory implements ILangChain4jProviderFactory {
     // Ollama (OLL) - Local LLMs
     // ========================================================================
 
-    private static ChatLanguageModel createOllamaModel(String baseUrl, String modelName) {
+    private static ChatModel createOllamaModel(String baseUrl, String modelName) {
         return OllamaChatModel.builder()
             .baseUrl(baseUrl != null ? baseUrl : DEFAULT_OLLAMA_URL)
             .modelName(modelName != null ? modelName : DEFAULT_OLLAMA_MODEL)
@@ -556,7 +627,7 @@ public class LangChain4jProviderFactory implements ILangChain4jProviderFactory {
             .build();
     }
 
-    private static StreamingChatLanguageModel createOllamaStreamingModel(String baseUrl, String modelName) {
+    private static StreamingChatModel createOllamaStreamingModel(String baseUrl, String modelName) {
         return OllamaStreamingChatModel.builder()
             .baseUrl(baseUrl != null ? baseUrl : DEFAULT_OLLAMA_URL)
             .modelName(modelName != null ? modelName : DEFAULT_OLLAMA_MODEL)
@@ -575,7 +646,7 @@ public class LangChain4jProviderFactory implements ILangChain4jProviderFactory {
     // Mock OpenAI (MOA) - Testing/Development
     // ========================================================================
 
-    private static ChatLanguageModel createMockOpenAiModel(String baseUrl, String modelName, String apiKey) {
+    private static ChatModel createMockOpenAiModel(String baseUrl, String modelName, String apiKey) {
         return OpenAiChatModel.builder()
             .baseUrl(baseUrl != null ? baseUrl : DEFAULT_MOCK_OPENAI_URL)
             .apiKey(apiKey != null && !apiKey.isEmpty() ? apiKey : "test")
@@ -586,7 +657,7 @@ public class LangChain4jProviderFactory implements ILangChain4jProviderFactory {
             .build();
     }
 
-    private static StreamingChatLanguageModel createMockOpenAiStreamingModel(String baseUrl, String modelName, String apiKey) {
+    private static StreamingChatModel createMockOpenAiStreamingModel(String baseUrl, String modelName, String apiKey) {
         return OpenAiStreamingChatModel.builder()
             .baseUrl(baseUrl != null ? baseUrl : DEFAULT_MOCK_OPENAI_URL)
             .apiKey(apiKey != null && !apiKey.isEmpty() ? apiKey : "test")
@@ -607,50 +678,56 @@ public class LangChain4jProviderFactory implements ILangChain4jProviderFactory {
     // AWS Bedrock (ABE) - Direct API with OSGi workaround
     // ========================================================================
 
-    private static ChatLanguageModel createBedrockModel(String modelName, String apiKey) {
+    private static ChatModel createBedrockModel(String modelName, String apiKey) {
         BedrockCredentials creds = parseBedrockCredentials(apiKey, "Bedrock");
+        Region region = Region.of(creds.region);
+        AwsCredentialsProvider credentialsProvider = toCredentialsProvider(creds);
 
-        var builder = BedrockChatModelWrapper.builder()
-            .region(Region.of(creds.region))
-            .model(modelName != null ? modelName : DEFAULT_BEDROCK_MODEL)
-            .maxTokens(4096)
-            .temperature(0.7f);
-
-        if (creds.accessKeyId != null) {
-            builder.credentials(creds.accessKeyId, creds.secretAccessKey);
-        }
-
-        return builder.build();
+        return BedrockChatModel.builder()
+            .client(BedrockClients.createSyncClient(region, credentialsProvider))
+            .region(region)
+            .modelId(modelName != null ? modelName : DEFAULT_BEDROCK_MODEL)
+            .defaultRequestParameters(ChatRequestParameters.builder()
+                .maxOutputTokens(4096)
+                .temperature(0.7)
+                .build())
+            .build();
     }
 
-    private static StreamingChatLanguageModel createBedrockStreamingModel(String modelName, String apiKey) {
+    private static StreamingChatModel createBedrockStreamingModel(String modelName, String apiKey) {
         BedrockCredentials creds = parseBedrockCredentials(apiKey, "Bedrock streaming");
+        Region region = Region.of(creds.region);
+        AwsCredentialsProvider credentialsProvider = toCredentialsProvider(creds);
 
-        var builder = BedrockStreamingChatModelWrapper.builder()
-            .region(Region.of(creds.region))
-            .model(modelName != null ? modelName : DEFAULT_BEDROCK_MODEL)
-            .maxTokens(4096)
-            .temperature(0.7f);
-
-        if (creds.accessKeyId != null) {
-            builder.credentials(creds.accessKeyId, creds.secretAccessKey);
-        }
-
-        return builder.build();
+        return BedrockStreamingChatModel.builder()
+            .client(BedrockClients.createAsyncClient(region, credentialsProvider))
+            .region(region)
+            .modelId(modelName != null ? modelName : DEFAULT_BEDROCK_MODEL)
+            .defaultRequestParameters(ChatRequestParameters.builder()
+                .maxOutputTokens(4096)
+                .temperature(0.7)
+                .build())
+            .build();
     }
 
     private static EmbeddingModel createBedrockEmbeddingModel(String modelName, String apiKey) {
         BedrockCredentials creds = parseBedrockCredentials(apiKey, "Bedrock embedding");
+        Region region = Region.of(creds.region);
+        AwsCredentialsProvider credentialsProvider = toCredentialsProvider(creds);
 
-        var builder = BedrockEmbeddingModelWrapper.builder()
-            .region(Region.of(creds.region))
-            .model(modelName != null ? modelName : DEFAULT_BEDROCK_EMBEDDING_MODEL);
+        return BedrockTitanEmbeddingModel.builder()
+            .client(BedrockClients.createSyncClient(region, credentialsProvider))
+            .region(region)
+            .model(modelName != null ? modelName : DEFAULT_BEDROCK_EMBEDDING_MODEL)
+            .build();
+    }
 
+    private static AwsCredentialsProvider toCredentialsProvider(BedrockCredentials creds) {
         if (creds.accessKeyId != null) {
-            builder.credentials(creds.accessKeyId, creds.secretAccessKey);
+            return StaticCredentialsProvider.create(
+                AwsBasicCredentials.create(creds.accessKeyId, creds.secretAccessKey));
         }
-
-        return builder.build();
+        return DefaultCredentialsProvider.create();
     }
 
     /**

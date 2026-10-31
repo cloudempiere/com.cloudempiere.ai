@@ -111,9 +111,124 @@ public class LanguageDetectionService {
     );
 
     /**
+     * Language names users type in a change request (English, native and foreign names, lowercase) to the default
+     * AD_Language code. AD_Language only holds names like "German (Germany)", so "deutsch", "allemand" or "slovensky"
+     * need this list. {@link #buildLanguageMap()} points each name at the installed variant of its language.
+     */
+    private static final Map<String, String> LANGUAGE_NAMES = new HashMap<>();
+    static {
+        // English names
+        LANGUAGE_NAMES.put("english", "en_US");
+        LANGUAGE_NAMES.put("german", "de_DE");
+        LANGUAGE_NAMES.put("spanish", "es_ES");
+        LANGUAGE_NAMES.put("french", "fr_FR");
+        LANGUAGE_NAMES.put("italian", "it_IT");
+        LANGUAGE_NAMES.put("portuguese", "pt_BR");
+        LANGUAGE_NAMES.put("dutch", "nl_NL");
+        LANGUAGE_NAMES.put("polish", "pl_PL");
+        LANGUAGE_NAMES.put("russian", "ru_RU");
+        LANGUAGE_NAMES.put("chinese", "zh_CN");
+        LANGUAGE_NAMES.put("japanese", "ja_JP");
+        LANGUAGE_NAMES.put("korean", "ko_KR");
+        LANGUAGE_NAMES.put("arabic", "ar_SA");
+        LANGUAGE_NAMES.put("hebrew", "he_IL");
+        LANGUAGE_NAMES.put("turkish", "tr_TR");
+        LANGUAGE_NAMES.put("czech", "cs_CZ");
+        LANGUAGE_NAMES.put("slovak", "sk_SK");
+        LANGUAGE_NAMES.put("hungarian", "hu_HU");
+        LANGUAGE_NAMES.put("romanian", "ro_RO");
+        LANGUAGE_NAMES.put("bulgarian", "bg_BG");
+        LANGUAGE_NAMES.put("croatian", "hr_HR");
+        LANGUAGE_NAMES.put("slovenian", "sl_SI");
+        LANGUAGE_NAMES.put("serbian", "sr_RS");
+        LANGUAGE_NAMES.put("ukrainian", "uk_UA");
+        LANGUAGE_NAMES.put("thai", "th_TH");
+        LANGUAGE_NAMES.put("vietnamese", "vi_VN");
+        LANGUAGE_NAMES.put("indonesian", "id_ID");
+        LANGUAGE_NAMES.put("malay", "ms_MY");
+        LANGUAGE_NAMES.put("greek", "el_GR");
+        LANGUAGE_NAMES.put("finnish", "fi_FI");
+        LANGUAGE_NAMES.put("swedish", "sv_SE");
+        LANGUAGE_NAMES.put("norwegian", "no_NO");
+        LANGUAGE_NAMES.put("danish", "da_DK");
+        // Native names
+        LANGUAGE_NAMES.put("deutsch", "de_DE");
+        LANGUAGE_NAMES.put("español", "es_ES");
+        LANGUAGE_NAMES.put("espanol", "es_ES");
+        LANGUAGE_NAMES.put("français", "fr_FR");
+        LANGUAGE_NAMES.put("francais", "fr_FR");
+        LANGUAGE_NAMES.put("italiano", "it_IT");
+        LANGUAGE_NAMES.put("português", "pt_BR");
+        LANGUAGE_NAMES.put("portugues", "pt_BR");
+        LANGUAGE_NAMES.put("polski", "pl_PL");
+        LANGUAGE_NAMES.put("polsku", "pl_PL");
+        LANGUAGE_NAMES.put("русский", "ru_RU");
+        LANGUAGE_NAMES.put("中文", "zh_CN");
+        LANGUAGE_NAMES.put("日本語", "ja_JP");
+        LANGUAGE_NAMES.put("한국어", "ko_KR");
+        LANGUAGE_NAMES.put("العربية", "ar_SA");
+        LANGUAGE_NAMES.put("עברית", "he_IL");
+        LANGUAGE_NAMES.put("türkçe", "tr_TR");
+        LANGUAGE_NAMES.put("čeština", "cs_CZ");
+        LANGUAGE_NAMES.put("česky", "cs_CZ");
+        LANGUAGE_NAMES.put("cesky", "cs_CZ");
+        LANGUAGE_NAMES.put("slovenčina", "sk_SK");
+        LANGUAGE_NAMES.put("slovenský", "sk_SK");
+        LANGUAGE_NAMES.put("slovensky", "sk_SK");
+        LANGUAGE_NAMES.put("slovenciny", "sk_SK"); // genitive form
+        LANGUAGE_NAMES.put("magyar", "hu_HU");
+        LANGUAGE_NAMES.put("magyarul", "hu_HU");
+        LANGUAGE_NAMES.put("română", "ro_RO");
+        LANGUAGE_NAMES.put("български", "bg_BG");
+        LANGUAGE_NAMES.put("hrvatski", "hr_HR");
+        LANGUAGE_NAMES.put("slovenščina", "sl_SI");
+        LANGUAGE_NAMES.put("srpski", "sr_RS");
+        LANGUAGE_NAMES.put("українська", "uk_UA");
+        LANGUAGE_NAMES.put("ภาษาไทย", "th_TH");
+        LANGUAGE_NAMES.put("tiếng việt", "vi_VN");
+        // German names
+        LANGUAGE_NAMES.put("englisch", "en_US");
+        LANGUAGE_NAMES.put("spanisch", "es_ES");
+        LANGUAGE_NAMES.put("französisch", "fr_FR");
+        LANGUAGE_NAMES.put("franzosisch", "fr_FR");
+        LANGUAGE_NAMES.put("italienisch", "it_IT");
+        // Slovak names
+        LANGUAGE_NAMES.put("anglicky", "en_US");
+        LANGUAGE_NAMES.put("nemecky", "de_DE");
+        LANGUAGE_NAMES.put("maďarsky", "hu_HU");
+        LANGUAGE_NAMES.put("poľsky", "pl_PL");
+        // Czech names
+        LANGUAGE_NAMES.put("německy", "de_DE");
+        LANGUAGE_NAMES.put("polsky", "pl_PL");
+        // Hungarian names
+        LANGUAGE_NAMES.put("angolul", "en_US");
+        LANGUAGE_NAMES.put("németül", "de_DE");
+        LANGUAGE_NAMES.put("franciául", "fr_FR");
+        LANGUAGE_NAMES.put("spanyolul", "es_ES");
+        LANGUAGE_NAMES.put("szlovákul", "sk_SK");
+        LANGUAGE_NAMES.put("csehül", "cs_CZ");
+        // Polish names
+        LANGUAGE_NAMES.put("angielsku", "en_US");
+        LANGUAGE_NAMES.put("niemiecku", "de_DE");
+        LANGUAGE_NAMES.put("francusku", "fr_FR");
+        LANGUAGE_NAMES.put("hiszpańsku", "es_ES");
+        // Spanish names
+        LANGUAGE_NAMES.put("inglés", "en_US");
+        LANGUAGE_NAMES.put("ingles", "en_US");
+        LANGUAGE_NAMES.put("alemán", "de_DE");
+        LANGUAGE_NAMES.put("aleman", "de_DE");
+        LANGUAGE_NAMES.put("francés", "fr_FR");
+        LANGUAGE_NAMES.put("frances", "fr_FR");
+        // French names
+        LANGUAGE_NAMES.put("anglais", "en_US");
+        LANGUAGE_NAMES.put("allemand", "de_DE");
+        LANGUAGE_NAMES.put("espagnol", "es_ES");
+        LANGUAGE_NAMES.put("italien", "it_IT");
+    }
+
+    /**
      * Language name to code mapping (lowercase name -> AD_Language code).
-     * Lazy-initialized from AD_Language table on first use.
-     * Maps display names, ISO codes, and native language names to AD_Language codes.
+     * Lazy-initialized from {@link #LANGUAGE_NAMES} and the AD_Language table on first use.
      */
     private volatile Map<String, String> languageMap = null;
 
@@ -149,24 +264,29 @@ public class LanguageDetectionService {
      *   <li>ISO language codes (e.g., "en" -> "en_US")</li>
      *   <li>AD_Language codes (e.g., "en_US" -> "en_US")</li>
      *   <li>Native language names via iDempiere's Language utility</li>
+     *   <li>The names users type ({@link #LANGUAGE_NAMES}), pointed at the installed variant of their language
+     *       (e.g., "spanish" -> "es_CO" when es_CO is the installed Spanish)</li>
      * </ul>
      *
-     * <p>This approach eliminates hardcoded language lists and respects
-     * iDempiere's configured languages.</p>
+     * <p>Without a database the map holds {@link #LANGUAGE_NAMES} with their default codes.</p>
      *
      * @return Map of lowercase language name to AD_Language code
      */
     private Map<String, String> buildLanguageMap() {
-        Map<String, String> map = new HashMap<>();
+        Map<String, String> map = new HashMap<>(LANGUAGE_NAMES);
+        // their AD_Language codes too ("respond in de_DE"); bare ISO codes only for installed languages, below,
+        // since "it" or "no" are ordinary words
+        for (String code : LANGUAGE_NAMES.values()) {
+            map.putIfAbsent(code.toLowerCase(), code);
+        }
 
         if (!DB.isConnected()) {
-            log.warning("[LANGUAGE] Database not connected, using minimal fallback map");
-            // Minimal fallback for offline scenarios
-            map.put("english", "en_US");
-            map.put("en", "en_US");
-            map.put("en_us", "en_US");
+            log.warning("[LANGUAGE] Database not connected, using built-in language names only");
             return map;
         }
+
+        // first installed AD_Language per ISO code, to point the typed names at it
+        Map<String, String> installedByISO = new HashMap<>();
 
         String sql = "SELECT AD_Language, Name, LanguageISO, CountryCode " +
                      "FROM AD_Language " +
@@ -201,6 +321,7 @@ public class LanguageDetectionService {
                 // Map ISO language code (e.g., "en" -> "en_US")
                 if (languageISO != null && !languageISO.isBlank()) {
                     map.put(languageISO.toLowerCase(), adLanguage);
+                    installedByISO.putIfAbsent(languageISO.toLowerCase(), adLanguage);
                 }
 
                 // Map ISO + country (e.g., "en-US" -> "en_US")
@@ -219,14 +340,18 @@ public class LanguageDetectionService {
                 }
             }
 
+            for (Map.Entry<String, String> name : LANGUAGE_NAMES.entrySet()) {
+                String installed = installedByISO.get(name.getValue().substring(0, 2).toLowerCase());
+                if (installed != null) {
+                    map.put(name.getKey(), installed);
+                }
+            }
+
             log.info("[LANGUAGE] Built language map with " + map.size() + " entries from AD_Language table");
 
         } catch (Exception e) {
+            // the built-in names are already in the map
             log.severe("[LANGUAGE] Error building language map from database: " + e.getMessage());
-            // Minimal fallback
-            map.put("english", "en_US");
-            map.put("en", "en_US");
-            map.put("en_us", "en_US");
         } finally {
             DB.close(rs, pstmt);
         }
@@ -414,6 +539,10 @@ public class LanguageDetectionService {
             // Default to Russian as most common
             return Optional.of("ru_RU");
         }
+        // before CJK: Japanese mixes kanji with kana, Chinese has no kana
+        if (containsJapaneseKana(normalized)) {
+            return Optional.of("ja_JP");
+        }
         if (containsCJK(normalized)) {
             // Simplified Chinese most common in business context
             return Optional.of("zh_CN");
@@ -426,9 +555,6 @@ public class LanguageDetectionService {
         }
         if (containsThai(normalized)) {
             return Optional.of("th_TH");
-        }
-        if (containsJapaneseKana(normalized)) {
-            return Optional.of("ja_JP");
         }
         if (containsKorean(normalized)) {
             return Optional.of("ko_KR");
@@ -450,16 +576,24 @@ public class LanguageDetectionService {
 
         // 3. Other Latin-script languages - check diacritics and distinctive words
 
-        // Slovak-specific patterns (ľ, ĺ, ŕ, ô, ä with háčky and dĺžne)
-        if (normalized.matches(".*[ľĺŕťďňô].*") ||
-            normalized.matches(".*\\b(nie|áno|prosím|ďakujem|dobrý|deň|ako|čo|kde|kedy|prečo|som|je|sú|má|máme|chcem|potrebujem)\\b.*")) {
+        // Slovak and Czech share words (prosím, dobrý, kde, je, má, máme): distinctive letters and words decide
+        // first, a message with only shared words stays Slovak.
+        // Slovak-specific letters (ľ, ĺ, ŕ, ô, ...)
+        if (normalized.matches(".*[ľĺŕťďňô].*")) {
             return Optional.of("sk_SK");
         }
-
-        // Czech-specific patterns (ř, ů, ě)
-        if (normalized.matches(".*[řůě].*") ||
-            normalized.matches(".*\\b(ano|ne|prosím|děkuji|dobrý|jak|co|kde|kdy|proč|jsem|je|jsou|má|máme|chci|potřebuji)\\b.*")) {
+        // Czech-specific letters (ř, ů, ě)
+        if (normalized.matches(".*[řůě].*")) {
             return Optional.of("cs_CZ");
+        }
+        if (normalized.matches(".*\\b(nie|áno|ďakujem|deň|ako|čo|kedy|prečo|som|sú|chcem|potrebujem)\\b.*")) {
+            return Optional.of("sk_SK");
+        }
+        if (normalized.matches(".*\\b(ano|ne|děkuji|jak|co|kdy|proč|jsem|jsou|chci|potřebuji)\\b.*")) {
+            return Optional.of("cs_CZ");
+        }
+        if (normalized.matches(".*\\b(prosím|dobrý|kde|je|má|máme)\\b.*")) {
+            return Optional.of("sk_SK");
         }
 
         // Polish-specific patterns (ł, ń, ś, ź, ż, ó, ą, ę)

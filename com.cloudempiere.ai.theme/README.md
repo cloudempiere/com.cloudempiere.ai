@@ -166,7 +166,7 @@ In Eclipse with iDempiere:
 
 - **iDempiere Version:** v10 (10.0.0-SNAPSHOT)
 - **Jetty Version:** 10.0.7 (uses `Jetty-WarFragmentFolderPath: /`)
-- **Java Version:** JavaSE-11
+- **Java Version:** JavaSE-17
 - **Extension Point:** NF8.2 (available since iDempiere v8.2)
 
 ## Multi-Theme Support

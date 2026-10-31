@@ -92,6 +92,20 @@ User Request: "Show me active sales orders"
 - Appears in `AIG_QueryAudit.CreatedBy` (who initiated)
 - Ensures no privilege escalation
 
+**The session context on background threads (CLD-2432):**
+The AI runs on other threads than the UI: the chat task, and LangChain4j's streaming and tool threads. In the web UI
+`Env.getCtx()` is iDempiere's `ServerContextPropertiesWrapper`, which reads the context of *whichever thread uses it*
+(`ServerContext`, an `InheritableThreadLocal`). On a pool thread that is empty (it reads as tenant 0 / role 0, the
+System Administrator) or a context inherited from another user's request. So:
+- The panel takes a plain copy of the requesting user's context on the UI thread
+  (`AuthorisedUserContext.capture()`) and hands the AI service a chat bound to that copy; AI code only uses the
+  chat's context, never `Env.getCtx()`.
+- The background task runs the iDempiere way, as `ContextRunnable` on `Adempiere.getThreadPoolExecutor()`
+  (`AuthorisedUserContext.runAs`), so the worker thread has the user's context during the task and none after it.
+- Fail closed: without tenant, role and user in the context the panel denies the request
+  ("AI access denied: no logged-in user …"), and `SecureDatabaseQueryExecutor` refuses the query
+  (`SecurityException`). It never falls back to tenant/role 0.
+
 #### 2. Permission Enforcement
 
 **MRole.addAccessSQL()** - iDempiere's native security layer:

@@ -38,7 +38,7 @@ import dev.langchain4j.agent.tool.Tool;
  * RagTools ragTools = new RagTools(ragService, ctx);
  *
  * ERPAgent agent = AiServices.builder(ERPAgent.class)
- *     .chatLanguageModel(model)
+ *     .chatModel(model)
  *     .tools(erpTools, ragTools)  // Include both tool classes
  *     .build();
  * </pre>

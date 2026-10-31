@@ -4,7 +4,7 @@
 	<parent>
 		<groupId>com.cloudempiere.ai</groupId>
 		<artifactId>com.cloudempiere.ai.parent</artifactId>
-		<version>10.0.2-SNAPSHOT</version>
+		<version>14.0.0-SNAPSHOT</version>
 		<relativePath>../com.cloudempiere.ai.parent/pom.xml</relativePath>
 	</parent>
 	<artifactId>com.cloudempiere.ai.p2</artifactId>

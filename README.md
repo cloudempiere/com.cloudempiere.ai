@@ -24,8 +24,8 @@
 
 **Before building this plugin:**
 ```bash
-# Set Java 11
-export JAVA_HOME=/Library/Java/JavaVirtualMachines/amazon-corretto-11.jdk/Contents/Home
+# Set Java 17
+export JAVA_HOME=/Library/Java/JavaVirtualMachines/amazon-corretto-17.jdk/Contents/Home
 
 # Build iDempiere dependencies
 cd ../iDempiereCLDE/org.idempiere.parent && mvn clean install -DskipTests
@@ -93,7 +93,7 @@ The plugin suite consists of:
 
 3. **Build the plugin:**
    ```bash
-   export JAVA_HOME=/Library/Java/JavaVirtualMachines/amazon-corretto-11.jdk/Contents/Home
+   export JAVA_HOME=/Library/Java/JavaVirtualMachines/amazon-corretto-17.jdk/Contents/Home
    mvn clean install -DskipTests
    ```
 

@@ -183,7 +183,8 @@ The AI Hub architecture decouples AI provider versions from iDempiere runtime, e
 
 | Tool | Version | Status | Description | Use Case |
 |------|---------|--------|-------------|----------|
-| **queryDatabase** | 0.9.0 | ✅ Done | Execute SQL SELECT queries | "Show me overdue orders" |
+| **queryDatabase** | 0.9.0 | ✅ Done | Execute SQL SELECT queries; one query JOINs referenced tables for names (CLD-2435) | "Show me overdue orders" |
+| **prepareQuery** | vNext | ✅ Done | Optional: exact columns, references and name columns of tables | "Which columns does M_InOut have?" |
 | **lookupRecord** | 0.9.0 | ✅ Done | Get record by ID | "Details of order SO-1234" |
 | **searchRecords** | 0.9.0 | ✅ Done | Search with WHERE clause | "Find customers in California" |
 | **getTableMetadata** | 0.9.0 | ✅ Done | Table structure info | "What fields are in C_Order?" |

@@ -36,6 +36,7 @@ import org.json.JSONObject;
 import com.cloudempiere.ai.database.dto.SecureQueryRequest;
 import com.cloudempiere.ai.database.dto.SecureQueryResult;
 import com.cloudempiere.ai.model.MAIProvider;
+import com.cloudempiere.ai.util.AuthorisedUserContext;
 import com.cloudempiere.ai.model.MAIQueryAudit;
 
 /**
@@ -129,6 +130,12 @@ public class SecureDatabaseQueryExecutor {
         int aiUserId = -1;
 
         try {
+            // CLD-2432: ADR-007 guards the query with the requesting user's tenant and role; without a login in ctx
+            // they would read as 0, i.e. the System tenant and the System Administrator role
+            if (!AuthorisedUserContext.hasLogin(ctx)) {
+                throw new SecurityException("AI query without an authorised user: the context has no tenant, role or user");
+            }
+
             // 1. Load AI Provider and get designated AI User
             MAIProvider provider = new MAIProvider(ctx, request.getProviderId(), null);
             if (provider.get_ID() == 0) {
@@ -161,8 +168,19 @@ public class SecureDatabaseQueryExecutor {
             // 4. Validate SQL is read-only (no DML/DDL)
             validateReadOnlySQL(request.getSql());
 
-            // 5. Extract table info (names and aliases) from query
-            List<TableInfoHolder> tableInfoList = extractTableInfo(request.getSql());
+            // 5. Strip trailing clauses (ORDER BY, GROUP BY, HAVING, LIMIT) first: AccessSqlParser reads everything
+            // after FROM as the table list when there is no WHERE, so "FROM C_Order ORDER BY ..." gave table C_Order
+            // with alias "ORDER" and the access filter "ORDER.AD_Client_ID" (CLD-2433). addAccessSQL() also needs
+            // the SQL without them (step 8).
+            String sqlWithoutTrailingClauses = request.getSql();
+            TrailingClauses extractedClauses = extractAndStripTrailingClauses(sqlWithoutTrailingClauses);
+            if (extractedClauses != null) {
+                sqlWithoutTrailingClauses = extractedClauses.sqlWithoutTrailingClauses;
+                log.fine("Stripped trailing clauses from SQL: " + extractedClauses.getAllClauses());
+            }
+
+            // Extract table info (names and aliases) from the query without trailing clauses
+            List<TableInfoHolder> tableInfoList = extractTableInfo(sqlWithoutTrailingClauses);
 
             // Build table names list for audit logging
             List<String> tableNames = new ArrayList<>();
@@ -189,15 +207,6 @@ public class SecureDatabaseQueryExecutor {
                               System.currentTimeMillis() - startTime, loggedInUserId);
                     throw new SecurityException(error);
                 }
-            }
-
-            // 7. Extract trailing clauses (ORDER BY, GROUP BY, HAVING, LIMIT) from AI-generated SQL
-            // This prevents malformed SQL when addAccessSQL() appends WHERE conditions
-            String sqlWithoutTrailingClauses = request.getSql();
-            TrailingClauses extractedClauses = extractAndStripTrailingClauses(sqlWithoutTrailingClauses);
-            if (extractedClauses != null) {
-                sqlWithoutTrailingClauses = extractedClauses.sqlWithoutTrailingClauses;
-                log.fine("Stripped trailing clauses from SQL: " + extractedClauses.getAllClauses());
             }
 
             // 8. Apply logged-in user's role-based security SQL injection
@@ -273,6 +282,16 @@ public class SecureDatabaseQueryExecutor {
                     result.getTotalExecutionTimeMs(), loggedInUserId);
             throw e;
 
+        } catch (RejectedQueryException e) {
+            // CLD-2427: the model's SQL is wrong, not the system: hand the database's message back as a failed
+            // result so the model can correct the query
+            result.setStatus(MAIQueryAudit.AIGQUERYSTATUS_Error);
+            result.setErrorMessage(e.getMessage());
+            result.setTotalExecutionTimeMs(System.currentTimeMillis() - startTime);
+            log.warning("AI query rejected by the database: " + e.getMessage());
+            auditQuery(request, result, MAIQueryAudit.AIGQUERYSTATUS_Error, e.getMessage(),
+                      result.getTotalExecutionTimeMs(), loggedInUserId);
+
         } catch (Exception e) {
             result.setStatus(MAIQueryAudit.AIGQUERYSTATUS_Error);
             result.setErrorMessage(e.getMessage());
@@ -284,6 +303,44 @@ public class SecureDatabaseQueryExecutor {
         }
 
         return result;
+    }
+
+    /**
+     * The database refused the AI-written SQL itself; {@link #executeQuery} turns it into a failed result.
+     */
+    private static final class RejectedQueryException extends RuntimeException {
+        private static final long serialVersionUID = 1L;
+
+        RejectedQueryException(String message, Throwable cause) {
+            super(message, cause);
+        }
+    }
+
+    /**
+     * Returns the database's message when it refused the SQL itself, so the model can fix the query: SQLState
+     * class 42 (syntax error, unknown column or table), 22 (data exception) or 21 (cardinality violation).
+     * Connection failures, timeouts, 42501 (insufficient privilege) and other errors return null and stay
+     * system errors.
+     *
+     * @param error exception thrown while executing the query
+     * @return first line of the database message (without the "Position" of the rewritten SQL), or null
+     */
+    public static String databaseRejection(Throwable error) {
+        for (Throwable t = error; t != null; t = t.getCause()) {
+            if (t instanceof java.sql.SQLException) {
+                String state = ((java.sql.SQLException) t).getSQLState();
+                if (state != null && !"42501".equals(state)
+                        && (state.startsWith("42") || state.startsWith("22") || state.startsWith("21"))) {
+                    String message = t.getMessage() != null ? t.getMessage().trim() : state;
+                    int eol = message.indexOf('\n');
+                    return eol > 0 ? message.substring(0, eol).trim() : message;
+                }
+            }
+            if (t.getCause() == t) {
+                break;
+            }
+        }
+        return null;
     }
 
     /**
@@ -735,6 +792,10 @@ public class SecureDatabaseQueryExecutor {
         } catch (java.sql.SQLTimeoutException e) {
             throw new RuntimeException("Query timeout exceeded", e);
         } catch (Exception e) {
+            String rejection = databaseRejection(e);
+            if (rejection != null) {
+                throw new RejectedQueryException(rejection, e);
+            }
             throw new RuntimeException("Query execution failed: " + e.getMessage(), e);
         } finally {
             DB.close(rs, pstmt);

@@ -43,7 +43,8 @@ Currently, `MAIChat` extends `MChat` and uses the `AD_Table_ID + Record_ID` patt
 | `ConfidentialType` | VARCHAR(60) | Privacy level (A, C, I, P) |
 
 **Current Implementation (MAIChat.java):**
-- Global chats: `AD_Table_ID = AD_User.Table_ID`, `Record_ID = user's AD_User_ID`
+- Global chats: `AD_Table_ID = AD_UserPreference.Table_ID`, `Record_ID` / `Record_UU` = the user's
+  `AD_UserPreference` of the tenant (CLD-2429; before: `AD_User`, see Case 2)
 - Context chats: `AD_Table_ID = target table`, `Record_ID = target record`
 - Tenant isolation via `AD_Client_ID` filtering
 
@@ -97,15 +98,35 @@ MAIChat chat = MAIChat.getOrCreateContextChat(
 - Survives session restarts
 - System users get separate chats per tenant
 
-**Current Behavior:**
+**Current Behavior (CLD-2429):**
 ```java
 MAIChat chat = MAIChat.getOrCreateGlobalChat(ctx, null);
-// AD_Table_ID = 102 (AD_User)
-// Record_ID = AD_User_ID
+// AD_Table_ID = AD_UserPreference
+// Record_ID   = the logged-in user's AD_UserPreference_ID for this tenant (created if missing)
+// Record_UU   = that preference's AD_UserPreference_UU
 // AD_Client_ID = current tenant
 ```
 
-**Status**: Works correctly. Tenant isolation handled.
+**Why not `AD_User` (the anchor before CLD-2429):** since iDempiere 11 (IDEMPIERE-5567, "Support of UUID as Key")
+`CM_Chat.Record_UU` is unique (`cm_chat_record_uu`) and core `MChat.beforeSave()` fills it from the referenced
+record. `AD_User` is one record for all tenants, so a system user's global chats in two tenants got the same
+`Record_UU` and the second could not be created. A made-up per-tenant UUID is not an option either:
+`PO.checkRecordUUCrossTenant()` requires `Record_UU` to point to an existing record of the chat's tenant (or System).
+`AD_UserPreference` exists exactly once per user and tenant (unique `AD_User_ID, AD_Client_ID`), lives in that tenant
+and has its own UUID, so it is a valid anchor. The chat only references it; no preference value is read or changed.
+
+**Migration:** `migration/postgresql/202610282105_CLD-2429.sql` creates missing preferences and moves existing
+global chats from `AD_User` to `AD_UserPreference` (plain statements, safe to run again). Until it has run,
+`getOrCreateGlobalChat` also finds chats on the former anchor (`MAIChat.LEGACY_GLOBAL_TABLE_ID`), and `isGlobalChat()`
+recognises both.
+
+**Before upgrading a v10 database to v14:** core's back-fill (`iD11/202305291332_IDEMPIERE-5567.sql`) creates the
+unique index first and fills `Record_UU` in one `DO` block without exception handling. A user with global chats in
+two or more tenants makes it fail; the script is already registered, so after a re-run the whole back-fill
+(attachments, chats, notes) is skipped. Check first:
+`SELECT Record_ID, COUNT(*) FROM CM_Chat WHERE AD_Table_ID=114 GROUP BY Record_ID HAVING COUNT(*) > 1;`
+
+**Status**: Works on v14; one chat per user per tenant, verified with one user in two tenants.
 
 ### Case 3: Shared Chats (Team Collaboration)
 

@@ -48,7 +48,7 @@ ADSchemaCache                     singleton, ConcurrentHashMap, 30-min TTL
 ### Cache Loading
 
 - **Trigger**: Lazy — loaded on first call to `ensureLoaded()` (inside `tableExists()`, `getTableMetadata()`, `getAllTables()`, `suggestTable()`)
-- **Source**: `AD_Table` + `AD_Column` where `IsActive = 'Y'`, ordered by `SeqNo`
+- **Source**: `AD_Table` + `AD_Column` where `IsActive = 'Y'` and `ColumnSQL` is empty, ordered by `SeqNo`. Virtual columns (non-empty `ColumnSQL`, same rule as `MColumn.isVirtualColumn()`) are left out: the database has no such column, so advertising them made the model write SQL PostgreSQL rejects, e.g. `M_ProductPrice.ValidFrom` (CLD-2427)
 - **TTL**: 30 minutes. Checked on each `ensureLoaded()` call; reloads if expired
 - **Thread safety**: `synchronized` on `ensureLoaded()` + `loadSchema()`; reads use `ConcurrentHashMap`
 - **Size**: ~1934 tables, ~52141 columns, loads in ~200–300ms
@@ -113,7 +113,7 @@ SQL from LLM
              Available columns: [key+FK cols], other: [rest]"
 ```
 
-Column validation resolves aliases to tables by parsing FROM/JOIN clauses first, then checks every `alias.column` reference.
+Column validation resolves aliases to tables by parsing FROM/JOIN clauses first, then checks every `alias.column` reference. The FROM/JOIN patterns start at a word boundary, so a column such as `ValidFrom` in `SELECT ValidFrom FROM t` is not read as a FROM clause (CLD-2427).
 
 ## Error Enrichment
 
@@ -138,12 +138,23 @@ All errors from `queryDatabase` include `schemaHints` so the LLM can self-correc
 
 Successful responses also include `schemaHints` alongside `rows` for follow-up query context.
 
+### Errors from the database
+
+Validation cannot catch everything, so the database is the last check. When PostgreSQL rejects the SQL itself (SQLState class 42 except 42501, 22 or 21), `SecureDatabaseQueryExecutor` returns a failed result with the database's first message line and logs one WARNING line; connection errors, timeouts and privilege errors still throw (CLD-2427). `ERPTools` treats the failed result like a validation failure: it counts toward the retry limit and returns `schemaHints`. For `column … does not exist` it also names the table behind the alias, close column names and the table's columns (`ERPTools.enrichDatabaseError`, ported from clde-hub `QueryToolLogic.enhanceErrorMessage`):
+
+```
+ERROR: column pp.validfrom does not exist. Column 'validfrom' does not exist in table 'M_ProductPrice'.
+Available columns in M_ProductPrice: [M_ProductPrice_ID, M_PriceList_Version_ID, ...], other: [PriceList, PriceStd, ...]
+```
+
+Before, the executor logged SEVERE with a stack trace and threw, the retry loop was skipped, and the model only saw "Query execution failed".
+
 ## Retry Suppression
 
 `ERPTools` tracks consecutive `queryDatabase` failures per conversation instance:
 
 - **Failures 1 to (MAX-1)**: error + schema hints returned to LLM only — no UI event fired (`fireToolError` suppressed). LLM self-corrects silently.
-- **Failure at MAX** (default 6): `fireToolError` fires once with a user-facing message; `RuntimeException` thrown to terminate the agent.
+- **Failure at MAX** (default 6): `fireToolError` fires once with a user-facing message; `QueryAttemptsExhaustedException` is thrown to terminate the agent. LangChain4j returns a tool's exception to the model as text unless a `ToolExecutionErrorHandler` is configured, so every agent with `ERPTools` uses `ERPTools.TOOL_ERROR_HANDLER`, which rethrows this exception and returns any other error as text (CLD-2427).
 
 ```java
 private int queryFailureCount = 0;
@@ -237,6 +248,25 @@ AiServices.builder(ERPAgent.class)
 ```
 
 At that point, soft Option C can be hardened: `prepareQuery` can be made mandatory for any agentic SQL generation flow, eliminating the LLM compliance dependency entirely.
+
+### Revised 2026-10-28 (CLD-2435): `prepareQuery` is optional
+
+Measured on v14 with Bedrock Sonnet 4.5, every model round trip costs 2–6 s, so the enforced two-step contract made
+the simplest question slow: "Retrieve the last order created in the system" took ~5 round trips and 16–19 s
+(`prepareQuery`, a rejected or narrow query, then one lookup per referenced record). Hard enforcement (above) would
+make every question pay the extra round trip, so it is dropped.
+
+- `queryDatabase` no longer checks `preparedTables` (removed); `validateTablesInSql` and the error enrichment still
+  check tables and columns against the dictionary, and a failed query returns the exact columns.
+- `prepareQuery` stays as an optional tool for tables the model is unsure about.
+- The schema shows every reference with its target table and that table's name columns
+  (`C_BPartner_ID -> C_BPartner (name: Value, Name)`). References follow `AD_Ref_Table` for Table/Search columns,
+  else the `<Table>_ID` name rule for TableDirect/Table/Search (as clde-hub `ADContextService`); name columns are
+  `AD_Column.IsIdentifier`. Before, only TableDirect columns counted as references.
+- The `queryDatabase` description asks for one query that JOINs referenced tables for names, and gives an example
+  (document type via `C_DocTypeTarget_ID`, DocStatus codes).
+
+Result: the same question in one query and 2 round trips, ~11 s.
 
 ## Known Gaps
 

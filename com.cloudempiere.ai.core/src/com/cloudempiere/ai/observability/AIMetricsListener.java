@@ -153,8 +153,8 @@ public class AIMetricsListener implements ChatModelListener {
             long latencyMs = startTime != null ?
                 System.currentTimeMillis() - startTime : 0;
 
-            // Extract token usage from Response (0.35.0 API)
-            TokenUsage tokenUsage = responseContext.response().tokenUsage();
+            // Extract token usage from ChatResponse
+            TokenUsage tokenUsage = responseContext.chatResponse().tokenUsage();
 
             int inputTokens = tokenUsage != null ? tokenUsage.inputTokenCount() : 0;
             int outputTokens = tokenUsage != null ? tokenUsage.outputTokenCount() : 0;

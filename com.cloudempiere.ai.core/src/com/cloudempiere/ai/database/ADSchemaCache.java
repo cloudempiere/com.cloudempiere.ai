@@ -40,8 +40,11 @@ import com.cloudempiere.ai.database.dto.ADTableMeta;
  * AI tool call.
  *
  * <p>Adapted from idempiere-hub's SchemaCache (Java 17/Quarkus) for
- * iDempiere's Java 11 / OSGi runtime. Uses a simple ConcurrentHashMap
+ * iDempiere's OSGi runtime. Uses a simple ConcurrentHashMap
  * instead of Quarkus CDI. Lazy-loaded on first access.
+ *
+ * <p>Holds physical columns only: a virtual column (non-empty {@code ColumnSQL}) has no database column, so SQL
+ * that names it fails (CLD-2427, e.g. {@code M_ProductPrice.ValidFrom}).
  *
  * <h3>Reference</h3>
  * <ul>
@@ -280,11 +283,16 @@ public class ADSchemaCache {
                      "COALESCE(e.Name, c.Name) as Name, " +
                      "COALESCE(e.Description, c.Description) as Description, " +
                      "c.AD_Reference_ID, r.Name as ReferenceType, " +
-                     "c.IsMandatory, c.IsKey, c.FieldLength " +
+                     "c.IsMandatory, c.IsKey, c.FieldLength, c.IsIdentifier, ft.TableName as RefTableName " +
                      "FROM AD_Column c " +
                      "LEFT JOIN AD_Element e ON c.AD_Element_ID = e.AD_Element_ID " +
                      "LEFT JOIN AD_Reference r ON c.AD_Reference_ID = r.AD_Reference_ID " +
+                     // Table/Search references name their target in AD_Ref_Table (e.g. SalesRep_ID -> AD_User)
+                     "LEFT JOIN AD_Ref_Table rt ON rt.AD_Reference_ID = c.AD_Reference_Value_ID " +
+                     "LEFT JOIN AD_Table ft ON ft.AD_Table_ID = rt.AD_Table_ID " +
                      "WHERE c.IsActive = 'Y' " +
+                     // physical columns only, same rule as MColumn.isVirtualColumn()
+                     "AND (c.ColumnSQL IS NULL OR c.ColumnSQL = '') " +
                      "ORDER BY c.AD_Table_ID, c.SeqNo";
 
         PreparedStatement pstmt = null;
@@ -305,7 +313,9 @@ public class ADSchemaCache {
                         rs.getString("ReferenceType"),
                         "Y".equals(rs.getString("IsMandatory")),
                         "Y".equals(rs.getString("IsKey")),
-                        rs.getInt("FieldLength")
+                        rs.getInt("FieldLength"),
+                        rs.getString("RefTableName"),
+                        "Y".equals(rs.getString("IsIdentifier"))
                     ));
                     count++;
                 }

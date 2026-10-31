@@ -2,8 +2,8 @@ package com.cloudempiere.ai.provider.langchain4j;
 
 import com.cloudempiere.ai.model.MAIProvider;
 
-import dev.langchain4j.model.chat.ChatLanguageModel;
-import dev.langchain4j.model.chat.StreamingChatLanguageModel;
+import dev.langchain4j.model.chat.ChatModel;
+import dev.langchain4j.model.chat.StreamingChatModel;
 import dev.langchain4j.model.embedding.EmbeddingModel;
 
 /**
@@ -18,7 +18,7 @@ import dev.langchain4j.model.embedding.EmbeddingModel;
  * private ILangChain4jProviderFactory providerFactory;
  *
  * public void useModel(MAIProvider config) {
- *     ChatLanguageModel model = providerFactory.createModel(config);
+ *     ChatModel model = providerFactory.createModel(config);
  *     // use model...
  * }
  * </pre>
@@ -31,55 +31,55 @@ import dev.langchain4j.model.embedding.EmbeddingModel;
 public interface ILangChain4jProviderFactory {
 
     /**
-     * Create a ChatLanguageModel from MAIProvider configuration.
+     * Create a ChatModel from MAIProvider configuration.
      *
      * <p>Uses the ModelName from the provider configuration if set,
      * otherwise falls back to provider-specific defaults.
      *
      * @param config MAIProvider database configuration
-     * @return ChatLanguageModel instance
+     * @return ChatModel instance
      * @throws IllegalArgumentException if provider type is unknown
      */
-    ChatLanguageModel createModel(MAIProvider config);
+    ChatModel createModel(MAIProvider config);
 
     /**
-     * Create a ChatLanguageModel with optional model name and base URL override.
+     * Create a ChatModel with optional model name and base URL override.
      *
      * @param config MAIProvider database configuration
      * @param modelName Optional model name (uses config.getModelName() or default if null)
      * @param baseUrl Optional base URL for Ollama (uses default if null)
-     * @return ChatLanguageModel instance
+     * @return ChatModel instance
      */
-    ChatLanguageModel createModel(MAIProvider config, String modelName, String baseUrl);
+    ChatModel createModel(MAIProvider config, String modelName, String baseUrl);
 
     /**
-     * Create a StreamingChatLanguageModel from MAIProvider configuration.
+     * Create a StreamingChatModel from MAIProvider configuration.
      *
      * <p>Uses the ModelName from the provider configuration if set,
      * otherwise falls back to provider-specific defaults.
      *
      * @param config MAIProvider database configuration
-     * @return StreamingChatLanguageModel instance
+     * @return StreamingChatModel instance
      */
-    StreamingChatLanguageModel createStreamingModel(MAIProvider config);
+    StreamingChatModel createStreamingModel(MAIProvider config);
 
     /**
-     * Create a StreamingChatLanguageModel with optional model name and base URL override.
+     * Create a StreamingChatModel with optional model name and base URL override.
      *
      * @param config MAIProvider database configuration
      * @param modelName Optional model name (uses config.getModelName() or default if null)
      * @param baseUrl Optional base URL for Ollama (uses default if null)
-     * @return StreamingChatLanguageModel instance
+     * @return StreamingChatModel instance
      */
-    StreamingChatLanguageModel createStreamingModel(MAIProvider config, String modelName, String baseUrl);
+    StreamingChatModel createStreamingModel(MAIProvider config, String modelName, String baseUrl);
 
     /**
-     * Get or create a cached ChatLanguageModel instance.
+     * Get or create a cached ChatModel instance.
      *
      * @param config MAIProvider configuration
-     * @return Cached or newly created ChatLanguageModel
+     * @return Cached or newly created ChatModel
      */
-    ChatLanguageModel getOrCreateModel(MAIProvider config);
+    ChatModel getOrCreateModel(MAIProvider config);
 
     /**
      * Create an EmbeddingModel from MAIProvider configuration.

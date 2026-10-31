@@ -2,12 +2,12 @@ package com.cloudempiere.ai.provider.langchain4j;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.logging.Level;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -27,6 +27,8 @@ import com.cloudempiere.ai.provider.dto.AIStreamCallback;
 
 import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
+import dev.langchain4j.service.tool.ToolErrorHandlerResult;
+import dev.langchain4j.service.tool.ToolExecutionErrorHandler;
 
 /**
  * ERP Tools for LangChain4j agents using @Tool annotations.
@@ -62,10 +64,34 @@ public class ERPTools {
     private static final int MAX_QUERY_FAILURES = 6;
 
     /**
-     * ADR-060 Option C: Tables registered via prepareQuery() for this conversation instance.
-     * Soft-enforces that the LLM consults schema before writing SQL.
+     * Thrown when the query attempts are used up. {@link #TOOL_ERROR_HANDLER} lets it end the agent run; any other
+     * tool exception goes back to the model as text.
      */
-    private final Set<String> preparedTables = new HashSet<>();
+    public static class QueryAttemptsExhaustedException extends RuntimeException {
+        private static final long serialVersionUID = 1L;
+
+        public QueryAttemptsExhaustedException(String message) {
+            super(message);
+        }
+    }
+
+    /**
+     * Tool error handler for agents using ERPTools (CLD-2427). Without one, LangChain4j returns every tool exception
+     * to the model as text, so the stop after {@link #MAX_QUERY_FAILURES} failures did not stop anything. Other
+     * errors keep LangChain4j's default: the message goes back to the model.
+     */
+    public static final ToolExecutionErrorHandler TOOL_ERROR_HANDLER = (error, context) -> {
+        for (Throwable t = error; t != null; t = t.getCause()) {
+            if (t instanceof QueryAttemptsExhaustedException) {
+                throw (QueryAttemptsExhaustedException) t;
+            }
+            if (t.getCause() == t) {
+                break;
+            }
+        }
+        String message = error.getMessage();
+        return ToolErrorHandlerResult.text(message != null ? message : error.getClass().getName());
+    };
 
     /**
      * Create ERPTools with security context (no streaming callbacks).
@@ -97,9 +123,16 @@ public class ERPTools {
 
     @Tool("Execute a read-only SQL SELECT query against the iDempiere ERP database. " +
           "Results are filtered by user's role permissions. Returns JSON array of rows with schemaHints. " +
-          "IMPORTANT: Call prepareQuery() for ALL tables BEFORE writing SQL to declare intent and receive exact column names. " +
+          "Query standard iDempiere tables directly; tables and columns are checked against the dictionary and an " +
+          "error lists the exact columns. Call prepareQuery() only when unsure about a table. " +
+          "Answer in ONE query: JOIN referenced tables to return names (schemaHints show e.g. " +
+          "'C_BPartner_ID -> C_BPartner (name: Name)') instead of looking records up afterwards. " +
           "ON conditions MUST be wrapped in parentheses: JOIN t ON (a.col = b.col). " +
-          "schemaHints in the result show available columns for follow-up queries.")
+          "The document type of an order or invoice is C_DocTypeTarget_ID (C_DocType_ID is 0 until it is " +
+          "processed). DocStatus: DR draft, IP in progress, CO completed, CL closed, VO voided, RE reversed. " +
+          "Example: SELECT o.DocumentNo, o.DateOrdered, bp.Name AS BPartner, dt.Name AS DocType, o.GrandTotal, " +
+          "o.DocStatus FROM C_Order o JOIN C_BPartner bp ON (bp.C_BPartner_ID = o.C_BPartner_ID) " +
+          "JOIN C_DocType dt ON (dt.C_DocType_ID = o.C_DocTypeTarget_ID) ORDER BY o.Created DESC LIMIT 1")
     public String queryDatabase(
         @P("SQL SELECT query to execute") String sql,
         @P("Maximum number of rows to return (default 50, max 500)") Integer maxRows,
@@ -119,11 +152,8 @@ public class ERPTools {
             request.setMaxRows(maxRows != null ? Math.min(maxRows, 500) : 50);
             request.setQueryPurpose(purpose != null ? purpose : "AI Agent Query");
 
-            // ADR-060 Option C: Soft-enforce prepareQuery() was called for all tables in this SQL
-            String unpreparedError = checkPreparedTables(sql);
-            if (unpreparedError != null) {
-                return handleQueryFailure(toolName, unpreparedError, sql);
-            }
+            // No forced prepareQuery() round trip (CLD-2435): validateTablesInSql() below checks tables and
+            // columns against the dictionary before execution, and errors return the exact columns
 
             // ADR-060: Validate table names against AD schema cache
             String tableValidationError = validateTablesInSql(sql);
@@ -148,7 +178,9 @@ public class ERPTools {
                 fireToolComplete(toolName, truncate(resultStr, 200) + " (" + elapsed + "ms)");
                 return resultStr;
             } else {
-                return handleQueryFailure(toolName, result.getErrorMessage(), sql);
+                // CLD-2427: the database's own message (e.g. "column pp.x does not exist") plus that table's columns
+                String error = enrichDatabaseError(result.getErrorMessage(), sql, ADSchemaCache.get()::getTableMetadata);
+                return handleQueryFailure(toolName, error, sql);
             }
         } catch (RuntimeException e) {
             throw e; // terminal failure — let it propagate to stop the agent
@@ -171,22 +203,22 @@ public class ERPTools {
             String terminalMsg = "Unable to retrieve data after " + MAX_QUERY_FAILURES +
                 " attempts. Please rephrase your question or contact support.";
             fireToolError(toolName, terminalMsg); // single visible error to the user
-            throw new RuntimeException(terminalMsg); // stops the agent
+            throw new QueryAttemptsExhaustedException(terminalMsg); // stops the agent (TOOL_ERROR_HANDLER)
         }
 
-        // Transient failure — return error + schema hints to the LLM, but don't surface to UI
+        // Transient failure — return error + schema hints to the LLM, but don't surface to UI. Still end the
+        // step this attempt started, or the timeline keeps spinning while the retry runs (CLD-2433).
+        fireToolComplete(toolName, "corrected, retrying");
         return createErrorResponseWithSchema(errorMsg, sql);
     }
 
     /**
-     * ADR-060 Option C: Declare tables the LLM intends to query.
-     * Registers them in preparedTables and returns their exact schema so the LLM
-     * can construct correct SQL without guessing column names.
+     * ADR-060 Option C: the exact schema of the tables the LLM intends to query, so it can construct correct SQL
+     * without guessing column names. Optional since CLD-2435: queryDatabase() no longer requires it.
      */
-    @Tool("Declare the tables you intend to query. Call this BEFORE queryDatabase() for every table " +
-          "you plan to use in your SQL. Returns exact column names, types, and FK relationships " +
-          "so you can write correct SQL without guessing. " +
-          "Example: prepareQuery([\"C_Order\", \"C_BPartner\"]) before querying orders with business partner data.")
+    @Tool("Optional: get the exact columns of tables you are unsure about, with the table and name column each " +
+          "reference points to (e.g. 'C_BPartner_ID -> C_BPartner (name: Name)'). Not needed for standard " +
+          "iDempiere tables: queryDatabase() validates columns and returns them with any error.")
     public String prepareQuery(
         @P("Names of tables you plan to use in the next SQL query") String[] tableNames
     ) {
@@ -220,8 +252,6 @@ public class ERPTools {
                 continue;
             }
 
-            // Register as prepared for this conversation
-            preparedTables.add(tableName.toUpperCase());
             preparedArray.put(meta.getTableName());
 
             // Build compact schema: key + FK columns (most useful for JOINs), then others
@@ -232,7 +262,7 @@ public class ERPTools {
                 if (col.isKey() || col.getForeignTable() != null) {
                     String entry = col.isKey()
                         ? col.getColumnName() + " (PK)"
-                        : col.getColumnName() + " -> " + col.getForeignTable();
+                        : foreignKeyLabel(col, schemaCache::getTableMetadata);
                     keyAndFk.put(entry);
                 } else {
                     other.put(col.getColumnName());
@@ -251,13 +281,14 @@ public class ERPTools {
         result.put("hint", "Use exact column names above when writing SQL. " +
             "ON conditions must be wrapped in parentheses: JOIN table ON (a.col = b.col).");
 
-        log.warning("[PREPARE-QUERY] Registered tables: " + preparedTables);
+        log.warning("[PREPARE-QUERY] Tables: " + preparedArray);
         fireToolComplete(toolName, "Prepared " + preparedArray.length() + " tables: " + preparedArray);
         return result.toString(2);
     }
 
     @Tool("Look up a specific record by ID from an iDempiere table. " +
-          "Returns all accessible columns for the record as JSON.")
+          "Returns all accessible columns for the record as JSON. " +
+          "Not for names of records a query already returned: JOIN them in that query instead.")
     public String lookupRecord(
         @P("Table name (e.g., C_Order, C_BPartner, M_Product)") String tableName,
         @P("Record ID to look up") int recordId
@@ -638,9 +669,12 @@ public class ERPTools {
     // ADR-060: Schema Cache Validation Helpers
     // ========================================================================
 
-    /** Pattern to extract table names from FROM and JOIN clauses */
+    /**
+     * Pattern to extract table names from FROM and JOIN clauses. The word boundary keeps a column like ValidFrom in
+     * "SELECT ValidFrom FROM t" from being read as "FROM FROM" (CLD-2427).
+     */
     private static final Pattern TABLE_NAME_PATTERN =
-        Pattern.compile("(?:FROM|JOIN)\\s+([A-Za-z_][A-Za-z0-9_]*)", Pattern.CASE_INSENSITIVE);
+        Pattern.compile("\\b(?:FROM|JOIN)\\s+([A-Za-z_][A-Za-z0-9_]*)", Pattern.CASE_INSENSITIVE);
 
     /**
      * Detects comma-separated table joins combined with ON clauses, e.g.
@@ -665,7 +699,7 @@ public class ERPTools {
      * Handles: FROM Table, FROM Table alias, FROM Table AS alias, JOIN Table alias
      */
     private static final Pattern TABLE_ALIAS_PATTERN =
-        Pattern.compile("(?:FROM|JOIN)\\s+([A-Za-z_][A-Za-z0-9_]*)(?:\\s+(?:AS\\s+)?([A-Za-z_][A-Za-z0-9_]*))?",
+        Pattern.compile("\\b(?:FROM|JOIN)\\s+([A-Za-z_][A-Za-z0-9_]*)(?:\\s+(?:AS\\s+)?([A-Za-z_][A-Za-z0-9_]*))?",
                         Pattern.CASE_INSENSITIVE);
 
     /** Matches qualified column references like alias.column or table.column */
@@ -684,32 +718,6 @@ public class ERPTools {
             tableNames.add(matcher.group(1));
         }
         return tableNames;
-    }
-
-    /**
-     * ADR-060 Option C: Soft-enforce that prepareQuery() was called for all tables in the SQL.
-     * If any table is unprepared, returns an error with schema hints nudging the LLM
-     * to call prepareQuery() first. Degrades gracefully if LLM bypasses this contract —
-     * validateTablesInSql() still runs as a fallback.
-     *
-     * @param sql SQL query to check
-     * @return error message if any table was not prepared, null if all prepared (or no tables found)
-     */
-    private String checkPreparedTables(String sql) {
-        Set<String> sqlTables = extractTableNames(sql);
-        if (sqlTables.isEmpty()) return null; // no FROM clause — caught by validateTablesInSql
-
-        List<String> unprepared = new ArrayList<String>();
-        for (String table : sqlTables) {
-            if (!preparedTables.contains(table.toUpperCase())) {
-                unprepared.add(table);
-            }
-        }
-        if (unprepared.isEmpty()) return null;
-
-        return "Tables not prepared: " + unprepared + ". " +
-            "Call prepareQuery(" + unprepared + ") first to receive exact column names " +
-            "before writing SQL.";
     }
 
     /**
@@ -776,18 +784,7 @@ public class ERPTools {
         }
         log.warning("[SCHEMA-VALIDATE] All tables OK: " + tableNames);
 
-        // Build alias -> table map for column validation
-        Map<String, String> aliasToTable = new java.util.HashMap<String, String>();
-        Matcher aliasMatcher = TABLE_ALIAS_PATTERN.matcher(sql);
-        while (aliasMatcher.find()) {
-            String tblName = aliasMatcher.group(1);
-            String alias = aliasMatcher.group(2);
-            // Map both the table name itself and any alias to the table
-            aliasToTable.put(tblName.toUpperCase(), tblName);
-            if (alias != null && !alias.isEmpty()) {
-                aliasToTable.put(alias.toUpperCase(), tblName);
-            }
-        }
+        Map<String, String> aliasToTable = aliasToTable(sql);
 
         // Validate qualified column references (alias.column or table.column)
         Matcher colMatcher = COLUMN_REF_PATTERN.matcher(sql);
@@ -810,7 +807,7 @@ public class ERPTools {
                 }
                 // Include available columns so the LLM can self-correct without an extra getTableMetadata call
                 msg.append(". Available columns in ").append(resolvedTable).append(": ")
-                   .append(getColumnSummary(tableMeta));
+                   .append(getColumnSummary(tableMeta, schemaCache::getTableMetadata));
                 log.warning("[SCHEMA-VALIDATE] REJECTED unknown column: " + msg);
                 return msg.toString();
             }
@@ -847,7 +844,8 @@ public class ERPTools {
             JSONArray other = new JSONArray();
             for (ADColumnMeta col : meta.getColumns()) {
                 if (col.isKey() || col.getForeignTable() != null) {
-                    keyAndFk.put(col.getColumnName());
+                    keyAndFk.put(col.isKey() ? col.getColumnName()
+                        : foreignKeyLabel(col, schemaCache::getTableMetadata));
                 } else {
                     other.put(col.getColumnName());
                 }
@@ -870,12 +868,103 @@ public class ERPTools {
      * key, FKs, and other — enough for the LLM to rewrite a query without
      * a separate getTableMetadata call.
      */
-    private String getColumnSummary(ADTableMeta tableMeta) {
+    /**
+     * Maps each table name and alias of the FROM/JOIN clauses (upper case) to its table name.
+     */
+    private static Map<String, String> aliasToTable(String sql) {
+        Map<String, String> aliasToTable = new java.util.HashMap<String, String>();
+        Matcher aliasMatcher = TABLE_ALIAS_PATTERN.matcher(sql);
+        while (aliasMatcher.find()) {
+            String tblName = aliasMatcher.group(1);
+            String alias = aliasMatcher.group(2);
+            // Map both the table name itself and any alias to the table
+            aliasToTable.put(tblName.toUpperCase(), tblName);
+            if (alias != null && !alias.isEmpty()) {
+                aliasToTable.put(alias.toUpperCase(), tblName);
+            }
+        }
+        return aliasToTable;
+    }
+
+    /**
+     * A foreign key with the table it points to and that table's name columns, so the model can JOIN for names
+     * instead of looking records up one by one (CLD-2435), e.g. "C_BPartner_ID -> C_BPartner (name: Name)".
+     *
+     * @param col foreign key column
+     * @param tableLookup table name to AD metadata
+     * @return the label; just "column -> table" when the table or its name columns are unknown
+     */
+    public static String foreignKeyLabel(ADColumnMeta col, Function<String, ADTableMeta> tableLookup) {
+        String target = col.getForeignTable();
+        if (target == null) {
+            return col.getColumnName();
+        }
+        ADTableMeta targetMeta = tableLookup.apply(target);
+        String targetName = targetMeta != null ? targetMeta.getTableName() : target;
+        List<String> names = targetMeta != null ? targetMeta.getIdentifierColumns() : java.util.Collections.emptyList();
+        return col.getColumnName() + " -> " + targetName + (names.isEmpty() ? "" : " (name: " + String.join(", ", names) + ")");
+    }
+
+    /** PostgreSQL "column pp.validfrom does not exist" or "column "validfrom" does not exist" */
+    private static final Pattern MISSING_COLUMN_PATTERN = Pattern.compile(
+        "column\\s+(?:\"?([A-Za-z_][A-Za-z0-9_]*)\"?\\.)?\"?([A-Za-z_][A-Za-z0-9_]*)\"?\\s+does not exist",
+        Pattern.CASE_INSENSITIVE);
+
+    /**
+     * Adds the table's columns and close matches to a "column ... does not exist" error from the database, so the
+     * model can correct the query (CLD-2427; port of clde-hub QueryToolLogic.enhanceErrorMessage). The table is
+     * the one the alias names, or the only table of the query when the column is unqualified. Other errors are
+     * returned unchanged.
+     *
+     * @param errorMessage database error message
+     * @param sql the model's SQL
+     * @param tableLookup table name to AD metadata, null when unknown
+     * @return the message, with the table's columns appended when the table is known
+     */
+    public static String enrichDatabaseError(String errorMessage, String sql, Function<String, ADTableMeta> tableLookup) {
+        if (errorMessage == null || sql == null) {
+            return errorMessage;
+        }
+        Matcher matcher = MISSING_COLUMN_PATTERN.matcher(errorMessage);
+        if (!matcher.find()) {
+            return errorMessage;
+        }
+        String alias = matcher.group(1);
+        String column = matcher.group(2);
+
+        Map<String, String> aliasToTable = aliasToTable(sql);
+        String tableName = null;
+        if (alias != null) {
+            tableName = aliasToTable.get(alias.toUpperCase());
+        } else {
+            Set<String> tables = new LinkedHashSet<String>(aliasToTable.values());
+            if (tables.size() == 1) {
+                tableName = tables.iterator().next();
+            }
+        }
+        ADTableMeta table = tableName != null ? tableLookup.apply(tableName) : null;
+        if (table == null) {
+            return errorMessage;
+        }
+
+        StringBuilder enriched = new StringBuilder(errorMessage);
+        enriched.append(". Column '").append(column).append("' does not exist in table '")
+                .append(table.getTableName()).append("'");
+        List<String> suggestions = table.findSimilarColumns(column);
+        if (!suggestions.isEmpty()) {
+            enriched.append(". Did you mean: ").append(suggestions);
+        }
+        enriched.append(". Available columns in ").append(table.getTableName()).append(": ")
+                .append(getColumnSummary(table, tableLookup));
+        return enriched.toString();
+    }
+
+    private static String getColumnSummary(ADTableMeta tableMeta, Function<String, ADTableMeta> tableLookup) {
         List<String> keyAndFk = new ArrayList<String>();
         List<String> other = new ArrayList<String>();
         for (ADColumnMeta col : tableMeta.getColumns()) {
             if (col.isKey() || col.getForeignTable() != null) {
-                keyAndFk.add(col.getColumnName());
+                keyAndFk.add(col.isKey() ? col.getColumnName() : foreignKeyLabel(col, tableLookup));
             } else {
                 other.add(col.getColumnName());
             }

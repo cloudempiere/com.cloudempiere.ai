@@ -7,12 +7,11 @@
     <parent>
         <groupId>com.cloudempiere.ai</groupId>
         <artifactId>com.cloudempiere.ai.parent</artifactId>
-        <version>10.0.2-SNAPSHOT</version>
+        <version>14.0.0-SNAPSHOT</version>
         <relativePath>../com.cloudempiere.ai.parent/pom.xml</relativePath>
     </parent>
 
     <artifactId>com.cloudempiere.ai.core</artifactId>
-    <version>0.32.0-SNAPSHOT</version>
     <packaging>eclipse-plugin</packaging>
     <name>Cloudempiere AI - Core Infrastructure</name>
 
@@ -30,88 +29,277 @@
                         </goals>
                         <configuration>
                             <artifactItems>
-                                <!-- AWS SDK - Bedrock services (depend on aws-core from aws.provider) -->
+                                <!-- CLD-2431: LangChain4j's Bedrock module and the complete AWS SDK it was built against, private to
+                                     this bundle. langchain4j-bedrock 1.20.0 needs AWS SDK 2.41.34 (its model classes use
+                                     bedrockruntime types such as CachePointBlock), while com.cloudempiere.aws.provider ships 2.31.11 to
+                                     the rest of the platform; AWS SDK modules must not be mixed across versions, so ai.core embeds a
+                                     self-consistent 2.41.34 set (resolved from the AWS SDK BOM 2.41.34 for bedrockruntime, bedrock,
+                                     netty-nio-client and apache-client) and no longer requires aws.provider. Nothing here is exported.
+                                     Keep the SDK version equal to the one langchain4j-bedrock declares when upgrading LangChain4j. -->
+                                <artifactItem>
+                                    <groupId>dev.langchain4j</groupId>
+                                    <artifactId>langchain4j-bedrock</artifactId>
+                                    <version>1.20.0</version>
+                                    <destFileName>langchain4j-bedrock-1.20.0.jar</destFileName>
+                                </artifactItem>
                                 <artifactItem>
                                     <groupId>software.amazon.awssdk</groupId>
                                     <artifactId>bedrockruntime</artifactId>
-                                    <version>2.20.162</version>
-                                    <destFileName>bedrockruntime-2.20.162.jar</destFileName>
+                                    <version>2.41.34</version>
+                                    <destFileName>bedrockruntime-2.41.34.jar</destFileName>
                                 </artifactItem>
                                 <artifactItem>
                                     <groupId>software.amazon.awssdk</groupId>
                                     <artifactId>bedrock</artifactId>
-                                    <version>2.20.162</version>
-                                    <destFileName>bedrock-2.20.162.jar</destFileName>
+                                    <version>2.41.34</version>
+                                    <destFileName>bedrock-2.41.34.jar</destFileName>
                                 </artifactItem>
-                                <!-- AWS SDK - Netty async HTTP client + Netty core dependencies -->
                                 <artifactItem>
                                     <groupId>software.amazon.awssdk</groupId>
                                     <artifactId>netty-nio-client</artifactId>
-                                    <version>2.20.162</version>
-                                    <destFileName>netty-nio-client-2.20.162.jar</destFileName>
-                                </artifactItem>
-                                <!-- Netty -->
-                                <artifactItem>
-                                    <groupId>io.netty</groupId>
-                                    <artifactId>netty-codec-http</artifactId>
-                                    <version>4.1.100.Final</version>
-                                    <destFileName>netty-codec-http-4.1.100.Final.jar</destFileName>
+                                    <version>2.41.34</version>
+                                    <destFileName>netty-nio-client-2.41.34.jar</destFileName>
                                 </artifactItem>
                                 <artifactItem>
-                                    <groupId>io.netty</groupId>
-                                    <artifactId>netty-codec-http2</artifactId>
-                                    <version>4.1.100.Final</version>
-                                    <destFileName>netty-codec-http2-4.1.100.Final.jar</destFileName>
+                                    <groupId>software.amazon.awssdk</groupId>
+                                    <artifactId>apache-client</artifactId>
+                                    <version>2.41.34</version>
+                                    <destFileName>apache-client-2.41.34.jar</destFileName>
                                 </artifactItem>
                                 <artifactItem>
-                                    <groupId>io.netty</groupId>
-                                    <artifactId>netty-codec</artifactId>
-                                    <version>4.1.100.Final</version>
-                                    <destFileName>netty-codec-4.1.100.Final.jar</destFileName>
+                                    <groupId>software.amazon.awssdk</groupId>
+                                    <artifactId>annotations</artifactId>
+                                    <version>2.41.34</version>
+                                    <destFileName>annotations-2.41.34.jar</destFileName>
                                 </artifactItem>
                                 <artifactItem>
-                                    <groupId>io.netty</groupId>
-                                    <artifactId>netty-transport</artifactId>
-                                    <version>4.1.100.Final</version>
-                                    <destFileName>netty-transport-4.1.100.Final.jar</destFileName>
+                                    <groupId>software.amazon.awssdk</groupId>
+                                    <artifactId>auth</artifactId>
+                                    <version>2.41.34</version>
+                                    <destFileName>auth-2.41.34.jar</destFileName>
                                 </artifactItem>
                                 <artifactItem>
-                                    <groupId>io.netty</groupId>
-                                    <artifactId>netty-common</artifactId>
-                                    <version>4.1.100.Final</version>
-                                    <destFileName>netty-common-4.1.100.Final.jar</destFileName>
+                                    <groupId>software.amazon.awssdk</groupId>
+                                    <artifactId>aws-core</artifactId>
+                                    <version>2.41.34</version>
+                                    <destFileName>aws-core-2.41.34.jar</destFileName>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>software.amazon.awssdk</groupId>
+                                    <artifactId>aws-json-protocol</artifactId>
+                                    <version>2.41.34</version>
+                                    <destFileName>aws-json-protocol-2.41.34.jar</destFileName>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>software.amazon.awssdk</groupId>
+                                    <artifactId>checksums</artifactId>
+                                    <version>2.41.34</version>
+                                    <destFileName>checksums-2.41.34.jar</destFileName>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>software.amazon.awssdk</groupId>
+                                    <artifactId>checksums-spi</artifactId>
+                                    <version>2.41.34</version>
+                                    <destFileName>checksums-spi-2.41.34.jar</destFileName>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>software.amazon.awssdk</groupId>
+                                    <artifactId>endpoints-spi</artifactId>
+                                    <version>2.41.34</version>
+                                    <destFileName>endpoints-spi-2.41.34.jar</destFileName>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>software.amazon.awssdk</groupId>
+                                    <artifactId>http-auth</artifactId>
+                                    <version>2.41.34</version>
+                                    <destFileName>http-auth-2.41.34.jar</destFileName>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>software.amazon.awssdk</groupId>
+                                    <artifactId>http-auth-aws</artifactId>
+                                    <version>2.41.34</version>
+                                    <destFileName>http-auth-aws-2.41.34.jar</destFileName>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>software.amazon.awssdk</groupId>
+                                    <artifactId>http-auth-aws-eventstream</artifactId>
+                                    <version>2.41.34</version>
+                                    <destFileName>http-auth-aws-eventstream-2.41.34.jar</destFileName>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>software.amazon.awssdk</groupId>
+                                    <artifactId>http-auth-spi</artifactId>
+                                    <version>2.41.34</version>
+                                    <destFileName>http-auth-spi-2.41.34.jar</destFileName>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>software.amazon.awssdk</groupId>
+                                    <artifactId>http-client-spi</artifactId>
+                                    <version>2.41.34</version>
+                                    <destFileName>http-client-spi-2.41.34.jar</destFileName>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>software.amazon.awssdk</groupId>
+                                    <artifactId>identity-spi</artifactId>
+                                    <version>2.41.34</version>
+                                    <destFileName>identity-spi-2.41.34.jar</destFileName>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>software.amazon.awssdk</groupId>
+                                    <artifactId>json-utils</artifactId>
+                                    <version>2.41.34</version>
+                                    <destFileName>json-utils-2.41.34.jar</destFileName>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>software.amazon.awssdk</groupId>
+                                    <artifactId>metrics-spi</artifactId>
+                                    <version>2.41.34</version>
+                                    <destFileName>metrics-spi-2.41.34.jar</destFileName>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>software.amazon.awssdk</groupId>
+                                    <artifactId>profiles</artifactId>
+                                    <version>2.41.34</version>
+                                    <destFileName>profiles-2.41.34.jar</destFileName>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>software.amazon.awssdk</groupId>
+                                    <artifactId>protocol-core</artifactId>
+                                    <version>2.41.34</version>
+                                    <destFileName>protocol-core-2.41.34.jar</destFileName>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>software.amazon.awssdk</groupId>
+                                    <artifactId>regions</artifactId>
+                                    <version>2.41.34</version>
+                                    <destFileName>regions-2.41.34.jar</destFileName>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>software.amazon.awssdk</groupId>
+                                    <artifactId>retries</artifactId>
+                                    <version>2.41.34</version>
+                                    <destFileName>retries-2.41.34.jar</destFileName>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>software.amazon.awssdk</groupId>
+                                    <artifactId>retries-spi</artifactId>
+                                    <version>2.41.34</version>
+                                    <destFileName>retries-spi-2.41.34.jar</destFileName>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>software.amazon.awssdk</groupId>
+                                    <artifactId>sdk-core</artifactId>
+                                    <version>2.41.34</version>
+                                    <destFileName>sdk-core-2.41.34.jar</destFileName>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>software.amazon.awssdk</groupId>
+                                    <artifactId>third-party-jackson-core</artifactId>
+                                    <version>2.41.34</version>
+                                    <destFileName>third-party-jackson-core-2.41.34.jar</destFileName>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>software.amazon.awssdk</groupId>
+                                    <artifactId>utils</artifactId>
+                                    <version>2.41.34</version>
+                                    <destFileName>utils-2.41.34.jar</destFileName>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>software.amazon.awssdk</groupId>
+                                    <artifactId>utils-lite</artifactId>
+                                    <version>2.41.34</version>
+                                    <destFileName>utils-lite-2.41.34.jar</destFileName>
                                 </artifactItem>
                                 <artifactItem>
                                     <groupId>io.netty</groupId>
                                     <artifactId>netty-buffer</artifactId>
-                                    <version>4.1.100.Final</version>
-                                    <destFileName>netty-buffer-4.1.100.Final.jar</destFileName>
+                                    <version>4.1.130.Final</version>
+                                    <destFileName>netty-buffer-4.1.130.Final.jar</destFileName>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>io.netty</groupId>
+                                    <artifactId>netty-codec</artifactId>
+                                    <version>4.1.130.Final</version>
+                                    <destFileName>netty-codec-4.1.130.Final.jar</destFileName>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>io.netty</groupId>
+                                    <artifactId>netty-codec-http</artifactId>
+                                    <version>4.1.130.Final</version>
+                                    <destFileName>netty-codec-http-4.1.130.Final.jar</destFileName>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>io.netty</groupId>
+                                    <artifactId>netty-codec-http2</artifactId>
+                                    <version>4.1.130.Final</version>
+                                    <destFileName>netty-codec-http2-4.1.130.Final.jar</destFileName>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>io.netty</groupId>
+                                    <artifactId>netty-common</artifactId>
+                                    <version>4.1.130.Final</version>
+                                    <destFileName>netty-common-4.1.130.Final.jar</destFileName>
                                 </artifactItem>
                                 <artifactItem>
                                     <groupId>io.netty</groupId>
                                     <artifactId>netty-handler</artifactId>
-                                    <version>4.1.100.Final</version>
-                                    <destFileName>netty-handler-4.1.100.Final.jar</destFileName>
+                                    <version>4.1.130.Final</version>
+                                    <destFileName>netty-handler-4.1.130.Final.jar</destFileName>
                                 </artifactItem>
                                 <artifactItem>
                                     <groupId>io.netty</groupId>
                                     <artifactId>netty-resolver</artifactId>
-                                    <version>4.1.100.Final</version>
-                                    <destFileName>netty-resolver-4.1.100.Final.jar</destFileName>
+                                    <version>4.1.130.Final</version>
+                                    <destFileName>netty-resolver-4.1.130.Final.jar</destFileName>
                                 </artifactItem>
                                 <artifactItem>
                                     <groupId>io.netty</groupId>
-                                    <artifactId>netty-transport-native-unix-common</artifactId>
-                                    <version>4.1.100.Final</version>
-                                    <destFileName>netty-transport-native-unix-common-4.1.100.Final.jar</destFileName>
+                                    <artifactId>netty-transport</artifactId>
+                                    <version>4.1.130.Final</version>
+                                    <destFileName>netty-transport-4.1.130.Final.jar</destFileName>
                                 </artifactItem>
                                 <artifactItem>
                                     <groupId>io.netty</groupId>
                                     <artifactId>netty-transport-classes-epoll</artifactId>
-                                    <version>4.1.100.Final</version>
-                                    <destFileName>netty-transport-classes-epoll-4.1.100.Final.jar</destFileName>
+                                    <version>4.1.130.Final</version>
+                                    <destFileName>netty-transport-classes-epoll-4.1.130.Final.jar</destFileName>
                                 </artifactItem>
-                                <!-- Reactive Streams (dependency of AWS SDK) -->
+                                <artifactItem>
+                                    <groupId>io.netty</groupId>
+                                    <artifactId>netty-transport-native-unix-common</artifactId>
+                                    <version>4.1.130.Final</version>
+                                    <destFileName>netty-transport-native-unix-common-4.1.130.Final.jar</destFileName>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>software.amazon.eventstream</groupId>
+                                    <artifactId>eventstream</artifactId>
+                                    <version>1.0.1</version>
+                                    <destFileName>eventstream-1.0.1.jar</destFileName>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>org.apache.httpcomponents</groupId>
+                                    <artifactId>httpclient</artifactId>
+                                    <version>4.5.13</version>
+                                    <destFileName>httpclient-4.5.13.jar</destFileName>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>org.apache.httpcomponents</groupId>
+                                    <artifactId>httpcore</artifactId>
+                                    <version>4.4.16</version>
+                                    <destFileName>httpcore-4.4.16.jar</destFileName>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>commons-codec</groupId>
+                                    <artifactId>commons-codec</artifactId>
+                                    <version>1.17.1</version>
+                                    <destFileName>commons-codec-1.17.1.jar</destFileName>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>commons-logging</groupId>
+                                    <artifactId>commons-logging</artifactId>
+                                    <version>1.2</version>
+                                    <destFileName>commons-logging-1.2.jar</destFileName>
+                                </artifactItem>
                                 <artifactItem>
                                     <groupId>org.reactivestreams</groupId>
                                     <artifactId>reactive-streams</artifactId>

@@ -1,20 +1,25 @@
 package com.cloudempiere.ai.provider.langchain4j;
 
+import com.cloudempiere.ai.guardrails.InputGuard;
+
 import dev.langchain4j.service.MemoryId;
 import dev.langchain4j.service.TokenStream;
 import dev.langchain4j.service.UserMessage;
+import dev.langchain4j.service.guardrail.InputGuardrails;
 
 /**
  * Simple streaming AI Agent interface for providers without tool support.
  *
- * <p>This interface is used for Ollama/Llama providers in LangChain4j 0.35.0
- * which don't support function/tool calling. It provides a simplified system
+ * <p>This interface is used for providers registered without tool support in
+ * {@link LangChain4jProviderFactory} (Ollama/Llama: the exclusion dates from LangChain4j
+ * 0.35.0 and has not been re-tested on 1.20.0). It provides a simplified system
  * prompt without tool-related instructions.
  *
  * @author Cloudempiere
  * @version 1.0
  * @since 0.17.0
  */
+@InputGuardrails(InputGuard.class)
 public interface SimpleStreamingAgent {
 
     /**
