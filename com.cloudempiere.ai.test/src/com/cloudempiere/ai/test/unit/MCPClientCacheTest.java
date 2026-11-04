@@ -27,10 +27,10 @@ import org.junit.jupiter.api.Test;
 
 import com.cloudempiere.ai.provider.langchain4j.mcp.MAIMcpServerConfig;
 import com.cloudempiere.ai.provider.langchain4j.mcp.MCPClientCache;
+import com.cloudempiere.ai.provider.langchain4j.mcp.MCPClientCache.Connection;
 import com.cloudempiere.ai.test.categories.UnitTest;
 
 import dev.langchain4j.mcp.client.McpClient;
-import dev.langchain4j.service.tool.ToolProvider;
 
 /**
  * CLD-2540: MCP clients are connected once per AD_Client and closed, not leaked on every message.
@@ -85,34 +85,34 @@ public class MCPClientCacheTest {
 
     @Test
     public void notConfiguredReturnsNullWithoutConnecting() {
-        assertThat(cache.get(CLIENT_A, "")).isNull();
-        assertThat(cache.get(CLIENT_A, null)).isNull();
+        assertThat(cache.get(CLIENT_A, "")).isEmpty();
+        assertThat(cache.get(CLIENT_A, null)).isEmpty();
         assertThat(connected).isEmpty();
         assertThat(cache.size()).isZero();
     }
 
     @Test
     public void repeatedCallsReuseTheSameClients() {
-        ToolProvider first = cache.get(CLIENT_A, TWO_SERVERS);
+        List<Connection> first = cache.get(CLIENT_A, TWO_SERVERS);
         for (int i = 0; i < 10; i++) {
             assertThat(cache.get(CLIENT_A, TWO_SERVERS)).isSameAs(first);
         }
-        assertThat(first).isNotNull();
+        assertThat(first).extracting(c -> c.config().getName()).containsExactly("github", "tools");
         assertThat(connected).containsExactly("github", "tools");
         assertThat(closed).isEmpty();
     }
 
     @Test
     public void whitespaceOnlyDifferenceDoesNotReconnect() {
-        ToolProvider first = cache.get(CLIENT_A, ONE_SERVER);
+        List<Connection> first = cache.get(CLIENT_A, ONE_SERVER);
         assertThat(cache.get(CLIENT_A, "  " + ONE_SERVER + "\n")).isSameAs(first);
         assertThat(connected).hasSize(1);
     }
 
     @Test
     public void configChangeClosesOldClientsAndConnectsNewOnes() {
-        ToolProvider first = cache.get(CLIENT_A, ONE_SERVER);
-        ToolProvider second = cache.get(CLIENT_A, TWO_SERVERS);
+        List<Connection> first = cache.get(CLIENT_A, ONE_SERVER);
+        List<Connection> second = cache.get(CLIENT_A, TWO_SERVERS);
 
         assertThat(second).isNotSameAs(first);
         assertThat(connected).containsExactly("github", "github", "tools");
@@ -122,15 +122,15 @@ public class MCPClientCacheTest {
     @Test
     public void clearingTheConfigClosesClients() {
         cache.get(CLIENT_A, TWO_SERVERS);
-        assertThat(cache.get(CLIENT_A, "")).isNull();
+        assertThat(cache.get(CLIENT_A, "")).isEmpty();
         assertThat(closed).containsExactlyInAnyOrder("github", "tools");
         assertThat(cache.size()).isZero();
     }
 
     @Test
     public void eachAdClientHasItsOwnClients() {
-        ToolProvider a = cache.get(CLIENT_A, ONE_SERVER);
-        ToolProvider b = cache.get(CLIENT_B, ONE_SERVER);
+        List<Connection> a = cache.get(CLIENT_A, ONE_SERVER);
+        List<Connection> b = cache.get(CLIENT_B, ONE_SERVER);
         assertThat(b).isNotSameAs(a);
         assertThat(cache.size()).isEqualTo(2);
 
@@ -142,8 +142,8 @@ public class MCPClientCacheTest {
     @Test
     public void failedServerIsRetriedOnlyAfterTheRetryInterval() {
         failing.add("tools");
-        ToolProvider partial = cache.get(CLIENT_A, TWO_SERVERS);
-        assertThat(partial).isNotNull();
+        List<Connection> partial = cache.get(CLIENT_A, TWO_SERVERS);
+        assertThat(partial).isNotEmpty();
         assertThat(connected).containsExactly("github");
 
         now.addAndGet(MCPClientCache.RETRY_INTERVAL_MS - 1);
@@ -152,7 +152,7 @@ public class MCPClientCacheTest {
 
         failing.clear();
         now.addAndGet(1);
-        ToolProvider full = cache.get(CLIENT_A, TWO_SERVERS);
+        List<Connection> full = cache.get(CLIENT_A, TWO_SERVERS);
         assertThat(full).isNotSameAs(partial);
         assertThat(connected).containsExactly("github", "github", "tools");
         assertThat(closed).containsExactly("github");
@@ -161,24 +161,24 @@ public class MCPClientCacheTest {
     @Test
     public void allServersFailingReturnsNullAndIsNotRetriedOnEveryMessage() {
         failing.add("github");
-        assertThat(cache.get(CLIENT_A, ONE_SERVER)).isNull();
-        assertThat(cache.get(CLIENT_A, ONE_SERVER)).isNull();
+        assertThat(cache.get(CLIENT_A, ONE_SERVER)).isEmpty();
+        assertThat(cache.get(CLIENT_A, ONE_SERVER)).isEmpty();
         assertThat(cache.size()).isEqualTo(1);
 
         failing.clear();
         now.addAndGet(MCPClientCache.RETRY_INTERVAL_MS);
-        assertThat(cache.get(CLIENT_A, ONE_SERVER)).isNotNull();
+        assertThat(cache.get(CLIENT_A, ONE_SERVER)).isNotEmpty();
         assertThat(connected).containsExactly("github");
     }
 
     @Test
     public void invalidJsonIsCachedAndNotReparsedOnEveryMessage() {
-        assertThat(cache.get(CLIENT_A, "not json")).isNull();
-        assertThat(cache.get(CLIENT_A, "not json")).isNull();
+        assertThat(cache.get(CLIENT_A, "not json")).isEmpty();
+        assertThat(cache.get(CLIENT_A, "not json")).isEmpty();
         assertThat(cache.size()).isEqualTo(1);
         assertThat(connected).isEmpty();
 
-        assertThat(cache.get(CLIENT_A, ONE_SERVER)).isNotNull();
+        assertThat(cache.get(CLIENT_A, ONE_SERVER)).isNotEmpty();
     }
 
     @Test
@@ -190,7 +190,7 @@ public class MCPClientCacheTest {
         assertThat(closed).containsExactlyInAnyOrder("github", "tools", "github");
         assertThat(cache.size()).isZero();
 
-        assertThat(cache.get(CLIENT_A, ONE_SERVER)).isNotNull();
+        assertThat(cache.get(CLIENT_A, ONE_SERVER)).isNotEmpty();
         assertThat(connected).hasSize(4);
     }
 

@@ -584,7 +584,7 @@ public class AIService implements IAIService {
                     .tools(toolsList)
                     .toolExecutionErrorHandler(ERPTools.TOOL_ERROR_HANDLER)
                     .chatMemoryProvider(memoryId -> memoryForProvider);
-                ToolProvider mcpToolProvider = MCPToolProviderFactory.getConfigured(clientId);
+                ToolProvider mcpToolProvider = MCPToolProviderFactory.forCaller(ctx, provider);
                 if (mcpToolProvider != null) {
                     erpAgentBuilder = erpAgentBuilder.toolProvider(mcpToolProvider);
                 }
@@ -1121,7 +1121,7 @@ public class AIService implements IAIService {
                 .toolExecutionErrorHandler(ERPTools.TOOL_ERROR_HANDLER)
                 .chatMemoryProvider(memoryId -> memoryForProvider)
                 .systemMessageProvider(memoryId -> systemPrompt);
-            ToolProvider mcpToolProviderStreaming = MCPToolProviderFactory.getConfigured(clientId);
+            ToolProvider mcpToolProviderStreaming = MCPToolProviderFactory.forCaller(ctx, provider);
             if (mcpToolProviderStreaming != null) {
                 erpStreamingAgentBuilder = erpStreamingAgentBuilder.toolProvider(mcpToolProviderStreaming);
             }
@@ -1740,7 +1740,7 @@ public class AIService implements IAIService {
                     .chatModel(model)
                     .tools(toolsList)
                     .toolExecutionErrorHandler(ERPTools.TOOL_ERROR_HANDLER);
-                ToolProvider mcpToolProviderExecute = MCPToolProviderFactory.getConfigured(clientId);
+                ToolProvider mcpToolProviderExecute = MCPToolProviderFactory.forCaller(ctx, provider);
                 if (mcpToolProviderExecute != null) {
                     executeAgentBuilder = executeAgentBuilder.toolProvider(mcpToolProviderExecute);
                 }
