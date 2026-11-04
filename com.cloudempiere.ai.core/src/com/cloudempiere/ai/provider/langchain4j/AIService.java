@@ -335,6 +335,7 @@ public class AIService implements IAIService {
      */
     @Override
     public String chat(MAIProvider provider, Properties ctx, String sessionId, String message) {
+        requireAccess(provider, ctx, "chat");
         log.info("AIService.chat: session=" + sessionId +
                 ", message=" + message.substring(0, Math.min(50, message.length())));
 
@@ -450,6 +451,9 @@ public class AIService implements IAIService {
         }
 
         Properties ctx = chat.getCtx();
+        if (!hasAccess(provider, ctx, "chatWithContext")) {
+            return ChatResult.error(AIAccessDeniedException.MESSAGE, threadRootId);
+        }
         log.info("AIService.chatWithContext: chat=" + chat.getCM_Chat_ID() +
                 ", thread=" + threadRootId +
                 ", message=" + message.substring(0, Math.min(50, message.length())));
@@ -688,6 +692,12 @@ public class AIService implements IAIService {
             throw new IllegalArgumentException("Callback is required for streaming");
         }
         log.log(Level.FINE, "[STREAM] Callback: OK");
+
+        // Before the batch fallback too: it calls the model the same way
+        if (!hasAccess(provider, chat.getCtx(), "chatStreamingWithContext")) {
+            callback.onError(new AIAccessDeniedException());
+            return;
+        }
 
         // Check if provider supports streaming (off for Ollama/Llama, see LangChain4jProviderFactory)
         if (!supportsStreaming(provider)) {
@@ -1666,6 +1676,7 @@ public class AIService implements IAIService {
      */
     @Override
     public String execute(MAIProvider provider, Properties ctx, String goal) {
+        requireAccess(provider, ctx, "execute");
         log.info("AIService.execute: " + goal.substring(0, Math.min(50, goal.length())));
 
         try {
@@ -1835,6 +1846,37 @@ public class AIService implements IAIService {
     public void clearMemory(String sessionId) {
         memoryCache.remove(sessionId);
         log.info("Memory cleared for session: " + sessionId);
+    }
+
+    // ========================================================================
+    // ACCESS CONTROL (ADR-058, CLD-2541)
+    // ========================================================================
+
+    /**
+     * Whether the role and user of {@code ctx} may use {@code provider}. Checked at every entry point, before
+     * guardrails and model calls, so a blocked caller spends no tokens whatever layer called the service.
+     */
+    private boolean hasAccess(MAIProvider provider, Properties ctx, String entryPoint) {
+        if (provider == null) {
+            return true; // reported by the entry point's own "provider is not configured" handling
+        }
+        boolean allowed = MAIProvider.isAccessible(ctx, provider, null);
+        if (!allowed) {
+            log.warning("AI access denied (" + entryPoint + "): provider=" + provider.getAIG_Provider_ID()
+                    + " role=" + Env.getAD_Role_ID(ctx) + " user=" + Env.getAD_User_ID(ctx)
+                    + " client=" + Env.getAD_Client_ID(ctx));
+        }
+        return allowed;
+    }
+
+    /** {@link #hasAccess} for entry points that report errors by exception. */
+    private void requireAccess(MAIProvider provider, Properties ctx, String entryPoint) {
+        if (provider == null) {
+            throw new IllegalArgumentException("AI Provider is not configured");
+        }
+        if (!hasAccess(provider, ctx, entryPoint)) {
+            throw new AIAccessDeniedException();
+        }
     }
 
     /**

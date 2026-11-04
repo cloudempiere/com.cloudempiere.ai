@@ -290,7 +290,7 @@ Adding a REST endpoint changes this: any authenticated user could POST to `/api/
 2. Call it at the entry point of `AIService.processMessage()` — throw a `SecurityException` / return HTTP 403 for blocked callers
 3. Verify `CostGuard` budget checks remain active as a secondary backstop
 
-See [ADR-058 Known Limitation](058-ai-provider-user-role-access-control.md#known-limitation-ui-layer-enforcement-only) for full details.
+**Status:** done in CLD-2541, see [ADR-058 Backend Enforcement](058-ai-provider-user-role-access-control.md#backend-enforcement-cld-2541).
 
 ---
 

@@ -116,10 +116,7 @@ public class MAIProvider extends X_AIG_Provider implements IAIProviderConfig {
 	 */
 	public static MAIProvider getForUser(Properties ctx, String trxName) {
 		MRole role = MRole.getDefault(ctx, false);
-		String accessLevel = role != null && role.get_ColumnIndex(COLUMNNAME_AIAccessLevel) >= 0
-				? (String) role.get_Value(COLUMNNAME_AIAccessLevel) : null;
-		if (accessLevel == null)
-			accessLevel = AIACCESSLEVEL_None;
+		String accessLevel = getAccessLevel(role);
 
 		if (AIACCESSLEVEL_None.equals(accessLevel))
 			return null;
@@ -138,6 +135,73 @@ public class MAIProvider extends X_AIG_Provider implements IAIProviderConfig {
 				return userOverride;
 		}
 		return getDefault(ctx, trxName);
+	}
+
+	/**
+	 * The role's AIAccessLevel; {@link #AIACCESSLEVEL_None} when there is no role or the column
+	 * does not exist (CloudEmpiere column on AD_Role, not in upstream iDempiere).
+	 */
+	private static String getAccessLevel(MRole role) {
+		String accessLevel = role != null && role.get_ColumnIndex(COLUMNNAME_AIAccessLevel) >= 0
+				? (String) role.get_Value(COLUMNNAME_AIAccessLevel) : null;
+		return accessLevel == null ? AIACCESSLEVEL_None : accessLevel;
+	}
+
+	/**
+	 * Backend enforcement of ADR-058 (CLD-2541): may the role and user of {@code ctx} use this provider?
+	 *
+	 * <p>Same rules as {@link #getForUser(Properties, String)}, but for a provider the caller already holds:
+	 * <ul>
+	 *   <li>{@code None} (or no role / no column) — never</li>
+	 *   <li>{@code All} — any active provider of the tenant or System</li>
+	 *   <li>{@code UserRoleAccess} — only a provider with an active {@code AIG_Provider_Access} grant for the
+	 *       user or the role</li>
+	 * </ul>
+	 *
+	 * @param ctx      Context of the caller (role, user, client)
+	 * @param provider Provider the caller wants to use
+	 * @param trxName  Transaction name
+	 * @return true if the caller may use the provider
+	 */
+	public static boolean isAccessible(Properties ctx, MAIProvider provider, String trxName) {
+		if (ctx == null || provider == null)
+			return false;
+		MRole role = MRole.getDefault(ctx, false);
+		String accessLevel = getAccessLevel(role);
+		int clientId = Env.getAD_Client_ID(ctx);
+		boolean providerUsable = provider.isActive()
+				&& (provider.getAD_Client_ID() == 0 || provider.getAD_Client_ID() == clientId);
+		return isAccessAllowed(accessLevel, providerUsable,
+				() -> hasGrant(ctx, provider.getAIG_Provider_ID(), role.getAD_Role_ID(), Env.getAD_User_ID(ctx), trxName));
+	}
+
+	/**
+	 * The access decision of {@link #isAccessible(Properties, MAIProvider, String)} without database access.
+	 * The grant lookup runs only for {@code UserRoleAccess}.
+	 *
+	 * @param accessLevel    AIAccessLevel of the role (null = None)
+	 * @param providerUsable provider is active and belongs to the caller's tenant or System
+	 * @param hasGrant       whether an AIG_Provider_Access grant exists for the user or role
+	 * @return true if access is allowed
+	 */
+	public static boolean isAccessAllowed(String accessLevel, boolean providerUsable,
+			java.util.function.BooleanSupplier hasGrant) {
+		if (!providerUsable || accessLevel == null || AIACCESSLEVEL_None.equals(accessLevel))
+			return false;
+		if (AIACCESSLEVEL_All.equals(accessLevel))
+			return true;
+		if (AIACCESSLEVEL_UserRoleAccess.equals(accessLevel))
+			return hasGrant.getAsBoolean();
+		return false; // unknown value: fail closed
+	}
+
+	private static boolean hasGrant(Properties ctx, int providerId, int roleId, int userId, String trxName) {
+		if (providerId <= 0 || (roleId <= 0 && userId <= 0))
+			return false;
+		return new Query(ctx, I_AIG_Provider_Access.Table_Name,
+				"IsActive='Y' AND AIG_Provider_ID=? AND (AD_User_ID=? OR AD_Role_ID=?)", trxName)
+			.setParameters(providerId, userId > 0 ? userId : -1, roleId > 0 ? roleId : -1)
+			.match();
 	}
 
 	/**
