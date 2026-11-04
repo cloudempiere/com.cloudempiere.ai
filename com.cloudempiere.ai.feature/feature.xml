@@ -71,6 +71,14 @@
          version="0.0.0"
          unpack="false"/>
 
+   <!-- MCP server endpoint /ai-mcp (CLD-2542), off until AI_MCP_SERVER_ENABLED=Y -->
+   <plugin
+         id="com.cloudempiere.ai.mcp"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"
+         unpack="false"/>
+
    <!-- Theme Fragment -->
    <plugin
          id="com.cloudempiere.ai.theme"

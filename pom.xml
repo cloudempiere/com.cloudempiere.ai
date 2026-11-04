@@ -21,6 +21,7 @@
 		<module>com.cloudempiere.ai.purchasing</module>
 		<module>com.cloudempiere.ai.support</module>
 		<module>com.cloudempiere.ai.kb</module>
+		<module>com.cloudempiere.ai.mcp</module>
 
 		<!-- Legacy Monolithic Plugin (removed from build - use core instead) -->
 		<!-- <module>com.cloudempiere.ai.plugin</module> -->

@@ -92,6 +92,7 @@ CLASSES_DIRS=(
     "$SCRIPT_DIR/com.cloudempiere.ai.support/target/classes"
     "$SCRIPT_DIR/com.cloudempiere.ai.inventory/target/classes"
     "$SCRIPT_DIR/com.cloudempiere.ai.kb/target/classes"
+    "$SCRIPT_DIR/com.cloudempiere.ai.mcp/target/classes"
     "$SCRIPT_DIR/com.cloudempiere.ai.theme/target/classes"
 )
 
