@@ -5,7 +5,6 @@ Bundle-SymbolicName: com.cloudempiere.ai.mcp;singleton:=true
 Bundle-Version: 14.0.0.qualifier
 Bundle-Vendor: Cloudempiere
 Bundle-RequiredExecutionEnvironment: JavaSE-17
-Bundle-ActivationPolicy: lazy
 Automatic-Module-Name: com.cloudempiere.ai.mcp
 Require-Bundle: org.adempiere.base;bundle-version="[14.0.0,15.0.0)",
  org.adempiere.plugin.utils;bundle-version="[14.0.0,15.0.0)",

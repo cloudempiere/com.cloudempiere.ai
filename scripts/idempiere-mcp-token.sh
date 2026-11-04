@@ -1,6 +1,7 @@
 #!/bin/sh
 # Prints the Authorization header JSON for the iDempiere AI MCP server (/ai-mcp), for Claude Code's
-# "headersHelper". Gets a fresh access token from identity with the user's PIN (grant_type=pin).
+# "headersHelper". Gets a fresh access token from identity with the user's PIN
+# (grant_type=urn:ietf:params:oauth:grant-type:pin, OauthUtils.GRANT_TYPE_PIN).
 # Access tokens live 30 minutes, and Claude Code runs this again when it connects.
 #
 # POC only: the PIN sits in an environment variable. See docs/guides/mcp-server-setup.md.
@@ -17,7 +18,7 @@ set -eu
 : "${IDEMPIERE_CLIENT_ID:?set IDEMPIERE_CLIENT_ID}"
 : "${IDEMPIERE_PIN:?set IDEMPIERE_PIN}"
 
-set -- -d grant_type=pin --data-urlencode "client_id=$IDEMPIERE_CLIENT_ID" --data-urlencode "pin=$IDEMPIERE_PIN"
+set -- --data-urlencode "grant_type=urn:ietf:params:oauth:grant-type:pin" --data-urlencode "client_id=$IDEMPIERE_CLIENT_ID" --data-urlencode "pin=$IDEMPIERE_PIN"
 if [ -n "${IDEMPIERE_USER:-}" ]; then
   set -- "$@" --data-urlencode "username=$IDEMPIERE_USER"
 fi
