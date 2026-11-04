@@ -32,6 +32,8 @@ import com.cloudempiere.ai.provider.langchain4j.mcp.McpSecrets;
 import com.cloudempiere.ai.provider.langchain4j.mcp.McpServiceToken;
 import com.cloudempiere.ai.test.categories.UnitTest;
 
+import dev.langchain4j.mcp.client.McpHeadersSupplier;
+
 /**
  * CLD-2543: AIG_MCP_SERVERS parsing with ${env:NAME}, roles and service auth, and the client_credentials token.
  */
@@ -206,5 +208,64 @@ public class McpClientConfigTest {
         }, now::get);
         assertThatThrownBy(token::get).isInstanceOf(IllegalStateException.class)
             .hasMessageContaining("connection refused");
+    }
+
+    @Test
+    public void nonJsonTokenResponseIsReportedWithoutTheBody() {
+        McpServiceToken token = token("<html>gateway error s3cr3t</html>");
+        assertThatThrownBy(token::get).isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("no JSON").hasMessageNotContaining("s3cr3t");
+    }
+
+    @Test
+    public void missingOrZeroExpiresInUsesTheDefaultLifetime() {
+        McpServiceToken token = token("{\"access_token\":\"t1\"}", "{\"access_token\":\"t2\",\"expires_in\":0}",
+            "{\"access_token\":\"t3\"}");
+        assertThat(token.get()).isEqualTo("t1");
+        now.addAndGet(5 * 60_000L - 61_000L);
+        assertThat(token.get()).isEqualTo("t1");
+        now.addAndGet(2_000L);
+        assertThat(token.get()).isEqualTo("t2"); // expires_in 0 -> default lifetime as well
+        now.addAndGet(5 * 60_000L - 61_000L);
+        assertThat(token.get()).isEqualTo("t2");
+        assertThat(fetches).hasValue(2);
+    }
+
+    @Test
+    public void noScopeSendsNoScopeParameter() {
+        McpServiceToken token = new McpServiceToken(
+            new MAIMcpServerConfig.ServiceAuth("https://auth/oauth2/token", "c", "s", null),
+            (url, form) -> {
+                forms.add(form);
+                return "{\"access_token\":\"t\"}";
+            }, now::get);
+        token.get();
+        assertThat(forms.get(0)).doesNotContainKey("scope");
+    }
+
+    @Test
+    public void interruptedTokenRequestKeepsTheInterruptFlag() {
+        McpServiceToken token = new McpServiceToken(auth, (url, form) -> {
+            throw new InterruptedException("stop");
+        }, now::get);
+        try {
+            assertThatThrownBy(token::get).isInstanceOf(IllegalStateException.class).hasMessageContaining("interrupted");
+            assertThat(Thread.currentThread().isInterrupted()).isTrue();
+        } finally {
+            Thread.interrupted(); // clear for the next test
+        }
+    }
+
+    @Test
+    public void serviceHeadersAddAFreshBearerToTheStaticHeadersOnEveryMessage() {
+        McpServiceToken token = token("{\"access_token\":\"t1\",\"expires_in\":120}",
+            "{\"access_token\":\"t2\",\"expires_in\":120}");
+        McpHeadersSupplier headers = MCPToolProviderFactory.serviceHeaders(Map.of("X-Tenant", "1000036"), token);
+
+        Map<String, String> first = headers.apply(null);
+        assertThat(first).containsEntry("X-Tenant", "1000036").containsEntry("Authorization", "Bearer t1");
+        now.addAndGet(120_000L);
+        assertThat(headers.apply(null)).containsEntry("Authorization", "Bearer t2");
+        assertThat(first).containsEntry("Authorization", "Bearer t1"); // a new map per message
     }
 }
