@@ -40,7 +40,7 @@ import com.cloudempiere.core.base.auth.RequestSignals;
  *       protection required by the MCP transport spec); MCP clients outside a browser send none</li>
  *   <li>{@code Authorization: Bearer} is resolved to an iDempiere context by {@link RequestContextService}
  *       (ADR-0038), the same port GraphQL uses; 401 otherwise</li>
- *   <li>{@value #SYSCONFIG_ENABLED} must be Y for the caller's tenant (default N); 404 otherwise</li>
+ *   <li>{@link #SERVER_ENABLED} must be true; 404 otherwise (POC: a constant, a per-tenant setting later)</li>
  *   <li>the caller's role and user need AI access (ADR-058, {@link MAIProvider#getForUser}); 403 otherwise</li>
  *   <li>the tools are those of the chat agent, bound to the caller's context, so every database query runs
  *       under the caller's role through {@code SecureDatabaseQueryExecutor}</li>
@@ -52,7 +52,12 @@ public class McpServlet extends HttpServlet {
 
     private static final CLogger log = CLogger.getCLogger(McpServlet.class);
 
-    public static final String SYSCONFIG_ENABLED = "AI_MCP_SERVER_ENABLED";
+    /**
+     * Whether the endpoint answers at all. POC: a hardcoded switch, so no AD_SysConfig record is needed; it becomes
+     * the per-tenant setting {@code AI_MCP_SERVER_ENABLED} later. Every request still needs a valid token and a role
+     * with AI access (ADR-058).
+     */
+    public static final boolean SERVER_ENABLED = true;
     public static final String SYSCONFIG_ALLOWED_ORIGINS = "AI_MCP_ALLOWED_ORIGINS";
     public static final String SYSCONFIG_MAX_REQUEST_BYTES = "AI_MCP_MAX_REQUEST_BYTES";
 
@@ -78,7 +83,7 @@ public class McpServlet extends HttpServlet {
         } else {
             log.warning("AI MCP server: no bundle context, every request will be rejected");
         }
-        log.warning("AI MCP server endpoint ready at /ai-mcp (enable per tenant with " + SYSCONFIG_ENABLED + "=Y)");
+        log.warning("AI MCP server endpoint " + (SERVER_ENABLED ? "ready" : "disabled") + " at /ai-mcp");
     }
 
     @Override
@@ -103,7 +108,7 @@ public class McpServlet extends HttpServlet {
         ServerContext.setCurrentInstance(ctx);
         try {
             int clientId = Env.getAD_Client_ID(ctx);
-            if (!MSysConfig.getBooleanValue(SYSCONFIG_ENABLED, false, clientId)) {
+            if (!SERVER_ENABLED) {
                 sendPlain(response, HttpServletResponse.SC_NOT_FOUND, "MCP server is not enabled");
                 return;
             }

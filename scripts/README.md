@@ -160,3 +160,9 @@ Add to GitHub Actions / Jenkins:
   run: |
     ./scripts/validate-osgi-deps.sh com.cloudempiere.ai.deps
 ```
+
+## idempiere-mcp-token.sh
+
+Prints `{"Authorization":"Bearer <token>"}` for the AI MCP server (`/ai-mcp`). It gets the token from identity with
+the user's PIN (`grant_type=pin`). It's meant as Claude Code's `headersHelper`; POC only. Variables and setup:
+[docs/guides/mcp-server-setup.md](../docs/guides/mcp-server-setup.md) (3c).
