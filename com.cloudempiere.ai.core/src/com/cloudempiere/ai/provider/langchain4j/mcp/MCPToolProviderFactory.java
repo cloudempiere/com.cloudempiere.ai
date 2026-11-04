@@ -1,16 +1,15 @@
 package com.cloudempiere.ai.provider.langchain4j.mcp;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import org.compiere.model.MSysConfig;
-import org.compiere.util.CLogger;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-import dev.langchain4j.mcp.McpToolProvider;
 import dev.langchain4j.mcp.client.DefaultMcpClient;
 import dev.langchain4j.mcp.client.McpClient;
 import dev.langchain4j.mcp.client.transport.McpTransport;
@@ -24,8 +23,7 @@ import dev.langchain4j.service.tool.ToolProvider;
  * <p>Configuration lives in a single AD_SysConfig entry, {@code AIG_MCP_SERVERS}, holding a
  * JSON array. This is a deliberately minimal MVP wiring - not the full AD-table-driven,
  * role-scoped server management (AIG_MCPServer / AIG_MCPServer_Role / AIG_MCPToolAudit)
- * ADR-049 describes; that's a separate, larger piece of work (new tables, migrations,
- * an AD window, audit logging) this class does not attempt.
+ * ADR-049 describes; that's a separate, larger piece of work (CLD-2543).
  *
  * <p>Example value for AIG_MCP_SERVERS:
  * <pre>
@@ -35,65 +33,41 @@ import dev.langchain4j.service.tool.ToolProvider;
  *   {"name": "internal-tools", "transport": "http", "url": "https://mcp.example.com/tools"}
  * ]
  * </pre>
+ *
+ * <p><b>Connection lifecycle (CLD-2540).</b> MCP clients are long-lived: a stdio client owns a
+ * subprocess, an HTTP client an open session. They are therefore connected once per AD_Client and
+ * cached, keyed by the AIG_MCP_SERVERS value. The cached clients are closed and rebuilt when that
+ * value changes, closed when it is cleared, and all closed by {@link #shutdown()} (called from
+ * {@code AIService.deactivate()}). When some configured server failed to connect, the set is rebuilt
+ * at most once per {@link MCPClientCache#RETRY_INTERVAL_MS}, not on every message.
  */
 public final class MCPToolProviderFactory {
 
-    private static final CLogger log = CLogger.getCLogger(MCPToolProviderFactory.class);
-
     public static final String SYSCONFIG_KEY = "AIG_MCP_SERVERS";
+
+    /** Interval of the client's own ping; a failed ping makes it reconnect the transport. */
+    private static final Duration HEALTH_CHECK_INTERVAL = Duration.ofSeconds(60);
+    private static final Duration RECONNECT_INTERVAL = Duration.ofSeconds(10);
+
+    private static final MCPClientCache CACHE =
+        new MCPClientCache(MCPToolProviderFactory::buildClient, System::currentTimeMillis);
 
     private MCPToolProviderFactory() {
     }
 
     /**
-     * Build a {@link ToolProvider} from the AIG_MCP_SERVERS AD_SysConfig entry for the
-     * given client, or return {@code null} if no MCP servers are configured (the default -
-     * callers should treat a null return as "no MCP tools available", not an error).
+     * Return the {@link ToolProvider} for the AIG_MCP_SERVERS AD_SysConfig entry of the given client,
+     * or {@code null} if no MCP servers are configured or none could connect (callers treat null as
+     * "no MCP tools available", not an error). Repeated calls reuse the same connected clients.
      */
     public static ToolProvider getConfigured(int adClientId) {
         String json = MSysConfig.getValue(SYSCONFIG_KEY, "", adClientId);
-        if (json == null || json.isBlank()) {
-            return null;
-        }
-
-        List<MAIMcpServerConfig> configs;
-        try {
-            configs = parseServerConfigs(json);
-        } catch (Exception e) {
-            log.warning("Failed to parse " + SYSCONFIG_KEY + " AD_SysConfig value: " + e.getMessage());
-            return null;
-        }
-
-        return create(configs);
+        return CACHE.get(adClientId, json);
     }
 
-    /**
-     * Build a {@link ToolProvider} from an explicit list of server configs.
-     * Returns {@code null} if the list is empty or every server fails to connect.
-     */
-    public static ToolProvider create(List<MAIMcpServerConfig> serverConfigs) {
-        if (serverConfigs == null || serverConfigs.isEmpty()) {
-            return null;
-        }
-
-        List<McpClient> clients = new ArrayList<>();
-        for (MAIMcpServerConfig config : serverConfigs) {
-            try {
-                clients.add(buildClient(config));
-                log.info("Connected to MCP server: " + config.getName());
-            } catch (Exception e) {
-                log.warning("Failed to connect to MCP server '" + config.getName() + "': " + e.getMessage());
-            }
-        }
-
-        if (clients.isEmpty()) {
-            return null;
-        }
-
-        return McpToolProvider.builder()
-            .mcpClients(clients)
-            .failIfOneServerFails(false)
-            .build();
+    /** Close every cached MCP client. The next {@link #getConfigured(int)} connects again. */
+    public static void shutdown() {
+        CACHE.closeAll();
     }
 
     private static McpClient buildClient(MAIMcpServerConfig config) {
@@ -102,6 +76,9 @@ public final class MCPToolProviderFactory {
             .key(config.getName())
             .clientName("cloudempiere-ai")
             .transport(transport)
+            .autoHealthCheck(true)
+            .autoHealthCheckInterval(HEALTH_CHECK_INTERVAL)
+            .reconnectInterval(RECONNECT_INTERVAL)
             .build();
     }
 
