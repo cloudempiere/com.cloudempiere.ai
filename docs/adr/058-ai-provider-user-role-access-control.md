@@ -110,23 +110,15 @@ public static MAIProviderAccess get(Properties ctx, int AIG_Provider_ID,
 6. return true
 ```
 
-### Known Limitation: UI-Layer Enforcement Only
+### Backend Enforcement (CLD-2541)
 
-Access control is enforced at the **ZK UI layer** (`AIChatGadgetFactory.isAvailable()`) — the chat panel is not rendered for blocked roles/users. `AIService` itself performs **no access check** and will execute any request it receives.
+Access control was first enforced only at the **ZK UI layer** (`AIChatGadgetFactory.isAvailable()`): the chat panel is not rendered for blocked roles/users. Since CLD-2541 `AIService` enforces it too, so a REST or MCP layer wrapping `AIService` (ADR-003, ADR-049) cannot bypass it and blocked roles cannot incur token costs.
 
-This is acceptable under the current architecture because `AIService` is an OSGi service (not an HTTP endpoint) and is only reachable from within the JVM — in practice, only from `AIChatWidget`. This mirrors the iDempiere dashboard pattern (`DashboardAccessLevel` + `PA_Dashboard_Access` are also UI-only).
+- `MAIProvider.isAccessible(ctx, provider, trxName)` applies the same rules as `getForUser()` to a provider the caller already holds: `None` (or no role / no `AIAccessLevel` column) → never; `All` → any active provider of the tenant or System; `UserRoleAccess` → only with an active `AIG_Provider_Access` grant for the user or role. Unknown values fail closed.
+- Every `IAIService` entry point checks it before guardrails and model calls, and reports a denial in its own error style: `chat()` / `execute()` throw `AIAccessDeniedException` (a `SecurityException`, which HTTP maps to 403), `chatWithContext()` returns `ChatResult.error`, `chatStreamingWithContext()` (and `chatBlocking()`, which wraps it) calls `callback.onError(AIAccessDeniedException)`. Denials are logged at WARNING with provider, role, user and client.
+- `CostGuard` budget and rate limits still apply after the access check, as a coarse backstop.
 
-**This becomes a security gap as soon as a REST or HTTP layer wraps `AIService`.**
-
-#### Pre-condition for REST/MCP exposure (ADR-003, ADR-049)
-
-Before any HTTP endpoint is added that calls `AIService`, backend enforcement must be implemented:
-
-1. Extract the access-check logic from `AIChatGadgetFactory.isAvailable()` into a shared utility, e.g. `MAIProviderAccess.checkAccess(ctx, AIG_Provider_ID)` that throws or returns false for blocked callers.
-2. Call it at the start of `AIService.processMessage()` (or equivalent entry point).
-3. This also closes the **cost protection gap**: roles with `AIAccessLevel = 'N'` should not be able to incur AI token costs even via REST. `CostGuard` (budget limits) is a coarse backstop but is not a substitute for access control.
-
-**Note:** Even without backend access enforcement, data security is preserved — `SecureDatabaseQueryExecutor` enforces iDempiere role-based DB permissions on every AI-initiated query regardless of how `AIService` was reached.
+**Note:** Data security never depended on this check: `SecureDatabaseQueryExecutor` enforces iDempiere role-based DB permissions on every AI-initiated query regardless of how `AIService` was reached.
 
 ### Interaction with AIG_ChatOwnership (ADR-036)
 
