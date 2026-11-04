@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<!DOCTYPE Configure PUBLIC "-//Jetty//Configure//EN" "https://www.eclipse.org/jetty/configure_10_0.dtd">
+<!--
+    The MCP endpoint is the context root (/ai-mcp). Without allowNullPathInfo Jetty answers /ai-mcp with a
+    302 to /ai-mcp/, which behind CloudFront/ALB is emitted as http:// and turns the client's POST into a
+    body-less GET (same fix as com.cloudempiere.graphql, CLD-1972).
+-->
+<Configure class="org.eclipse.jetty.ee8.webapp.WebAppContext">
+	<Set name="allowNullPathInfo">true</Set>
+</Configure>

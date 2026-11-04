@@ -1,9 +1,51 @@
 # ADR-003: REST API for External AI Agent Access
 
-**Status:** Proposed (Target: v0.11.0)
+**Status:** Proposed (Target: v0.11.0) — **decision superseded 2026-11-04 by the embedded MCP server, see below (CLD-2542)**
 **Date:** 2025-12-01
 **Deciders:** Cloudempiere AI Team
 **Implementation Target:** Q1 2026
+
+---
+
+## Decision Update 2026-11-04: Embedded MCP Server (CLD-2542)
+
+The 2025-12 decision (standalone `idempiere-mcp-server` + `cloudempiere-cli`) is superseded. The plugin now
+contains its own MCP server, the bundle `com.cloudempiere.ai.mcp`.
+
+**Why Alternative 3 (embed MCP in OSGi) no longer stands rejected:**
+- Its main reason, "iDempiere uses Java 11", is gone: v14 runs on Java 17 (ADR-035).
+- The standalone server reaches the database through the CLI's direct JDBC. That skips
+  `SecureDatabaseQueryExecutor`, the caller's role and ADR-058 AI access, and it can't offer the AI tools.
+- No MCP SDK is needed: the protocol layer is small (`initialize`, `ping`, `tools/list`, `tools/call`), so the
+  OSGi classloader concern doesn't apply. Tool schemas and execution come from LangChain4j, which the bundle
+  already embeds.
+
+**What it is:**
+
+| | |
+|---|---|
+| Endpoint | `POST https://<server>/ai-mcp` (web bundle, `Web-ContextPath: ai-mcp`, Jetty ee8) |
+| Transport | MCP Streamable HTTP, stateless: one JSON response per POST, 202 for notifications, GET/DELETE 405, no `Mcp-Session-Id` |
+| Protocol versions | 2025-11-25, 2025-06-18, 2025-03-26 (an unknown requested version gets the newest) |
+| Auth | `Authorization: Bearer <token>`, resolved by `RequestContextService` (ADR-0038), the same port as GraphQL; 401 otherwise |
+| Switch | AD_SysConfig `AI_MCP_SERVER_ENABLED=Y` per tenant (default N; 404 while off) |
+| Access | ADR-058: the role/user needs an accessible AI provider (`MAIProvider.getForUser`); 403 otherwise |
+| Tools | The chat agent's tools: `ERPTools`, plus `RagTools` when RAG is available. They're bound to the caller's context, so every query runs under the caller's role. Domain tools (Sales, Purchasing, …) are a follow-up. |
+| Origin | When an `Origin` header is sent it must be listed in `AI_MCP_ALLOWED_ORIGINS` (comma-separated; DNS-rebinding protection); CLI clients send none |
+| Limits | Request body ≤ `AI_MCP_MAX_REQUEST_BYTES` (default 1 MB) |
+| Audit | Every `tools/call` is logged at WARNING (tool, OK/ERROR, duration, user, role, client); SQL is also audited by `SecureDatabaseQueryExecutor` |
+
+Tool failures (including unparseable arguments) are returned as tool results with `isError: true`. Protocol
+errors are returned only for an unknown tool or method, or a malformed message.
+
+**Claude Code:**
+
+```bash
+claude mcp add --transport http idempiere https://<server>/ai-mcp \
+  --header "Authorization: Bearer <token>"
+```
+
+**Not in v1:** resources, prompts, sampling, server-initiated messages, SSE streaming, and the domain tools.
 
 ---
 
