@@ -7,6 +7,33 @@
 
 ---
 
+## Update 2026-11-04: AI SQL limited to what core secures (CLD-2546)
+
+**Found:** an AI query could read other tenants' rows and tables the role may not open. Core's
+`MRole.addAccessSQL` adds the tenant and org filter to the **first table of the main SELECT only**, and nothing to
+subqueries. Core never runs user-written SQL, so that is enough for core, but not for SQL the model writes. Reproduced
+on dev through `/ai-mcp`: a JOIN and a subquery returned all 16 tenants' business partners, and a subquery read
+`AD_AuthorizationToken`, which the role was denied.
+
+**Decision (containment):** every rule comes from iDempiere core:
+
+- Only **one SELECT on one table**, decided by core's `AccessSqlParser` (`CoreSqlScope.assertSecurableByCore`):
+  subqueries, JOINs and comma joins are rejected. Related records are a second query (`WHERE <key> IN (...)`) or
+  `lookupRecord`, each secured by core again.
+- `UNION`/`INTERSECT`/`EXCEPT` and functions that run SQL given as text (`query_to_xml`, `table_to_xml`, …) are
+  rejected by `ReadOnlySqlValidator`.
+- The table must resolve in the Application Dictionary (case-insensitive) and pass `MRole.isTableAccess`. Lowercase
+  or non-AD names are no longer skipped.
+- `MRole.get(ctx, callerRole, callerUser)`: the caller's own user, as in the UI. The AI user remains in the audit
+  (`AIG_QueryAudit.AD_User_ID`).
+- Core's parser reads SQL keywords in upper case only; lowercase keywords are rejected with a hint.
+
+**Follow-up (real fix):** data tools through the PO layer (`Query` + `setApplyAccessFilter(true, false)`, structured
+filters with parameters, `MRole.isColumnAccess`), free-SQL `queryDatabase` off by default, `listTables` /
+`getTableMetadata` filtered by role. Column masking is still name-based (`SENSITIVE_PATTERNS`) until then.
+
+---
+
 ## Context
 
 ### Problem Statement

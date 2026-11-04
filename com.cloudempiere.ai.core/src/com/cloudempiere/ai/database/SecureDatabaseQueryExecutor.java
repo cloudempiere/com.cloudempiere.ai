@@ -156,8 +156,9 @@ public class SecureDatabaseQueryExecutor {
             }
 
             // 3. Get logged-in user's role (permissions to apply)
-            // Use AI User ID but logged-in user's Role ID for permission checks
-            MRole role = MRole.get(ctx, loggedInRoleId, aiUserId, false);
+            // CLD-2546: the caller's own user and role, as in the UI: user-dependent rules (user org access,
+            // personal and private records) are the caller's. The AI user is kept for the audit only.
+            MRole role = MRole.get(ctx, loggedInRoleId, loggedInUserId, false);
             result.setUserId(aiUserId);
             result.setRoleId(loggedInRoleId);
             result.setRoleName(role.getName());
@@ -178,6 +179,9 @@ public class SecureDatabaseQueryExecutor {
                 sqlWithoutTrailingClauses = extractedClauses.sqlWithoutTrailingClauses;
                 log.fine("Stripped trailing clauses from SQL: " + extractedClauses.getAllClauses());
             }
+
+            // CLD-2546: only what core's MRole.addAccessSQL secures completely: one table in one SELECT
+            CoreSqlScope.assertSecurableByCore(sqlWithoutTrailingClauses);
 
             // Extract table info (names and aliases) from the query without trailing clauses
             List<TableInfoHolder> tableInfoList = extractTableInfo(sqlWithoutTrailingClauses);
@@ -445,8 +449,16 @@ public class SecureDatabaseQueryExecutor {
                             }
                             tableName = tableName.trim();
 
-                            // FILTER: Only add if it looks like a valid table name and exists in AD_Table
-                            if (isValidTableName(tableName)) {
+                            // CLD-2546: every table must be in the Application Dictionary (case-insensitive), so the
+                            // role's table access can be checked. Skipping unknown or lowercase names left them unchecked
+                            // (JOIN ad_authorizationtoken, JOIN pg_stat_activity).
+                            if (tableName.isEmpty()) {
+                                continue;
+                            }
+                            if (getTableId(tableName) <= 0) {
+                                throw new SecurityException("Table not in the Application Dictionary: " + tableName);
+                            }
+                            {
                                 // Get the alias/synonym from parser
                                 String alias = info.getSynonym();
                                 tables.add(new TableInfoHolder(tableName, alias));
@@ -462,74 +474,14 @@ public class SecureDatabaseQueryExecutor {
                 throw new IllegalArgumentException("No tables found in SQL query");
             }
 
+        } catch (SecurityException | IllegalArgumentException e) {
+            throw e;
         } catch (Exception e) {
             log.log(Level.WARNING, "Error parsing SQL for table names", e);
             throw new IllegalArgumentException("Invalid SQL structure: " + e.getMessage());
         }
 
         return tables;
-    }
-
-    /**
-     * Validate if a string is a valid iDempiere table name
-     * <p>
-     * Filters out:
-     * - Single letter identifiers (likely aliases like 'o', 'b')
-     * - Column names (contain '_ID' suffix or lowercase)
-     * - Invalid characters
-     * - Names that don't exist in AD_Table
-     *
-     * @param tableName potential table name to validate
-     * @return true if valid table name
-     */
-    private boolean isValidTableName(String tableName) {
-        if (tableName == null || tableName.isEmpty()) {
-            return false;
-        }
-
-        // Filter out single-letter aliases (o, b, t, etc.)
-        if (tableName.length() == 1) {
-            log.fine("Filtered out single-letter identifier: " + tableName);
-            return false;
-        }
-
-        // Filter out lowercase identifiers (likely aliases)
-        if (tableName.equals(tableName.toLowerCase())) {
-            log.fine("Filtered out lowercase identifier (likely alias): " + tableName);
-            return false;
-        }
-
-        // iDempiere tables typically start with a capital letter followed by underscore
-        // Examples: C_Order, AD_User, M_Product
-        if (!tableName.matches("^[A-Z][A-Z]?_[A-Za-z0-9_]+$")) {
-            // If it doesn't match the pattern, check if it exists anyway (for edge cases)
-            boolean exists = tableExistsInDatabase(tableName);
-            if (!exists) {
-                log.fine("Filtered out non-standard table name: " + tableName);
-            }
-            return exists;
-        }
-
-        // Verify the table actually exists in AD_Table
-        return tableExistsInDatabase(tableName);
-    }
-
-    /**
-     * Check if table exists in iDempiere's AD_Table
-     *
-     * @param tableName table name to check
-     * @return true if table exists
-     */
-    private boolean tableExistsInDatabase(String tableName) {
-        try {
-            int tableId = DB.getSQLValue(null,
-                "SELECT AD_Table_ID FROM AD_Table WHERE UPPER(TableName)=?",
-                tableName.toUpperCase());
-            return tableId > 0;
-        } catch (Exception e) {
-            log.fine("Error checking table existence: " + tableName + " - " + e.getMessage());
-            return false;
-        }
     }
 
     /**
