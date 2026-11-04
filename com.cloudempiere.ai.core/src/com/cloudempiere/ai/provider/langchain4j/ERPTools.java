@@ -125,14 +125,15 @@ public class ERPTools {
           "Results are filtered by user's role permissions. Returns JSON array of rows with schemaHints. " +
           "Query standard iDempiere tables directly; tables and columns are checked against the dictionary and an " +
           "error lists the exact columns. Call prepareQuery() only when unsure about a table. " +
-          "Answer in ONE query: JOIN referenced tables to return names (schemaHints show e.g. " +
-          "'C_BPartner_ID -> C_BPartner (name: Name)') instead of looking records up afterwards. " +
-          "ON conditions MUST be wrapped in parentheses: JOIN t ON (a.col = b.col). " +
+          "ONE table per query: JOINs, subqueries and UNION are rejected, because iDempiere secures one table per " +
+          "query (CLD-2546). For names of referenced records (schemaHints show e.g. " +
+          "'C_BPartner_ID -> C_BPartner (name: Name)') run a second query on that table with the IDs from the " +
+          "first result (WHERE C_BPartner_ID IN (...)) or use lookupRecord. " +
           "The document type of an order or invoice is C_DocTypeTarget_ID (C_DocType_ID is 0 until it is " +
           "processed). DocStatus: DR draft, IP in progress, CO completed, CL closed, VO voided, RE reversed. " +
-          "Example: SELECT o.DocumentNo, o.DateOrdered, bp.Name AS BPartner, dt.Name AS DocType, o.GrandTotal, " +
-          "o.DocStatus FROM C_Order o JOIN C_BPartner bp ON (bp.C_BPartner_ID = o.C_BPartner_ID) " +
-          "JOIN C_DocType dt ON (dt.C_DocType_ID = o.C_DocTypeTarget_ID) ORDER BY o.Created DESC LIMIT 1")
+          "Example: SELECT DocumentNo, DateOrdered, C_BPartner_ID, C_DocTypeTarget_ID, GrandTotal, DocStatus " +
+          "FROM C_Order ORDER BY Created DESC LIMIT 1, then SELECT C_BPartner_ID, Name FROM C_BPartner " +
+          "WHERE C_BPartner_ID IN (<ids>)")
     public String queryDatabase(
         @P("SQL SELECT query to execute") String sql,
         @P("Maximum number of rows to return (default 50, max 500)") Integer maxRows,
@@ -279,7 +280,7 @@ public class ERPTools {
         }
         result.put("schemas", schemas);
         result.put("hint", "Use exact column names above when writing SQL. " +
-            "ON conditions must be wrapped in parentheses: JOIN table ON (a.col = b.col).");
+            "One table per query: no JOINs, subqueries or UNION; query related tables separately.");
 
         log.warning("[PREPARE-QUERY] Tables: " + preparedArray);
         fireToolComplete(toolName, "Prepared " + preparedArray.length() + " tables: " + preparedArray);
@@ -288,7 +289,7 @@ public class ERPTools {
 
     @Tool("Look up a specific record by ID from an iDempiere table. " +
           "Returns all accessible columns for the record as JSON. " +
-          "Not for names of records a query already returned: JOIN them in that query instead.")
+          "For names of records a query returned, prefer one query on the referenced table with WHERE <key> IN (...).")
     public String lookupRecord(
         @P("Table name (e.g., C_Order, C_BPartner, M_Product)") String tableName,
         @P("Record ID to look up") int recordId

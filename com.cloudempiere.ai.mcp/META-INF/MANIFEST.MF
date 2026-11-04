@@ -5,6 +5,7 @@ Bundle-SymbolicName: com.cloudempiere.ai.mcp;singleton:=true
 Bundle-Version: 14.0.0.qualifier
 Bundle-Vendor: Cloudempiere
 Bundle-RequiredExecutionEnvironment: JavaSE-17
+Bundle-ActivationPolicy: lazy
 Automatic-Module-Name: com.cloudempiere.ai.mcp
 Require-Bundle: org.adempiere.base;bundle-version="[14.0.0,15.0.0)",
  org.adempiere.plugin.utils;bundle-version="[14.0.0,15.0.0)",
@@ -17,5 +18,6 @@ Import-Package: com.cloudempiere.core.base.auth,
  org.osgi.framework,
  org.osgi.util.tracker
 Export-Package: com.cloudempiere.ai.mcp;version="14.0.0"
+Service-Component: OSGI-INF/*.xml
 Web-ContextPath: ai-mcp
 Jetty-Environment: ee8

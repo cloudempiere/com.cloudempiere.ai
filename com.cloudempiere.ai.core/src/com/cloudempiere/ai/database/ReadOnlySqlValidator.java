@@ -41,6 +41,13 @@ public final class ReadOnlySqlValidator {
         "COPY", "COMMIT", "ROLLBACK", "ABORT", "SET", "RESET"
     };
 
+    /**
+     * CLD-2546: set operations. Core's {@code MRole.addAccessSQL} secures one SELECT; the SELECT after a
+     * {@code UNION} would be read without the role's tenant, org and table rules.
+     */
+    private static final Pattern SET_OPERATION = Pattern.compile("\\b(UNION|INTERSECT|EXCEPT)\\b");
+
+
     private static final Pattern[] FORBIDDEN_KEYWORD_PATTERNS = compile(FORBIDDEN_KEYWORDS);
 
     /** Row locking clauses: they block other sessions even though they write nothing. */
@@ -54,7 +61,10 @@ public final class ReadOnlySqlValidator {
     private static final Pattern DENIED_FUNCTION = Pattern.compile(
         "\\b(PG_TERMINATE_BACKEND|PG_CANCEL_BACKEND|PG_SLEEP\\w*|PG_RELOAD_CONF|PG_ROTATE_LOGFILE"
         + "|PG_READ_FILE|PG_READ_BINARY_FILE|PG_LS_DIR|PG_STAT_FILE|PG_ADVISORY\\w*|PG_TRY_ADVISORY\\w*"
-        + "|SET_CONFIG|NEXTVAL|SETVAL|LO_\\w+|DBLINK\\w*|DBMS_[\\w.]+|UTL_[\\w.]+)\\s*\\(");
+        + "|SET_CONFIG|NEXTVAL|SETVAL|LO_\\w+|DBLINK\\w*|DBMS_[\\w.]+|UTL_[\\w.]+"
+        // CLD-2546: run a query given as text, outside the role's access rules; read server settings
+        + "|QUERY_TO_XML\\w*|TABLE_TO_XML\\w*|CURSOR_TO_XML\\w*|DATABASE_TO_XML\\w*|SCHEMA_TO_XML\\w*"
+        + "|CURRENT_SETTING|PG_SETTINGS_\\w*)\\s*\\(");
 
     private static Pattern[] compile(String[] words) {
         Pattern[] result = new Pattern[words.length];
@@ -119,6 +129,12 @@ public final class ReadOnlySqlValidator {
         java.util.regex.Matcher fn = DENIED_FUNCTION.matcher(code);
         if (fn.find()) {
             throw new SecurityException("Forbidden SQL function: " + fn.group(1));
+        }
+        // CLD-2546: core's MRole.addAccessSQL secures one SELECT; the SELECT after a UNION would be read without the
+        // role's rules. Subqueries and joins are checked with core's AccessSqlParser in the executor.
+        java.util.regex.Matcher setOp = SET_OPERATION.matcher(code);
+        if (setOp.find()) {
+            throw new SecurityException(setOp.group(1) + " is not allowed: run separate queries instead");
         }
     }
 

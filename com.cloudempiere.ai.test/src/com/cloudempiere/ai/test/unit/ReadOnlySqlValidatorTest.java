@@ -35,13 +35,48 @@ class ReadOnlySqlValidatorTest {
             "SELECT * FROM M_Product WHERE Name LIKE '%set%'",
             "SELECT * FROM M_Product WHERE Value = 'Insert' OR Name = 'Delete me'",
             "SELECT 'it''s fine; really' AS msg FROM Dual",
-            "SELECT (SELECT MAX(Created) FROM AD_User) FROM Dual",
-            "SELECT current_setting('server_version')",
+            // CLD-2546: the text check leaves joins and subqueries to core's AccessSqlParser in the executor
+            // (SecureDatabaseQueryExecutor.assertSecurableByCore); words that only contain UNION are not keywords
+            "SELECT o.DocumentNo, bp.Name FROM C_Order o JOIN C_BPartner bp ON (bp.C_BPartner_ID = o.C_BPartner_ID)",
+            "SELECT IsSelected, SelectionDate FROM T_Selection",
+            "SELECT * FROM C_BPartner WHERE Name = 'Union Bank' OR Name = 'select one'",
+            "SELECT * FROM C_BPartner WHERE Description LIKE '%(SELECT 1)%'",
             "SELECT * FROM AD_User;",
             "SELECT *\nFROM AD_User\nWHERE IsActive = 'Y'",
         })
         void ordinaryQueries(String sql) {
             assertThatCode(() -> ReadOnlySqlValidator.validate(sql)).doesNotThrowAnyException();
+        }
+    }
+
+    @Nested
+    @DisplayName("rejects set operations and SQL given as text (CLD-2546)")
+    class RejectsUnsecurable {
+
+        @ParameterizedTest(name = "[{index}] {0}")
+        @ValueSource(strings = {
+            // set operations: the second SELECT would be read without the rules
+            "SELECT Name FROM C_BPartner UNION SELECT Token FROM AD_AuthorizationToken",
+            "SELECT Name FROM C_BPartner UNION ALL SELECT Name FROM AD_User",
+            "SELECT Name FROM C_BPartner INTERSECT SELECT Name FROM AD_User",
+            "SELECT Name FROM C_BPartner EXCEPT SELECT Name FROM AD_User",
+            // a query given as text runs outside the rules
+            "SELECT query_to_xml('select * from ad_authorizationtoken', true, false, '')",
+            "SELECT table_to_xml('ad_user', true, false, '')",
+            "SELECT database_to_xml(true, false, '')",
+            "SELECT schema_to_xml('adempiere', true, false, '')",
+            "SELECT cursor_to_xml('c', 10, true, false, '')",
+            // server settings
+            "SELECT current_setting('server_version')",
+        })
+        void unsecurableStatements(String sql) {
+            assertThatThrownBy(() -> ReadOnlySqlValidator.validate(sql)).isInstanceOf(SecurityException.class);
+        }
+
+        @org.junit.jupiter.api.Test
+        void messageTellsTheModelWhatToDoInstead() {
+            assertThatThrownBy(() -> ReadOnlySqlValidator.validate("SELECT Name FROM A UNION SELECT Name FROM B"))
+                .hasMessageContaining("UNION is not allowed");
         }
     }
 
