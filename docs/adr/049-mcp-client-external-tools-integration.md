@@ -1,10 +1,41 @@
 # ADR-049: MCP Client Integration for External Tool Access
 
-**Status:** Proposed (Ready for iDempiere v11)
+**Status:** Proposed (Ready for iDempiere v11) — **implemented without the AD tables, see the update below (CLD-2540, CLD-2543)**
 **Date:** 2025-12-21
 **Deciders:** Cloudempiere AI Team
 **Depends On:** ADR-002, ADR-003, ADR-035
 **Target:** iDempiere Release-11 (Java 17)
+
+---
+
+## Implementation Update 2026-11-04 (CLD-2540, CLD-2543)
+
+The MCP client is built **without** the `AIG_MCPServer`, `AIG_MCPServer_Role` and `AIG_MCPToolAudit` tables
+designed below. Everything lives in the AD_SysConfig `AIG_MCP_SERVERS` (a JSON array per tenant) and in existing
+tables:
+
+| Need | How (package `com.cloudempiere.ai.provider.langchain4j.mcp`) |
+|---|---|
+| Connections | `MCPClientCache`: one set of clients per tenant, rebuilt when the JSON changes, closed by `AIService.clearAllCaches()` (CLD-2540) |
+| Role access | `"roles": [AD_Role_ID, …]` per server; no `roles` = every role. `McpCallerToolProvider` offers a caller only the allowed servers' tools; connections stay shared |
+| Audit | Every external tool call → `AIG_QueryAudit` with `AIGContextType='MCP'`, `AIGQueryPurpose='mcp:<server>.<tool>'`, arguments in `AIGQuerySQL` (secret-looking keys masked), status, duration. Like ERPTools: `AD_User_ID` = provider's AI user, `CreatedBy` = caller |
+| Secrets | `${env:NAME}` in url, headers, env, command and auth; an entry with an unset variable is skipped with a warning |
+| Service auth | `"auth": {"type": "service", "tokenUrl", "clientId", "clientSecret", "scope"}` (HTTP): client_credentials token, cached until expiry, sent as `Authorization: Bearer` per message (`McpServiceToken`, `McpHeadersSupplier`) |
+
+```json
+[
+  {"name": "github", "transport": "stdio", "command": ["npx", "-y", "@modelcontextprotocol/server-github"],
+   "env": {"GITHUB_PERSONAL_ACCESS_TOKEN": "${env:GITHUB_TOKEN}"}, "roles": [1000003]},
+  {"name": "internal-tools", "transport": "http", "url": "https://mcp.example.com/tools",
+   "auth": {"type": "service", "tokenUrl": "https://auth.example.com/oauth2/token",
+            "clientId": "${env:TOOLS_CLIENT_ID}", "clientSecret": "${env:TOOLS_CLIENT_SECRET}", "scope": "api.read"}}
+]
+```
+
+**Not built (follow-ups):** a per-user token for the calling user (`idempiere-user`; needs a token-issuing port in
+`com.cloudempiere.core.base.auth`, ADR-0029), delegation as the person (ADR-0040; the session does not keep the
+user's Cognito token), and an AD window for the server list. The table design below stays as the option if
+admins need a window.
 
 ---
 

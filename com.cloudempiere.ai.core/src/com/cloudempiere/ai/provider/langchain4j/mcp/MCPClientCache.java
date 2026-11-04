@@ -9,13 +9,14 @@ import java.util.function.LongSupplier;
 
 import org.compiere.util.CLogger;
 
-import dev.langchain4j.mcp.McpToolProvider;
 import dev.langchain4j.mcp.client.McpClient;
-import dev.langchain4j.service.tool.ToolProvider;
 
 /**
  * Per-AD_Client cache of connected MCP clients (CLD-2540), used by {@link MCPToolProviderFactory}.
  * The client builder and the clock are injected so it can be unit-tested without real MCP servers.
+ *
+ * <p>It hands out the connected servers with their configuration ({@link Connection}), not a ready tool provider:
+ * which servers a request may use depends on the caller's role (CLD-2543), see {@link McpCallerToolProvider}.
  */
 public final class MCPClientCache {
 
@@ -23,6 +24,25 @@ public final class MCPClientCache {
 
     /** How long to wait before retrying servers that failed to connect. */
     public static final long RETRY_INTERVAL_MS = 5 * 60 * 1000L;
+
+    /** A connected server: its configuration and the shared client. */
+    public static final class Connection {
+        private final MAIMcpServerConfig config;
+        private final McpClient client;
+
+        public Connection(MAIMcpServerConfig config, McpClient client) {
+            this.config = config;
+            this.client = client;
+        }
+
+        public MAIMcpServerConfig config() {
+            return config;
+        }
+
+        public McpClient client() {
+            return client;
+        }
+    }
 
     private final Function<MAIMcpServerConfig, McpClient> clientBuilder;
     private final LongSupplier clock;
@@ -33,19 +53,24 @@ public final class MCPClientCache {
         this.clock = clock;
     }
 
-    public ToolProvider get(int adClientId, String json) {
+    /**
+     * The connected servers of the tenant's configuration, connecting them on first use or after a change.
+     *
+     * @return the connections; empty when nothing is configured, the configuration is invalid or no server connected
+     */
+    public List<Connection> get(int adClientId, String json) {
         String config = json == null ? "" : json.trim();
         Entry entry = entries.get(adClientId);
         if (entry == null && config.isEmpty()) {
-            return null; // not configured: the common case, no lock
+            return List.of(); // not configured: the common case, no lock
         }
         if (entry != null && entry.isValidFor(config, clock.getAsLong())) {
-            return entry.provider;
+            return entry.connections;
         }
         synchronized (this) {
             entry = entries.get(adClientId);
             if (entry != null && entry.isValidFor(config, clock.getAsLong())) {
-                return entry.provider;
+                return entry.connections;
             }
             Entry rebuilt = config.isEmpty() ? null : connect(config);
             if (rebuilt == null) {
@@ -56,7 +81,7 @@ public final class MCPClientCache {
             if (entry != null) {
                 entry.close();
             }
-            return rebuilt == null ? null : rebuilt.provider;
+            return rebuilt == null ? List.of() : rebuilt.connections;
         }
     }
 
@@ -79,14 +104,14 @@ public final class MCPClientCache {
         } catch (Exception e) {
             log.warning("Failed to parse " + MCPToolProviderFactory.SYSCONFIG_KEY + " AD_SysConfig value: " + e.getMessage());
             // Cache the bad value too, so it isn't re-parsed and re-logged on every message
-            return new Entry(config, null, List.of(), false, clock.getAsLong());
+            return new Entry(config, List.of(), false, clock.getAsLong());
         }
 
-        List<McpClient> clients = new ArrayList<>();
+        List<Connection> connections = new ArrayList<>();
         boolean anyFailed = false;
         for (MAIMcpServerConfig serverConfig : serverConfigs) {
             try {
-                clients.add(clientBuilder.apply(serverConfig));
+                connections.add(new Connection(serverConfig, clientBuilder.apply(serverConfig)));
                 log.warning("Connected to MCP server: " + serverConfig.getName());
             } catch (Exception e) {
                 anyFailed = true;
@@ -94,25 +119,18 @@ public final class MCPClientCache {
             }
         }
 
-        ToolProvider provider = clients.isEmpty() ? null
-            : McpToolProvider.builder()
-                .mcpClients(clients)
-                .failIfOneServerFails(false)
-                .build();
-        return new Entry(config, provider, clients, anyFailed, clock.getAsLong());
+        return new Entry(config, List.copyOf(connections), anyFailed, clock.getAsLong());
     }
 
     private static final class Entry {
         final String config;
-        final ToolProvider provider;
-        final List<McpClient> clients;
+        final List<Connection> connections;
         final boolean anyFailed;
         final long createdAt;
 
-        Entry(String config, ToolProvider provider, List<McpClient> clients, boolean anyFailed, long createdAt) {
+        Entry(String config, List<Connection> connections, boolean anyFailed, long createdAt) {
             this.config = config;
-            this.provider = provider;
-            this.clients = clients;
+            this.connections = connections;
             this.anyFailed = anyFailed;
             this.createdAt = createdAt;
         }
@@ -125,7 +143,8 @@ public final class MCPClientCache {
         }
 
         void close() {
-            for (McpClient client : clients) {
+            for (Connection connection : connections) {
+                McpClient client = connection.client();
                 try {
                     client.close();
                 } catch (Exception e) {
