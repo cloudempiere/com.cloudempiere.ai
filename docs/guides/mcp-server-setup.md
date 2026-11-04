@@ -98,7 +98,8 @@ when they do.
 
 **c) POC: a person logs in with their own PIN (fastest to set up)**
 
-Identity's token endpoint already issues tokens for a PIN (`grant_type=pin`, `TokenPinGrantTypeHandler`). Nothing
+Identity's token endpoint already issues tokens for a PIN (`grant_type=urn:ietf:params:oauth:grant-type:pin`,
+`TokenPinGrantTypeHandler`). Nothing
 new has to be built:
 
 1. An app client (`AD_Authorization_AppClient`) whose `AD_Role_AppClientAccess` gives the role from step 2.
@@ -107,7 +108,8 @@ new has to be built:
 
 ```bash
 curl -s -X POST https://<host>/auth/token \
-  -d grant_type=pin -d client_id=<app client> -d username=<e-mail> -d pin=<PIN>
+  --data-urlencode grant_type=urn:ietf:params:oauth:grant-type:pin \
+  -d client_id=<app client> -d username=<e-mail> -d pin=<PIN>
 # → { "access_token": "...", "expires_in": 1800, "refresh_token": "..." }
 ```
 
