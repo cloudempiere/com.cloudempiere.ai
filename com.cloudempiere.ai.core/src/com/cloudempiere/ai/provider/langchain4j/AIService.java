@@ -1845,6 +1845,8 @@ public class AIService implements IAIService {
         memoryCache.clear();
         streamingModelCache.clear();
         LangChain4jProviderFactory.clearCache();
+        // Close the external MCP clients (stdio subprocesses, HTTP sessions); they reconnect on next use
+        MCPToolProviderFactory.shutdown();
         log.info("All caches cleared");
     }
 
