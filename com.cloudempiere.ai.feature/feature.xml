@@ -71,7 +71,7 @@
          version="0.0.0"
          unpack="false"/>
 
-   <!-- MCP server endpoint /ai-mcp (CLD-2542), off until AI_MCP_SERVER_ENABLED=Y -->
+   <!-- MCP server endpoint /ai-mcp (CLD-2542); POC: always on, see McpServlet.SERVER_ENABLED -->
    <plugin
          id="com.cloudempiere.ai.mcp"
          download-size="0"

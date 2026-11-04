@@ -28,7 +28,7 @@ contains its own MCP server, the bundle `com.cloudempiere.ai.mcp`.
 | Transport | MCP Streamable HTTP, stateless: one JSON response per POST, 202 for notifications, GET/DELETE 405, no `Mcp-Session-Id` |
 | Protocol versions | 2025-11-25, 2025-06-18, 2025-03-26 (an unknown requested version gets the newest) |
 | Auth | `Authorization: Bearer <token>`, resolved by `RequestContextService` (ADR-0038), the same port as GraphQL; 401 otherwise |
-| Switch | AD_SysConfig `AI_MCP_SERVER_ENABLED=Y` per tenant (default N; 404 while off) |
+| Switch | POC: hardcoded `McpServlet.SERVER_ENABLED = true` (404 when false); later the per-tenant AD_SysConfig `AI_MCP_SERVER_ENABLED` |
 | Access | ADR-058: the role/user needs an accessible AI provider (`MAIProvider.getForUser`); 403 otherwise |
 | Tools | The chat agent's tools: `ERPTools`, plus `RagTools` when RAG is available. They're bound to the caller's context, so every query runs under the caller's role. Domain tools (Sales, Purchasing, …) are a follow-up. |
 | Origin | When an `Origin` header is sent it must be listed in `AI_MCP_ALLOWED_ORIGINS` (comma-separated; DNS-rebinding protection); CLI clients send none |
