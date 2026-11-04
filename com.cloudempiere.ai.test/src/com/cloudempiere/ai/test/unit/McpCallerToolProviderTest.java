@@ -70,6 +70,9 @@ public class McpCallerToolProviderTest {
                     case "executeTool": {
                         ToolExecutionRequest request = (ToolExecutionRequest) args[0];
                         now.addAndGet(42);
+                        if (request.name().startsWith("throw_")) {
+                            throw new IllegalStateException("server crashed");
+                        }
                         boolean fail = request.name().startsWith("fail_");
                         return ToolExecutionResult.builder()
                             .isError(fail)
@@ -145,6 +148,36 @@ public class McpCallerToolProviderTest {
         assertThat(audit).containsExactly(
             "github.create_issue OK 42ms {\"title\":\"Bug\"}",
             "github.fail_merge ERROR 42ms {} remote failure");
+    }
+
+    @Test
+    public void throwingToolIsAuditedAsErrorThroughBothExecutePaths() {
+        ToolProviderResult result = new McpCallerToolProvider(
+            List.of(server("github", Set.of(), "throw_merge")), SALES, recorder, now::get).provideTools(request());
+        ToolExecutor merge = executor(result, "throw_merge");
+        ToolExecutionRequest call = ToolExecutionRequest.builder().id("1").name("throw_merge").arguments("{}").build();
+
+        // McpToolProvider may turn the exception into an error result or let it through; either way it is an ERROR
+        outcome(() -> merge.execute(call, "m"));
+        outcome(() -> {
+            ToolExecutionResult r = merge.executeWithContext(call, null);
+            if (r != null && !r.isError()) {
+                throw new AssertionError("a crashed tool must not look successful");
+            }
+            return r;
+        });
+
+        assertThat(audit).hasSize(2).allSatisfy(line -> assertThat(line).startsWith("github.throw_merge ERROR"));
+    }
+
+    private static void outcome(java.util.concurrent.Callable<?> call) {
+        try {
+            call.call();
+        } catch (AssertionError e) {
+            throw e;
+        } catch (Exception e) {
+            // rethrown by the audited executor: fine
+        }
     }
 
     @Test

@@ -163,7 +163,7 @@ public final class MCPToolProviderFactory {
     }
 
     /** The static headers plus a fresh {@code Authorization: Bearer} on every message. */
-    static McpHeadersSupplier serviceHeaders(Map<String, String> headers, McpServiceToken token) {
+    public static McpHeadersSupplier serviceHeaders(Map<String, String> headers, McpServiceToken token) {
         return callContext -> {
             Map<String, String> all = new HashMap<>(headers);
             all.put("Authorization", "Bearer " + token.get());
